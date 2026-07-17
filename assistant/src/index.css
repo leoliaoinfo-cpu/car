@@ -34,7 +34,7 @@
     --c-ink3: 118 133 145;
   }
 
-  html { font-family: 'Noto Sans TC', 'PingFang TC', system-ui, sans-serif; }
+  html { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; }
   body { background-color: rgb(var(--c-bg)); color: rgb(var(--c-ink)); }
   * { box-sizing: border-box; }
   input, textarea, select {

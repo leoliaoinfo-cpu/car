@@ -28,7 +28,13 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['"Noto Sans TC"', '"PingFang TC"', 'system-ui', 'sans-serif'],
+        // 裝置內建繁中字體優先（iOS/macOS 蘋方、Windows 微軟正黑、Android 思源）
+        // ——瀏覽器用清單中第一個「已安裝」的字體，全部免下載、瞬間顯示。
+        sans: [
+          '-apple-system', 'BlinkMacSystemFont',
+          '"PingFang TC"', '"Microsoft JhengHei"', '"Noto Sans TC"',
+          'system-ui', 'sans-serif',
+        ],
       },
       boxShadow: {
         card: '0 1px 4px rgba(0,0,0,0.15)',
