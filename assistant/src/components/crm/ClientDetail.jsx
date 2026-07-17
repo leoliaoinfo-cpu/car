@@ -31,7 +31,29 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
     deals, dealFields, saveDeal, todoTemplate, industries,
+    events, saveEvent, deleteEvent,
   } = useApp();
+
+  // 此客戶的生日 / 重要日子（行事曆活動）
+  const clientEvents = events
+    .filter((e) => e.clientId === client.id)
+    .sort((a, b) => (a.date.slice(5)).localeCompare(b.date.slice(5)));
+  const [evTitle, setEvTitle] = useState('');
+  const [evDate, setEvDate] = useState('');
+  const [evYearly, setEvYearly] = useState(true);
+
+  async function addClientEvent() {
+    if (!evTitle.trim() || !evDate) return;
+    const title = evTitle.trim();
+    setEvTitle('');
+    setEvDate('');
+    await saveEvent({
+      id: generateId('event'),
+      title, date: evDate, time: '',
+      repeat: evYearly ? 'yearly' : 'none',
+      clientId: client.id, note: '',
+    });
+  }
 
   // 產業下拉：設定的選項＋此客戶目前已存值（早期自由填寫的也不會消失）
   const industryOptions = [...new Set([...(industries || []), client.industry].filter(Boolean))];
@@ -622,6 +644,38 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               </button>
             ))}
           </div>
+        </section>
+
+        {/* 生日 / 重要日子（行事曆活動，可每年重複提醒） */}
+        <section className="card p-4 space-y-2">
+          <h3 className="font-semibold text-sm text-ink-2">🎂 生日 / 重要日子</h3>
+          {clientEvents.length === 0 && (
+            <p className="text-xs text-ink-3">記錄客戶生日或重要日子，到期會出現在「今日工作」與行事曆。</p>
+          )}
+          {clientEvents.map((e) => (
+            <div key={e.id} className="flex items-center gap-2 text-sm bg-s2 rounded-lg px-3 py-2">
+              <span className="text-ink-3 font-mono text-xs shrink-0">
+                {e.repeat === 'yearly' ? dayjs(e.date).format('MM/DD') : dayjs(e.date).format('YYYY/MM/DD')}
+              </span>
+              <span className="flex-1 truncate text-ink-2">{e.title}</span>
+              {e.repeat === 'yearly' && <span className="text-[10px] text-ink-3 shrink-0">🔁 每年</span>}
+              <button onClick={() => deleteEvent(e.id)} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
+            </div>
+          ))}
+          <div className="flex gap-2 items-end pt-1">
+            <Field label="名稱" className="flex-1">
+              <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)}
+                placeholder="例：老闆生日" className="w-full text-sm" />
+            </Field>
+            <Field label="日期" className="w-32 shrink-0">
+              <input type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} className="w-full text-sm" />
+            </Field>
+            <button onClick={addClientEvent} className="btn-primary text-xs mb-0.5 shrink-0">加入</button>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-ink-3 cursor-pointer">
+            <input type="checkbox" checked={evYearly} onChange={(e) => setEvYearly(e.target.checked)} className="shrink-0" />
+            每年重複（生日、紀念日建議勾選）
+          </label>
         </section>
 
         {/* Contact actions */}

@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import { useApp } from '../../context';
 import { getClientStatus, STATUS_COLOR, formatMoney, generateId, getOccasionsOnDate } from '../../utils/crm';
 import { today } from '../../utils/date';
+import { Field } from '../ui';
 import dayjs from 'dayjs';
 
-// 行事曆事件型別（追蹤 / 提醒 / 成交 / 紀念日）
+// 行事曆事件型別（活動 / 追蹤 / 提醒 / 成交 / 紀念日）
 const EV = {
+  event:    { icon: '🗓', label: '活動', color: '#6f9a9c' },
   follow:   { icon: '📅', label: '追蹤', color: '#bf8a5e' },
   timer:    { icon: '⏰', label: '提醒', color: '#9382a5' },
   deal:     { icon: '🏆', label: '成交', color: '#a99760' },
@@ -13,10 +15,11 @@ const EV = {
 };
 
 export default function CalendarPage({ onOpenClient }) {
-  const { clients, timers, deals, customFields, updateClient, thresholds } = useApp();
+  const { clients, timers, deals, customFields, events, saveEvent, deleteEvent, updateClient, thresholds } = useApp();
   const todayStr = today();
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [eventModal, setEventModal] = useState(null); // null | {date} 新增 | event 物件 編輯
 
   // date(YYYY-MM-DD) -> 事件列表
   const eventsByDate = useMemo(() => {
@@ -88,7 +91,31 @@ export default function CalendarPage({ onOpenClient }) {
     return map;
   }, [weeks, clients, customFields]);
 
+  // 使用者自建活動（生日 / 紀念日 / 重要日子）：一次性比對日期，每年重複比對月日
+  const customEventsByDate = useMemo(() => {
+    const map = {};
+    for (const week of weeks) {
+      for (const d of week) {
+        const ds = d.format('YYYY-MM-DD');
+        const md = ds.slice(5);
+        for (const e of events) {
+          const match = e.repeat === 'yearly' ? e.date.slice(5) === md : e.date === ds;
+          if (!match) continue;
+          const years = e.repeat === 'yearly' ? Number(ds.slice(0, 4)) - Number(e.date.slice(0, 4)) : 0;
+          if (years < 0) continue;
+          (map[ds] = map[ds] || []).push({
+            type: 'event', event: e, clientId: e.clientId || null,
+            title: e.title, time: e.time || '',
+            sub: e.repeat === 'yearly' && years > 0 ? `滿 ${years} 年` : (e.note || ''),
+          });
+        }
+      }
+    }
+    return map;
+  }, [weeks, events]);
+
   const getEvents = (dateStr) => [
+    ...(customEventsByDate[dateStr] || []),
     ...(eventsByDate[dateStr] || []),
     ...(occasionsByDate[dateStr] || []),
   ];
@@ -203,20 +230,34 @@ export default function CalendarPage({ onOpenClient }) {
 
       {/* 選定日期的事件清單 */}
       <div className="card overflow-hidden">
-        <h2 className="text-sm font-semibold text-ink px-3 py-2.5 border-b border-bdr">
-          {dayjs(selectedDate).format('M月D日 dddd')}
-          <span className="text-ink-3 font-normal ml-2 text-xs">{selectedEvents.length} 件事項</span>
-        </h2>
+        <div className="flex items-center justify-between px-3 py-2.5 border-b border-bdr">
+          <h2 className="text-sm font-semibold text-ink">
+            {dayjs(selectedDate).format('M月D日 dddd')}
+            <span className="text-ink-3 font-normal ml-2 text-xs">{selectedEvents.length} 件事項</span>
+          </h2>
+          <button
+            onClick={() => setEventModal({ date: selectedDate })}
+            className="btn-primary text-xs shrink-0"
+          >
+            ＋ 新增活動
+          </button>
+        </div>
         {selectedEvents.length === 0 && (
-          <p className="text-center text-ink-3 text-sm py-8">這天沒有安排 🎉</p>
+          <p className="text-center text-ink-3 text-sm py-8">
+            這天沒有安排 · 點右上角「新增活動」記錄生日或重要日子
+          </p>
         )}
         {selectedEvents.map((e, i) => {
           const def = EV[e.type];
-          const clickable = !!e.clientId;
+          const isUserEvent = e.type === 'event';
+          const clickable = isUserEvent || !!e.clientId;
           return (
             <div key={i}
               className={`flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0 ${clickable ? 'cursor-pointer hover:bg-s2' : ''}`}
-              onClick={() => clickable && onOpenClient(e.clientId)}
+              onClick={() => {
+                if (isUserEvent) setEventModal(e.event);
+                else if (e.clientId) onOpenClient(e.clientId);
+              }}
             >
               <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: def.color }} />
               <span className="text-base shrink-0">{def.icon}</span>
@@ -224,8 +265,19 @@ export default function CalendarPage({ onOpenClient }) {
                 <p className="text-sm font-medium text-ink truncate">
                   {e.time && <span className="font-mono text-xs text-ink-3 mr-1.5">{e.time}</span>}
                   {e.title}
+                  {isUserEvent && e.event.repeat === 'yearly' && (
+                    <span className="text-[10px] text-ink-3 ml-1.5">🔁 每年</span>
+                  )}
                 </p>
                 {e.sub && <p className="text-xs text-ink-3 truncate">{e.sub}</p>}
+                {isUserEvent && e.clientId && (
+                  <button
+                    onClick={(ev) => { ev.stopPropagation(); onOpenClient(e.clientId); }}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    {clients.find((c) => c.id === e.clientId)?.name || '關聯客戶'} ›
+                  </button>
+                )}
               </div>
               {e.type === 'follow' && e.client && (
                 <>
@@ -241,11 +293,116 @@ export default function CalendarPage({ onOpenClient }) {
                   </button>
                 </>
               )}
-              {clickable && <span className="text-ink-3 text-xs shrink-0">›</span>}
+              {isUserEvent && <span className="text-ink-3 text-xs shrink-0">✏️</span>}
+              {!isUserEvent && e.clientId && <span className="text-ink-3 text-xs shrink-0">›</span>}
             </div>
           );
         })}
       </div>
+
+      {eventModal && (
+        <EventModal
+          initial={eventModal}
+          clients={clients}
+          onClose={() => setEventModal(null)}
+          onSave={async (ev) => { await saveEvent(ev); setEventModal(null); }}
+          onDelete={async (id) => { await deleteEvent(id); setEventModal(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── EventModal（新增 / 編輯行事曆活動）────────────────────────────────────────
+function EventModal({ initial, clients, onSave, onClose, onDelete }) {
+  const isEdit = !!initial.id;
+  const [title, setTitle] = useState(initial.title || '');
+  const [date, setDate] = useState(initial.date || today());
+  const [time, setTime] = useState(initial.time || '');
+  // 新增時預設「每年重複」（生日/紀念日為主要用途）；編輯時沿用原設定
+  const [yearly, setYearly] = useState(initial.id ? initial.repeat === 'yearly' : true);
+  const [clientId, setClientId] = useState(initial.clientId || '');
+  const [note, setNote] = useState(initial.note || '');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function submit() {
+    if (!title.trim() || !date) return;
+    onSave({
+      id: initial.id || generateId('event'),
+      title: title.trim(),
+      date,
+      time: time || '',
+      repeat: yearly ? 'yearly' : 'none',
+      clientId: clientId || null,
+      note: note.trim(),
+    });
+  }
+
+  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+
+  return (
+    <>
+      <div className="overlay" onClick={onClose} />
+      <div className="modal">
+        <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-sm p-5 anim-scale-in z-50">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-lg text-ink">🗓 {isEdit ? '編輯活動' : '新增活動'}</h3>
+            <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
+          </div>
+
+          <div className="space-y-3">
+            <Field label="活動名稱" required>
+              <input value={title} onChange={(e) => setTitle(e.target.value)}
+                placeholder="例：陳頭家生日 / 交車紀念 / 開工日"
+                className="w-full" autoFocus />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="日期">
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full" />
+              </Field>
+              <Field label="時間（選填）">
+                <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-full" />
+              </Field>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-ink-2 cursor-pointer bg-s2 rounded-lg px-3 py-2">
+              <input type="checkbox" checked={yearly} onChange={(e) => setYearly(e.target.checked)} className="shrink-0" />
+              <span>🔁 每年重複（生日、紀念日用這個）</span>
+            </label>
+            <Field label="關聯客戶（選填）">
+              <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full">
+                <option value="">不關聯</option>
+                {sortedClients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </Field>
+            <Field label="備註（選填）">
+              <input value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="地點、提醒事項…" className="w-full" />
+            </Field>
+          </div>
+
+          <div className="flex gap-2 mt-5">
+            {isEdit && (
+              confirmDelete ? (
+                <>
+                  <button onClick={() => onDelete(initial.id)} className="btn-danger text-sm flex-1">確認刪除</button>
+                  <button onClick={() => setConfirmDelete(false)} className="btn-outline text-sm flex-1">取消</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setConfirmDelete(true)} className="btn-outline text-sm text-danger">刪除</button>
+                  <button onClick={submit} disabled={!title.trim()} className="btn-primary text-sm flex-1 disabled:opacity-40">儲存</button>
+                </>
+              )
+            )}
+            {!isEdit && (
+              <>
+                <button onClick={onClose} className="btn-outline text-sm flex-1">取消</button>
+                <button onClick={submit} disabled={!title.trim()} className="btn-primary text-sm flex-1 disabled:opacity-40">新增</button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

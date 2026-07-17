@@ -13,7 +13,7 @@ const BACKUP_REMIND_DAYS = 7;
 
 export default function TodayPage({ onOpenClient }) {
   const {
-    clients, cats, customFields, timers, tasks, thresholds,
+    clients, cats, customFields, timers, tasks, events, thresholds,
     updateClient, saveTimer, deleteTimer, saveTask, deleteTask,
   } = useApp();
   const todayStr = dayjs().format('YYYY-MM-DD');
@@ -82,6 +82,20 @@ export default function TodayPage({ onOpenClient }) {
     clients.filter((c) => ['hot', 'cold'].includes(getClientStatus(c, thresholds))).length,
     [clients, thresholds]);
 
+  // 今日活動（使用者在行事曆自建的生日 / 紀念日 / 重要日子）
+  const todayEvents = useMemo(() => {
+    const md = todayStr.slice(5);
+    const out = [];
+    for (const e of events) {
+      const match = e.repeat === 'yearly' ? e.date.slice(5) === md : e.date === todayStr;
+      if (!match) continue;
+      const years = e.repeat === 'yearly' ? Number(todayStr.slice(0, 4)) - Number(e.date.slice(0, 4)) : 0;
+      if (years < 0) continue;
+      out.push({ event: e, years });
+    }
+    return out.sort((a, b) => (a.event.time || '').localeCompare(b.event.time || ''));
+  }, [events, todayStr]);
+
   // 今日紀念日（生日、交車週年…）：依欄位分組，同一種欄位放一起
   const occasionGroups = useMemo(() => {
     const list = getOccasionsOnDate(clients, customFields, todayStr);
@@ -113,7 +127,7 @@ export default function TodayPage({ onOpenClient }) {
   }, [clients]);
 
   const allClear = overdue.length === 0 && dueToday.length === 0
-    && todayTimers.length === 0 && occasionGroups.length === 0
+    && todayTimers.length === 0 && occasionGroups.length === 0 && todayEvents.length === 0
     && undoneTaskCount === 0 && clientTodos.length === 0;
 
   async function addTask() {
@@ -244,6 +258,42 @@ export default function TodayPage({ onOpenClient }) {
               tag="今日" tagColor="#bf8a5e"
               onOpen={() => onOpenClient(c.id)} onDone={() => markContacted(c)} />
           ))}
+        </Section>
+      )}
+
+      {/* 今日活動：行事曆自建的生日 / 紀念日 / 重要日子 */}
+      {todayEvents.length > 0 && (
+        <Section title={`🗓 今日活動（${todayEvents.length}）`} titleColor="#6f9a9c">
+          {todayEvents.map(({ event: e, years }) => {
+            const client = e.clientId ? clients.find((c) => c.id === e.clientId) : null;
+            return (
+              <div key={e.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0">
+                <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: '#6f9a9c' }} />
+                {e.time && <span className="text-xs font-mono text-ink-3 shrink-0">{e.time}</span>}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-sm text-ink">{e.title}</span>
+                    {years > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: '#6f9a9c20', color: '#6f9a9c' }}>
+                        滿 {years} 年
+                      </span>
+                    )}
+                    {e.repeat === 'yearly' && <span className="text-[10px] text-ink-3">🔁 每年</span>}
+                  </div>
+                  {e.note && <p className="text-xs text-ink-3 mt-0.5">{e.note}</p>}
+                </div>
+                {client && (
+                  <button onClick={() => onOpenClient(client.id)}
+                    className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/12 text-accent shrink-0 hover:bg-accent/20">
+                    {client.name} ›
+                  </button>
+                )}
+                {client?.phone && (
+                  <a href={`tel:${client.phone}`} className="btn-outline text-xs shrink-0" onClick={(ev) => ev.stopPropagation()}>📞</a>
+                )}
+              </div>
+            );
+          })}
         </Section>
       )}
 

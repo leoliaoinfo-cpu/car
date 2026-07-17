@@ -46,6 +46,7 @@ const initialState = {
   deals: [],
   dealFields: DEFAULT_DEAL_FIELDS,
   tasks: [],
+  events: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
   quotePresets: DEFAULT_QUOTE_PRESETS,
   industries: INDUSTRY_SUGGESTIONS,
@@ -111,6 +112,18 @@ function reducer(state, action) {
     }
     case 'DELETE_TASK':
       return { ...state, tasks: state.tasks.filter((t) => t.id !== action.id) };
+
+    // Events（行事曆活動：生日、紀念日、重要日子）
+    case 'UPSERT_EVENT': {
+      const idx = state.events.findIndex((e) => e.id === action.payload.id);
+      const next = [...state.events];
+      if (idx === -1) next.push(action.payload);
+      else next[idx] = action.payload;
+      return { ...state, events: next };
+    }
+    case 'DELETE_EVENT':
+      return { ...state, events: state.events.filter((e) => e.id !== action.id) };
+
     case 'SET_TODO_TEMPLATE':
       return { ...state, todoTemplate: action.payload };
     case 'SET_QUOTE_PRESETS':
@@ -166,7 +179,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, tasks, events, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -174,6 +187,7 @@ export function AppProvider({ children }) {
           db.getAll('deals'),
           db.getAll('dealFields'),
           db.getAll('tasks'),
+          db.getAll('events'),
           db.getAll('timers'),
           db.get('settings', 'crmThresholds').catch(() => null),
           db.get('settings', 'todoTemplate').catch(() => null),
@@ -193,7 +207,7 @@ export function AppProvider({ children }) {
           type: 'LOAD_INIT',
           payload: {
             clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, tasks, timers,
+            deals, dealFields: resolvedDealFields, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
@@ -317,6 +331,19 @@ export function AppProvider({ children }) {
     await db.delete('tasks', id);
   }, []);
 
+  // ── Events（行事曆活動）────────────────────────────────────────────────────
+  const saveEvent = useCallback(async (event) => {
+    const full = { createdAt: new Date().toISOString(), ...event };
+    dispatch({ type: 'UPSERT_EVENT', payload: full });
+    await db.put('events', full);
+    return full;
+  }, []);
+
+  const deleteEvent = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_EVENT', id });
+    await db.delete('events', id);
+  }, []);
+
   // ── 待辦範本（設定頁可編輯；原樣儲存，套用時才過濾空項）──────────────────
   const saveTodoTemplate = useCallback(async (items) => {
     dispatch({ type: 'SET_TODO_TEMPLATE', payload: items });
@@ -355,7 +382,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, tasks, events, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -363,6 +390,7 @@ export function AppProvider({ children }) {
       db.getAll('deals'),
       db.getAll('dealFields'),
       db.getAll('tasks'),
+      db.getAll('events'),
       db.getAll('timers'),
       db.get('settings', 'crmThresholds').catch(() => null),
       db.get('settings', 'todoTemplate').catch(() => null),
@@ -379,6 +407,7 @@ export function AppProvider({ children }) {
         deals,
         dealFields: dealFields.length > 0 ? dealFields : DEFAULT_DEAL_FIELDS,
         tasks,
+        events,
         timers,
         thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
@@ -404,6 +433,8 @@ export function AppProvider({ children }) {
     saveDealFields,
     saveTask,
     deleteTask,
+    saveEvent,
+    deleteEvent,
     saveTodoTemplate,
     saveQuotePresets,
     saveIndustries,

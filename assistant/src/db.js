@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'business_assistant_v2';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise = null;
 
@@ -66,6 +66,12 @@ function openRaw() {
         // v4：刪除墓碑（雲端同步用——記住「這筆已刪」，合併時才不會被別台裝置的舊資料復活）
         if (!database.objectStoreNames.contains('tombstones'))
           database.createObjectStore('tombstones', { keyPath: 'id' });
+        // v5：行事曆活動（生日、紀念日、重要日子；可每年重複、可關聯客戶）
+        if (!database.objectStoreNames.contains('events')) {
+          const ev = database.createObjectStore('events', { keyPath: 'id' });
+          ev.createIndex('date', 'date');
+          ev.createIndex('clientId', 'clientId');
+        }
       },
   });
 }
@@ -81,7 +87,7 @@ function getDB() {
 
 const ALL_STORES = [
   'clients', 'cats', 'stages', 'customFields',
-  'deals', 'dealFields', 'tasks',
+  'deals', 'dealFields', 'tasks', 'events',
   'journalEntries', 'archivedJournal',
   'salaryMonths', 'timers', 'timerHistory', 'settings',
 ];
@@ -89,7 +95,7 @@ const ALL_STORES = [
 // 各 store 的主鍵欄位（同步合併時逐筆比對用）
 export const STORE_KEYS = {
   clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
-  deals: 'id', dealFields: 'id', tasks: 'id', timers: 'id', timerHistory: 'id',
+  deals: 'id', dealFields: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
   settings: 'key', salaryMonths: 'key',
   journalEntries: 'date', archivedJournal: 'date',
 };
