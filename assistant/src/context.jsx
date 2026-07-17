@@ -1,7 +1,7 @@
 import {
   createContext, useContext, useReducer, useEffect, useCallback, useRef, useState,
 } from 'react';
-import { db } from './db';
+import { db, setOnBlocked } from './db';
 import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
 } from './utils/crm';
@@ -48,6 +48,7 @@ const initialState = {
   quotePresets: DEFAULT_QUOTE_PRESETS,
   timers: [],
   thresholds: DEFAULT_THRESHOLDS,
+  dbBlocked: false,
 };
 
 function reducer(state, action) {
@@ -77,6 +78,8 @@ function reducer(state, action) {
       return { ...state, customFields: action.payload };
     case 'SET_THRESHOLDS':
       return { ...state, thresholds: action.payload };
+    case 'SET_DB_BLOCKED':
+      return { ...state, dbBlocked: action.payload };
 
     // Deals（成交歸檔）
     case 'UPSERT_DEAL': {
@@ -132,6 +135,11 @@ export function AppProvider({ children }) {
   // 同步鏡射 clients，讓快速連續的增量更新（updateClient）不會讀到過期快照
   const clientsRef = useRef(initialState.clients);
   clientsRef.current = state.clients;
+
+  // 只在真正被其他分頁的舊連線擋住時通知（IndexedDB 原生訊號，非猜測性逾時）
+  useEffect(() => {
+    setOnBlocked(() => dispatch({ type: 'SET_DB_BLOCKED', payload: true }));
+  }, []);
 
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {

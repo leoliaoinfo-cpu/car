@@ -5,37 +5,23 @@ const DB_VERSION = 3;
 
 let dbPromise = null;
 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+// 開啟中被瀏覽器判定「被其他分頁的舊連線擋住」時通知上層（UI 用來顯示提示，
+// 不會用來取消或重開連線——IndexedDB 的 blocked 是真實訊號，重開只會製造第二個
+// 搶佔中的連線、讓情況更糟）。
+let onBlocked = null;
+export function setOnBlocked(cb) { onBlocked = cb; }
 
 /**
- * 開啟資料庫，含卡死防護：
- * - iOS/macOS Safari 首次 open 偶發完全無回應（WebKit bug）→ 先輕觸 databases() 喚醒＋超時重試
- * - 同網域其他分頁（如舊版系統）佔用舊版本連線時，升級會被 blocked 無限等待 → 超時放棄並回報
- * 全部嘗試失敗會 throw，讓上層進入記憶體模式顯示警告，而不是永遠轉圈。
+ * 開啟資料庫。全程只維護單一 in-flight 連線（dbPromise 記憶體快取），
+ * 絕不因為「等太久」就另外再開一次——真正會讓畫面卡住的情況是被其他分頁的
+ * 舊版連線擋住（見 blocked 回呼），而非單純速度慢；用逾時去搶開第二條連線
+ * 只會讓兩條連線互相卡住，反而製造原本沒有的當機。
  */
-async function openWithRecovery() {
-  if (typeof indexedDB !== 'undefined' && typeof indexedDB.databases === 'function') {
-    try { await Promise.race([indexedDB.databases(), delay(500)]); } catch { /* 忽略 */ }
-  }
-  let lastErr = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const TIMEOUT = Symbol('timeout');
-      const result = await Promise.race([openRaw(), delay(2500 * (attempt + 1)).then(() => TIMEOUT)]);
-      if (result === TIMEOUT) throw new Error('IndexedDB 開啟逾時（可能被其他分頁佔用，或瀏覽器暫時無回應）');
-      return result;
-    } catch (err) {
-      lastErr = err;
-      await delay(300);
-    }
-  }
-  throw lastErr;
-}
-
 function openRaw() {
   return openDB(DB_NAME, DB_VERSION, {
       blocked() {
         console.warn('IndexedDB 升級被其他分頁擋住——請關閉其他開啟本系統（或舊版系統）的分頁');
+        onBlocked?.();
       },
       terminated() {
         dbPromise = null; // 連線被瀏覽器強制中斷時，下次呼叫重新開啟
@@ -83,8 +69,8 @@ function openRaw() {
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openWithRecovery();
-    // 開啟失敗時清掉快取的 rejected promise，重新整理或下次操作可再試
+    dbPromise = openRaw();
+    // 開啟失敗（真正的錯誤，例如私密瀏覽拒絕存取）時清掉快取，讓下次操作可重試
     dbPromise.catch(() => { dbPromise = null; });
   }
   return dbPromise;

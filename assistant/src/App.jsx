@@ -45,7 +45,7 @@ class ErrorBoundary extends Component {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AppInner() {
-  const { loading, dbUnavailable } = useApp();
+  const { loading, dbUnavailable, dbBlocked } = useApp();
   const [tab, setTab] = useState('today');
   const [showSettings, setShowSettings] = useState(false);
   const [crmFocusId, setCrmFocusId] = useState(null);
@@ -64,6 +64,11 @@ function AppInner() {
             style={{ animation: 'spin 0.8s linear infinite' }}
           />
           <p className="text-ink-3 text-sm">載入中…</p>
+          {dbBlocked && (
+            <p className="text-danger text-xs mt-3 max-w-xs">
+              偵測到另一個分頁正在使用舊版資料庫，請關閉那個分頁（或本系統的其他分頁）後即可自動繼續。
+            </p>
+          )}
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
@@ -72,11 +77,11 @@ function AppInner() {
 
   return (
     <div className="min-h-screen bg-bg font-sans text-ink">
-      {/* DB 不可用提示（隱私模式 / file:// 限制）*/}
+      {/* DB 不可用提示（隱私模式 / file:// 限制等真正的存取錯誤）*/}
       {dbUnavailable && (
         <div className="bg-danger/10 border-b border-danger/30 px-4 py-1.5 text-xs text-danger">
-          ⚠️ 無法連接瀏覽器資料庫，目前的變動<strong>不會被保存</strong>。
-          請關閉其他開啟本系統（含舊版系統）的分頁後重新整理；若使用無痕/私密瀏覽請改用一般模式。
+          ⚠️ 無法存取瀏覽器儲存空間，目前的變動<strong>不會被保存</strong>。
+          若使用無痕/私密瀏覽請改用一般模式；一般模式下仍出現請截圖回報。
         </div>
       )}
 
