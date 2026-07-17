@@ -5,9 +5,41 @@ const DB_VERSION = 3;
 
 let dbPromise = null;
 
-function getDB() {
-  if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 開啟資料庫，含卡死防護：
+ * - iOS/macOS Safari 首次 open 偶發完全無回應（WebKit bug）→ 先輕觸 databases() 喚醒＋超時重試
+ * - 同網域其他分頁（如舊版系統）佔用舊版本連線時，升級會被 blocked 無限等待 → 超時放棄並回報
+ * 全部嘗試失敗會 throw，讓上層進入記憶體模式顯示警告，而不是永遠轉圈。
+ */
+async function openWithRecovery() {
+  if (typeof indexedDB !== 'undefined' && typeof indexedDB.databases === 'function') {
+    try { await Promise.race([indexedDB.databases(), delay(500)]); } catch { /* 忽略 */ }
+  }
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const TIMEOUT = Symbol('timeout');
+      const result = await Promise.race([openRaw(), delay(2500 * (attempt + 1)).then(() => TIMEOUT)]);
+      if (result === TIMEOUT) throw new Error('IndexedDB 開啟逾時（可能被其他分頁佔用，或瀏覽器暫時無回應）');
+      return result;
+    } catch (err) {
+      lastErr = err;
+      await delay(300);
+    }
+  }
+  throw lastErr;
+}
+
+function openRaw() {
+  return openDB(DB_NAME, DB_VERSION, {
+      blocked() {
+        console.warn('IndexedDB 升級被其他分頁擋住——請關閉其他開啟本系統（或舊版系統）的分頁');
+      },
+      terminated() {
+        dbPromise = null; // 連線被瀏覽器強制中斷時，下次呼叫重新開啟
+      },
       upgrade(database) {
         if (!database.objectStoreNames.contains('clients')) {
           const s = database.createObjectStore('clients', { keyPath: 'id' });
@@ -46,7 +78,14 @@ function getDB() {
         if (!database.objectStoreNames.contains('tasks'))
           database.createObjectStore('tasks', { keyPath: 'id' });
       },
-    });
+  });
+}
+
+function getDB() {
+  if (!dbPromise) {
+    dbPromise = openWithRecovery();
+    // 開啟失敗時清掉快取的 rejected promise，重新整理或下次操作可再試
+    dbPromise.catch(() => { dbPromise = null; });
   }
   return dbPromise;
 }

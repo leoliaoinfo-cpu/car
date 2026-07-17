@@ -74,9 +74,9 @@ function AppInner() {
     <div className="min-h-screen bg-bg font-sans text-ink">
       {/* DB 不可用提示（隱私模式 / file:// 限制）*/}
       {dbUnavailable && (
-        <div className="bg-s2 border-b border-bdr px-4 py-1.5 text-xs text-ink-2">
-          ⚠️ 儲存功能受限（瀏覽器安全設定）。資料不會被保存。建議改用
-          <strong> http://localhost</strong> 方式開啟，或啟用 GitHub Pages。
+        <div className="bg-danger/10 border-b border-danger/30 px-4 py-1.5 text-xs text-danger">
+          ⚠️ 無法連接瀏覽器資料庫，目前的變動<strong>不會被保存</strong>。
+          請關閉其他開啟本系統（含舊版系統）的分頁後重新整理；若使用無痕/私密瀏覽請改用一般模式。
         </div>
       )}
 
