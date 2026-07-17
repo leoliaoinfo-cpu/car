@@ -61,16 +61,32 @@ function b64decodeUtf8(b64) {
   return new TextDecoder().decode(bytes);
 }
 
-/** 讀遠端 data.json；不存在回 { data: null, sha: null } */
+const AUTH_ERROR = '同步金鑰無效或已過期——請到「設定 → ☁️ 雲端同步」重新連線';
+
+/** 讀遠端 data.json；不存在回 { data: null, sha: null }。
+ *  Contents API 超過 1MB 不回傳內容（encoding: none），需改用 raw 讀取——
+ *  資料累積數年後必然超過 1MB，沒有這個 fallback 同步會永久壞死。 */
 async function pullRemote() {
   const repo = localStorage.getItem(LS_REPO);
-  const res = await fetch(`${API}/repos/${repo}/contents/${FILE_PATH}?t=${Date.now()}`, {
-    headers: headers(), cache: 'no-store',
+  const url = `${API}/repos/${repo}/contents/${FILE_PATH}?t=${Date.now()}`;
+  const res = await fetch(url, {
+    headers: { ...headers(), Accept: 'application/vnd.github.object+json' },
+    cache: 'no-store',
   });
   if (res.status === 404) return { data: null, sha: null };
+  if (res.status === 401) throw new Error(AUTH_ERROR);
   if (!res.ok) throw new Error(`讀取雲端失敗（HTTP ${res.status}）`);
   const body = await res.json();
-  return { data: JSON.parse(b64decodeUtf8(body.content)), sha: body.sha };
+  if (body.content && body.encoding === 'base64') {
+    return { data: JSON.parse(b64decodeUtf8(body.content)), sha: body.sha };
+  }
+  // 檔案超過 1MB：用 raw 媒體類型直接拿原文（支援到 100MB）
+  const raw = await fetch(url, {
+    headers: { ...headers(), Accept: 'application/vnd.github.raw+json' },
+    cache: 'no-store',
+  });
+  if (!raw.ok) throw new Error(`讀取雲端失敗（HTTP ${raw.status}）`);
+  return { data: JSON.parse(await raw.text()), sha: body.sha };
 }
 
 /** 寫遠端（sha 樂觀鎖）；衝突丟 'CONFLICT' 讓呼叫端重拉合併 */
@@ -86,6 +102,7 @@ async function pushRemote(data, sha) {
     }),
   });
   if (res.status === 409 || res.status === 422) throw new Error('CONFLICT');
+  if (res.status === 401) throw new Error(AUTH_ERROR);
   if (!res.ok) throw new Error(`上傳雲端失敗（HTTP ${res.status}）`);
   return (await res.json()).content.sha;
 }

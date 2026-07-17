@@ -153,6 +153,11 @@ export function AppProvider({ children }) {
     startSync(); // 未啟用時是 no-op
   }, []);
 
+  // 向瀏覽器申請「持久儲存」：空間吃緊時不得自動清掉本系統的資料庫
+  useEffect(() => {
+    try { navigator.storage?.persist?.().catch(() => {}); } catch { /* 不支援就算了 */ }
+  }, []);
+
   // ── Startup load ──────────────────────────────────────────────────────────
   useEffect(() => {
     async function loadAll() {
@@ -189,6 +194,14 @@ export function AppProvider({ children }) {
             quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
           },
         });
+        // 每日一次資料保養：清過期墓碑與 30 天前完成的待辦/提醒（防同步檔長期膨脹）
+        try {
+          const last = localStorage.getItem('housekeepAt');
+          if (!last || Date.now() - Date.parse(last) > 24 * 3600 * 1000) {
+            localStorage.setItem('housekeepAt', new Date().toISOString());
+            db.housekeep().catch(() => {});
+          }
+        } catch { /* noop */ }
       } catch (err) {
         // IndexedDB 不可用時（file:// 限制、隱私模式等），以空資料繼續執行
         console.warn('IndexedDB unavailable, running in memory-only mode:', err);

@@ -149,6 +149,33 @@ export const db = {
     await Promise.all([...items.map((item) => tx.store.put(item)), tx.done]);
   },
 
+  /**
+   * 每日資料保養（防止資料檔經年累月無限膨脹拖垮同步）：
+   * - 清過期墓碑（同步合併時也會清，這裡涵蓋「沒開同步」的情況）
+   * - 刪 30 天前已完成的待辦、30 天前已確認的計時提醒
+   *   （UI 早就不顯示它們了；走 db.delete 會留墓碑，其他裝置同步後一併刪除）
+   */
+  async housekeep() {
+    const now = Date.now();
+    const TOMBSTONE_KEEP_MS = 90 * 24 * 3600 * 1000;
+    const DONE_KEEP_MS = 30 * 24 * 3600 * 1000;
+
+    const tombs = await db.getAll('tombstones');
+    for (const t of tombs) {
+      if (now - (t.ts || 0) >= TOMBSTONE_KEEP_MS) await db.delete('tombstones', t.id);
+    }
+    const timers = await db.getAll('timers');
+    for (const t of timers) {
+      const ts = t.confirmedAt ? Date.parse(t.confirmedAt) : NaN;
+      if (!Number.isNaN(ts) && now - ts >= DONE_KEEP_MS) await db.delete('timers', t.id);
+    }
+    const tasks = await db.getAll('tasks');
+    for (const t of tasks) {
+      const ts = t.done && t.doneAt ? Date.parse(t.doneAt) : NaN;
+      if (!Number.isNaN(ts) && now - ts >= DONE_KEEP_MS) await db.delete('tasks', t.id);
+    }
+  },
+
   /** Full export of all stores */
   async exportAll() {
     const data = { _v: 2, exportedAt: new Date().toISOString() };
