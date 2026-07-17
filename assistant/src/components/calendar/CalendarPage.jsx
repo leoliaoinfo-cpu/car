@@ -138,11 +138,10 @@ export default function CalendarPage({ onOpenClient }) {
         </div>
       </div>
 
-      {/* 圖例 */}
-      <div className="flex gap-3 text-[11px] text-ink-3">
+      {/* 圖例（顏色對應日曆內的文字標籤） */}
+      <div className="flex gap-2 flex-wrap text-[11px]">
         {Object.values(EV).map((e) => (
-          <span key={e.label} className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full" style={{ background: e.color }} />
+          <span key={e.label} className="px-1.5 py-0.5 rounded text-white" style={{ background: e.color }}>
             {e.icon} {e.label}
           </span>
         ))}
@@ -168,21 +167,31 @@ export default function CalendarPage({ onOpenClient }) {
                 <button
                   key={dateStr}
                   onClick={() => { setSelectedDate(dateStr); if (!inMonth) setMonthKey(d.format('YYYY-MM')); }}
-                  className={`min-h-14 md:min-h-16 p-1 border-b border-r border-bdr/40 last:border-r-0 text-left align-top transition-colors ${
+                  className={`min-h-20 md:min-h-24 p-1 border-b border-r border-bdr/40 last:border-r-0 text-left align-top transition-colors flex flex-col ${
                     isSelected ? 'bg-accent/15' : 'hover:bg-s2'
                   } ${inMonth ? '' : 'opacity-35'}`}
                 >
-                  <span className={`inline-flex items-center justify-center w-6 h-6 text-xs rounded-full ${
+                  <span className={`inline-flex items-center justify-center w-6 h-6 text-xs rounded-full shrink-0 ${
                     isToday ? 'bg-accent text-on-accent font-bold' : hasOverdueFollow ? 'text-danger font-bold' : 'text-ink-2'
                   }`}>
                     {d.date()}
                   </span>
+                  {/* 直接顯示文字標籤（不用圓點），一眼看清當天有什麼事 */}
                   {evs.length > 0 && (
-                    <span className="flex items-center gap-0.5 mt-0.5 px-0.5 flex-wrap">
-                      {evs.slice(0, 4).map((e, i) => (
-                        <span key={i} className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: EV[e.type].color }} />
+                    <span className="flex flex-col gap-0.5 mt-0.5 min-w-0">
+                      {evs.slice(0, 3).map((e, i) => (
+                        <span
+                          key={i}
+                          className="text-[9px] md:text-[10px] leading-tight px-1 py-0.5 rounded text-white truncate"
+                          style={{ background: EV[e.type].color }}
+                          title={`${EV[e.type].label}：${e.title}`}
+                        >
+                          {e.time ? `${e.time} ` : ''}{e.title}
+                        </span>
                       ))}
-                      {evs.length > 4 && <span className="text-[9px] text-ink-3 leading-none">+{evs.length - 4}</span>}
+                      {evs.length > 3 && (
+                        <span className="text-[9px] text-ink-3 leading-none px-0.5">+{evs.length - 3} 更多</span>
+                      )}
                     </span>
                   )}
                 </button>

@@ -31,13 +31,14 @@ const HELP_CARDS = [
   { icon: '📦', title: '舊版資料匯入', desc: '支援匯入舊版格式 { _v:1, crm, jnl, sal } 的 JSON 備份。' },
 ];
 
-const SECTION_KEYS = ['backup', 'sync', 'notify', 'cats', 'stages', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['backup', 'sync', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
   backup: '💾 備份還原',
   sync: '☁️ 雲端同步',
   notify: '🔔 通知',
   cats: '🏷 客戶分類',
   stages: '📶 業務進度',
+  industries: '🏭 產業選項',
   fields: '✏️ 自訂欄位',
   dealFields: '🏆 業績欄位',
   template: '📋 待辦範本',
@@ -77,9 +78,9 @@ function summarizeBackup(data) {
 
 export default function SettingsPanel({ onClose }) {
   const {
-    cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets,
+    cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets, industries,
     saveCats, saveStages, saveCustomFields, saveDealFields, saveThresholds,
-    saveTodoTemplate, saveQuotePresets, reloadAll,
+    saveTodoTemplate, saveQuotePresets, saveIndustries, reloadAll,
   } = useApp();
   const [activeSection, setActiveSection] = useState('backup');
   const [status, setStatus] = useState('');
@@ -256,6 +257,17 @@ export default function SettingsPanel({ onClose }) {
             />
           )}
 
+          {/* ── Industries ── */}
+          {activeSection === 'industries' && (
+            <StringListEditor
+              title="產業選項"
+              desc="客戶資料「產業」下拉選單的選項（水電、物流…），決定推什麼車斗；客戶頁側欄可依產業篩選名單。"
+              items={industries}
+              newItemText="新產業"
+              onChange={saveIndustries}
+            />
+          )}
+
           {/* ── Custom Fields ── */}
           {activeSection === 'fields' && (
             <CustomFieldEditor
@@ -283,7 +295,13 @@ export default function SettingsPanel({ onClose }) {
 
           {/* ── Todo template ── */}
           {activeSection === 'template' && (
-            <TodoTemplateEditor items={todoTemplate} onChange={saveTodoTemplate} />
+            <StringListEditor
+              title="待辦範本"
+              desc="客戶詳情「套用交車待辦範本」帶入的項目，可自行增減修改。"
+              items={todoTemplate}
+              newItemText="新待辦項目"
+              onChange={saveTodoTemplate}
+            />
           )}
 
           {/* ── Quote presets ── */}
@@ -326,7 +344,7 @@ export default function SettingsPanel({ onClose }) {
                   </div>
                 </div>
               ))}
-              <p className="text-center text-xs text-ink-3 py-2">汽車銷售業務系統 v2.2 • 純單機版</p>
+              <p className="text-center text-xs text-ink-3 py-2">業務系統 v2.3</p>
             </div>
           )}
         </div>
@@ -385,7 +403,8 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChan
 }
 
 // ── TodoTemplateEditor（交車待辦範本，客戶詳情一鍵套用）───────────────────────
-function TodoTemplateEditor({ items, onChange }) {
+/** 純文字清單編輯器（待辦範本、產業選項共用）：增刪改與上下排序 */
+function StringListEditor({ title, desc, items, newItemText, onChange }) {
   function updateItem(idx, text) {
     onChange(items.map((s, i) => (i === idx ? text : s)));
   }
@@ -400,20 +419,20 @@ function TodoTemplateEditor({ items, onChange }) {
     onChange(next);
   }
   function addItem() {
-    onChange([...items, '新待辦項目']);
+    onChange([...items, newItemText]);
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-semibold text-ink">待辦範本</h3>
-          <p className="text-xs text-ink-3 mt-0.5">客戶詳情「套用交車待辦範本」帶入的項目，可自行增減修改。</p>
+          <h3 className="font-semibold text-ink">{title}</h3>
+          <p className="text-xs text-ink-3 mt-0.5">{desc}</p>
         </div>
-        <button onClick={addItem} className="btn-primary text-xs">+ 新增</button>
+        <button onClick={addItem} className="btn-primary text-xs shrink-0">+ 新增</button>
       </div>
       {items.length === 0 && (
-        <p className="text-center text-ink-3 text-sm py-6">尚無範本項目</p>
+        <p className="text-center text-ink-3 text-sm py-6">尚無項目</p>
       )}
       {items.map((text, idx) => (
         <div key={idx} className="card p-3 flex items-center gap-2">

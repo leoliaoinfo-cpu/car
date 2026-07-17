@@ -64,6 +64,8 @@ export function clientMatchesFilter(client, filter, thresholds) {
   if (filter.startsWith('cat:')) return client.catId === filter.slice(4);
   // stageId filter
   if (filter.startsWith('stage:')) return client.stageId === filter.slice(6);
+  // industry filter
+  if (filter.startsWith('ind:')) return client.industry === filter.slice(4);
   return true;
 }
 

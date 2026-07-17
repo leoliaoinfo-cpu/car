@@ -19,9 +19,9 @@ export async function showSystemNotification(body) {
   const options = { body, tag: 'assistant-timer', icon: 'icon-192.png', badge: 'icon-192.png' };
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
-    if (reg) { await reg.showNotification('汽車銷售業務系統', options); return true; }
+    if (reg) { await reg.showNotification('業務系統', options); return true; }
   } catch { /* 退回傳統通知 */ }
-  try { new Notification('汽車銷售業務系統', options); return true; } catch { return false; }
+  try { new Notification('業務系統', options); return true; } catch { return false; }
 }
 
 /** Android 安裝 PWA 後可背景定時檢查到期提醒（其他平台自動略過） */

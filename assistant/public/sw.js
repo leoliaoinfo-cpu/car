@@ -1,12 +1,19 @@
-/* 汽車銷售業務系統 Service Worker
+/* 業務系統 Service Worker
  * 1. 離線快取：網路優先（更新永遠即時）、斷網時用上次的快取照常開啟
  * 2. 到期提醒通知：periodic background sync（Android 安裝後可背景檢查）
  *    ＋接收頁面訊息顯示系統通知（頁面開著時所有平台通用）
  */
-const CACHE = 'assistant-v1';
+const CACHE = 'assistant-v2';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
-self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('activate', (e) => {
+  e.waitUntil((async () => {
+    // 清掉舊版快取（更名、換圖示後不留殘影）
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
@@ -49,7 +56,7 @@ function countDueTimers() {
 
 // 通知只含數量、不含客戶資料（隱私）
 function showReminder(count) {
-  return self.registration.showNotification('汽車銷售業務系統', {
+  return self.registration.showNotification('業務系統', {
     body: `您有 ${count} 則提醒到期`,
     tag: 'assistant-timer',
     icon: 'icon-192.png',

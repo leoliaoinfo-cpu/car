@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useApp } from '../../context';
 import {
   getClientStatus, clientMatchesFilter, sortClients,
-  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId, INDUSTRY_SUGGESTIONS,
+  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId,
 } from '../../utils/crm';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
@@ -58,7 +58,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 }
 
 export default function CrmPage({ focusId, onFocusConsumed }) {
-  const { clients, cats, stages, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
+  const { clients, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -146,6 +146,21 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
     });
     return map;
   }, [clients]);
+
+  // 產業篩選清單：設定的選項＋客戶資料裡已存在的（涵蓋早期自由填寫的值）
+  const industryCounts = useMemo(() => {
+    const map = {};
+    clients.forEach((c) => {
+      if (c.industry) map[c.industry] = (map[c.industry] || 0) + 1;
+    });
+    return map;
+  }, [clients]);
+
+  const industryList = useMemo(() => {
+    const set = new Set(industries);
+    Object.keys(industryCounts).forEach((name) => set.add(name));
+    return [...set];
+  }, [industries, industryCounts]);
 
   const pendingCount = useMemo(() => clients.filter((c) => {
     const nd = c.nextDate ? dayjs(c.nextDate) : null;
@@ -240,6 +255,19 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
                 onClick={() => { setFilter(`stage:${stage.id}`); setShowSidebar(false); }} />
             ))}
           </div>
+
+          {/* Industries（選項可在設定 → 🏭 產業選項管理） */}
+          {industryList.length > 0 && (
+            <div>
+              <p className="section-title">產業</p>
+              {industryList.map((name) => (
+                <SidebarItem key={name} active={filter === `ind:${name}`}
+                  color="#9a9a6f"
+                  label={name} count={industryCounts[name] || 0}
+                  onClick={() => { setFilter(`ind:${name}`); setShowSidebar(false); }} />
+              ))}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -408,6 +436,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
         <NewClientModal
           cats={cats}
           stages={stages}
+          industries={industryList}
           onClose={() => setShowNewForm(false)}
           onCreate={handleNewClient}
         />
@@ -649,7 +678,7 @@ function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd,
 }
 
 // ── NewClientModal ────────────────────────────────────────────────────────────
-function NewClientModal({ cats, stages, onClose, onCreate }) {
+function NewClientModal({ cats, stages, industries, onClose, onCreate }) {
   const [form, setForm] = useState({
     name: '', phone: '', lineId: '', clientType: 'personal', industry: '',
     catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
@@ -682,16 +711,14 @@ function NewClientModal({ cats, stages, onClose, onCreate }) {
                 </select>
               </Field>
               <Field label="產業">
-                <input
-                  list="industry-options-new"
+                <select
                   value={form.industry}
                   onChange={(e) => set('industry', e.target.value)}
-                  placeholder="水電、物流…"
                   className="w-full"
-                />
-                <datalist id="industry-options-new">
-                  {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
-                </datalist>
+                >
+                  <option value="">未指定</option>
+                  {industries.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-2">

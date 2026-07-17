@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   getClientStatus, STATUS_COLOR, STATUS_LABEL, CAT_COLORS, FIELD_COLORS, generateId,
-  EVENT_TYPES, QUICK_EVENT_KEYS, DELIVERY_FOLLOWUP_DAYS, formatMoney, INDUSTRY_SUGGESTIONS,
+  EVENT_TYPES, QUICK_EVENT_KEYS, DELIVERY_FOLLOWUP_DAYS, formatMoney,
 } from '../../utils/crm';
 import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import { useApp } from '../../context';
@@ -30,8 +30,11 @@ function pickEditable(client) {
 export default function ClientDetail({ client, cats, stages, onClose, onDelete }) {
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
-    deals, dealFields, saveDeal, todoTemplate,
+    deals, dealFields, saveDeal, todoTemplate, industries,
   } = useApp();
+
+  // 產業下拉：設定的選項＋此客戶目前已存值（早期自由填寫的也不會消失）
+  const industryOptions = [...new Set([...(industries || []), client.industry].filter(Boolean))];
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => pickEditable(client));
   const [logInput, setLogInput] = useState('');
@@ -403,16 +406,14 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
                 ) : <span />}
               </div>
               <Field label="產業">
-                <input
-                  list="industry-options"
+                <select
                   value={form.industry || ''}
                   onChange={(e) => setField('industry', e.target.value)}
-                  placeholder="水電、物流、市場…決定推什麼車斗"
                   className="w-full"
-                />
-                <datalist id="industry-options">
-                  {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
-                </datalist>
+                >
+                  <option value="">未指定</option>
+                  {industryOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="電話">
@@ -792,7 +793,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
           ))}
         </section>
 
-        {/* 即將簽約：重點備註 + 簽約前待辦 */}
+        {/* 即將簽約：重點備註（置頂客戶專屬） */}
         {client.pinned && (
           <section className="card p-4 space-y-3 border-accent/40">
             <h3 className="font-semibold text-sm text-accent">📌 即將簽約</h3>
@@ -806,42 +807,47 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
                 className="w-full resize-none text-sm"
               />
             </Field>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-xs font-medium text-ink-2">
-                  簽約前待辦
-                  {(client.todos || []).length > 0 && (
-                    <span className="text-ink-3 font-normal ml-1">
-                      （{(client.todos || []).filter((td) => td.done).length}/{(client.todos || []).length}）
-                    </span>
-                  )}
-                </p>
-                <button onClick={applyTodoTemplate} className="text-xs text-accent hover:underline">
-                  ＋套用交車待辦範本
-                </button>
-              </div>
-              <div className="space-y-1">
-                {(client.todos || []).map((td) => (
-                  <div key={td.id} className="flex items-center gap-2 text-sm group">
-                    <input type="checkbox" checked={td.done} onChange={() => toggleTodo(td.id)} className="shrink-0" />
-                    <span className={`flex-1 ${td.done ? 'line-through text-ink-3' : 'text-ink-2'}`}>{td.text}</span>
-                    <button onClick={() => removeTodo(td.id)} className="text-danger/40 hover:text-danger text-xs">✕</button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2 mt-2">
-                <input
-                  value={todoInput}
-                  onChange={(e) => setTodoInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') addTodo(); }}
-                  placeholder="新增待辦（保險、車貸文件…）"
-                  className="flex-1 text-sm"
-                />
-                <button onClick={addTodo} className="btn-outline text-xs">加入</button>
-              </div>
-            </div>
           </section>
         )}
+
+        {/* 待辦事項（永遠顯示；保險、車貸文件、交車前整備…） */}
+        <section className="card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-sm text-ink-2">
+              ✅ 待辦事項
+              {(client.todos || []).length > 0 && (
+                <span className="text-ink-3 font-normal text-xs ml-1">
+                  （{(client.todos || []).filter((td) => td.done).length}/{(client.todos || []).length}）
+                </span>
+              )}
+            </h3>
+            <button onClick={applyTodoTemplate} className="text-xs text-accent hover:underline">
+              ＋套用交車待辦範本
+            </button>
+          </div>
+          <div className="space-y-1">
+            {(client.todos || []).length === 0 && (
+              <p className="text-xs text-ink-3">尚無待辦，下方可新增（或套用交車待辦範本）。</p>
+            )}
+            {(client.todos || []).map((td) => (
+              <div key={td.id} className="flex items-center gap-2 text-sm group">
+                <input type="checkbox" checked={td.done} onChange={() => toggleTodo(td.id)} className="shrink-0" />
+                <span className={`flex-1 ${td.done ? 'line-through text-ink-3' : 'text-ink-2'}`}>{td.text}</span>
+                <button onClick={() => removeTodo(td.id)} className="text-danger/40 hover:text-danger text-xs">✕</button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-1">
+            <input
+              value={todoInput}
+              onChange={(e) => setTodoInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') addTodo(); }}
+              placeholder="新增待辦（保險、車貸文件…）"
+              className="flex-1 text-sm"
+            />
+            <button onClick={addTodo} className="btn-outline text-xs">加入</button>
+          </div>
+        </section>
 
         {/* Timer section */}
         <section className="card p-4 space-y-3">

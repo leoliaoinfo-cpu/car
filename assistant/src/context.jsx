@@ -5,6 +5,7 @@ import { db, setOnBlocked } from './db';
 import { startSync, setOnRemoteApplied } from './sync';
 import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
+  INDUSTRY_SUGGESTIONS,
 } from './utils/crm';
 import { today } from './utils/date';
 import dayjs from 'dayjs';
@@ -47,6 +48,7 @@ const initialState = {
   tasks: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
   quotePresets: DEFAULT_QUOTE_PRESETS,
+  industries: INDUSTRY_SUGGESTIONS,
   timers: [],
   thresholds: DEFAULT_THRESHOLDS,
   dbBlocked: false,
@@ -113,6 +115,8 @@ function reducer(state, action) {
       return { ...state, todoTemplate: action.payload };
     case 'SET_QUOTE_PRESETS':
       return { ...state, quotePresets: action.payload };
+    case 'SET_INDUSTRIES':
+      return { ...state, industries: action.payload };
 
     // Timers
     case 'SET_TIMERS':
@@ -162,7 +166,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -174,6 +178,7 @@ export function AppProvider({ children }) {
           db.get('settings', 'crmThresholds').catch(() => null),
           db.get('settings', 'todoTemplate').catch(() => null),
           db.get('settings', 'quotePresets').catch(() => null),
+          db.get('settings', 'industries').catch(() => null),
         ]);
 
         const resolvedCats = cats.length > 0 ? cats : DEFAULT_CATS;
@@ -192,6 +197,7 @@ export function AppProvider({ children }) {
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
+            industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
           },
         });
         // 每日一次資料保養：清過期墓碑與 30 天前完成的待辦/提醒（防同步檔長期膨脹）
@@ -323,6 +329,12 @@ export function AppProvider({ children }) {
     await db.put('settings', { key: 'quotePresets', ...presets }).catch(() => {});
   }, []);
 
+  // ── 產業選項（設定頁可增刪排序；客戶表單下拉選單與側欄篩選共用）──────────
+  const saveIndustries = useCallback(async (items) => {
+    dispatch({ type: 'SET_INDUSTRIES', payload: items });
+    await db.put('settings', { key: 'industries', items }).catch(() => {});
+  }, []);
+
   const saveThresholds = useCallback(async (t) => {
     const clean = normalizeThresholds(t);
     await db.put('settings', { key: 'crmThresholds', ...clean }).catch(() => {});
@@ -343,7 +355,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, tasks, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -355,6 +367,7 @@ export function AppProvider({ children }) {
       db.get('settings', 'crmThresholds').catch(() => null),
       db.get('settings', 'todoTemplate').catch(() => null),
       db.get('settings', 'quotePresets').catch(() => null),
+      db.get('settings', 'industries').catch(() => null),
     ]);
     dispatch({
       type: 'RELOAD_ALL',
@@ -370,6 +383,7 @@ export function AppProvider({ children }) {
         thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
         quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
+        industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
       },
     });
   }, []);
@@ -392,6 +406,7 @@ export function AppProvider({ children }) {
     deleteTask,
     saveTodoTemplate,
     saveQuotePresets,
+    saveIndustries,
     saveThresholds,
     saveTimer,
     deleteTimer,
