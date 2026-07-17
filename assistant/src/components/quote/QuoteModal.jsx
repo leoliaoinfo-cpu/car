@@ -5,6 +5,13 @@ import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
 
+/** 由字串推導 4 碼英數（報價單編號用，同輸入固定輸出） */
+function shortHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h.toString(36).toUpperCase().padStart(4, '0').slice(-4);
+}
+
 /**
  * 報價單產生器：填車型與項目價格 → 產生美觀的報價單（固定淺色，方便截圖給客人）。
  * 新增模式（quote=null）會把總額寫入客戶時間軸；傳入既有 quote 則為編輯模式。
@@ -43,6 +50,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const total = items.reduce((s, it) => s + (Number(it.price) || 0), 0);
   // 補助折抵為負數項目，一併列入
   const validItems = items.filter((it) => it.name.trim() && Number(it.price) !== 0);
+
+  // 報價單編號：由日期＋此單 id 推導（同一張單編號固定，看起來更正式）
+  const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
 
   const loanPrincipal = Math.max(0, total - (Number(loan.down) || 0));
   const monthlyPay = calcMonthlyPayment(loanPrincipal, loan.rate, loan.months);
@@ -204,83 +214,136 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             </div>
           </div>
 
-          {/* 報價單預覽 — 固定淺色，截圖給客人用 */}
-          <div className="rounded-xl overflow-hidden shadow-panel mx-auto" style={{ maxWidth: 360, background: '#ffffff' }}>
-            <div style={{ background: '#5f7f96', padding: '14px 20px' }}>
-              <p style={{ color: '#ffffff', fontSize: 18, fontWeight: 700, letterSpacing: 6 }}>報 價 單</p>
-              <p style={{ color: '#d7e2ea', fontSize: 11, marginTop: 2 }}>
-                {dayjs(quote?.date || undefined).format('YYYY 年 M 月 D 日')}
-              </p>
+          {/* 報價單預覽 — 固定淺色、專業排版，截圖給客人用 */}
+          <div className="mx-auto" style={{
+            maxWidth: 380, background: '#ffffff', borderRadius: 14, overflow: 'hidden',
+            boxShadow: '0 8px 30px rgba(45,58,66,0.18)', border: '1px solid #eceef1',
+            fontFamily: '"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif',
+          }}>
+            {/* 信頭 */}
+            <div style={{ background: 'linear-gradient(135deg,#3f4d5a 0%,#2b343d 100%)', padding: '22px 24px 18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <p style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: 8, lineHeight: 1 }}>報價單</p>
+                  <p style={{ color: '#9db3c4', fontSize: 10, letterSpacing: 3, marginTop: 5 }}>QUOTATION</p>
+                </div>
+                <div style={{ textAlign: 'right', paddingTop: 3 }}>
+                  <p style={{ color: '#c9d6e0', fontSize: 10.5, fontFamily: 'monospace' }}>No. {quoteNo}</p>
+                  <p style={{ color: '#c9d6e0', fontSize: 10.5, marginTop: 3 }}>
+                    {dayjs(quote?.date || undefined).format('YYYY.MM.DD')}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div style={{ padding: '16px 20px' }}>
-              <p style={{ color: '#8fa0ac', fontSize: 11 }}>致</p>
-              <p style={{ color: '#2e3a42', fontSize: 15, fontWeight: 600, marginBottom: 10 }}>
-                {client?.name || '貴賓'}
-              </p>
+
+            <div style={{ padding: '18px 24px 22px' }}>
+              {/* 客戶 / 業務 */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 3 }}>客戶</p>
+                  <p style={{ color: '#2e3a42', fontSize: 16, fontWeight: 700 }}>{client?.name || '貴賓'}</p>
+                  {client?.phone && <p style={{ color: '#8b98a1', fontSize: 11, marginTop: 1 }}>{client.phone}</p>}
+                </div>
+                {(profile.name || profile.phone) && (
+                  <div style={{ textAlign: 'right', minWidth: 0 }}>
+                    <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 3 }}>業務專員</p>
+                    <p style={{ color: '#2e3a42', fontSize: 14, fontWeight: 600 }}>{profile.name || '—'}</p>
+                    {profile.phone && <p style={{ color: '#8b98a1', fontSize: 11, marginTop: 1 }}>{profile.phone}</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* 車型 */}
               {model.trim() && (
-                <div style={{ background: '#eef1f4', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
-                  <p style={{ color: '#5f7f96', fontSize: 13, fontWeight: 700 }}>🚛 {model}</p>
+                <div style={{
+                  borderLeft: '3px solid #bf8a5e', background: '#faf6f1',
+                  borderRadius: '0 8px 8px 0', padding: '9px 14px', marginBottom: 16,
+                }}>
+                  <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 2 }}>車型</p>
+                  <p style={{ color: '#5a4632', fontSize: 14, fontWeight: 700 }}>{model}</p>
                 </div>
               )}
+
+              {/* 項目表 */}
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, textAlign: 'left', padding: '0 0 7px', fontWeight: 600, borderBottom: '1.5px solid #e8ecef' }}>項目</th>
+                    <th style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, textAlign: 'right', padding: '0 0 7px', fontWeight: 600, borderBottom: '1.5px solid #e8ecef' }}>金額</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {validItems.map((it) => {
                     const p = Number(it.price);
+                    const isDiscount = p < 0;
                     return (
-                      <tr key={it.id} style={{ borderBottom: '1px solid #e3e9ed' }}>
-                        <td style={{ color: p < 0 ? '#6f957a' : '#5a6b77', fontSize: 13, padding: '7px 0' }}>
-                          {p < 0 ? `🏛 ${it.name}` : it.name}
+                      <tr key={it.id}>
+                        <td style={{ color: isDiscount ? '#6f957a' : '#4a5862', fontSize: 13, padding: '9px 0', borderBottom: '1px solid #f0f3f5' }}>
+                          {it.name}{isDiscount && <span style={{ fontSize: 10, color: '#9ec0a8', marginLeft: 5 }}>折抵</span>}
                         </td>
                         <td style={{
-                          color: p < 0 ? '#6f957a' : '#2e3a42', fontSize: 13, padding: '7px 0',
-                          textAlign: 'right', fontWeight: p < 0 ? 700 : 500,
+                          color: isDiscount ? '#6f957a' : '#2e3a42', fontSize: 13.5, padding: '9px 0',
+                          textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                          borderBottom: '1px solid #f0f3f5',
                         }}>
-                          {p < 0 ? `-${formatMoney(Math.abs(p))}` : formatMoney(p)}
+                          {isDiscount ? `−${formatMoney(Math.abs(p))}` : formatMoney(p)}
                         </td>
                       </tr>
                     );
                   })}
                   {validItems.length === 0 && (
-                    <tr><td style={{ color: '#8fa0ac', fontSize: 12, padding: '10px 0', textAlign: 'center' }} colSpan={2}>
+                    <tr><td style={{ color: '#b3bdc4', fontSize: 12, padding: '14px 0', textAlign: 'center' }} colSpan={2}>
                       （尚未輸入項目）
                     </td></tr>
                   )}
                 </tbody>
               </table>
+
+              {/* 總計 */}
               <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
-                borderTop: '2px solid #5f7f96', marginTop: 8, paddingTop: 10,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: 'linear-gradient(135deg,#3f4d5a,#2b343d)', borderRadius: 10,
+                padding: '13px 18px', marginTop: 16,
               }}>
-                <span style={{ color: '#5a6b77', fontSize: 13, fontWeight: 600 }}>總計</span>
-                <span style={{ color: '#5f7f96', fontSize: 22, fontWeight: 800 }}>
-                  NT$ {formatMoney(total)}
+                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>總計金額</span>
+                <span style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
+                  {formatMoney(total)}
                 </span>
               </div>
+
+              {/* 貸款 / 生財試算 */}
               {monthlyPay > 0 && (
-                <div style={{ background: '#eef1f4', borderRadius: 8, padding: '10px 12px', marginTop: 12 }}>
-                  <p style={{ color: '#5a6b77', fontSize: 11, marginBottom: 4 }}>
-                    🏦 貸款試算：頭期 {formatMoney(Number(loan.down) || 0)}・
-                    {loan.months} 期{Number(loan.rate) > 0 ? `・年利率 ${loan.rate}%` : ''}
-                  </p>
-                  <p style={{ color: '#2e3a42', fontSize: 14, fontWeight: 700 }}>
-                    月付 NT$ {formatMoney(monthlyPay)}
-                  </p>
+                <div style={{ border: '1px solid #ecdfce', background: '#fdfaf6', borderRadius: 10, padding: '12px 16px', marginTop: 12 }}>
+                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>分期試算</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ color: '#8b7355', fontSize: 11 }}>
+                      頭期 {formatMoney(Number(loan.down) || 0)}・{loan.months} 期{Number(loan.rate) > 0 ? `・年利率 ${loan.rate}%` : ''}
+                    </span>
+                    <span style={{ color: '#2e3a42', fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                      月付 {formatMoney(monthlyPay)}
+                    </span>
+                  </div>
                   {monthlyRevenue > 0 && (
-                    <p style={{ color: '#6f957a', fontSize: 12, fontWeight: 600, marginTop: 4 }}>
-                      💪 預估每月收益 {formatMoney(monthlyRevenue)} − 月付 ≈ 每月淨賺 NT$ {formatMoney(monthlyNet)}
-                    </p>
+                    <div style={{ borderTop: '1px dashed #ecdfce', marginTop: 9, paddingTop: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                      <span style={{ color: '#6f957a', fontSize: 11, fontWeight: 600 }}>每月預估淨賺</span>
+                      <span style={{ color: '#5e8a6c', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                        + {formatMoney(monthlyNet)}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
+
+              {/* 備註 */}
               {note.trim() && (
-                <p style={{ color: '#8fa0ac', fontSize: 11, marginTop: 10, whiteSpace: 'pre-wrap' }}>※ {note}</p>
+                <p style={{ color: '#9aa7b0', fontSize: 10.5, marginTop: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>備註　{note}</p>
               )}
-              {(profile.name || profile.phone) && (
-                <div style={{ borderTop: '1px solid #e3e9ed', marginTop: 12, paddingTop: 10, textAlign: 'right' }}>
-                  <p style={{ color: '#5a6b77', fontSize: 12, fontWeight: 600 }}>{profile.name}</p>
-                  {profile.phone && <p style={{ color: '#8fa0ac', fontSize: 11 }}>📞 {profile.phone}</p>}
-                </div>
-              )}
+
+              {/* 頁尾 */}
+              <div style={{ borderTop: '1px solid #eceef1', marginTop: 16, paddingTop: 12, textAlign: 'center' }}>
+                <p style={{ color: '#b3bdc4', fontSize: 10, letterSpacing: 1 }}>感謝您的信賴 · 本報價僅供參考，實際以合約為準</p>
+              </div>
             </div>
           </div>
 
