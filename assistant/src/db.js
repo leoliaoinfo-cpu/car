@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'business_assistant_v2';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise = null;
 
@@ -63,6 +63,9 @@ function openRaw() {
         // v3：中央待辦（雜事）
         if (!database.objectStoreNames.contains('tasks'))
           database.createObjectStore('tasks', { keyPath: 'id' });
+        // v4：刪除墓碑（雲端同步用——記住「這筆已刪」，合併時才不會被別台裝置的舊資料復活）
+        if (!database.objectStoreNames.contains('tombstones'))
+          database.createObjectStore('tombstones', { keyPath: 'id' });
       },
   });
 }
@@ -83,6 +86,21 @@ const ALL_STORES = [
   'salaryMonths', 'timers', 'timerHistory', 'settings',
 ];
 
+// 各 store 的主鍵欄位（同步合併時逐筆比對用）
+export const STORE_KEYS = {
+  clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
+  deals: 'id', dealFields: 'id', tasks: 'id', timers: 'id', timerHistory: 'id',
+  settings: 'key', salaryMonths: 'key',
+  journalEntries: 'date', archivedJournal: 'date',
+};
+export const SYNCED_STORES = ALL_STORES;
+
+// 資料變動通知（雲端同步引擎訂閱後，變動會排程自動上傳）
+let mutationListener = null;
+export function setMutationListener(cb) { mutationListener = cb; }
+function notifyMutation() { try { mutationListener?.(); } catch { /* 同步失敗不影響本機操作 */ } }
+const setMutationListenerNotify = notifyMutation;
+
 export function downloadJSON(data, filename) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -101,10 +119,21 @@ export const db = {
     return (await getDB()).get(store, key);
   },
   async put(store, value) {
-    return (await getDB()).put(store, value);
+    // _ts＝這筆資料最後修改時間，雲端同步逐筆合併時「新的贏」的依據
+    const stamped = { ...value, _ts: Date.now() };
+    const res = await (await getDB()).put(store, stamped);
+    notifyMutation();
+    return res;
   },
   async delete(store, key) {
-    return (await getDB()).delete(store, key);
+    const database = await getDB();
+    await database.delete(store, key);
+    if (store !== 'tombstones') {
+      await database.put('tombstones', { id: `${store}:${key}`, store, key, ts: Date.now() })
+        .catch(() => {});
+    }
+    notifyMutation();
+    return undefined;
   },
   async clear(store) {
     return (await getDB()).clear(store);
@@ -129,6 +158,25 @@ export const db = {
     return data;
   },
 
+  /** 雲端同步用：完整快照（含刪除墓碑） */
+  async exportForSync() {
+    const data = await db.exportAll();
+    data.tombstones = await db.getAll('tombstones');
+    return data;
+  },
+
+  /** 雲端同步用：把合併後的結果原樣寫回——不蓋 _ts、不寫墓碑、不觸發變動通知 */
+  async applySyncedSnapshot(data) {
+    const database = await getDB();
+    for (const store of [...ALL_STORES, 'tombstones']) {
+      if (!Array.isArray(data[store])) continue;
+      const tx = database.transaction(store, 'readwrite');
+      tx.store.clear();
+      for (const item of data[store]) tx.store.put(item);
+      await tx.done;
+    }
+  },
+
   /** 匯出並下載備份，同時記錄最後備份時間（供備份提醒使用） */
   async exportAndDownload() {
     const data = await db.exportAll();
@@ -151,6 +199,7 @@ export const db = {
         await db.bulkPut(store, data[store]);
       }
     }
+    setMutationListenerNotify();
   },
 
   /** Merge import from v2 format without wiping */
@@ -160,6 +209,7 @@ export const db = {
         await db.bulkPut(store, data[store]);
       }
     }
+    setMutationListenerNotify();
   },
 
   /** Import from legacy v1 format: { _v:1, crm, jnl, sal } */
@@ -186,6 +236,7 @@ export const db = {
         : Object.entries(sal).map(([key, data]) => ({ key, ...data }));
       await db.bulkPut('salaryMonths', months);
     }
+    setMutationListenerNotify();
   },
 
 };

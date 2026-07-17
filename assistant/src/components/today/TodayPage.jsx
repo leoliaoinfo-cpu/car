@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useApp } from '../../context';
 import { db } from '../../db';
+import { isSyncEnabled } from '../../sync';
 import {
   getClientStatus, STATUS_COLOR, CAT_COLORS, FIELD_COLORS, generateId,
   EVENT_TYPES, getOccasionsOnDate,
@@ -48,7 +49,8 @@ export default function TodayPage({ onOpenClient }) {
   }, []);
 
   const backupDays = lastBackupAt ? dayjs().diff(dayjs(lastBackupAt), 'day') : null;
-  const showBackupWarn = clients.length > 0 && lastBackupAt !== undefined
+  // 雲端同步啟用時資料已自動備份到雲端，不再提醒手動下載
+  const showBackupWarn = !isSyncEnabled() && clients.length > 0 && lastBackupAt !== undefined
     && (lastBackupAt === null || backupDays >= BACKUP_REMIND_DAYS);
 
   async function handleQuickBackup() {

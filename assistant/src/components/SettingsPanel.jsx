@@ -1,7 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { db, downloadJSON } from '../db';
 import { useApp } from '../context';
 import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId } from '../utils/crm';
+import {
+  connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
+  getSyncStatus, subscribeSyncStatus,
+} from '../sync';
+import { Field } from './ui';
 
 const HELP_CARDS = [
   { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
@@ -22,9 +27,10 @@ const HELP_CARDS = [
   { icon: '📦', title: '舊版資料匯入', desc: '支援匯入舊版格式 { _v:1, crm, jnl, sal } 的 JSON 備份。' },
 ];
 
-const SECTION_KEYS = ['backup', 'cats', 'stages', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['backup', 'sync', 'cats', 'stages', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
   backup: '💾 備份還原',
+  sync: '☁️ 雲端同步',
   cats: '🏷 客戶分類',
   stages: '📶 業務進度',
   fields: '✏️ 自訂欄位',
@@ -216,6 +222,9 @@ export default function SettingsPanel({ onClose }) {
               </div>
             </section>
           )}
+
+          {/* ── Cloud sync ── */}
+          {activeSection === 'sync' && <SyncSection reloadAll={reloadAll} />}
 
           {/* ── Cats ── */}
           {activeSection === 'cats' && (
@@ -640,5 +649,134 @@ function CustomFieldEditor({ fields, onChange }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ── ☁️ 雲端同步（GitHub 私人 repo）──────────────────────────────────────────
+function SyncSection({ reloadAll }) {
+  const [enabled, setEnabled] = useState(isSyncEnabled());
+  const [syncStatus, setSyncStatus] = useState(getSyncStatus());
+  const [token, setToken] = useState('');
+  const [repoName, setRepoName] = useState('business-data');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [confirmStop, setConfirmStop] = useState(false);
+
+  useEffect(() => subscribeSyncStatus(setSyncStatus), []);
+
+  async function handleConnect() {
+    if (!token.trim()) { setMsg('❌ 請先貼上金鑰'); return; }
+    setBusy(true);
+    setMsg('');
+    try {
+      const repo = await connectSync(token, repoName);
+      setEnabled(true);
+      setToken('');
+      setMsg(`✅ 已連線 ${repo}，同步已啟動`);
+      // 首次同步完成後刷新畫面（讓另一台裝置的資料立刻出現）
+      setTimeout(() => reloadAll?.(), 3000);
+    } catch (e) {
+      setMsg('❌ ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleStop() {
+    stopSync();
+    setEnabled(false);
+    setConfirmStop(false);
+    setMsg('已中斷同步（雲端與本機資料都保留，重新連線即可續用）');
+  }
+
+  const stateLabel = {
+    off: '未啟用', idle: '待命', syncing: '同步中…', ok: '✅ 已同步', error: '❌ 發生錯誤',
+  }[syncStatus.state] || syncStatus.state;
+
+  return (
+    <section className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <h3 className="font-semibold text-ink">☁️ 手機 ↔ 電腦全自動同步</h3>
+        <p className="text-xs text-ink-3 leading-relaxed">
+          用你自己的 GitHub 私人儲存庫當免費雲端：任何一台裝置改了資料，幾秒內自動上傳，
+          其他裝置開啟或切回頁面時自動下載合併。兩邊同時改也會逐筆以「較新的為準」合併，
+          刪除的資料不會復活。金鑰只存在此裝置，不會上傳。
+        </p>
+
+        {enabled ? (
+          <div className="space-y-3">
+            <div className="bg-s2 rounded-lg p-3 space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-ink-3">儲存庫</span><span className="text-ink font-mono text-xs">{getSyncRepo()}</span></div>
+              <div className="flex justify-between"><span className="text-ink-3">狀態</span><span className="text-ink">{stateLabel}</span></div>
+              {syncStatus.lastSyncAt && (
+                <div className="flex justify-between"><span className="text-ink-3">上次同步</span>
+                  <span className="text-ink">{syncStatus.lastSyncAt.slice(0, 16).replace('T', ' ')}</span></div>
+              )}
+              {syncStatus.error && <p className="text-xs text-danger">{syncStatus.error}</p>}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={() => syncNow()} className="btn-primary text-sm" disabled={syncStatus.state === 'syncing'}>
+                🔄 立即同步
+              </button>
+              {confirmStop ? (
+                <span className="flex gap-1.5">
+                  <button onClick={handleStop} className="btn-danger text-sm">確認中斷</button>
+                  <button onClick={() => setConfirmStop(false)} className="btn-outline text-sm">取消</button>
+                </span>
+              ) : (
+                <button onClick={() => setConfirmStop(true)} className="btn-outline text-sm">中斷同步</button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <Field label="GitHub 金鑰（github_pat_ 開頭）" required>
+              <input
+                type="password"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="github_pat_…"
+                className="w-full text-sm font-mono"
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="私人儲存庫名稱">
+              <input
+                value={repoName}
+                onChange={(e) => setRepoName(e.target.value)}
+                className="w-full text-sm font-mono"
+              />
+            </Field>
+            <button onClick={handleConnect} disabled={busy} className="btn-primary w-full">
+              {busy ? '連線中…' : '🔗 啟用同步'}
+            </button>
+          </div>
+        )}
+        {msg && <p className="text-sm text-ink-2 bg-s2 rounded-lg px-3 py-2">{msg}</p>}
+      </div>
+
+      {!enabled && (
+        <div className="card p-4 space-y-2 text-xs text-ink-2 leading-relaxed">
+          <h3 className="font-semibold text-ink text-sm">📝 一次性設定教學（約 3 分鐘）</h3>
+          <p className="font-medium text-ink">步驟 1：建立私人儲存庫（只需做一次）</p>
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>登入 <span className="font-mono">github.com</span> → 右上角「＋」→「New repository」</li>
+            <li>Repository name 輸入 <span className="font-mono text-accent">business-data</span></li>
+            <li>選 <strong className="text-danger">Private（私人）</strong> → 按「Create repository」</li>
+          </ol>
+          <p className="font-medium text-ink pt-1">步驟 2：產生金鑰（只需做一次）</p>
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>GitHub 右上角頭像 → Settings → 最下面「Developer settings」</li>
+            <li>「Personal access tokens」→「Fine-grained tokens」→「Generate new token」</li>
+            <li>Token name 隨意填（例：sync）；Expiration 選最長</li>
+            <li>Repository access 選「Only select repositories」→ 勾 <span className="font-mono">business-data</span></li>
+            <li>Permissions → Repository permissions → <strong>Contents</strong> 改成「Read and write」</li>
+            <li>按「Generate token」→ 複製整串金鑰（github_pat_ 開頭）</li>
+          </ol>
+          <p className="font-medium text-ink pt-1">步驟 3：每台裝置貼上同一把金鑰</p>
+          <p>把金鑰貼到上面欄位按「啟用同步」。手機、電腦都做這一步，之後就全自動，不用再管。</p>
+        </div>
+      )}
+    </section>
   );
 }

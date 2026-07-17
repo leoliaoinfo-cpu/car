@@ -11,7 +11,8 @@
 
 - **前端**：React 18 + Vite（`vite-plugin-singlefile` 打包成單一 `dist/index.html`，離線可用、雙擊可開）
 - **樣式**：Tailwind CSS 3，主題色全走 CSS 變數（`--c-*`，RGB channel 形式支援 alpha），深/淺雙主題
-- **儲存**：瀏覽器 IndexedDB（`idb` 套件），資料庫名 `business_assistant_v2`，目前 DB_VERSION = 3；**無後端**
+- **儲存**：瀏覽器 IndexedDB（`idb` 套件），資料庫名 `business_assistant_v2`，目前 DB_VERSION = 4；**無後端**
+- **雲端同步**（選用）：`src/sync.js`——用使用者自己的 GitHub 私人 repo 存 `data.json`；`db.put` 自動蓋 `_ts`、`db.delete` 寫 tombstones（v4 新 store），逐筆 LWW 合併＋墓碑防復活，sha CAS 防互蓋；token 只存 localStorage（`sync.token`/`sync.repo`）。變動防抖 4 秒自動推、60 秒輪詢＋visibilitychange 自動拉
 - **日期**：dayjs（zh-tw locale）
 - **主程式目錄**：`assistant/`；啟動 `cd assistant && npm ci && npm run dev`；打包 `npm run build`
 - 手機測試：`npm run dev -- --host --port 5173`，手機開 `http://電腦IP:5173`
@@ -68,6 +69,7 @@
 | `tasks` | id | text, done, doneAt, createdAt（中央待辦） |
 | `timers` | id | clientId?, clientName?, note, triggerAt(ISO), confirmedAt |
 | `settings` | key | crmThresholds{coldDays,deadDays}、todoTemplate{items[]}、quotePresets{addons[{id,name,price}],subsidies[{id,name,amount}]}、quoteProfile{name,phone}、lastBackupAt{value} |
+| `tombstones` | id(`store:key`) | store, key, ts——刪除墓碑（雲端同步合併時防止已刪資料復活，保留 90 天） |
 | `journalEntries`/`archivedJournal`/`salaryMonths`/`timerHistory` | — | 已下架功能，僅為舊備份相容保留 |
 
 時間軸 `log.type`：contact/missed/line/quote/visit/loan/order/delivery/aftercare/deal/occasion。
@@ -110,7 +112,8 @@ npm run preview -- --port 4173 &
 
 ## 九、路線圖（未做）
 
-- P1：雲端同步（Supabase 或 Cloudflare D1，多裝置同步＋資料安全）、報價單 PDF、業績 CSV 匯出、管道看板（桌面）、PWA 安裝、交車照片上傳（需後端）
+- ~~雲端同步~~（已完成：GitHub 私人 repo 方案，見 src/sync.js）
+- P1：報價單 PDF、業績 CSV 匯出、管道看板（桌面）、PWA 安裝、交車照片上傳（需後端）
 - P2：KPI 視覺化、AI 話術/優先客戶分析（API key 走後端代理）
 
 ## 十、給新對話的啟動提示

@@ -2,6 +2,7 @@ import {
   createContext, useContext, useReducer, useEffect, useCallback, useRef, useState,
 } from 'react';
 import { db, setOnBlocked } from './db';
+import { startSync, setOnRemoteApplied } from './sync';
 import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
 } from './utils/crm';
@@ -139,6 +140,13 @@ export function AppProvider({ children }) {
   // 只在真正被其他分頁的舊連線擋住時通知（IndexedDB 原生訊號，非猜測性逾時）
   useEffect(() => {
     setOnBlocked(() => dispatch({ type: 'SET_DB_BLOCKED', payload: true }));
+  }, []);
+
+  // ☁️ 雲端同步：啟動引擎；遠端合併進本機後刷新整個畫面
+  const reloadAllRef = useRef(null);
+  useEffect(() => {
+    setOnRemoteApplied(() => { reloadAllRef.current?.(); });
+    startSync(); // 未啟用時是 no-op
   }, []);
 
   // ── Startup load ──────────────────────────────────────────────────────────
@@ -340,6 +348,7 @@ export function AppProvider({ children }) {
       },
     });
   }, []);
+  reloadAllRef.current = reloadAll;
 
   const value = {
     ...state,
