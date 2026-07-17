@@ -6,6 +6,7 @@ import {
 } from '../../utils/crm';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
+import { Field } from '../ui';
 import dayjs from 'dayjs';
 
 const SORT_OPTIONS = [
@@ -362,38 +363,55 @@ function NewClientModal({ cats, stages, onClose, onCreate }) {
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-sm p-5 anim-scale-in z-50">
           <h3 className="font-bold text-lg text-ink mb-4">新增客戶</h3>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="姓名 / 公司名 *" className="w-full" required />
+            <Field label="姓名 / 公司名" required>
+              <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例：陳頭家 / 大發水電行" className="w-full" required />
+            </Field>
             <div className="grid grid-cols-2 gap-2">
-              <select value={form.clientType} onChange={(e) => set('clientType', e.target.value)} className="w-full">
-                <option value="personal">👤 個人戶</option>
-                <option value="company">🏢 公司戶</option>
-              </select>
-              <input
-                list="industry-options-new"
-                value={form.industry}
-                onChange={(e) => set('industry', e.target.value)}
-                placeholder="產業"
-                className="w-full"
-              />
-              <datalist id="industry-options-new">
-                {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
-              </datalist>
+              <Field label="客戶類型">
+                <select value={form.clientType} onChange={(e) => set('clientType', e.target.value)} className="w-full">
+                  <option value="personal">👤 個人戶</option>
+                  <option value="company">🏢 公司戶</option>
+                </select>
+              </Field>
+              <Field label="產業">
+                <input
+                  list="industry-options-new"
+                  value={form.industry}
+                  onChange={(e) => set('industry', e.target.value)}
+                  placeholder="水電、物流…"
+                  className="w-full"
+                />
+                <datalist id="industry-options-new">
+                  {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+                </datalist>
+              </Field>
             </div>
-            <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="電話" className="w-full" />
-            <input value={form.lineId} onChange={(e) => set('lineId', e.target.value)} placeholder="LINE ID" className="w-full" />
             <div className="grid grid-cols-2 gap-2">
-              <select value={form.catId} onChange={(e) => set('catId', e.target.value)} className="w-full">
-                {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              <select value={form.stageId} onChange={(e) => set('stageId', e.target.value)} className="w-full">
-                {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <Field label="電話">
+                <input value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="0912-345-678" className="w-full" />
+              </Field>
+              <Field label="LINE ID">
+                <input value={form.lineId} onChange={(e) => set('lineId', e.target.value)} className="w-full" />
+              </Field>
             </div>
-            <label className="flex items-center gap-2 text-sm text-ink-2">
-              下次追蹤：
-              <input type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} className="flex-1" />
-            </label>
-            <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="備註" rows={2} className="w-full resize-none" />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="客戶分類">
+                <select value={form.catId} onChange={(e) => set('catId', e.target.value)} className="w-full">
+                  {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </Field>
+              <Field label="業務進度">
+                <select value={form.stageId} onChange={(e) => set('stageId', e.target.value)} className="w-full">
+                  {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Field label="下次追蹤日期">
+              <input type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} className="w-full" />
+            </Field>
+            <Field label="備註">
+              <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="需求、預算、注意事項…" rows={2} className="w-full resize-none" />
+            </Field>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
               <button type="submit" className="btn-primary flex-1">新增</button>

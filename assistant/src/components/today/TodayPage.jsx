@@ -18,6 +18,30 @@ export default function TodayPage({ onOpenClient }) {
   const todayStr = dayjs().format('YYYY-MM-DD');
   const [lastBackupAt, setLastBackupAt] = useState(undefined); // undefined=載入中, null=從未備份
   const [taskInput, setTaskInput] = useState('');
+  const [taskClient, setTaskClient] = useState(null); // @提及連結的客戶 {id, name}
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState(false);
+
+  // 輸入中的 @查詢字串（游標尾端的 @xxx）；null = 沒在打提及
+  const mentionQuery = useMemo(() => {
+    const m = taskInput.match(/@([^\s@]*)$/);
+    return m ? m[1] : null;
+  }, [taskInput]);
+
+  const mentionCandidates = useMemo(() => {
+    if (mentionQuery === null || mentionDismissed) return [];
+    const q = mentionQuery.toLowerCase();
+    return clients
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
+      .slice(0, 6);
+  }, [clients, mentionQuery, mentionDismissed]);
+
+  function pickMention(client) {
+    setTaskInput((v) => v.replace(/@[^\s@]*$/, `@${client.name} `));
+    setTaskClient({ id: client.id, name: client.name });
+    setMentionIdx(0);
+  }
 
   useEffect(() => {
     db.getLastBackupAt().then(setLastBackupAt).catch(() => setLastBackupAt(null));
@@ -93,8 +117,14 @@ export default function TodayPage({ onOpenClient }) {
   async function addTask() {
     const text = taskInput.trim();
     if (!text) return;
+    // @提及的客戶連結：使用者若把 @客戶名 刪掉就不連結
+    const linked = taskClient && text.includes(`@${taskClient.name}`) ? taskClient : null;
     setTaskInput(''); // 先清空再儲存，避免儲存期間輸入的下一筆被清掉
-    await saveTask({ id: generateId('task'), text, done: false, doneAt: null });
+    setTaskClient(null);
+    await saveTask({
+      id: generateId('task'), text, done: false, doneAt: null,
+      clientId: linked?.id || null, clientName: linked?.name || null,
+    });
   }
 
   async function toggleTask(t) {
@@ -278,15 +308,41 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 中央待辦：直接記錄與處理雜事 */}
       <Section title={`📋 待辦事項${undoneTaskCount > 0 ? `（${undoneTaskCount}）` : ''}`} titleColor="#7291a8">
-        <div className="flex gap-2 px-3 py-2.5 border-b border-bdr/50">
-          <input
-            value={taskInput}
-            onChange={(e) => setTaskInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addTask(); }}
-            placeholder="新增待辦（回報主管、送文件、訂配件…）"
-            className="flex-1 text-sm min-w-0"
-          />
-          <button onClick={addTask} className="btn-primary text-xs shrink-0">加入</button>
+        <div className="px-3 py-2.5 border-b border-bdr/50">
+          <div className="flex gap-2">
+            <input
+              value={taskInput}
+              onChange={(e) => { setTaskInput(e.target.value); setMentionDismissed(false); setMentionIdx(0); }}
+              onKeyDown={(e) => {
+                if (mentionCandidates.length > 0) {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % mentionCandidates.length); return; }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + mentionCandidates.length) % mentionCandidates.length); return; }
+                  if (e.key === 'Enter') { e.preventDefault(); pickMention(mentionCandidates[mentionIdx]); return; }
+                  if (e.key === 'Escape') { setMentionDismissed(true); return; }
+                }
+                if (e.key === 'Enter') addTask();
+              }}
+              placeholder="新增待辦（輸入 @ 可連結客戶）"
+              className="flex-1 text-sm min-w-0"
+            />
+            <button onClick={addTask} className="btn-primary text-xs shrink-0">加入</button>
+          </div>
+          {mentionCandidates.length > 0 && (
+            <div className="mt-2 rounded-lg border border-bdr bg-s2 overflow-hidden anim-fade-in">
+              <p className="text-[10px] text-ink-3 px-3 pt-2 pb-1">選擇要連結的客戶</p>
+              {mentionCandidates.map((c, i) => (
+                <button
+                  key={c.id}
+                  onMouseDown={(e) => { e.preventDefault(); pickMention(c); }}
+                  onMouseEnter={() => setMentionIdx(i)}
+                  className={`flex items-center gap-2 w-full text-left px-3 py-2 text-sm ${i === mentionIdx ? 'bg-accent/15' : ''}`}
+                >
+                  <span className="font-medium text-ink">{c.name}</span>
+                  {c.phone && <span className="text-xs text-ink-3">{c.phone}</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {visibleTasks.length === 0 && (
           <p className="text-center text-ink-3 text-xs py-4">沒有待辦，輸入上方欄位新增</p>
@@ -295,7 +351,7 @@ export default function TodayPage({ onOpenClient }) {
           <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
             <input type="checkbox" checked={!!t.done} onChange={() => toggleTask(t)} className="shrink-0" />
             <span className={`flex-1 text-sm min-w-0 break-words ${t.done ? 'line-through text-ink-3' : 'text-ink'}`}>
-              {t.text}
+              <TaskText task={t} onOpenClient={onOpenClient} />
             </span>
             <button onClick={() => deleteTask(t.id)} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
           </div>
@@ -371,6 +427,25 @@ export default function TodayPage({ onOpenClient }) {
         </Section>
       )}
     </div>
+  );
+}
+
+/** 待辦文字：有連結客戶時，@客戶名 顯示為可點擊、跳到該客戶詳情 */
+function TaskText({ task, onOpenClient }) {
+  const mention = task.clientId && task.clientName ? `@${task.clientName}` : null;
+  const idx = mention ? task.text.indexOf(mention) : -1;
+  if (idx === -1) return task.text;
+  return (
+    <>
+      {task.text.slice(0, idx)}
+      <button
+        onClick={() => onOpenClient(task.clientId)}
+        className="text-accent font-medium hover:underline align-baseline"
+      >
+        {mention}
+      </button>
+      {task.text.slice(idx + mention.length)}
+    </>
   );
 }
 

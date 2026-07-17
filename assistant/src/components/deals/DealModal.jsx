@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { generateId, FIELD_COLORS } from '../../utils/crm';
 import { today } from '../../utils/date';
+import { Field } from '../ui';
 
 /**
  * 成交歸檔表單（新增 / 編輯共用）。
@@ -78,8 +79,10 @@ export default function DealModal({ deal, client, dealFields, onSave, onClose })
                   placeholder="0" className="flex-1" />
               </label>
             ))}
-            <input value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="車型 / 備註（選填）" className="w-full text-sm" />
+            <Field label="車型 / 備註（選填）">
+              <input value={note} onChange={(e) => setNote(e.target.value)}
+                className="w-full text-sm" />
+            </Field>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
               <button type="submit" className="btn-primary flex-1">{isEdit ? '儲存' : '歸檔'}</button>

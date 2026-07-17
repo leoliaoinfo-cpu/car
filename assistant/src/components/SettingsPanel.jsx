@@ -340,6 +340,13 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChan
         <button onClick={add} className="btn-primary text-xs shrink-0">+ 新增</button>
       </div>
       {items.length === 0 && <p className="text-center text-ink-3 text-sm py-4">尚無項目</p>}
+      {items.length > 0 && (
+        <div className="flex items-center gap-2 px-3 text-[11px] font-medium text-ink-3">
+          <span className="flex-1">名稱</span>
+          <span className="w-28 shrink-0">金額（元）</span>
+          <span className="w-4 shrink-0" />
+        </div>
+      )}
       {items.map((it) => (
         <div key={it.id} className="card p-3 flex items-center gap-2">
           <input

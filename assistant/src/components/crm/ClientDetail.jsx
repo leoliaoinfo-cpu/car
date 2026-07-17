@@ -7,6 +7,7 @@ import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
+import { Field } from '../ui';
 import dayjs from 'dayjs';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
@@ -385,31 +386,51 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
           <h3 className="font-semibold text-sm text-ink-2">基本資料</h3>
           {editing ? (
             <div className="space-y-2">
-              <input value={form.name || ''} onChange={(e) => setField('name', e.target.value)} placeholder="姓名 / 公司名" className="w-full" />
+              <Field label="姓名 / 公司名" required>
+                <input value={form.name || ''} onChange={(e) => setField('name', e.target.value)} className="w-full" />
+              </Field>
               <div className="grid grid-cols-2 gap-2">
-                <select value={form.clientType || 'personal'} onChange={(e) => setField('clientType', e.target.value)} className="w-full">
-                  <option value="personal">個人戶</option>
-                  <option value="company">公司戶</option>
-                </select>
+                <Field label="客戶類型">
+                  <select value={form.clientType || 'personal'} onChange={(e) => setField('clientType', e.target.value)} className="w-full">
+                    <option value="personal">個人戶</option>
+                    <option value="company">公司戶</option>
+                  </select>
+                </Field>
                 {form.clientType === 'company' ? (
-                  <input value={form.taxId || ''} onChange={(e) => setField('taxId', e.target.value)} placeholder="統編" className="w-full" />
+                  <Field label="統一編號">
+                    <input value={form.taxId || ''} onChange={(e) => setField('taxId', e.target.value)} className="w-full" />
+                  </Field>
                 ) : <span />}
               </div>
-              <input
-                list="industry-options"
-                value={form.industry || ''}
-                onChange={(e) => setField('industry', e.target.value)}
-                placeholder="產業（水電、物流、市場…決定推什麼車斗）"
-                className="w-full"
-              />
-              <datalist id="industry-options">
-                {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
-              </datalist>
-              <input value={form.phone || ''} onChange={(e) => setField('phone', e.target.value)} placeholder="電話" className="w-full" />
-              <input value={form.lineId || ''} onChange={(e) => setField('lineId', e.target.value)} placeholder="LINE ID" className="w-full" />
-              <input value={form.email || ''} onChange={(e) => setField('email', e.target.value)} placeholder="Email" className="w-full" />
-              <input value={form.address || ''} onChange={(e) => setField('address', e.target.value)} placeholder="地址（公司/交車地點）" className="w-full" />
-              <input value={form.source || ''} onChange={(e) => setField('source', e.target.value)} placeholder="來源（FB、路過、轉介紹…）" className="w-full" />
+              <Field label="產業">
+                <input
+                  list="industry-options"
+                  value={form.industry || ''}
+                  onChange={(e) => setField('industry', e.target.value)}
+                  placeholder="水電、物流、市場…決定推什麼車斗"
+                  className="w-full"
+                />
+                <datalist id="industry-options">
+                  {INDUSTRY_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+                </datalist>
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="電話">
+                  <input value={form.phone || ''} onChange={(e) => setField('phone', e.target.value)} className="w-full" />
+                </Field>
+                <Field label="LINE ID">
+                  <input value={form.lineId || ''} onChange={(e) => setField('lineId', e.target.value)} className="w-full" />
+                </Field>
+              </div>
+              <Field label="Email">
+                <input value={form.email || ''} onChange={(e) => setField('email', e.target.value)} className="w-full" />
+              </Field>
+              <Field label="地址">
+                <input value={form.address || ''} onChange={(e) => setField('address', e.target.value)} placeholder="公司 / 交車地點" className="w-full" />
+              </Field>
+              <Field label="來源">
+                <input value={form.source || ''} onChange={(e) => setField('source', e.target.value)} placeholder="FB、路過、轉介紹…" className="w-full" />
+              </Field>
 
               {/* 多聯絡人：老闆 / 採購 / 司機分開存 */}
               <div className="space-y-1.5">
@@ -437,28 +458,40 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
               {/* 轉介紹 */}
               <div className="grid grid-cols-2 gap-2">
-                <select value={form.referrerId || ''} onChange={(e) => setField('referrerId', e.target.value || null)} className="w-full">
-                  <option value="">無介紹人</option>
-                  {clients.filter((c) => c.id !== client.id).map((c) => (
-                    <option key={c.id} value={c.id}>介紹人：{c.name}</option>
-                  ))}
-                </select>
-                <input type="number" min="0" value={form.referralFee ?? ''}
-                  onChange={(e) => setField('referralFee', e.target.value === '' ? null : Number(e.target.value))}
-                  placeholder="介紹金（元）" className="w-full" />
+                <Field label="介紹人">
+                  <select value={form.referrerId || ''} onChange={(e) => setField('referrerId', e.target.value || null)} className="w-full">
+                    <option value="">無介紹人</option>
+                    {clients.filter((c) => c.id !== client.id).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="介紹金（元）">
+                  <input type="number" min="0" value={form.referralFee ?? ''}
+                    onChange={(e) => setField('referralFee', e.target.value === '' ? null : Number(e.target.value))}
+                    className="w-full" />
+                </Field>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <select value={form.catId || ''} onChange={(e) => setField('catId', e.target.value)} className="w-full">
-                  {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select value={form.stageId || ''} onChange={(e) => setField('stageId', e.target.value)} className="w-full">
-                  {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <Field label="客戶分類">
+                  <select value={form.catId || ''} onChange={(e) => setField('catId', e.target.value)} className="w-full">
+                    {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="業務進度">
+                  <select value={form.stageId || ''} onChange={(e) => setField('stageId', e.target.value)} className="w-full">
+                    {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </Field>
               </div>
-              <select value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
-                {INTENT_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
-              </select>
-              <textarea value={form.notes || ''} onChange={(e) => setField('notes', e.target.value)} placeholder="備註" rows={2} className="w-full resize-none" />
+              <Field label="意願度">
+                <select value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
+                  {INTENT_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
+                </select>
+              </Field>
+              <Field label="備註">
+                <textarea value={form.notes || ''} onChange={(e) => setField('notes', e.target.value)} rows={2} className="w-full resize-none" />
+              </Field>
             </div>
           ) : (
             <div className="space-y-1.5 text-sm">
@@ -593,13 +626,15 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         {/* Contact actions */}
         <section className="card p-4 space-y-3">
           <h3 className="font-semibold text-sm text-ink-2">📞 聯繫操作</h3>
-          <textarea
-            value={logInput}
-            onChange={(e) => setLogInput(e.target.value)}
-            placeholder="聯繫備註（可留空）"
-            rows={2}
-            className="w-full resize-none text-sm"
-          />
+          <Field label="聯繫備註">
+            <textarea
+              value={logInput}
+              onChange={(e) => setLogInput(e.target.value)}
+              placeholder="可留空"
+              rows={2}
+              className="w-full resize-none text-sm"
+            />
+          </Field>
           <div className="flex gap-2 flex-wrap">
             <button onClick={handleContacted} className="btn-primary text-sm flex-1">✅ 已聯繫</button>
             <button onClick={handleMissedCall} className="btn-outline text-sm flex-1">
@@ -649,21 +684,24 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
           {eventType && (
             <div className="space-y-2 bg-s2 rounded-lg p-3 anim-fade-in">
-              <textarea
-                value={eventNote}
-                onChange={(e) => setEventNote(e.target.value)}
-                placeholder={`${EVENT_TYPES[eventType].label}內容（車型、條件、結果…）`}
-                rows={2}
-                className="w-full resize-none text-sm"
-              />
-              {EVENT_TYPES[eventType].hasAmount && (
-                <input
-                  type="number"
-                  value={eventAmount}
-                  onChange={(e) => setEventAmount(e.target.value)}
-                  placeholder="金額（元，選填）"
-                  className="w-full text-sm"
+              <Field label={`${EVENT_TYPES[eventType].label}內容`}>
+                <textarea
+                  value={eventNote}
+                  onChange={(e) => setEventNote(e.target.value)}
+                  placeholder="車型、條件、結果…"
+                  rows={2}
+                  className="w-full resize-none text-sm"
                 />
+              </Field>
+              {EVENT_TYPES[eventType].hasAmount && (
+                <Field label="金額（元，選填）">
+                  <input
+                    type="number"
+                    value={eventAmount}
+                    onChange={(e) => setEventAmount(e.target.value)}
+                    className="w-full text-sm"
+                  />
+                </Field>
               )}
               {eventType === 'delivery' && (
                 <div className="space-y-2">
@@ -758,14 +796,16 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         {client.pinned && (
           <section className="card p-4 space-y-3 border-accent/40">
             <h3 className="font-semibold text-sm text-accent">📌 即將簽約</h3>
-            <textarea
-              value={signingNote}
-              onChange={(e) => setSigningNote(e.target.value)}
-              onBlur={saveSigningNote}
-              placeholder="重點備註（價格底線、關鍵條件、注意事項…）"
-              rows={2}
-              className="w-full resize-none text-sm"
-            />
+            <Field label="重點備註">
+              <textarea
+                value={signingNote}
+                onChange={(e) => setSigningNote(e.target.value)}
+                onBlur={saveSigningNote}
+                placeholder="價格底線、關鍵條件、注意事項…"
+                rows={2}
+                className="w-full resize-none text-sm"
+              />
+            </Field>
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-xs font-medium text-ink-2">
@@ -814,19 +854,22 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
           {showAddTimer && (
             <div className="space-y-2 bg-s2 rounded-lg p-3">
-              <input
-                value={timerNote}
-                onChange={(e) => setTimerNote(e.target.value)}
-                placeholder="提醒內容"
-                className="w-full text-sm"
-              />
-              <input
-                type="datetime-local"
-                value={timerTime}
-                min={dayjs().format('YYYY-MM-DDTHH:mm')}
-                onChange={(e) => setTimerTime(e.target.value)}
-                className="w-full text-sm"
-              />
+              <Field label="提醒內容">
+                <input
+                  value={timerNote}
+                  onChange={(e) => setTimerNote(e.target.value)}
+                  className="w-full text-sm"
+                />
+              </Field>
+              <Field label="提醒時間">
+                <input
+                  type="datetime-local"
+                  value={timerTime}
+                  min={dayjs().format('YYYY-MM-DDTHH:mm')}
+                  onChange={(e) => setTimerTime(e.target.value)}
+                  className="w-full text-sm"
+                />
+              </Field>
               <button onClick={handleAddTimer} className="btn-primary text-xs w-full">確認新增</button>
             </div>
           )}
@@ -861,16 +904,22 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
                       {isEditing ? (
                         <div className="space-y-1.5 bg-s2 rounded-lg p-2">
                           <div className="flex gap-1.5 flex-wrap">
-                            <input type="date" value={editingLog.date}
-                              onChange={(e) => setEditingLog((v) => ({ ...v, date: e.target.value }))}
-                              className="text-xs" />
-                            <input type="number" min="0" value={editingLog.amount}
-                              onChange={(e) => setEditingLog((v) => ({ ...v, amount: e.target.value }))}
-                              placeholder="金額（留空移除）" className="text-xs w-32" />
+                            <Field label="日期">
+                              <input type="date" value={editingLog.date}
+                                onChange={(e) => setEditingLog((v) => ({ ...v, date: e.target.value }))}
+                                className="text-xs" />
+                            </Field>
+                            <Field label="金額（留空移除）">
+                              <input type="number" min="0" value={editingLog.amount}
+                                onChange={(e) => setEditingLog((v) => ({ ...v, amount: e.target.value }))}
+                                className="text-xs w-32" />
+                            </Field>
                           </div>
-                          <textarea value={editingLog.text}
-                            onChange={(e) => setEditingLog((v) => ({ ...v, text: e.target.value }))}
-                            rows={2} className="w-full resize-none text-xs" />
+                          <Field label="內容">
+                            <textarea value={editingLog.text}
+                              onChange={(e) => setEditingLog((v) => ({ ...v, text: e.target.value }))}
+                              rows={2} className="w-full resize-none text-xs" />
+                          </Field>
                           <div className="flex gap-1.5">
                             <button onClick={saveLogEdit} className="btn-primary text-[10px] px-2 py-0.5">儲存</button>
                             <button onClick={() => setEditingLog(null)} className="btn-outline text-[10px] px-2 py-0.5">取消</button>

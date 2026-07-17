@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context';
 import { generateId } from '../utils/crm';
 import dayjs from 'dayjs';
+import { Field } from './ui';
 
 export default function TimerModal() {
   const { timers, saveTimer, deleteTimer } = useApp();
@@ -133,21 +134,24 @@ function AddTimerForm({ onAdd }) {
   const minDate = dayjs().format('YYYY-MM-DDTHH:mm');
 
   return (
-    <div className="flex gap-2">
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="提醒內容"
-        className="flex-1 text-sm"
-      />
-      <input
-        type="datetime-local"
-        value={time}
-        min={minDate}
-        onChange={(e) => setTime(e.target.value)}
-        className="text-sm w-36"
-      />
-      <button onClick={handleAdd} className="btn-primary text-xs px-2">加入</button>
+    <div className="flex gap-2 items-end">
+      <Field label="提醒內容" className="flex-1">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className="w-full text-sm"
+        />
+      </Field>
+      <Field label="提醒時間" className="w-36 shrink-0">
+        <input
+          type="datetime-local"
+          value={time}
+          min={minDate}
+          onChange={(e) => setTime(e.target.value)}
+          className="text-sm w-full"
+        />
+      </Field>
+      <button onClick={handleAdd} className="btn-primary text-xs px-2 mb-0.5">加入</button>
     </div>
   );
 }

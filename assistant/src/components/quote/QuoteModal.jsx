@@ -3,6 +3,7 @@ import { db } from '../../db';
 import { generateId, formatMoney, calcMonthlyPayment } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
+import { Field } from '../ui';
 
 /**
  * 報價單產生器：填車型與項目價格 → 產生美觀的報價單（固定淺色，方便截圖給客人）。
@@ -103,8 +104,10 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
           {/* 輸入區 */}
           <div className="space-y-2 mb-4">
-            <input value={model} onChange={(e) => setModel(e.target.value)}
-              placeholder="車型（例：KIA 卡旺 K2500 標準貨斗）" className="w-full text-sm" />
+            <Field label="車型">
+              <input value={model} onChange={(e) => setModel(e.target.value)}
+                placeholder="例：KIA 卡旺 K2500 標準貨斗" className="w-full text-sm" />
+            </Field>
 
             {/* 車體配備快選（設定 → 報價選單 可自訂） */}
             {quotePresets.addons.length > 0 && (
@@ -132,13 +135,18 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 ))}
               </div>
             )}
+            <div className="flex gap-2 text-[11px] font-medium text-ink-3">
+              <span className="flex-1">項目名稱</span>
+              <span className="w-28">金額（元）</span>
+              <span className="w-4" />
+            </div>
             {items.map((it) => (
               <div key={it.id} className="flex gap-2">
                 <input value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value })}
-                  placeholder="項目（配備 / 保險 / 領牌…）" className="flex-1 text-sm min-w-0" />
+                  placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
                 <input type="number" min="0" value={it.price}
                   onChange={(e) => setItem(it.id, { price: e.target.value })}
-                  placeholder="金額" className="w-28 text-sm" />
+                  className="w-28 text-sm" />
                 <button onClick={() => removeItem(it.id)}
                   className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
               </div>
@@ -149,19 +157,27 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             <div className="bg-s2 rounded-lg p-2.5 space-y-1.5">
               <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
               <div className="grid grid-cols-3 gap-1.5">
-                <input type="number" min="0" value={loan.down}
-                  onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
-                  placeholder="頭期款" className="text-xs min-w-0" />
-                <input type="number" min="0" value={loan.months}
-                  onChange={(e) => setLoan((v) => ({ ...v, months: e.target.value }))}
-                  placeholder="期數(月)" className="text-xs min-w-0" />
-                <input type="number" min="0" step="0.1" value={loan.rate}
-                  onChange={(e) => setLoan((v) => ({ ...v, rate: e.target.value }))}
-                  placeholder="年利率%" className="text-xs min-w-0" />
+                <Field label="頭期款">
+                  <input type="number" min="0" value={loan.down}
+                    onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
+                    className="text-xs min-w-0 w-full" />
+                </Field>
+                <Field label="期數（月）">
+                  <input type="number" min="0" value={loan.months}
+                    onChange={(e) => setLoan((v) => ({ ...v, months: e.target.value }))}
+                    className="text-xs min-w-0 w-full" />
+                </Field>
+                <Field label="年利率 %">
+                  <input type="number" min="0" step="0.1" value={loan.rate}
+                    onChange={(e) => setLoan((v) => ({ ...v, rate: e.target.value }))}
+                    className="text-xs min-w-0 w-full" />
+                </Field>
               </div>
-              <input type="number" min="0" value={loan.revenue}
-                onChange={(e) => setLoan((v) => ({ ...v, revenue: e.target.value }))}
-                placeholder="這台車預估每月幫客戶賺多少（元）" className="w-full text-xs" />
+              <Field label="這台車預估每月幫客戶賺多少（元）">
+                <input type="number" min="0" value={loan.revenue}
+                  onChange={(e) => setLoan((v) => ({ ...v, revenue: e.target.value }))}
+                  className="w-full text-xs" />
+              </Field>
               {monthlyPay > 0 && (
                 <p className="text-[11px] text-ink-2">
                   月付 <strong className="text-accent">NT$ {formatMoney(monthlyPay)}</strong>
@@ -172,13 +188,19 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               )}
             </div>
 
-            <input value={note} onChange={(e) => setNote(e.target.value)}
-              placeholder="備註（有效期限、交車條件…）" className="w-full text-sm" />
+            <Field label="備註">
+              <input value={note} onChange={(e) => setNote(e.target.value)}
+                placeholder="有效期限、交車條件…" className="w-full text-sm" />
+            </Field>
             <div className="flex gap-2">
-              <input value={profile.name} onChange={(e) => saveProfile({ ...profile, name: e.target.value })}
-                placeholder="業務姓名" className="flex-1 text-sm min-w-0" />
-              <input value={profile.phone} onChange={(e) => saveProfile({ ...profile, phone: e.target.value })}
-                placeholder="聯絡電話" className="flex-1 text-sm min-w-0" />
+              <Field label="業務姓名" className="flex-1">
+                <input value={profile.name} onChange={(e) => saveProfile({ ...profile, name: e.target.value })}
+                  className="w-full text-sm min-w-0" />
+              </Field>
+              <Field label="聯絡電話" className="flex-1">
+                <input value={profile.phone} onChange={(e) => saveProfile({ ...profile, phone: e.target.value })}
+                  className="w-full text-sm min-w-0" />
+              </Field>
             </div>
           </div>
 
