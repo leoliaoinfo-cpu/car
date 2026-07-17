@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context';
 import { generateId } from '../utils/crm';
+import { showSystemNotification, notifyPermission, registerPeriodicReminderCheck } from '../notify';
 import dayjs from 'dayjs';
 import { Field } from './ui';
 
@@ -20,15 +21,10 @@ export default function TimerModal() {
       );
       if (allExpired.length > 0 && !expiredTimer) setExpiredTimer(allExpired[0]);
 
-      // 瀏覽器通知：只顯示數量，不含客戶資料（隱私考量），每筆只通知一次
+      // 系統通知：只顯示數量，不含客戶資料（隱私考量），每筆只通知一次
       const fresh = allExpired.filter((t) => !notifiedIdsRef.current.has(t.id));
-      if (fresh.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification('汽車銷售業務系統', {
-            body: `您有 ${allExpired.length} 則提醒到期`,
-            tag: 'assistant-timer',
-          });
-        } catch { /* 部分行動瀏覽器需安裝 PWA 才支援通知 */ }
+      if (fresh.length > 0) {
+        showSystemNotification(`您有 ${allExpired.length} 則提醒到期`);
         fresh.forEach((t) => notifiedIdsRef.current.add(t.id));
       }
     }
@@ -37,11 +33,9 @@ export default function TimerModal() {
     return () => clearInterval(intervalRef.current);
   }, [timers, expiredTimer]);
 
-  // Request notification permission
+  // Android 安裝 PWA 後註冊背景定時檢查（其他平台為 no-op）
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    if (notifyPermission() === 'granted') registerPeriodicReminderCheck();
   }, []);
 
   const confirmTimer = useCallback(async () => {

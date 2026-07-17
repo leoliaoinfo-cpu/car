@@ -1,0 +1,17 @@
+{
+  "name": "汽車銷售業務系統",
+  "short_name": "業務系統",
+  "description": "商用貨車業務的客戶追蹤、報價與業績管理系統",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#171c21",
+  "theme_color": "#171c21",
+  "lang": "zh-TW",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

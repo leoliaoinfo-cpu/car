@@ -2,8 +2,16 @@
 <html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>汽車銷售業務系統</title>
+    <!-- PWA：可安裝到主畫面、離線可開、支援系統通知 -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#171c21" />
+    <link rel="icon" type="image/png" href="icon-192.png" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="業務系統" />
     <script>
       // 在 React 載入前套用主題，避免閃色（預設深色）
       try {
@@ -17,6 +25,15 @@
     </style>
     <!-- 刻意不載入任何外部字體：改用裝置內建繁中字體（見 index.css / tailwind.config.js），
          零網路下載、打開即顯示，離線也完全可用。 -->
+    <script>
+      // Service Worker：離線快取＋系統通知（file:// 雙擊單檔模式自動略過）
+      if ('serviceWorker' in navigator
+          && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('sw.js').catch(function () {});
+        });
+      }
+    </script>
   </head>
   <body class="bg-bg">
     <div id="root"></div>

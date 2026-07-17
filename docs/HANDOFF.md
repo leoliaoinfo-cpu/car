@@ -113,7 +113,10 @@ npm run preview -- --port 4173 &
 ## 九、路線圖（未做）
 
 - ~~雲端同步~~（已完成：GitHub 私人 repo 方案，見 src/sync.js）
-- P1：報價單 PDF、業績 CSV 匯出、管道看板（桌面）、PWA 安裝、交車照片上傳（需後端）
+- ~~PWA 安裝＋到期提醒系統通知~~（已完成：public/{manifest,sw.js,icons}，SW 網路優先+離線快取；
+  通知走 SW showNotification（src/notify.js），Android 支援 periodic background sync 背景檢查；
+  設定→🔔通知 有權限管理與加入主畫面教學。file:// 雙擊單檔模式自動略過 SW）
+- P1：報價單 PDF、業績 CSV 匯出、管道看板（桌面）、交車照片上傳（可用同步的私人 repo 存）
 - P2：KPI 視覺化、AI 話術/優先客戶分析（API key 走後端代理）
 
 ## 十、給新對話的啟動提示

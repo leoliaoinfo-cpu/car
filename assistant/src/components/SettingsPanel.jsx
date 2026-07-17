@@ -6,6 +6,10 @@ import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
 } from '../sync';
+import {
+  notifySupported, notifyPermission, requestNotifyPermission,
+  showSystemNotification, registerPeriodicReminderCheck,
+} from '../notify';
 import { Field } from './ui';
 
 const HELP_CARDS = [
@@ -27,10 +31,11 @@ const HELP_CARDS = [
   { icon: '📦', title: '舊版資料匯入', desc: '支援匯入舊版格式 { _v:1, crm, jnl, sal } 的 JSON 備份。' },
 ];
 
-const SECTION_KEYS = ['backup', 'sync', 'cats', 'stages', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['backup', 'sync', 'notify', 'cats', 'stages', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
   backup: '💾 備份還原',
   sync: '☁️ 雲端同步',
+  notify: '🔔 通知',
   cats: '🏷 客戶分類',
   stages: '📶 業務進度',
   fields: '✏️ 自訂欄位',
@@ -225,6 +230,9 @@ export default function SettingsPanel({ onClose }) {
 
           {/* ── Cloud sync ── */}
           {activeSection === 'sync' && <SyncSection reloadAll={reloadAll} />}
+
+          {/* ── Notifications ── */}
+          {activeSection === 'notify' && <NotifySection />}
 
           {/* ── Cats ── */}
           {activeSection === 'cats' && (
@@ -777,6 +785,84 @@ function SyncSection({ reloadAll }) {
           <p>把金鑰貼到上面欄位按「啟用同步」。手機、電腦都做這一步，之後就全自動，不用再管。</p>
         </div>
       )}
+    </section>
+  );
+}
+
+// ── 🔔 系統通知 ───────────────────────────────────────────────────────────────
+function NotifySection() {
+  const [perm, setPerm] = useState(notifyPermission());
+  const [msg, setMsg] = useState('');
+  const installed = typeof window !== 'undefined'
+    && (window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  async function handleEnable() {
+    const res = await requestNotifyPermission();
+    setPerm(res);
+    if (res === 'granted') {
+      await registerPeriodicReminderCheck();
+      setMsg('✅ 已開啟通知，計時提醒到期時會跳系統通知');
+    } else if (res === 'denied') {
+      setMsg('❌ 被拒絕了——請到瀏覽器的網站設定把「通知」改成允許後，回來再按一次');
+    }
+  }
+
+  async function handleTest() {
+    const ok = await showSystemNotification('測試通知：看得到這則就代表設定成功 ✅');
+    setMsg(ok ? '已送出測試通知（看手機/電腦右上角）' : '無法顯示通知，請先按上面的「開啟通知」');
+  }
+
+  const permLabel = {
+    granted: '✅ 已開啟', denied: '❌ 已被拒絕（要去瀏覽器設定解除）',
+    default: '尚未開啟', unsupported: '此瀏覽器不支援',
+  }[perm];
+
+  return (
+    <section className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <h3 className="font-semibold text-ink">🔔 到期提醒系統通知</h3>
+        <p className="text-xs text-ink-3 leading-relaxed">
+          計時提醒到期時，直接跳手機/電腦的系統通知（只顯示數量，不會外洩客戶資料）。
+        </p>
+        <div className="bg-s2 rounded-lg p-3 text-sm flex justify-between">
+          <span className="text-ink-3">通知權限</span>
+          <span className="text-ink">{permLabel}</span>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {perm !== 'granted' && notifySupported() && (
+            <button onClick={handleEnable} className="btn-primary text-sm">🔔 開啟通知</button>
+          )}
+          {perm === 'granted' && (
+            <button onClick={handleTest} className="btn-outline text-sm">發送測試通知</button>
+          )}
+        </div>
+        {msg && <p className="text-sm text-ink-2 bg-s2 rounded-lg px-3 py-2">{msg}</p>}
+      </div>
+
+      <div className="card p-4 space-y-2 text-xs text-ink-2 leading-relaxed">
+        <h3 className="font-semibold text-ink text-sm">📲 建議先「加入主畫面」變成 App</h3>
+        {installed ? (
+          <p className="text-ok">✅ 你已經用主畫面 App 模式開啟了</p>
+        ) : isIOS ? (
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>用 Safari 開啟本系統</li>
+            <li>點下方中間的「分享」按鈕（□↑）</li>
+            <li>往下找「加入主畫面」→ 新增</li>
+            <li>之後從主畫面的 🚚 圖示開啟（iPhone 要用這個模式才能收通知）</li>
+          </ol>
+        ) : (
+          <ol className="list-decimal pl-4 space-y-1">
+            <li>用 Chrome 開啟本系統</li>
+            <li>右上角「⋮」選單 → 「加入主畫面」或「安裝應用程式」</li>
+            <li>之後從主畫面的 🚚 圖示開啟，全螢幕、離線也能用</li>
+          </ol>
+        )}
+        <p className="text-ink-3 pt-1">
+          通知在「App 開著或掛在背景」時最可靠；完全關閉 App 後能否通知，依手機系統而定
+          （Android 安裝後支援背景檢查；iPhone 限制較多）。
+        </p>
+      </div>
     </section>
   );
 }
