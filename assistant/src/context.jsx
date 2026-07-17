@@ -71,6 +71,10 @@ function reducer(state, action) {
     }
     case 'DELETE_CLIENT':
       return { ...state, clients: state.clients.filter((c) => c.id !== action.id) };
+    case 'DELETE_CLIENTS': {
+      const ids = new Set(action.ids);
+      return { ...state, clients: state.clients.filter((c) => !ids.has(c.id)) };
+    }
     case 'SET_CATS':
       return { ...state, cats: action.payload };
     case 'SET_STAGES':
@@ -231,6 +235,14 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_CLIENT', id });
   }, []);
 
+  /** 批次刪除客戶（每筆各留墓碑，同步後其他裝置也會刪除） */
+  const deleteClients = useCallback(async (ids) => {
+    const set = new Set(ids);
+    clientsRef.current = clientsRef.current.filter((c) => !set.has(c.id));
+    dispatch({ type: 'DELETE_CLIENTS', ids });
+    for (const id of ids) await db.delete('clients', id);
+  }, []);
+
   /** 覆寫整個 store：寫入現有項目並刪除已移除的（否則刪除的項目重整後會復活） */
   const overwriteStore = useCallback(async (storeName, items) => {
     for (const it of items) await db.put(storeName, it);
@@ -356,6 +368,7 @@ export function AppProvider({ children }) {
     saveClient,
     updateClient,
     deleteClient,
+    deleteClients,
     saveCats,
     saveStages,
     saveCustomFields,

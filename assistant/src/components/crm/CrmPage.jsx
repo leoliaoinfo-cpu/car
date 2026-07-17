@@ -19,6 +19,20 @@ const SORT_OPTIONS = [
 
 const ITEM_HEIGHT = 72; // px for desktop row / card
 
+/** md 斷點偵測：看板只在桌面顯示，手機一律列表 */
+function useIsDesktop() {
+  const [is, setIs] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const fn = (e) => setIs(e.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  return is;
+}
+
 function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
   const [scrollTop, setScrollTop] = useState(0);
   const [containerHeight, setContainerHeight] = useState(600);
@@ -44,7 +58,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 }
 
 export default function CrmPage({ focusId, onFocusConsumed }) {
-  const { clients, cats, stages, thresholds, saveClient, deleteClient } = useApp();
+  const { clients, cats, stages, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -52,6 +66,36 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
   const [showSidebar, setShowSidebar] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const listRef = useRef(null);
+
+  // 檢視模式：列表 / 看板（桌面限定，記住上次選擇）
+  const isDesktop = useIsDesktop();
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('crmView') === 'board' ? 'board' : 'list'; } catch { return 'list'; }
+  });
+  const effectiveView = isDesktop && view === 'board' ? 'board' : 'list';
+  function changeView(v) {
+    setView(v);
+    try { localStorage.setItem('crmView', v); } catch { /* noop */ }
+  }
+
+  // 批次選取模式（清理老舊名單用）
+  const [selectMode, setSelectMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState(() => new Set());
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setCheckedIds(new Set());
+    setConfirmBatchDelete(false);
+  }
+
+  function toggleChecked(id) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   // 從「今日工作」頁跳轉過來時，直接打開指定客戶
   useEffect(() => {
@@ -114,8 +158,24 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
   }).length, [clients, thresholds]);
 
   function handleSelect(id) {
+    if (selectMode) { toggleChecked(id); return; }
     setSelectedId(id);
     setShowSidebar(false);
+  }
+
+  // 全選＝目前篩選＋搜尋結果的全部（先篩「冷掉了」再全選，最適合清理老名單）
+  const allChecked = filteredSorted.length > 0 && filteredSorted.every((c) => checkedIds.has(c.id));
+  function toggleCheckAll() {
+    if (allChecked) setCheckedIds(new Set());
+    else setCheckedIds(new Set(filteredSorted.map((c) => c.id)));
+  }
+
+  async function handleBatchDelete() {
+    const ids = [...checkedIds];
+    if (ids.length === 0) return;
+    if (ids.includes(selectedId)) setSelectedId(null);
+    await deleteClients(ids);
+    exitSelectMode();
   }
 
   async function handleNewClient(data) {
@@ -193,62 +253,155 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-bdr bg-s1 flex-wrap">
           <button onClick={() => setShowSidebar(true)} className="md:hidden btn-ghost text-sm">☰</button>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜尋客戶…"
-            className="flex-1 min-w-0 text-sm max-w-xs"
-          />
-          <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
-            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <button onClick={() => setShowNewForm(true)} className="btn-primary text-sm">+ 新增</button>
-          <span className="text-xs text-ink-3 shrink-0">{filteredSorted.length} 筆</span>
-        </div>
-
-        {/* List + Detail side by side on desktop */}
-        <div className="flex flex-1 min-h-0">
-          {/* Client list */}
-          <div
-            ref={listRef}
-            className={`overflow-y-auto ${selectedClient ? 'hidden md:block md:w-80 lg:w-96' : 'flex-1'}`}
-          >
-            <div style={{ height: totalHeight, position: 'relative' }}>
-              <div style={{ transform: `translateY(${offsetY}px)` }}>
-                {visibleItems.map((client) => (
-                  <ClientRow
-                    key={client.id}
-                    client={client}
-                    cats={cats}
-                    stages={stages}
-                    selected={selectedId === client.id}
-                    onClick={() => handleSelect(client.id)}
-                  />
+          {selectMode ? (
+            <>
+              <button onClick={toggleCheckAll} className="btn-outline text-sm">
+                {allChecked ? '取消全選' : '全選'}
+              </button>
+              <span className="text-sm text-ink-2">已選 <strong className="text-ink">{checkedIds.size}</strong> 筆</span>
+              <div className="flex-1" />
+              <button
+                onClick={() => setConfirmBatchDelete(true)}
+                disabled={checkedIds.size === 0}
+                className="btn-danger text-sm disabled:opacity-40"
+              >
+                🗑 刪除
+              </button>
+              <button onClick={exitSelectMode} className="btn-ghost text-sm">取消</button>
+            </>
+          ) : (
+            <>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜尋客戶…"
+                className="flex-1 min-w-0 text-sm max-w-xs"
+              />
+              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
+                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {/* 檢視切換（看板僅桌面） */}
+              <div className="hidden md:flex rounded-lg border border-bdr overflow-hidden shrink-0">
+                {[{ v: 'list', label: '☰ 列表' }, { v: 'board', label: '▦ 看板' }].map(({ v, label }) => (
+                  <button
+                    key={v}
+                    onClick={() => changeView(v)}
+                    className={`px-2.5 py-1 text-xs transition-colors ${
+                      view === v ? 'bg-accent text-on-accent font-medium' : 'text-ink-2 hover:bg-s2'
+                    }`}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
+              {effectiveView === 'list' && (
+                <button onClick={() => { setSelectMode(true); setSelectedId(null); }} className="btn-outline text-sm">
+                  ☑ 選取
+                </button>
+              )}
+              <button onClick={() => setShowNewForm(true)} className="btn-primary text-sm">+ 新增</button>
+              <span className="text-xs text-ink-3 shrink-0">{filteredSorted.length} 筆</span>
+            </>
+          )}
+        </div>
+
+        {effectiveView === 'board' ? (
+          /* 看板：依業務進度分欄，卡片可拖曳換階段 */
+          <BoardView
+            clients={filteredSorted}
+            stages={stages}
+            cats={cats}
+            thresholds={thresholds}
+            onSelect={handleSelect}
+            onMoveStage={(id, stageId) => updateClient(id, (c) => ({ ...c, stageId }))}
+          />
+        ) : (
+          /* List + Detail side by side on desktop */
+          <div className="flex flex-1 min-h-0">
+            {/* Client list */}
+            <div
+              ref={listRef}
+              className={`overflow-y-auto ${selectedClient ? 'hidden md:block md:w-80 lg:w-96' : 'flex-1'}`}
+            >
+              <div style={{ height: totalHeight, position: 'relative' }}>
+                <div style={{ transform: `translateY(${offsetY}px)` }}>
+                  {visibleItems.map((client) => (
+                    <ClientRow
+                      key={client.id}
+                      client={client}
+                      cats={cats}
+                      stages={stages}
+                      selected={selectedId === client.id}
+                      selectMode={selectMode}
+                      checked={checkedIds.has(client.id)}
+                      onClick={() => handleSelect(client.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+              {filteredSorted.length === 0 && (
+                <div className="py-16 text-center text-ink-3 text-sm">
+                  {search ? '沒有符合的客戶' : '尚無客戶，點右上角「新增」'}
+                </div>
+              )}
             </div>
-            {filteredSorted.length === 0 && (
-              <div className="py-16 text-center text-ink-3 text-sm">
-                {search ? '沒有符合的客戶' : '尚無客戶，點右上角「新增」'}
+
+            {/* Client detail */}
+            {selectedClient && !selectMode && (
+              <div className="flex-1 border-l border-bdr overflow-y-auto">
+                <ClientDetail
+                  key={selectedClient.id}
+                  client={selectedClient}
+                  cats={cats}
+                  stages={stages}
+                  onClose={() => setSelectedId(null)}
+                  onDelete={async (id) => { await deleteClient(id); setSelectedId(null); }}
+                />
               </div>
             )}
           </div>
-
-          {/* Client detail */}
-          {selectedClient && (
-            <div className="flex-1 border-l border-bdr overflow-y-auto">
-              <ClientDetail
-                key={selectedClient.id}
-                client={selectedClient}
-                cats={cats}
-                stages={stages}
-                onClose={() => setSelectedId(null)}
-                onDelete={async (id) => { await deleteClient(id); setSelectedId(null); }}
-              />
-            </div>
-          )}
-        </div>
+        )}
       </div>
+
+      {/* 看板模式的客戶詳情：右側抽屜 */}
+      {effectiveView === 'board' && selectedClient && (
+        <>
+          <div className="overlay" onClick={() => setSelectedId(null)} />
+          <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-s1 border-l border-bdr z-50 overflow-y-auto shadow-panel anim-fade-in">
+            <ClientDetail
+              key={selectedClient.id}
+              client={selectedClient}
+              cats={cats}
+              stages={stages}
+              onClose={() => setSelectedId(null)}
+              onDelete={async (id) => { await deleteClient(id); setSelectedId(null); }}
+            />
+          </div>
+        </>
+      )}
+
+      {/* 批次刪除確認 */}
+      {confirmBatchDelete && (
+        <>
+          <div className="overlay" onClick={() => setConfirmBatchDelete(false)} />
+          <div className="modal">
+            <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-sm p-5 anim-scale-in z-50">
+              <div className="text-3xl text-center mb-2">🗑</div>
+              <h3 className="font-bold text-lg text-ink text-center mb-2">批次刪除客戶</h3>
+              <p className="text-sm text-ink-2 text-center mb-1">
+                確定要刪除 <strong className="text-danger">{checkedIds.size}</strong> 筆客戶資料嗎？
+              </p>
+              <p className="text-xs text-ink-3 text-center mb-5">
+                包含其聯繫紀錄與時間軸，刪除後無法復原（會同步到所有裝置）
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmBatchDelete(false)} className="btn-outline flex-1">取消</button>
+                <button onClick={handleBatchDelete} className="btn-danger flex-1">確認刪除</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* New client modal */}
       {showNewForm && (
@@ -282,7 +435,7 @@ function SidebarItem({ label, count, color, active, onClick }) {
 }
 
 // ── ClientRow ─────────────────────────────────────────────────────────────────
-function ClientRow({ client, cats, stages, selected, onClick }) {
+function ClientRow({ client, cats, stages, selected, selectMode, checked, onClick }) {
   const { thresholds } = useApp();
   const status = getClientStatus(client, thresholds);
   const cat = cats.find((c) => c.id === client.catId);
@@ -292,12 +445,22 @@ function ClientRow({ client, cats, stages, selected, onClick }) {
     <div
       onClick={onClick}
       className={`flex items-center gap-3 px-3 py-3 cursor-pointer border-b border-bdr/50 transition-colors relative ${
-        selected ? 'bg-accent/8' : 'hover:bg-s2'
+        selected || checked ? 'bg-accent/8' : 'hover:bg-s2'
       }`}
       style={{ height: ITEM_HEIGHT }}
     >
       {/* Status bar */}
       <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r" style={{ background: STATUS_COLOR[status] }} />
+
+      {/* 批次選取 checkbox */}
+      {selectMode && (
+        <input
+          type="checkbox"
+          checked={!!checked}
+          readOnly
+          className="w-4 h-4 shrink-0 ml-1 accent-[#7291a8] pointer-events-none"
+        />
+      )}
 
       <div className="flex-1 min-w-0 pl-1">
         <div className="flex items-center gap-1.5">
@@ -334,6 +497,151 @@ function ClientRow({ client, cats, stages, selected, onClick }) {
         </div>
         <div className="text-[10px] text-ink-3 mt-0.5">
           {client.nextDate ? formatDate(client.nextDate) : '未設追蹤'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── BoardView（看板：依業務進度分欄，桌面限定）────────────────────────────────
+function BoardView({ clients, stages, cats, thresholds, onSelect, onMoveStage }) {
+  const [dragId, setDragId] = useState(null);
+  const [overStageId, setOverStageId] = useState(null);
+
+  const sortedStages = useMemo(() => [...stages].sort((a, b) => a.order - b.order), [stages]);
+
+  const byStage = useMemo(() => {
+    const map = {};
+    for (const s of sortedStages) map[s.id] = [];
+    const orphans = [];
+    for (const c of clients) {
+      if (map[c.stageId]) map[c.stageId].push(c);
+      else orphans.push(c);
+    }
+    return { map, orphans };
+  }, [clients, sortedStages]);
+
+  function handleDrop(stageId) {
+    if (dragId) onMoveStage(dragId, stageId);
+    setDragId(null);
+    setOverStageId(null);
+  }
+
+  return (
+    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
+      <div className="flex gap-3 p-3 h-full min-w-max">
+        {sortedStages.map((stage) => {
+          const color = CAT_COLORS[stage.colorIdx % CAT_COLORS.length];
+          const list = byStage.map[stage.id] || [];
+          const isOver = overStageId === stage.id;
+          return (
+            <div
+              key={stage.id}
+              onDragOver={(e) => { e.preventDefault(); setOverStageId(stage.id); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStageId(null); }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(stage.id); }}
+              className={`w-60 shrink-0 flex flex-col rounded-xl border transition-colors ${
+                isOver ? 'border-accent bg-accent/5' : 'border-bdr bg-s1'
+              }`}
+            >
+              {/* 欄標題 */}
+              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bdr/60 shrink-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+                <span className="font-semibold text-sm text-ink flex-1 truncate">{stage.name}</span>
+                <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{list.length}</span>
+              </div>
+              {/* 卡片 */}
+              <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                {list.map((client) => (
+                  <BoardCard
+                    key={client.id}
+                    client={client}
+                    cats={cats}
+                    thresholds={thresholds}
+                    dragging={dragId === client.id}
+                    onDragStart={() => setDragId(client.id)}
+                    onDragEnd={() => { setDragId(null); setOverStageId(null); }}
+                    onClick={() => onSelect(client.id)}
+                  />
+                ))}
+                {list.length === 0 && (
+                  <div className={`text-center text-xs py-6 rounded-lg border border-dashed ${
+                    isOver ? 'border-accent text-accent' : 'border-bdr/60 text-ink-3'
+                  }`}>
+                    {isOver ? '放開以移到此階段' : '—'}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* 進度資料異常（stageId 對不到）時的補救欄，平常不出現 */}
+        {byStage.orphans.length > 0 && (
+          <div className="w-60 shrink-0 flex flex-col rounded-xl border border-bdr bg-s1">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bdr/60 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-ink-3 shrink-0" />
+              <span className="font-semibold text-sm text-ink flex-1">未分進度</span>
+              <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{byStage.orphans.length}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {byStage.orphans.map((client) => (
+                <BoardCard
+                  key={client.id}
+                  client={client}
+                  cats={cats}
+                  thresholds={thresholds}
+                  dragging={dragId === client.id}
+                  onDragStart={() => setDragId(client.id)}
+                  onDragEnd={() => { setDragId(null); setOverStageId(null); }}
+                  onClick={() => onSelect(client.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd, onClick }) {
+  const status = getClientStatus(client, thresholds);
+  const cat = cats.find((c) => c.id === client.catId);
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`bg-s2 rounded-lg p-2.5 cursor-pointer border border-bdr/50 hover:border-accent/50 transition-all relative ${
+        dragging ? 'opacity-40' : ''
+      }`}
+    >
+      <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r" style={{ background: STATUS_COLOR[status] }} />
+      <div className="pl-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {client.pinned && <span className="text-[10px]">📌</span>}
+          <span className="font-medium text-sm text-ink truncate">{client.name}</span>
+        </div>
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <span className="text-[11px] text-ink-3">{client.phone || '—'}</span>
+          {cat && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{ background: CAT_COLORS[cat.colorIdx % CAT_COLORS.length] + '20', color: CAT_COLORS[cat.colorIdx % CAT_COLORS.length] }}
+            >
+              {cat.name}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-[10px] font-medium" style={{ color: STATUS_COLOR[status] }}>
+            {STATUS_LABEL[status]}
+          </span>
+          <span className="text-[10px] text-ink-3">
+            {client.nextDate ? formatDate(client.nextDate) : '未設追蹤'}
+          </span>
         </div>
       </div>
     </div>
