@@ -5,7 +5,8 @@ import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
 
-/** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列，未知類別歸「其他」放最後 */
+/** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
+ *  每組內金額由高到低排序 */
 function groupAddonsByCat(addons) {
   const map = new Map();
   for (const a of addons) {
@@ -13,10 +14,19 @@ function groupAddonsByCat(addons) {
     if (!map.has(cat)) map.set(cat, []);
     map.get(cat).push(a);
   }
+  for (const list of map.values()) list.sort((x, y) => (Number(y.price) || 0) - (Number(x.price) || 0));
   const ordered = [];
   for (const cat of QUOTE_ADDON_CATS) if (map.has(cat)) { ordered.push([cat, map.get(cat)]); map.delete(cat); }
   for (const [cat, list] of map) ordered.push([cat, list]); // 剩下未列在順序中的
   return ordered;
+}
+
+// 類別顏色（視覺區分，莫蘭迪色）
+const CAT_COLORS_Q = ['#bf8a5e', '#7d9b76', '#7291a8', '#9382a5', '#6f9a9c', '#b58a96', '#9a9a6f', '#8f7a68', '#a99760', '#b26b6b'];
+function catColor(cat) {
+  let h = 0;
+  for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) >>> 0;
+  return CAT_COLORS_Q[h % CAT_COLORS_Q.length];
 }
 
 /** 由字串推導 4 碼英數（報價單編號用，同輸入固定輸出） */
@@ -131,7 +141,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     <>
       <div className="overlay" onClick={onClose} />
       <div className="fixed inset-0 z-50 overflow-y-auto p-4 flex items-start justify-center">
-        <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md p-4 anim-scale-in my-4">
+        <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md md:max-w-2xl p-4 md:p-5 anim-scale-in my-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
             <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
@@ -158,46 +168,57 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               </div>
             </Field>
 
-            {/* 選購配備（依類別分組；可展開看產品介紹） */}
+            {/* 選購配備（依類別分組、組內金額由高到低；可展開看產品介紹） */}
             {quotePresets.addons.length > 0 && (
-              <div className="bg-s2 rounded-lg p-2 space-y-1.5">
+              <div className="bg-s2 rounded-xl p-2.5 md:p-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-ink-2">🚚 選購配備</span>
+                  <span className="text-xs font-semibold text-ink-2">🚚 選購配備</span>
                   <button type="button" onClick={() => setShowDesc((v) => !v)}
-                    className="text-[11px] text-accent hover:underline">
-                    {showDesc ? '收合介紹' : '📖 看產品介紹'}
+                    className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                      showDesc ? 'bg-accent text-on-accent' : 'text-accent hover:bg-accent/10'}`}>
+                    {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
-                {groupAddonsByCat(quotePresets.addons).map(([cat, list]) => (
-                  <div key={cat} className="pt-0.5">
-                    <p className="text-[10px] text-ink-3 mb-1">{cat}</p>
-                    {showDesc ? (
-                      <div className="space-y-1">
-                        {list.map((a) => (
-                          <div key={a.id} className="flex items-start gap-2 bg-s1 rounded-md px-2 py-1.5">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-ink font-medium">{a.name}</p>
-                              {a.desc && <p className="text-[10px] text-ink-3 mt-0.5 leading-snug">{a.desc}</p>}
+                {groupAddonsByCat(quotePresets.addons).map(([cat, list]) => {
+                  const color = catColor(cat);
+                  return (
+                    <div key={cat}>
+                      {/* 類別標題 */}
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
+                        <span className="text-[11px] font-semibold" style={{ color }}>{cat}</span>
+                        <span className="text-[10px] text-ink-3">{list.length}</span>
+                      </div>
+                      {showDesc ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {list.map((a) => (
+                            <div key={a.id} className="flex flex-col bg-s1 rounded-lg px-2.5 py-2 border border-bdr/50">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-xs text-ink font-medium leading-snug">{a.name}</p>
+                                <span className="text-xs font-bold shrink-0" style={{ color }}>{formatMoney(a.price)}</span>
+                              </div>
+                              {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
+                              <button type="button" onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
+                                className="btn-outline text-[10px] px-2 py-0.5 mt-1.5 self-end">＋ 加入報價</button>
                             </div>
-                            <span className="text-[11px] text-accent font-semibold shrink-0">{formatMoney(a.price)}</span>
-                            <button type="button" onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
-                              className="btn-primary text-[10px] px-2 py-0.5 shrink-0">加入</button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex gap-1.5 flex-wrap">
-                        {list.map((a) => (
-                          <button key={a.id} type="button" title={a.desc || ''}
-                            onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
-                            className="btn-outline text-[11px] px-2 py-0.5">
-                            {a.name} {formatMoney(a.price)}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex gap-1.5 flex-wrap">
+                          {list.map((a) => (
+                            <button key={a.id} type="button" title={a.desc || ''}
+                              onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
+                              className="flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors hover:bg-s3"
+                              style={{ borderColor: color + '55' }}>
+                              <span className="text-ink-2">{a.name}</span>
+                              <span className="font-semibold" style={{ color }}>{formatMoney(a.price)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {/* 補助折抵快選（負數帶入） */}

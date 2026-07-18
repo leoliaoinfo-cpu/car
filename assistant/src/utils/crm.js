@@ -193,7 +193,7 @@ export const QUOTE_CATALOG_VERSION = 'kavan-2026-v2';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '外觀空力', '燈組', '音響', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '外觀空力', '燈組', '音響', '配件', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
 
 export const DEFAULT_QUOTE_PRESETS = {
@@ -239,7 +239,8 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-tlsound', cat: '音響', name: 'TLSOUND音響升級（4顆碳纖維喇叭+高音+處理器）', price: 8800,
       desc: '6.5吋碳纖維中低音喇叭+音質處理器+專用線組、韓國原裝卡旺高音喇叭+高音電容+專用線組，組合含4顆喇叭。CARBON碳纖維高剛性音盆、純鋁子彈頭、承受功率100W+' },
     { id: 'qa-speaker', cat: '音響', name: '專用喇叭改裝', price: 2800, desc: '專用插座無損音質、高功率高低音混合' },
-    { id: 'qa-phone', cat: '音響', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一' },
+    // 配件
+    { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一' },
     // 底盤強化
     { id: 'qa-ts', cat: '底盤強化', name: 'TS氮氣液壓避震器（卡旺強化避震王）', price: 29800,
       desc: '韓國原裝、11mm專用強化版。16段舒適阻尼調整、11mm支撐承重彈簧、超有效改善晃動不適感' },
