@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { db, downloadJSON } from '../db';
 import { useApp } from '../context';
-import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId } from '../utils/crm';
+import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS } from '../utils/crm';
 import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
@@ -308,9 +308,17 @@ export default function SettingsPanel({ onClose }) {
           {/* ── Quote presets ── */}
           {activeSection === 'quoteMenu' && (
             <div className="space-y-5">
+              <LoadCatalogButton onLoad={() => saveQuotePresets(DEFAULT_QUOTE_PRESETS)} />
               <PresetEditor
-                title="🚚 車體配備選單"
-                desc="報價單一鍵帶入的車體/配件（框式、篷式、冷凍廂、尾門…），價格可改。"
+                title="🚙 車型與售價"
+                desc="報價單「選車型帶入」下拉的車型與售價，選取即帶入車輛售價。"
+                items={quotePresets.models || []}
+                newName="新車型"
+                onChange={(models) => saveQuotePresets({ ...quotePresets, models })}
+              />
+              <PresetEditor
+                title="🚚 選購配備選單"
+                desc="報價單一鍵帶入的配備（配備版本、燈組、底盤、金屬件…），價格可改。"
                 items={quotePresets.addons}
                 newName="新配備"
                 onChange={(addons) => saveQuotePresets({ ...quotePresets, addons })}
@@ -351,6 +359,33 @@ export default function SettingsPanel({ onClose }) {
         </div>
       </div>
     </>
+  );
+}
+
+// ── LoadCatalogButton（一鍵載入卡旺 2026 原廠車型與配備型錄）─────────────────
+function LoadCatalogButton({ onLoad }) {
+  const [confirm, setConfirm] = useState(false);
+  if (!confirm) {
+    return (
+      <div className="card p-3 flex items-center gap-3">
+        <span className="text-lg shrink-0">🚚</span>
+        <p className="flex-1 text-xs text-ink-2">
+          載入 <strong>Kia 彰化卡旺 2026</strong> 原廠車型與配備價格（8 車型 + 19 配備）。
+        </p>
+        <button onClick={() => setConfirm(true)} className="btn-primary text-xs shrink-0">載入原廠型錄</button>
+      </div>
+    );
+  }
+  return (
+    <div className="card p-3 border-warn/40 space-y-2" style={{ borderColor: '#bf8a5e66' }}>
+      <p className="text-xs text-ink-2">
+        會以原廠型錄<strong>覆蓋</strong>目前的車型與配備選單（你自己新增的項目會被取代）。確定嗎？
+      </p>
+      <div className="flex gap-2">
+        <button onClick={() => { onLoad(); setConfirm(false); }} className="btn-primary text-xs flex-1">確定載入</button>
+        <button onClick={() => setConfirm(false)} className="btn-outline text-xs flex-1">取消</button>
+      </div>
+    </div>
   );
 }
 

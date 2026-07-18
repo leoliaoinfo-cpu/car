@@ -5,7 +5,7 @@ import { db, setOnBlocked } from './db';
 import { startSync, setOnRemoteApplied } from './sync';
 import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
-  INDUSTRY_SUGGESTIONS,
+  resolveQuotePresets, INDUSTRY_SUGGESTIONS,
 } from './utils/crm';
 import { today } from './utils/date';
 import dayjs from 'dayjs';
@@ -210,7 +210,7 @@ export function AppProvider({ children }) {
             deals, dealFields: resolvedDealFields, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
-            quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
+            quotePresets: resolveQuotePresets(presetsRow),
             industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
           },
         });
@@ -431,7 +431,7 @@ export function AppProvider({ children }) {
         timers,
         thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
-        quotePresets: presetsRow?.addons ? presetsRow : DEFAULT_QUOTE_PRESETS,
+        quotePresets: resolveQuotePresets(presetsRow),
         industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
       },
     });

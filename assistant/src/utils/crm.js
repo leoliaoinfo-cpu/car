@@ -187,20 +187,74 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
   return out;
 }
 
-// ── 商用車報價：車體配備 / 補助折抵預設選單（設定可編輯）與貸款試算 ─────────
+// ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
+// _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v1';
+
 export const DEFAULT_QUOTE_PRESETS = {
+  _catalog: QUOTE_CATALOG_VERSION,
+  // 車型與售價（報價單「選車型」下拉帶入車輛售價）
+  models: [
+    { id: 'qm-1', name: '單廂三人座 手排六速', price: 798000 },
+    { id: 'qm-2', name: '單廂三人座 自排五速', price: 838000 },
+    { id: 'qm-3', name: '大單廂三人座 手排六速', price: 828000 },
+    { id: 'qm-4', name: '大單廂三人座 自排五速', price: 868000 },
+    { id: 'qm-5', name: '雙廂六人座 手排六速', price: 968000 },
+    { id: 'qm-6', name: '雙廂六人座 自排五速', price: 1018000 },
+    { id: 'qm-7', name: '4WD四輪傳動 單廂', price: 958000 },
+    { id: 'qm-8', name: '4WD四輪傳動 雙廂', price: 1058000 },
+  ],
+  // 選購配備（一鍵帶入報價項目）
   addons: [
-    { id: 'qa-1', name: '框式車斗', price: 60000 },
-    { id: 'qa-2', name: '篷式車斗', price: 90000 },
-    { id: 'qa-3', name: '冷凍廂', price: 250000 },
-    { id: 'qa-4', name: '升降尾門', price: 65000 },
-    { id: 'qa-5', name: '貨斗加高', price: 25000 },
+    // 配備版本升級
+    { id: 'qa-pkg1', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000 },
+    { id: 'qa-pkg2', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000 },
+    { id: 'qa-pkg3', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000 },
+    // 燈組升級
+    { id: 'qa-led', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000 },
+    { id: 'qa-mirror1', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500 },
+    { id: 'qa-mirror2', name: '後照鏡組-全視線鏡片', price: 5000 },
+    { id: 'qa-speaker', name: '專用喇叭改裝', price: 2800 },
+    { id: 'qa-phone', name: '雙手機架組合（兩隻）', price: 3000 },
+    // 底盤強化
+    { id: 'qa-ts', name: 'TS氮氣液壓避震器（卡旺強化避震王）', price: 29800 },
+    { id: 'qa-spring', name: '彈簧鋼板（防車尾下垂）', price: 5500 },
+    { id: 'qa-block', name: '抗震模塊4顆', price: 7500 },
+    { id: 'qa-atc', name: 'ATC防傾桿', price: 15000 },
+    { id: 'qa-leaf', name: '彈簧鋼板避震彈簧（強化載重）', price: 12000 },
+    // 金屬製研
+    { id: 'qa-urea', name: '尿素桶防撞桿', price: 5000 },
+    { id: 'qa-side', name: '雙廂專用滑行側踏組', price: 18900 },
+    { id: 'qa-skid', name: '4WD專用鋁合金下護板', price: 12000 },
+    { id: 'qa-rear', name: '車尾防撞鋼樑（2WD專用）', price: 7000 },
+    { id: 'qa-roof', name: '車頂行李架/籃（單廂/大單廂專用）', price: 15000 },
+    { id: 'qa-ext', name: '貨斗延伸護欄（+350mm）', price: 8500 },
   ],
   subsidies: [
     { id: 'qs-1', name: '汰舊換新補助', amount: 50000 },
     { id: 'qs-2', name: '貨物稅減免', amount: 50000 },
   ],
 };
+
+// 舊版通用預設配備名稱（用於判斷使用者是否從未客製過報價選單）
+const LEGACY_ADDON_NAMES = ['框式車斗', '篷式車斗', '冷凍廂', '升降尾門', '貨斗加高'];
+
+/**
+ * 解析儲存的報價選單：
+ * - 沒有存過 → 用原廠型錄
+ * - 舊版且未客製（配備仍為通用預設）→ 自動升級為卡旺原廠型錄
+ * - 已客製 → 保留使用者資料，僅補上新的 models 欄位（新增欄位、不覆蓋）
+ */
+export function resolveQuotePresets(row) {
+  if (!row || !Array.isArray(row.addons)) return DEFAULT_QUOTE_PRESETS;
+  if (row._catalog === QUOTE_CATALOG_VERSION) return row;
+  const names = row.addons.map((a) => a.name);
+  const untouched = !row.models
+    && names.length === LEGACY_ADDON_NAMES.length
+    && names.every((n) => LEGACY_ADDON_NAMES.includes(n));
+  if (untouched) return DEFAULT_QUOTE_PRESETS;
+  return { ...row, models: row.models || DEFAULT_QUOTE_PRESETS.models };
+}
 
 /** 產業標籤建議（決定推什麼車斗） */
 export const INDUSTRY_SUGGESTIONS = [

@@ -59,6 +59,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const monthlyRevenue = Number(loan.revenue) || 0;
   const monthlyNet = monthlyRevenue - monthlyPay;
 
+  // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
+  function pickModel(m) {
+    setModel(m.name);
+    setItems((list) => {
+      const idx = list.findIndex((it) => it.name.trim() === '車輛售價');
+      if (idx !== -1) return list.map((it, i) => (i === idx ? { ...it, price: String(m.price) } : it));
+      return [{ id: generateId('qi'), name: '車輛售價', price: String(m.price) }, ...list];
+    });
+  }
+
   function addPresetItem(name, price) {
     setItems((list) => {
       // 同名項目不重複加入
@@ -115,8 +125,22 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           {/* 輸入區 */}
           <div className="space-y-2 mb-4">
             <Field label="車型">
-              <input value={model} onChange={(e) => setModel(e.target.value)}
-                placeholder="例：KIA 卡旺 K2500 標準貨斗" className="w-full text-sm" />
+              <div className="flex gap-2">
+                <input value={model} onChange={(e) => setModel(e.target.value)}
+                  placeholder="例：單廂三人座 手排六速" className="flex-1 min-w-0 text-sm" />
+                {quotePresets.models?.length > 0 && (
+                  <select
+                    value=""
+                    onChange={(e) => { const m = quotePresets.models.find((x) => x.id === e.target.value); if (m) pickModel(m); }}
+                    className="text-xs shrink-0 w-28"
+                  >
+                    <option value="">選車型帶入</option>
+                    {quotePresets.models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}（{formatMoney(m.price)}）</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </Field>
 
             {/* 車體配備快選（設定 → 報價選單 可自訂） */}
