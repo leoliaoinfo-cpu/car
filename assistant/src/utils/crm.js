@@ -112,6 +112,29 @@ export function generateId(prefix = 'id') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** 電話正規化：只留數字，方便比對（0912-345-678 與 0912345678 視為相同） */
+export function normalizePhone(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+/**
+ * 找出可能重複的客戶：同電話（正規化後相同）優先，其次同姓名。
+ * excludeId 用於編輯時排除自己。回傳第一個相符的客戶或 null。
+ */
+export function findDuplicateClient(clients, { name, phone }, excludeId = null) {
+  const np = normalizePhone(phone);
+  const nm = String(name || '').trim();
+  if (np.length >= 6) {
+    const byPhone = clients.find((c) => c.id !== excludeId && normalizePhone(c.phone) === np);
+    if (byPhone) return { client: byPhone, reason: 'phone' };
+  }
+  if (nm) {
+    const byName = clients.find((c) => c.id !== excludeId && (c.name || '').trim() === nm);
+    if (byName) return { client: byName, reason: 'name' };
+  }
+  return null;
+}
+
 // ── 業務流程事件（客戶時間軸）────────────────────────────────────────────────
 export const EVENT_TYPES = {
   contact:   { icon: '✅', label: '已聯繫',   color: '#7d9b76' },

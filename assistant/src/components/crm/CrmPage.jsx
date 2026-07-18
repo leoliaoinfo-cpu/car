@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useApp } from '../../context';
 import {
   getClientStatus, clientMatchesFilter, sortClients,
-  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId,
+  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId, findDuplicateClient,
 } from '../../utils/crm';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
@@ -437,8 +437,10 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
           cats={cats}
           stages={stages}
           industries={industryList}
+          clients={clients}
           onClose={() => setShowNewForm(false)}
           onCreate={handleNewClient}
+          onOpenExisting={(id) => { setShowNewForm(false); handleSelect(id); }}
         />
       )}
     </div>
@@ -678,7 +680,7 @@ function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd,
 }
 
 // ── NewClientModal ────────────────────────────────────────────────────────────
-function NewClientModal({ cats, stages, industries, onClose, onCreate }) {
+function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, onOpenExisting }) {
   const [form, setForm] = useState({
     name: '', phone: '', lineId: '', clientType: 'personal', industry: '',
     catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
@@ -686,6 +688,12 @@ function NewClientModal({ cats, stages, industries, onClose, onCreate }) {
   });
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
+
+  // 重複偵測：同電話（優先）或同姓名，即時提示避免名單重複
+  const dup = useMemo(
+    () => findDuplicateClient(clients || [], { name: form.name, phone: form.phone }),
+    [clients, form.name, form.phone]
+  );
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -747,9 +755,23 @@ function NewClientModal({ cats, stages, industries, onClose, onCreate }) {
             <Field label="備註">
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="需求、預算、注意事項…" rows={2} className="w-full resize-none" />
             </Field>
+            {dup && (
+              <div className="bg-warn/10 border border-warn/40 rounded-lg px-3 py-2 flex items-center gap-2"
+                style={{ background: '#bf8a5e18', borderColor: '#bf8a5e66' }}>
+                <span className="text-sm shrink-0">⚠️</span>
+                <span className="flex-1 text-xs" style={{ color: '#a9744b' }}>
+                  已有{dup.reason === 'phone' ? '相同電話' : '同名'}客戶「{dup.client.name}」
+                  {dup.client.phone ? `（${dup.client.phone}）` : ''}，可能重複。
+                </span>
+                {onOpenExisting && (
+                  <button type="button" onClick={() => onOpenExisting(dup.client.id)}
+                    className="btn-outline text-[10px] px-2 py-1 shrink-0">開啟現有</button>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">新增</button>
+              <button type="submit" className="btn-primary flex-1">{dup ? '仍要新增' : '新增'}</button>
             </div>
           </form>
         </div>
