@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useApp } from '../../context';
 import { getClientStatus, STATUS_COLOR, formatMoney, generateId, getOccasionsOnDate } from '../../utils/crm';
 import { today } from '../../utils/date';
-import { Field } from '../ui';
+import { Field, ClientPicker } from '../ui';
 import dayjs from 'dayjs';
 
 // 行事曆事件型別（活動 / 追蹤 / 提醒 / 成交 / 紀念日）
@@ -338,8 +338,6 @@ function EventModal({ initial, clients, onSave, onClose, onDelete }) {
     });
   }
 
-  const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
-
   return (
     <>
       <div className="overlay" onClick={onClose} />
@@ -369,10 +367,7 @@ function EventModal({ initial, clients, onSave, onClose, onDelete }) {
               <span>🔁 每年重複（生日、紀念日用這個）</span>
             </label>
             <Field label="關聯客戶（選填）">
-              <select value={clientId} onChange={(e) => setClientId(e.target.value)} className="w-full">
-                <option value="">不關聯</option>
-                {sortedClients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              <ClientPicker clients={clients} value={clientId} onChange={setClientId} />
             </Field>
             <Field label="備註（選填）">
               <input value={note} onChange={(e) => setNote(e.target.value)}
