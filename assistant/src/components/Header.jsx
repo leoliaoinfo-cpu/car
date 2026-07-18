@@ -4,6 +4,7 @@ export default function Header({ tab, setTab, onSettings }) {
     { key: 'calendar', icon: '📅', label: '行事曆' },
     { key: 'crm', icon: '👥', label: '客戶追蹤' },
     { key: 'deals', icon: '📈', label: '業績表' },
+    { key: 'catalog', icon: '📖', label: '型錄' },
   ];
 
   return (

@@ -5,6 +5,7 @@ import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
+import ProductCatalog from '../catalog/ProductCatalog';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -55,6 +56,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   const [capturing, setCapturing] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
   const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入、報價單不顯示
   const [loan, setLoan] = useState({
@@ -209,7 +211,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md md:max-w-2xl p-4 md:p-5 anim-scale-in my-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
-            <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => setShowCatalog(true)}
+                className="btn-outline text-xs gap-1 py-1">📖 看型錄</button>
+              <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
+            </div>
           </div>
 
           {/* 輸入區 */}
@@ -572,6 +578,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           </div>
         </div>
       </div>
+      {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
     </>
   );
 }

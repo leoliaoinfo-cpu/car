@@ -6,6 +6,7 @@ import CalendarPage from './components/calendar/CalendarPage';
 import CrmPage from './components/crm/CrmPage';
 import DealsPage from './components/deals/DealsPage';
 import SettingsPanel from './components/SettingsPanel';
+import ProductCatalog from './components/catalog/ProductCatalog';
 import TimerModal from './components/TimerModal';
 
 // ── Error Boundary — 任何子元件炸掉都能顯示有意義的訊息 ──────────────────────
@@ -48,6 +49,7 @@ function AppInner() {
   const { loading, dbUnavailable, dbBlocked } = useApp();
   const [tab, setTab] = useState('today');
   const [showSettings, setShowSettings] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
 
   function openClient(id) {
@@ -95,8 +97,19 @@ function AppInner() {
             <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />
           )}
           {tab === 'deals' && <DealsPage onOpenClient={openClient} />}
+          {tab === 'catalog' && <ProductCatalog />}
         </div>
       </main>
+
+      {/* 手機：型錄浮動按鈕（右下角，不擋底部導覽） */}
+      <button
+        onClick={() => setShowCatalog(true)}
+        className="md:hidden fixed right-4 bottom-20 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
+        title="產品型錄"
+      >
+        <span className="text-xl leading-none">📖</span>
+        <span className="text-[9px] font-medium mt-0.5">型錄</span>
+      </button>
 
       {/* Mobile bottom navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
@@ -127,6 +140,7 @@ function AppInner() {
       </nav>
 
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
       <TimerModal />
     </div>
   );
