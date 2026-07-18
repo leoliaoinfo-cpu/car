@@ -7,6 +7,7 @@ import {
   EVENT_TYPES, getOccasionsOnDate,
 } from '../../utils/crm';
 import { formatDate } from '../../utils/date';
+import { downloadICS, needsIcsExport, snoozeIcsReminder } from '../../utils/ics';
 import dayjs from 'dayjs';
 
 const BACKUP_REMIND_DAYS = 7;
@@ -47,6 +48,19 @@ export default function TodayPage({ onOpenClient }) {
   useEffect(() => {
     db.getLastBackupAt().then(setLastBackupAt).catch(() => setLastBackupAt(null));
   }, []);
+
+  // 久沒匯出提醒：有「上次匯出後才新增/改的」活動或提醒才提示（不會一直吵）
+  const icsNeeded = useMemo(() => needsIcsExport(events, timers), [events, timers]);
+  const [icsHidden, setIcsHidden] = useState(false);
+  const showIcsReminder = icsNeeded && !icsHidden;
+  function exportIcsNow() {
+    downloadICS({ events, timers, clients });
+    setIcsHidden(true);
+  }
+  function snoozeIcs() {
+    snoozeIcsReminder();
+    setIcsHidden(true);
+  }
 
   const backupDays = lastBackupAt ? dayjs().diff(dayjs(lastBackupAt), 'day') : null;
   // 雲端同步啟用時資料已自動備份到雲端，不再提醒手動下載
@@ -220,6 +234,18 @@ export default function TodayPage({ onOpenClient }) {
             ——客戶名單只存在這個瀏覽器，建議立即下載備份。
           </p>
           <button onClick={handleQuickBackup} className="btn-danger text-xs shrink-0">立即備份</button>
+        </div>
+      )}
+
+      {/* 久沒匯出提醒：有新活動 / 提醒還沒進手機行事曆 */}
+      {showIcsReminder && (
+        <div className="flex items-center gap-3 bg-accent/8 border border-accent/25 rounded-xl px-4 py-3">
+          <span className="text-lg shrink-0">📲</span>
+          <p className="flex-1 text-xs text-ink-2">
+            有活動 / 提醒還沒匯出到手機行事曆——匯出後手機才會準時提醒你（生日 / 紀念日會每年自動重複）。
+          </p>
+          <button onClick={exportIcsNow} className="btn-primary text-xs shrink-0">匯出</button>
+          <button onClick={snoozeIcs} className="text-ink-3 hover:text-ink text-sm shrink-0" title="暫時關閉，有新的再提醒">✕</button>
         </div>
       )}
 

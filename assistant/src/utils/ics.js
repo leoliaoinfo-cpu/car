@@ -105,7 +105,10 @@ export function buildICS({ events = [], timers = [], clients = [] }) {
   return L.join('\r\n');
 }
 
-/** 產生並下載 .ics 檔；回傳事件筆數 */
+const LS_EXPORTED_AT = 'ics.exportedAt';
+const LS_SNOOZE_AT = 'ics.remindSnoozeAt';
+
+/** 產生並下載 .ics 檔；記錄匯出時間供「久沒匯出」提醒判斷。回傳事件筆數 */
 export function downloadICS({ events = [], timers = [], clients = [] }) {
   const pending = timers.filter((t) => !t.confirmedAt && t.triggerAt);
   const count = events.length + pending.length;
@@ -118,5 +121,31 @@ export function downloadICS({ events = [], timers = [], clients = [] }) {
   a.download = `業務系統-行事曆-${new Date().toISOString().slice(0, 10)}.ics`;
   a.click();
   URL.revokeObjectURL(url);
+  try { localStorage.setItem(LS_EXPORTED_AT, String(Date.now())); } catch { /* 隱私模式忽略 */ }
   return count;
+}
+
+/** 記錄最後修改時間（_ts，退回 createdAt） */
+function itemTs(x) { return x?._ts || Date.parse(x?.createdAt || 0) || 0; }
+
+/** 暫時關閉提醒（使用者按 ✕）：等到有更新的活動 / 提醒才會再出現 */
+export function snoozeIcsReminder() {
+  try { localStorage.setItem(LS_SNOOZE_AT, String(Date.now())); } catch { /* noop */ }
+}
+
+/**
+ * 是否該提醒匯出——有「上次匯出之後才新增 / 修改」的活動或提醒時才提醒，
+ * 沒有新東西不會一直吵。此提醒是本機（本裝置對應本手機行事曆），故用 localStorage。
+ */
+export function needsIcsExport(events = [], timers = []) {
+  const items = [...events, ...timers.filter((t) => !t.confirmedAt && t.triggerAt)];
+  if (items.length === 0) return false;
+  let baseline = 0;
+  try {
+    baseline = Math.max(
+      Number(localStorage.getItem(LS_EXPORTED_AT)) || 0,
+      Number(localStorage.getItem(LS_SNOOZE_AT)) || 0,
+    );
+  } catch { /* noop */ }
+  return items.some((x) => itemTs(x) > baseline);
 }
