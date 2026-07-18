@@ -145,13 +145,23 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
   // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
   async function downloadImage() {
-    const el = previewRef.current;
-    if (!el || capturing) return;
+    const src = previewRef.current;
+    if (!src || capturing) return;
     setCapturing(true);
+    // 複製一份到畫面外、完整展開（脫離捲動容器），避免 html2canvas 裁掉底部
+    const clone = src.cloneNode(true);
+    clone.style.position = 'fixed';
+    clone.style.top = '0';
+    clone.style.left = '-10000px';
+    clone.style.margin = '0';
+    clone.style.width = `${src.offsetWidth}px`; // 保持與畫面上相同的斷行
+    document.body.appendChild(clone);
     try {
-      const canvas = await html2canvas(el, {
+      const canvas = await html2canvas(clone, {
         scale: Math.min(2, window.devicePixelRatio || 1) * 1.5,
         backgroundColor: '#ffffff', useCORS: true, logging: false,
+        width: clone.offsetWidth, height: clone.offsetHeight,
+        windowWidth: clone.offsetWidth, windowHeight: clone.offsetHeight,
       });
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('capture failed');
@@ -170,6 +180,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     } catch {
       alert('圖片產生失敗，請改用截圖。');
     } finally {
+      if (clone.parentNode) clone.parentNode.removeChild(clone);
       setCapturing(false);
     }
   }
