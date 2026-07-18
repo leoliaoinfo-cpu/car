@@ -53,9 +53,10 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
-  // 貸款試算：頭期＋選期數；每個期數的年利率由「設定」帶入，報價單不顯示利率
+  // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入、報價單不顯示
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
+    downPct: null, // 選了百分比時依總價自動算頭期；自訂金額時為 null
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
   });
   // 期數/年利率表（設定帶入）
@@ -86,7 +87,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   // 報價單編號：由日期＋此單 id 推導（同一張單編號固定，看起來更正式）
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
 
-  const loanPrincipal = Math.max(0, total - (Number(loan.down) || 0));
+  // 頭期：選了 % 依總價自動算，否則用自訂金額
+  const effectiveDown = loan.downPct != null ? Math.round(total * loan.downPct / 100) : (Number(loan.down) || 0);
+  const loanPrincipal = Math.max(0, total - effectiveDown);
   const selMonths = Number(loan.months) || 0;
   // 選到的期數對應年利率（設定帶入）；找不到就 0（單純除法）
   const selTerm = loanTerms.find((t) => Number(t.months) === selMonths);
@@ -146,7 +149,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       note: note.trim(),
       total,
       loan: {
-        down: Number(loan.down) || 0,
+        down: effectiveDown,
         months: selMonths,
         rate: annualRate, // 年利率（設定帶入，報價單不顯示）
       },
@@ -298,11 +301,29 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             {/* 貸款試算：頭期＋選期數（年利率在設定，報價單不顯示利率） */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-2">
               <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
-              <Field label="頭期款">
-                <input type="number" min="0" value={loan.down}
-                  onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
-                  className="text-xs w-32" />
-              </Field>
+              <div>
+                <p className="text-[11px] text-ink-3 mb-1">頭期款</p>
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  {[0, 10, 20, 30].map((p) => {
+                    const sel = loan.downPct === p;
+                    return (
+                      <button key={p} type="button"
+                        onClick={() => setLoan((v) => ({ ...v, downPct: sel ? null : p, down: '' }))}
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          sel ? 'bg-accent text-on-accent border-accent' : 'border-bdr text-ink-2 hover:bg-s3'}`}>
+                        {p === 0 ? '免頭款' : `${p}%`}
+                      </button>
+                    );
+                  })}
+                  <input type="number" min="0" placeholder="自訂金額"
+                    value={loan.downPct != null ? '' : loan.down}
+                    onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value, downPct: null }))}
+                    className="text-xs w-24" />
+                </div>
+                {effectiveDown > 0 && (
+                  <p className="text-[10px] text-ink-3 mt-1">頭期 NT$ {formatMoney(effectiveDown)}</p>
+                )}
+              </div>
               <div>
                 <p className="text-[11px] text-ink-3 mb-1">選擇期數（點一下算月付）</p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -479,9 +500,12 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 <p style={{ color: '#9aa7b0', fontSize: 10.5, marginTop: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>備註　{note}</p>
               )}
 
-              {/* 頁尾 */}
+              {/* 頁尾：感謝＋嚴謹免責聲明 */}
               <div style={{ borderTop: '1px solid #eceef1', marginTop: 16, paddingTop: 12, textAlign: 'center' }}>
-                <p style={{ color: '#b3bdc4', fontSize: 10, letterSpacing: 1 }}>感謝您的信賴 · 本報價僅供參考，實際以合約為準</p>
+                <p style={{ color: '#8b98a1', fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>感謝您的信賴</p>
+                <p style={{ color: '#aab4bc', fontSize: 9, lineHeight: 1.6, marginTop: 4 }}>
+                  本內容所有分期款項僅供參考，實際申貸條件、額度及利率，均以金融機構最終審核及正式合約為準。
+                </p>
               </div>
             </div>
           </div>
