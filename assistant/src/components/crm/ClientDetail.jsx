@@ -7,7 +7,7 @@ import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
-import { Field } from '../ui';
+import { Field, ClientPicker } from '../ui';
 import dayjs from 'dayjs';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
@@ -482,12 +482,13 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               {/* 轉介紹 */}
               <div className="grid grid-cols-2 gap-2">
                 <Field label="介紹人">
-                  <select value={form.referrerId || ''} onChange={(e) => setField('referrerId', e.target.value || null)} className="w-full">
-                    <option value="">無介紹人</option>
-                    {clients.filter((c) => c.id !== client.id).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <ClientPicker
+                    clients={clients}
+                    value={form.referrerId || ''}
+                    onChange={(id) => setField('referrerId', id || null)}
+                    excludeId={client.id}
+                    placeholder="搜尋介紹人…"
+                  />
                 </Field>
                 <Field label="介紹金（元）">
                   <input type="number" min="0" value={form.referralFee ?? ''}

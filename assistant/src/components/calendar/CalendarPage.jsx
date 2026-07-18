@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useApp } from '../../context';
 import { getClientStatus, STATUS_COLOR, formatMoney, generateId, getOccasionsOnDate } from '../../utils/crm';
 import { today } from '../../utils/date';
+import { downloadICS } from '../../utils/ics';
 import { Field, ClientPicker } from '../ui';
 import dayjs from 'dayjs';
 
@@ -20,6 +21,7 @@ export default function CalendarPage({ onOpenClient }) {
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [eventModal, setEventModal] = useState(null); // null | {date} 新增 | event 物件 編輯
+  const [exportMsg, setExportMsg] = useState('');
 
   // date(YYYY-MM-DD) -> 事件列表
   const eventsByDate = useMemo(() => {
@@ -150,11 +152,30 @@ export default function CalendarPage({ onOpenClient }) {
     }));
   }
 
+  function handleExportICS() {
+    const n = downloadICS({ events, timers, clients });
+    if (n === 0) {
+      setExportMsg('目前沒有活動或提醒可匯出——先新增生日 / 重要日子再試。');
+    } else {
+      setExportMsg(`已匯出 ${n} 筆到 .ics 檔。用手機打開它即可加入系統行事曆，之後靠手機準時提醒（生日 / 紀念日會每年自動重複）。`);
+    }
+    setTimeout(() => setExportMsg(''), 8000);
+  }
+
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
       {/* 標題 + 月份導覽 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-ink">📅 行事曆</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-ink">📅 行事曆</h1>
+          <button
+            onClick={handleExportICS}
+            title="把活動與提醒匯出，匯入手機系統行事曆後靠原生提醒準時通知"
+            className="btn-outline text-xs"
+          >
+            📲 匯出到手機行事曆
+          </button>
+        </div>
         <div className="flex items-center gap-1">
           <button onClick={() => shiftMonth(-1)} className="btn-ghost text-lg px-2.5">‹</button>
           <span className="font-semibold text-ink min-w-28 text-center text-sm">
@@ -164,6 +185,9 @@ export default function CalendarPage({ onOpenClient }) {
           <button onClick={goToday} className="btn-outline text-xs ml-1">今天</button>
         </div>
       </div>
+      {exportMsg && (
+        <div className="bg-ok/10 border border-ok/30 rounded-lg px-3 py-2 text-xs text-ink-2">{exportMsg}</div>
+      )}
 
       {/* 圖例（顏色對應日曆內的文字標籤） */}
       <div className="flex gap-2 flex-wrap text-[11px]">
