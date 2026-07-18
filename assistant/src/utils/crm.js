@@ -189,7 +189,12 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v1';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v2';
+
+// 報價配備分類顯示順序
+export const QUOTE_ADDON_CATS = [
+  '配備版本', '外觀空力', '燈組', '音響', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+];
 
 export const DEFAULT_QUOTE_PRESETS = {
   _catalog: QUOTE_CATALOG_VERSION,
@@ -204,31 +209,62 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qm-7', name: '4WD四輪傳動 單廂', price: 958000 },
     { id: 'qm-8', name: '4WD四輪傳動 雙廂', price: 1058000 },
   ],
-  // 選購配備（一鍵帶入報價項目）
+  // 選購配備（一鍵帶入報價項目；cat 分類、desc 產品介紹皆依原廠型錄圖片文字）
   addons: [
     // 配備版本升級
-    { id: 'qa-pkg1', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000 },
-    { id: 'qa-pkg2', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000 },
-    { id: 'qa-pkg3', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000 },
-    // 燈組升級
-    { id: 'qa-led', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000 },
-    { id: 'qa-mirror1', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500 },
-    { id: 'qa-mirror2', name: '後照鏡組-全視線鏡片', price: 5000 },
-    { id: 'qa-speaker', name: '專用喇叭改裝', price: 2800 },
-    { id: 'qa-phone', name: '雙手機架組合（兩隻）', price: 3000 },
+    { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
+      desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
+    { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000,
+      desc: '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）' },
+    { id: 'qa-pkg3', cat: '配備版本', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000,
+      desc: '定速巡航套件；多媒體音控鍵（音量控制/切換/免持/Mode）' },
+    // 外觀空力（NLD灣岸）
+    { id: 'qa-aero', cat: '外觀空力', name: 'NLD空力套裝（前下巴+鏡蓋+側燈殼）', price: 12000,
+      desc: '前下巴套件+後照鏡飾蓋+改裝側邊方向燈殼(白)。台灣研發設計鋁製模具、3D原車掃描、ABS強化熱塑材質(硬度佳彈性好)、原車直上不破壞保險桿、三段式本體、KDM風格設計' },
+    { id: 'qa-lip', cat: '外觀空力', name: '前下巴套件', price: 9500, desc: 'NLD灣岸空力套件' },
+    { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件' },
+    { id: 'qa-turn', cat: '外觀空力', name: '改裝側邊方向燈殼（白）', price: 1000, desc: 'NLD灣岸空力套件' },
+    // 燈組
+    { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000,
+      desc: '卡旺全車LED燈組（日行燈/大燈/遠燈/前後方向燈/後霧燈+倒車燈）、LED霧燈、LED室內燈+牌照燈（CANBUS解碼王）、極光側邊照地燈' },
+    { id: 'qa-gtr', cat: '燈組', name: 'GTR大燈升級（三階切線）', price: 27000,
+      desc: '精準照明、三階切線、完美無損。高亮聚光（夜間視野更清晰）、精準切線（不眩光守護用路人）、穩定可靠。三階切線：右側照明距離最長（提前告知路口車輛/辨識路牌標語）、左側照明距離適中（減低對向駕駛眩光），安裝不破壞頭燈結構' },
+    { id: 'qa-tail', cat: '燈組', name: 'LED光環尾燈組（卡旺專用原車直上）', price: 11800,
+      desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片' },
+    { id: 'qa-fog', cat: '燈組', name: '卡旺專用魚眼霧燈（黃金眼/6000K白光）', price: 5800,
+      desc: 'SD次世代魚眼霧燈、光型集中+照射度廣。黃金眼色系 / 6000K白光色系' },
+    { id: 'qa-mirror1', cat: '燈組', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500, desc: 'LED方向燈+全視線鏡片' },
+    { id: 'qa-mirror2', cat: '燈組', name: '後照鏡組-全視線鏡片', price: 5000, desc: '整片全視線鏡片(黑)' },
+    // 音響
+    { id: 'qa-tlsound', cat: '音響', name: 'TLSOUND音響升級（4顆碳纖維喇叭+高音+處理器）', price: 8800,
+      desc: '6.5吋碳纖維中低音喇叭+音質處理器+專用線組、韓國原裝卡旺高音喇叭+高音電容+專用線組，組合含4顆喇叭。CARBON碳纖維高剛性音盆、純鋁子彈頭、承受功率100W+' },
+    { id: 'qa-speaker', cat: '音響', name: '專用喇叭改裝', price: 2800, desc: '專用插座無損音質、高功率高低音混合' },
+    { id: 'qa-phone', cat: '音響', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一' },
     // 底盤強化
-    { id: 'qa-ts', name: 'TS氮氣液壓避震器（卡旺強化避震王）', price: 29800 },
-    { id: 'qa-spring', name: '彈簧鋼板（防車尾下垂）', price: 5500 },
-    { id: 'qa-block', name: '抗震模塊4顆', price: 7500 },
-    { id: 'qa-atc', name: 'ATC防傾桿', price: 15000 },
-    { id: 'qa-leaf', name: '彈簧鋼板避震彈簧（強化載重）', price: 12000 },
+    { id: 'qa-ts', cat: '底盤強化', name: 'TS氮氣液壓避震器（卡旺強化避震王）', price: 29800,
+      desc: '韓國原裝、11mm專用強化版。16段舒適阻尼調整、11mm支撐承重彈簧、超有效改善晃動不適感' },
+    { id: 'qa-spring', cat: '底盤強化', name: '彈簧鋼板', price: 5500, desc: '增加支撐力、防止車尾下垂' },
+    { id: 'qa-block', cat: '底盤強化', name: '抗震模塊4顆', price: 7500, desc: '吸收鋼板間的撞擊震動、防止左右側傾與下垂' },
+    { id: 'qa-atc', cat: '底盤強化', name: 'ATC防傾桿', price: 15000, desc: '防止過彎左右側傾、減少左右晃動感' },
+    { id: 'qa-leaf', cat: '底盤強化', name: '彈簧鋼板避震彈簧', price: 12000, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
     // 金屬製研
-    { id: 'qa-urea', name: '尿素桶防撞桿', price: 5000 },
-    { id: 'qa-side', name: '雙廂專用滑行側踏組', price: 18900 },
-    { id: 'qa-skid', name: '4WD專用鋁合金下護板', price: 12000 },
-    { id: 'qa-rear', name: '車尾防撞鋼樑（2WD專用）', price: 7000 },
-    { id: 'qa-roof', name: '車頂行李架/籃（單廂/大單廂專用）', price: 15000 },
-    { id: 'qa-ext', name: '貨斗延伸護欄（+350mm）', price: 8500 },
+    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5000, desc: '原車鎖點結構穩固、保護尿素桶防止破損' },
+    { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
+    { id: 'qa-skid', cat: '金屬製研', name: '4WD專用鋁合金下護板', price: 12000, desc: '原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
+    { id: 'qa-rear', cat: '金屬製研', name: '車尾防撞鋼樑（2WD專用）', price: 7000, desc: '2WD專用' },
+    { id: 'qa-roof', cat: '金屬製研', name: '車頂行李架/籃（單廂/大單廂專用）', price: 15000, desc: '單廂、大單廂專用' },
+    { id: 'qa-ext', cat: '金屬製研', name: '貨斗延伸護欄（+350mm）', price: 8500, desc: '貨斗延長+350mm' },
+    // 車身改色（烤漆爐烘烤；消光霧面另計）
+    { id: 'qa-paint1', cat: '車身改色', name: '車身烤漆改色（單廂）', price: 36000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paint2', cat: '車身改色', name: '車身烤漆改色（大單廂）', price: 37000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paint3', cat: '車身改色', name: '車身烤漆改色（雙廂）', price: 39000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paintm', cat: '車身改色', name: '消光霧面升級（雙層消光漆）', price: 8000, desc: '消光霧面(30度)效果、雙層消光漆' },
+    // 防刮漆料（roberlo）
+    { id: 'qa-rob1', cat: '防刮漆料', name: 'roberlo防刮漆料（2~2.5呎尾門）', price: 9000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    { id: 'qa-rob2', cat: '防刮漆料', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    { id: 'qa-rob3', cat: '防刮漆料', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    // 鋁圈
+    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
   subsidies: [
     { id: 'qs-1', name: '汰舊換新補助', amount: 50000 },

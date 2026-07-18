@@ -1,9 +1,23 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment } from '../../utils/crm';
+import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
+
+/** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列，未知類別歸「其他」放最後 */
+function groupAddonsByCat(addons) {
+  const map = new Map();
+  for (const a of addons) {
+    const cat = a.cat || '其他';
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat).push(a);
+  }
+  const ordered = [];
+  for (const cat of QUOTE_ADDON_CATS) if (map.has(cat)) { ordered.push([cat, map.get(cat)]); map.delete(cat); }
+  for (const [cat, list] of map) ordered.push([cat, list]); // 剩下未列在順序中的
+  return ordered;
+}
 
 /** 由字串推導 4 碼英數（報價單編號用，同輸入固定輸出） */
 function shortHash(str) {
@@ -27,6 +41,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   );
   const [note, setNote] = useState(quote?.note || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
+  const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   // 貸款試算 + 每月營收（生財工具心法：算出這台車每月幫頭家淨賺多少）
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
@@ -143,16 +158,45 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               </div>
             </Field>
 
-            {/* 車體配備快選（設定 → 報價選單 可自訂） */}
+            {/* 選購配備（依類別分組；可展開看產品介紹） */}
             {quotePresets.addons.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap items-center">
-                <span className="text-[11px] text-ink-3 shrink-0">🚚 車體配備：</span>
-                {quotePresets.addons.map((a) => (
-                  <button key={a.id} type="button"
-                    onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
-                    className="btn-outline text-[11px] px-2 py-0.5">
-                    {a.name} {formatMoney(a.price)}
+              <div className="bg-s2 rounded-lg p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-ink-2">🚚 選購配備</span>
+                  <button type="button" onClick={() => setShowDesc((v) => !v)}
+                    className="text-[11px] text-accent hover:underline">
+                    {showDesc ? '收合介紹' : '📖 看產品介紹'}
                   </button>
+                </div>
+                {groupAddonsByCat(quotePresets.addons).map(([cat, list]) => (
+                  <div key={cat} className="pt-0.5">
+                    <p className="text-[10px] text-ink-3 mb-1">{cat}</p>
+                    {showDesc ? (
+                      <div className="space-y-1">
+                        {list.map((a) => (
+                          <div key={a.id} className="flex items-start gap-2 bg-s1 rounded-md px-2 py-1.5">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-ink font-medium">{a.name}</p>
+                              {a.desc && <p className="text-[10px] text-ink-3 mt-0.5 leading-snug">{a.desc}</p>}
+                            </div>
+                            <span className="text-[11px] text-accent font-semibold shrink-0">{formatMoney(a.price)}</span>
+                            <button type="button" onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
+                              className="btn-primary text-[10px] px-2 py-0.5 shrink-0">加入</button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 flex-wrap">
+                        {list.map((a) => (
+                          <button key={a.id} type="button" title={a.desc || ''}
+                            onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
+                            className="btn-outline text-[11px] px-2 py-0.5">
+                            {a.name} {formatMoney(a.price)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
