@@ -51,6 +51,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   );
   const [note, setNote] = useState(quote?.note || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
+  const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   // 貸款試算：只輸入頭期與期數；月利率由「設定」帶入，報價單不顯示利率
   const [loan, setLoan] = useState({
@@ -60,10 +61,13 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   // 月利率：編輯既有報價用該單存的值；新報價則讀「設定」的預設月利率
   const [loanRate, setLoanRate] = useState(quote?.loan?.rate != null ? String(quote.loan.rate) : '');
 
-  // 業務署名與貸款月利率記在設定，下次自動帶入
+  // 業務署名、浮水印、貸款月利率記在設定，下次自動帶入
   useEffect(() => {
     db.get('settings', 'quoteProfile')
       .then((row) => { if (row) setProfile({ name: row.name || '', phone: row.phone || '' }); })
+      .catch(() => {});
+    db.get('settings', 'quoteWatermark')
+      .then((row) => { if (row) setWatermark(row.text || ''); })
       .catch(() => {});
     if (!quote) {
       db.get('settings', 'quoteLoan')
@@ -339,18 +343,20 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             boxShadow: '0 8px 30px rgba(45,58,66,0.18)', border: '1px solid #eceef1',
             fontFamily: '"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif',
           }}>
-            {/* 浮水印：業務署名淡淡鋪滿，截圖轉傳時品牌隨行、也防止竄改 */}
-            <div aria-hidden style={{
-              position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none',
-              display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center',
-              transform: 'rotate(-24deg) scale(1.5)', opacity: 0.05,
-            }}>
-              {Array.from({ length: 30 }).map((_, i) => (
-                <span key={i} style={{ color: '#2e3a42', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', margin: '9px 14px' }}>
-                  {profile.name || '報價僅供參考'}
-                </span>
-              ))}
-            </div>
+            {/* 浮水印：設定可自訂文字（留空不顯示）；截圖轉傳時品牌隨行、也防止竄改 */}
+            {watermark && (
+              <div aria-hidden style={{
+                position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none',
+                display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center',
+                transform: 'rotate(-24deg) scale(1.5)', opacity: 0.05,
+              }}>
+                {Array.from({ length: 30 }).map((_, i) => (
+                  <span key={i} style={{ color: '#2e3a42', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', margin: '9px 14px' }}>
+                    {watermark}
+                  </span>
+                ))}
+              </div>
+            )}
             {/* 信頭 */}
             <div style={{ position: 'relative', zIndex: 1, background: 'linear-gradient(135deg,#3f4d5a 0%,#2b343d 100%)', padding: '22px 24px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>

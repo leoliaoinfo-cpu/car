@@ -309,6 +309,7 @@ export default function SettingsPanel({ onClose }) {
           {activeSection === 'quoteMenu' && (
             <div className="space-y-5">
               <LoanRateEditor />
+              <WatermarkEditor />
               <LoadCatalogButton onLoad={() => saveQuotePresets(DEFAULT_QUOTE_PRESETS)} />
               <PresetEditor
                 title="🚙 車型與售價"
@@ -384,6 +385,28 @@ function LoanRateEditor() {
           onChange={(e) => save(e.target.value)} placeholder="例：0.5" className="w-24 text-sm" />
         <span className="text-sm text-ink-2">% / 月</span>
       </label>
+    </div>
+  );
+}
+
+// ── WatermarkEditor（報價單浮水印文字；留空不顯示）──────────────────────────
+function WatermarkEditor() {
+  const [text, setText] = useState('報價僅供參考');
+  useEffect(() => {
+    db.get('settings', 'quoteWatermark')
+      .then((r) => { if (r) setText(r.text || ''); })
+      .catch(() => {});
+  }, []);
+  function save(v) {
+    setText(v);
+    db.put('settings', { key: 'quoteWatermark', text: v }).catch(() => {});
+  }
+  return (
+    <div className="card p-4 space-y-2">
+      <h3 className="font-semibold text-ink">💧 報價單浮水印</h3>
+      <p className="text-xs text-ink-3">報價單背景淡淡鋪滿的文字（例如公司名、聯絡電話）。留空則不顯示浮水印。</p>
+      <input value={text} onChange={(e) => save(e.target.value)}
+        placeholder="例：卡旺彰化 04-7654321" className="w-full text-sm" />
     </div>
   );
 }
