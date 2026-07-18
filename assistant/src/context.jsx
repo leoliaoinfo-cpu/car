@@ -262,11 +262,30 @@ export function AppProvider({ children }) {
     return saveClient(updater(current));
   }, [saveClient]);
 
+  /** 刪除客戶時一併清除其關聯的行事曆活動與未完成提醒，避免日曆留下孤兒項目 */
+  const cleanupClientLinks = useCallback(async (idSet) => {
+    const set = idSet instanceof Set ? idSet : new Set(idSet);
+    const [evs, tms] = await Promise.all([db.getAll('events'), db.getAll('timers')]);
+    for (const e of evs) {
+      if (e.clientId && set.has(e.clientId)) {
+        await db.delete('events', e.id);
+        dispatch({ type: 'DELETE_EVENT', id: e.id });
+      }
+    }
+    for (const t of tms) {
+      if (t.clientId && set.has(t.clientId) && !t.confirmedAt) {
+        await db.delete('timers', t.id);
+        dispatch({ type: 'DELETE_TIMER', id: t.id });
+      }
+    }
+  }, []);
+
   const deleteClient = useCallback(async (id) => {
     clientsRef.current = clientsRef.current.filter((c) => c.id !== id);
     await db.delete('clients', id);
     dispatch({ type: 'DELETE_CLIENT', id });
-  }, []);
+    await cleanupClientLinks([id]);
+  }, [cleanupClientLinks]);
 
   /** 批次刪除客戶（每筆各留墓碑，同步後其他裝置也會刪除） */
   const deleteClients = useCallback(async (ids) => {
@@ -274,7 +293,8 @@ export function AppProvider({ children }) {
     clientsRef.current = clientsRef.current.filter((c) => !set.has(c.id));
     dispatch({ type: 'DELETE_CLIENTS', ids });
     for (const id of ids) await db.delete('clients', id);
-  }, []);
+    await cleanupClientLinks(set);
+  }, [cleanupClientLinks]);
 
   /** 覆寫整個 store：寫入現有項目並刪除已移除的（否則刪除的項目重整後會復活） */
   const overwriteStore = useCallback(async (storeName, items) => {

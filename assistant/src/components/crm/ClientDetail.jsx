@@ -85,6 +85,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     .filter((d) => d.clientId === client.id)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
+  // 已記錄下訂 / 交車但還沒歸檔業績 → 提示（避免賣了車卻忘了計入業績）
+  const hasSaleEvent = (client.log || []).some((e) => e.type === 'order' || e.type === 'delivery');
+  const needsArchive = hasSaleEvent && clientDeals.length === 0;
+
   // 轉介紹：介紹人與此客戶介紹出去的名單
   const referrer = client.referrerId ? clients.find((c) => c.id === client.referrerId) : null;
   const referredClients = clients.filter((c) => c.referrerId === client.id);
@@ -836,6 +840,13 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               ＋ 歸檔到業績表
             </button>
           </div>
+          {needsArchive && (
+            <div className="bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 flex items-center gap-2">
+              <span className="text-sm shrink-0">🏆</span>
+              <span className="flex-1 text-xs text-accent">已記錄下訂 / 交車，別忘了歸檔才會計入業績表。</span>
+              <button onClick={() => setShowDealModal(true)} className="btn-primary text-[10px] px-2 py-1 shrink-0">立即歸檔</button>
+            </div>
+          )}
           <p className="text-xs text-ink-3">
             成交後把金額歸入當月業績表，可記錄保險金額、收入等欄位並自動加總（欄位可在設定自訂）。
           </p>
