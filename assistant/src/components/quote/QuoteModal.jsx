@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
 import { db } from '../../db';
 import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS } from '../../utils/crm';
 import { useApp } from '../../context';
@@ -53,6 +54,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
+  const [capturing, setCapturing] = useState(false);
+  const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入、報價單不顯示
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
@@ -138,6 +141,37 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
   function removeItem(id) {
     setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== id) : list));
+  }
+
+  // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
+  async function downloadImage() {
+    const el = previewRef.current;
+    if (!el || capturing) return;
+    setCapturing(true);
+    try {
+      const canvas = await html2canvas(el, {
+        scale: Math.min(2, window.devicePixelRatio || 1) * 1.5,
+        backgroundColor: '#ffffff', useCORS: true, logging: false,
+      });
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+      if (!blob) throw new Error('capture failed');
+      const fileName = `報價單-${(client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+      // 行動裝置：系統分享（iPhone 可存到照片或直接傳 LINE）
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); }
+        catch { /* 使用者取消分享 */ }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fileName; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch {
+      alert('圖片產生失敗，請改用截圖。');
+    } finally {
+      setCapturing(false);
+    }
   }
 
   async function handleRecord() {
@@ -367,8 +401,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             </div>
           </div>
 
-          {/* 報價單預覽 — 固定淺色、專業排版，截圖給客人用 */}
-          <div className="mx-auto" style={{
+          {/* 報價單預覽 — 固定淺色、專業排版，可下載成整張 PNG */}
+          <div ref={previewRef} className="mx-auto" style={{
             position: 'relative', maxWidth: 380, background: '#ffffff', borderRadius: 14, overflow: 'hidden',
             boxShadow: '0 8px 30px rgba(45,58,66,0.18)', border: '1px solid #eceef1',
             fontFamily: '"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif',
@@ -510,12 +544,19 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             </div>
           </div>
 
-          <p className="text-center text-xs text-ink-3 mt-3">📸 直接截圖上方報價單傳給客人</p>
+          {/* 下載整張報價單圖片（不論多長都是一張完整 PNG） */}
+          <button onClick={downloadImage} disabled={total <= 0 || capturing}
+            className="btn-primary w-full mt-3 disabled:opacity-40">
+            {capturing ? '產生圖片中…' : '📥 下載報價單圖片（一張完整）'}
+          </button>
+          <p className="text-center text-[11px] text-ink-3 mt-1.5">
+            手機會跳出分享，可存到相簿或直接傳 LINE 給客人
+          </p>
           <div className="flex gap-2 mt-3">
             <button onClick={onClose} className="btn-outline flex-1">關閉</button>
             <button onClick={handleRecord} disabled={total <= 0}
-              className="btn-primary flex-1 disabled:opacity-40">
-              💲 {isEdit ? '儲存修改' : '記錄報價'}（NT$ {formatMoney(total)}）
+              className="btn-outline flex-1 disabled:opacity-40">
+              💲 {isEdit ? '儲存修改' : '記錄報價'}
             </button>
           </div>
         </div>
