@@ -94,16 +94,25 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     });
   }
 
-  function addPresetItem(name, price) {
+  // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
+  const isPicked = (name) => items.some((it) => it.name.trim() === name);
+
+  /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
+  function toggleLine({ name, price, group }) {
     setItems((list) => {
-      // 同名項目不重複加入
-      if (list.some((it) => it.name.trim() === name)) return list;
-      // 若第一列還是空白列，直接填入
-      const emptyIdx = list.findIndex((it) => !it.name.trim() && !Number(it.price));
-      if (emptyIdx !== -1) {
-        return list.map((it, i) => (i === emptyIdx ? { ...it, name, price: String(price) } : it));
+      const picked = list.some((it) => it.name.trim() === name);
+      if (picked) {
+        const next = list.filter((it) => it.name.trim() !== name);
+        return next.length ? next : [{ id: generateId('qi'), name: '', price: '' }];
       }
-      return [...list, { id: generateId('qi'), name, price: String(price) }];
+      let base = list;
+      if (group) {
+        const siblings = quotePresets.addons.filter((x) => x.group === group).map((x) => x.name);
+        base = list.filter((it) => !siblings.includes(it.name.trim()));
+      }
+      const emptyIdx = base.findIndex((it) => !it.name.trim() && !Number(it.price));
+      if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, name, price: String(price) } : it));
+      return [...base, { id: generateId('qi'), name, price: String(price) }];
     });
   }
 
@@ -179,8 +188,12 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                     {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
+                <p className="text-[10px] text-ink-3 -mt-1">點選即加入、再點取消；已選會反白。車身改色 / 防刮尾門 / 後照鏡為擇一，換新的自動取代。</p>
                 {groupAddonsByCat(quotePresets.addons).map(([cat, list]) => {
                   const color = catColor(cat);
+                  // 整個類別同屬一個擇一群組時才標「擇一」（例如車身改色底色、防刮尾門尺寸）
+                  const groupSet = new Set(list.map((a) => a.group || ''));
+                  const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
                   return (
                     <div key={cat}>
                       {/* 類別標題 */}
@@ -188,32 +201,49 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                         <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
                         <span className="text-[11px] font-semibold" style={{ color }}>{cat}</span>
                         <span className="text-[10px] text-ink-3">{list.length}</span>
+                        {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
                       </div>
                       {showDesc ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {list.map((a) => (
-                            <div key={a.id} className="flex flex-col bg-s1 rounded-lg px-2.5 py-2 border border-bdr/50">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="text-xs text-ink font-medium leading-snug">{a.name}</p>
-                                <span className="text-xs font-bold shrink-0" style={{ color }}>{formatMoney(a.price)}</span>
+                          {list.map((a) => {
+                            const picked = isPicked(a.name);
+                            return (
+                              <div key={a.id}
+                                className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'}`}
+                                style={picked ? { background: color + '18', borderColor: color } : undefined}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-xs text-ink font-medium leading-snug">
+                                    {picked && <span style={{ color }}>✓ </span>}{a.name}
+                                  </p>
+                                  <span className="text-xs font-bold shrink-0" style={{ color }}>{formatMoney(a.price)}</span>
+                                </div>
+                                {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
+                                <button type="button" onClick={() => toggleLine({ name: a.name, price: Number(a.price) || 0, group: a.group })}
+                                  className="text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors"
+                                  style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
+                                  {picked ? '✓ 已加入' : '＋ 加入報價'}
+                                </button>
                               </div>
-                              {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
-                              <button type="button" onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
-                                className="btn-outline text-[10px] px-2 py-0.5 mt-1.5 self-end">＋ 加入報價</button>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="flex gap-1.5 flex-wrap">
-                          {list.map((a) => (
-                            <button key={a.id} type="button" title={a.desc || ''}
-                              onClick={() => addPresetItem(a.name, Number(a.price) || 0)}
-                              className="flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors hover:bg-s3"
-                              style={{ borderColor: color + '55' }}>
-                              <span className="text-ink-2">{a.name}</span>
-                              <span className="font-semibold" style={{ color }}>{formatMoney(a.price)}</span>
-                            </button>
-                          ))}
+                          {list.map((a) => {
+                            const picked = isPicked(a.name);
+                            return (
+                              <button key={a.id} type="button" title={a.desc || ''}
+                                onClick={() => toggleLine({ name: a.name, price: Number(a.price) || 0, group: a.group })}
+                                className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors"
+                                style={picked
+                                  ? { background: color, borderColor: color, color: '#fff' }
+                                  : { borderColor: color + '55' }}>
+                                {picked && <span>✓</span>}
+                                <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{a.name}</span>
+                                <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>{formatMoney(a.price)}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -221,17 +251,22 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 })}
               </div>
             )}
-            {/* 補助折抵快選（負數帶入） */}
+            {/* 補助折抵快選（負數帶入；已選反白） */}
             {quotePresets.subsidies.length > 0 && (
               <div className="flex gap-1.5 flex-wrap items-center">
                 <span className="text-[11px] text-ink-3 shrink-0">🏛 補助折抵：</span>
-                {quotePresets.subsidies.map((s) => (
-                  <button key={s.id} type="button"
-                    onClick={() => addPresetItem(s.name, -(Math.abs(Number(s.amount) || 0)))}
-                    className="btn-outline text-[11px] px-2 py-0.5 text-ok border-ok/40">
-                    {s.name} -{formatMoney(Math.abs(s.amount))}
-                  </button>
-                ))}
+                {quotePresets.subsidies.map((s) => {
+                  const picked = isPicked(s.name);
+                  return (
+                    <button key={s.id} type="button"
+                      onClick={() => toggleLine({ name: s.name, price: -(Math.abs(Number(s.amount) || 0)) })}
+                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors ${
+                        picked ? 'bg-ok text-white border-ok' : 'text-ok border-ok/40 hover:bg-ok/10'}`}>
+                      {picked && <span>✓</span>}
+                      {s.name} -{formatMoney(Math.abs(s.amount))}
+                    </button>
+                  );
+                })}
               </div>
             )}
             <div className="flex gap-2 text-[11px] font-medium text-ink-3">

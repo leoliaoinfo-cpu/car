@@ -233,8 +233,8 @@ export const DEFAULT_QUOTE_PRESETS = {
       desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片' },
     { id: 'qa-fog', cat: '燈組', name: '卡旺專用魚眼霧燈（黃金眼/6000K白光）', price: 5800,
       desc: 'SD次世代魚眼霧燈、光型集中+照射度廣。黃金眼色系 / 6000K白光色系' },
-    { id: 'qa-mirror1', cat: '燈組', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500, desc: 'LED方向燈+全視線鏡片' },
-    { id: 'qa-mirror2', cat: '燈組', name: '後照鏡組-全視線鏡片', price: 5000, desc: '整片全視線鏡片(黑)' },
+    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500, desc: 'LED方向燈+全視線鏡片' },
+    { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '後照鏡組-全視線鏡片', price: 5000, desc: '整片全視線鏡片(黑)' },
     // 音響
     { id: 'qa-tlsound', cat: '音響', name: 'TLSOUND音響升級（4顆碳纖維喇叭+高音+處理器）', price: 8800,
       desc: '6.5吋碳纖維中低音喇叭+音質處理器+專用線組、韓國原裝卡旺高音喇叭+高音電容+專用線組，組合含4顆喇叭。CARBON碳纖維高剛性音盆、純鋁子彈頭、承受功率100W+' },
@@ -256,14 +256,14 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-roof', cat: '金屬製研', name: '車頂行李架/籃（單廂/大單廂專用）', price: 15000, desc: '單廂、大單廂專用' },
     { id: 'qa-ext', cat: '金屬製研', name: '貨斗延伸護欄（+350mm）', price: 8500, desc: '貨斗延長+350mm' },
     // 車身改色（烤漆爐烘烤；消光霧面另計）
-    { id: 'qa-paint1', cat: '車身改色', name: '車身烤漆改色（單廂）', price: 36000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
-    { id: 'qa-paint2', cat: '車身改色', name: '車身烤漆改色（大單廂）', price: 37000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
-    { id: 'qa-paint3', cat: '車身改色', name: '車身烤漆改色（雙廂）', price: 39000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paint1', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（單廂）', price: 36000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paint2', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（大單廂）', price: 37000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
+    { id: 'qa-paint3', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（雙廂）', price: 39000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
     { id: 'qa-paintm', cat: '車身改色', name: '消光霧面升級（雙層消光漆）', price: 8000, desc: '消光霧面(30度)效果、雙層消光漆' },
     // 防刮漆料（roberlo）
-    { id: 'qa-rob1', cat: '防刮漆料', name: 'roberlo防刮漆料（2~2.5呎尾門）', price: 9000, desc: '標準色為消光黑、使用年限長達5年以上' },
-    { id: 'qa-rob2', cat: '防刮漆料', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
-    { id: 'qa-rob3', cat: '防刮漆料', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    { id: 'qa-rob1', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（2~2.5呎尾門）', price: 9000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    { id: 'qa-rob2', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
+    { id: 'qa-rob3', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
     // 鋁圈
     { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
