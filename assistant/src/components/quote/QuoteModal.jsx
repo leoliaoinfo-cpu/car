@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS } from '../../utils/crm';
+import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
@@ -53,13 +53,13 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
-  // 貸款試算：只輸入頭期與期數；月利率由「設定」帶入，報價單不顯示利率
+  // 貸款試算：頭期＋選期數；每個期數的年利率由「設定」帶入，報價單不顯示利率
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
   });
-  // 月利率：編輯既有報價用該單存的值；新報價則讀「設定」的預設月利率
-  const [loanRate, setLoanRate] = useState(quote?.loan?.rate != null ? String(quote.loan.rate) : '');
+  // 期數/年利率表（設定帶入）
+  const [loanTerms, setLoanTerms] = useState(DEFAULT_LOAN_TERMS);
 
   // 業務署名、浮水印、貸款月利率記在設定，下次自動帶入
   useEffect(() => {
@@ -69,11 +69,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     db.get('settings', 'quoteWatermark')
       .then((row) => { if (row) setWatermark(row.text || ''); })
       .catch(() => {});
-    if (!quote) {
-      db.get('settings', 'quoteLoan')
-        .then((row) => { if (row?.monthlyRate != null) setLoanRate(String(row.monthlyRate)); })
-        .catch(() => {});
-    }
+    db.get('settings', 'quoteLoan')
+      .then((row) => { if (Array.isArray(row?.terms) && row.terms.length) setLoanTerms(row.terms); })
+      .catch(() => {});
   }, [quote]);
 
   function saveProfile(next) {
@@ -89,8 +87,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
 
   const loanPrincipal = Math.max(0, total - (Number(loan.down) || 0));
-  // 月利率（來自設定）換算成年利率（×12）給本息攤還公式
-  const monthlyPay = calcMonthlyPayment(loanPrincipal, (Number(loanRate) || 0) * 12, loan.months);
+  const selMonths = Number(loan.months) || 0;
+  // 選到的期數對應年利率（設定帶入）；找不到就 0（單純除法）
+  const selTerm = loanTerms.find((t) => Number(t.months) === selMonths);
+  const annualRate = selTerm ? Number(selTerm.rate) || 0 : 0;
+  const monthlyPay = calcMonthlyPayment(loanPrincipal, annualRate, selMonths);
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
@@ -146,8 +147,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       total,
       loan: {
         down: Number(loan.down) || 0,
-        months: Number(loan.months) || 0,
-        rate: Number(loanRate) || 0, // 月利率（設定帶入，報價單不顯示）
+        months: selMonths,
+        rate: annualRate, // 年利率（設定帶入，報價單不顯示）
       },
       text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
     });
@@ -294,30 +295,38 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             ))}
             <button onClick={addItem} className="btn-outline text-xs">＋ 新增項目</button>
 
-            {/* 貸款試算：只輸入頭期與期數（利率在設定，報價單不顯示） */}
-            <div className="bg-s2 rounded-lg p-2.5 space-y-1.5">
+            {/* 貸款試算：頭期＋選期數（年利率在設定，報價單不顯示利率） */}
+            <div className="bg-s2 rounded-lg p-2.5 space-y-2">
               <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
-              <div className="grid grid-cols-2 gap-1.5">
-                <Field label="頭期款">
-                  <input type="number" min="0" value={loan.down}
-                    onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
-                    className="text-xs min-w-0 w-full" />
-                </Field>
-                <Field label="期數（月）">
-                  <input type="number" min="0" value={loan.months}
-                    onChange={(e) => setLoan((v) => ({ ...v, months: e.target.value }))}
-                    className="text-xs min-w-0 w-full" />
-                </Field>
+              <Field label="頭期款">
+                <input type="number" min="0" value={loan.down}
+                  onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
+                  className="text-xs w-32" />
+              </Field>
+              <div>
+                <p className="text-[11px] text-ink-3 mb-1">選擇期數（點一下算月付）</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {loanTerms.map((t) => {
+                    const sel = selMonths === Number(t.months);
+                    return (
+                      <button key={t.months} type="button"
+                        onClick={() => setLoan((v) => ({ ...v, months: sel ? '' : String(t.months) }))}
+                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          sel ? 'bg-accent text-on-accent border-accent' : 'border-bdr text-ink-2 hover:bg-s3'}`}>
+                        {t.months} 期
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              {monthlyPay > 0 ? (
-                <p className="text-[11px] text-ink-2">
-                  每月只要 <strong className="text-accent">NT$ {formatMoney(monthlyPay)}</strong>
-                  <span className="text-ink-3">（月利率 {Number(loanRate) || 0}%，設定可調）</span>
-                </p>
-              ) : (
-                Number(loan.months) > 0 && (
-                  <p className="text-[10px] text-ink-3">尚未在「設定 → 報價選單」設定貸款月利率</p>
-                )
+              {monthlyPay > 0 && (
+                <div className="flex items-baseline justify-between bg-s1 rounded-lg px-3 py-2">
+                  <span className="text-[11px] text-ink-3">分 {selMonths} 期</span>
+                  <span className="text-sm text-ink">每月只要 <strong className="text-accent text-base">NT$ {formatMoney(monthlyPay)}</strong></span>
+                </div>
+              )}
+              {selMonths > 0 && monthlyPay === 0 && (
+                <p className="text-[10px] text-ink-3">此期數尚未在「設定 → 報價選單」設定年利率</p>
               )}
             </div>
 

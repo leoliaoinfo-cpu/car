@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { db, downloadJSON } from '../db';
 import { useApp } from '../context';
-import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS } from '../utils/crm';
+import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS } from '../utils/crm';
 import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
@@ -308,7 +308,7 @@ export default function SettingsPanel({ onClose }) {
           {/* ── Quote presets ── */}
           {activeSection === 'quoteMenu' && (
             <div className="space-y-5">
-              <LoanRateEditor />
+              <LoanTermsEditor />
               <WatermarkEditor />
               <LoadCatalogButton onLoad={() => saveQuotePresets(DEFAULT_QUOTE_PRESETS)} />
               <PresetEditor
@@ -364,27 +364,44 @@ export default function SettingsPanel({ onClose }) {
   );
 }
 
-// ── LoanRateEditor（貸款月利率：只在此設定，報價單不顯示利率）────────────────
-function LoanRateEditor() {
-  const [rate, setRate] = useState('');
+// ── LoanTermsEditor（貸款期數與年利率：報價單依期數自動算月付，不顯示利率）────
+function LoanTermsEditor() {
+  const [terms, setTerms] = useState(DEFAULT_LOAN_TERMS);
   useEffect(() => {
     db.get('settings', 'quoteLoan')
-      .then((r) => { if (r?.monthlyRate != null) setRate(String(r.monthlyRate)); })
+      .then((r) => { if (Array.isArray(r?.terms) && r.terms.length) setTerms(r.terms); })
       .catch(() => {});
   }, []);
-  function save(v) {
-    setRate(v);
-    db.put('settings', { key: 'quoteLoan', monthlyRate: v === '' ? null : Number(v) }).catch(() => {});
+  function save(next) {
+    setTerms(next);
+    db.put('settings', { key: 'quoteLoan', terms: next }).catch(() => {});
   }
+  const update = (i, patch) => save(terms.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  const remove = (i) => save(terms.filter((_, idx) => idx !== i));
+  const add = () => save([...terms, { months: 0, rate: 0 }]);
+
   return (
     <div className="card p-4 space-y-2">
-      <h3 className="font-semibold text-ink">🏦 貸款月利率</h3>
-      <p className="text-xs text-ink-3">報價單分期試算所用的月利率，只在這裡設定；報價單只顯示「月付款」與「期數」，不顯示利率。</p>
-      <label className="flex items-center gap-2">
-        <input type="number" min="0" step="0.01" value={rate}
-          onChange={(e) => save(e.target.value)} placeholder="例：0.5" className="w-24 text-sm" />
-        <span className="text-sm text-ink-2">% / 月</span>
-      </label>
+      <h3 className="font-semibold text-ink">🏦 貸款期數與年利率</h3>
+      <p className="text-xs text-ink-3">
+        報價單選期數時，用該期數的年利率自動算出月付款。報價單只顯示「月付款」與「期數」，不會顯示利率。
+      </p>
+      <div className="space-y-1.5">
+        {terms.map((t, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input type="number" min="1" value={t.months}
+              onChange={(e) => update(i, { months: Number(e.target.value) })}
+              className="w-16 text-sm" />
+            <span className="text-xs text-ink-3">期</span>
+            <input type="number" min="0" step="0.01" value={t.rate}
+              onChange={(e) => update(i, { rate: Number(e.target.value) })}
+              className="w-20 text-sm" />
+            <span className="text-xs text-ink-3">% 年利率</span>
+            <button onClick={() => remove(i)} className="text-danger/50 hover:text-danger text-sm ml-auto">✕</button>
+          </div>
+        ))}
+      </div>
+      <button onClick={add} className="btn-outline text-xs">+ 新增期數</button>
     </div>
   );
 }

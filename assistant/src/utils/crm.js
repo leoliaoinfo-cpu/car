@@ -273,6 +273,17 @@ export const DEFAULT_QUOTE_PRESETS = {
   ],
 };
 
+// 貸款期數與對應年利率（後台可改；報價單選期數時用該期年利率自動算月付款、但不顯示利率）
+// 預設年利率取自常見市場區間，業務可依實際銀行核貸調整
+export const DEFAULT_LOAN_TERMS = [
+  { months: 12, rate: 2.88 },
+  { months: 24, rate: 3.00 },
+  { months: 36, rate: 3.25 },
+  { months: 48, rate: 3.50 },
+  { months: 60, rate: 3.75 },
+  { months: 72, rate: 4.20 },
+];
+
 // 舊版通用預設配備名稱（用於判斷使用者是否從未客製過報價選單）
 const LEGACY_ADDON_NAMES = ['框式車斗', '篷式車斗', '冷凍廂', '升降尾門', '貨斗加高'];
 
