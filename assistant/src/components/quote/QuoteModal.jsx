@@ -52,19 +52,25 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [note, setNote] = useState(quote?.note || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
-  // 貸款試算：rate 為「月利率 %」（讓客戶感覺每月負擔小、無痛消費）
+  // 貸款試算：只輸入頭期與期數；月利率由「設定」帶入，報價單不顯示利率
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
-    rate: quote?.loan?.rate != null ? String(quote.loan.rate) : '',
   });
+  // 月利率：編輯既有報價用該單存的值；新報價則讀「設定」的預設月利率
+  const [loanRate, setLoanRate] = useState(quote?.loan?.rate != null ? String(quote.loan.rate) : '');
 
-  // 業務署名記在本機，下次自動帶入
+  // 業務署名與貸款月利率記在設定，下次自動帶入
   useEffect(() => {
     db.get('settings', 'quoteProfile')
       .then((row) => { if (row) setProfile({ name: row.name || '', phone: row.phone || '' }); })
       .catch(() => {});
-  }, []);
+    if (!quote) {
+      db.get('settings', 'quoteLoan')
+        .then((row) => { if (row?.monthlyRate != null) setLoanRate(String(row.monthlyRate)); })
+        .catch(() => {});
+    }
+  }, [quote]);
 
   function saveProfile(next) {
     setProfile(next);
@@ -79,8 +85,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
 
   const loanPrincipal = Math.max(0, total - (Number(loan.down) || 0));
-  // 輸入為月利率，換算成年利率（×12）給本息攤還公式
-  const monthlyPay = calcMonthlyPayment(loanPrincipal, (Number(loan.rate) || 0) * 12, loan.months);
+  // 月利率（來自設定）換算成年利率（×12）給本息攤還公式
+  const monthlyPay = calcMonthlyPayment(loanPrincipal, (Number(loanRate) || 0) * 12, loan.months);
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
@@ -137,7 +143,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       loan: {
         down: Number(loan.down) || 0,
         months: Number(loan.months) || 0,
-        rate: Number(loan.rate) || 0, // 月利率
+        rate: Number(loanRate) || 0, // 月利率（設定帶入，報價單不顯示）
       },
       text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
     });
@@ -284,10 +290,10 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             ))}
             <button onClick={addItem} className="btn-outline text-xs">＋ 新增項目</button>
 
-            {/* 貸款試算：主打「每月只要」，用月利率讓負擔感更小 */}
+            {/* 貸款試算：只輸入頭期與期數（利率在設定，報價單不顯示） */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-1.5">
               <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 <Field label="頭期款">
                   <input type="number" min="0" value={loan.down}
                     onChange={(e) => setLoan((v) => ({ ...v, down: e.target.value }))}
@@ -298,16 +304,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                     onChange={(e) => setLoan((v) => ({ ...v, months: e.target.value }))}
                     className="text-xs min-w-0 w-full" />
                 </Field>
-                <Field label="月利率 %">
-                  <input type="number" min="0" step="0.01" value={loan.rate}
-                    onChange={(e) => setLoan((v) => ({ ...v, rate: e.target.value }))}
-                    className="text-xs min-w-0 w-full" />
-                </Field>
               </div>
-              {monthlyPay > 0 && (
+              {monthlyPay > 0 ? (
                 <p className="text-[11px] text-ink-2">
                   每月只要 <strong className="text-accent">NT$ {formatMoney(monthlyPay)}</strong>
+                  <span className="text-ink-3">（月利率 {Number(loanRate) || 0}%，設定可調）</span>
                 </p>
+              ) : (
+                Number(loan.months) > 0 && (
+                  <p className="text-[10px] text-ink-3">尚未在「設定 → 報價選單」設定貸款月利率</p>
+                )
               )}
             </div>
 
@@ -442,12 +448,12 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 <div style={{ border: '1px solid #ecdfce', background: '#fdfaf6', borderRadius: 10, padding: '12px 16px', marginTop: 12 }}>
                   <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>輕鬆分期</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ color: '#8b7355', fontSize: 11 }}>
-                      頭期 {formatMoney(Number(loan.down) || 0)}・{loan.months} 期{Number(loan.rate) > 0 ? `・月利率 ${loan.rate}%` : ''}
+                    <span style={{ color: '#8b7355', fontSize: 12, fontWeight: 600 }}>
+                      分 {loan.months} 期
                     </span>
                     <span style={{ color: '#2e3a42', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                       <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月只要</span>
-                      <span style={{ fontSize: 18 }}>{formatMoney(monthlyPay)}</span>
+                      <span style={{ fontSize: 19 }}>{formatMoney(monthlyPay)}</span>
                     </span>
                   </div>
                 </div>

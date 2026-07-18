@@ -308,6 +308,7 @@ export default function SettingsPanel({ onClose }) {
           {/* ── Quote presets ── */}
           {activeSection === 'quoteMenu' && (
             <div className="space-y-5">
+              <LoanRateEditor />
               <LoadCatalogButton onLoad={() => saveQuotePresets(DEFAULT_QUOTE_PRESETS)} />
               <PresetEditor
                 title="🚙 車型與售價"
@@ -359,6 +360,31 @@ export default function SettingsPanel({ onClose }) {
         </div>
       </div>
     </>
+  );
+}
+
+// ── LoanRateEditor（貸款月利率：只在此設定，報價單不顯示利率）────────────────
+function LoanRateEditor() {
+  const [rate, setRate] = useState('');
+  useEffect(() => {
+    db.get('settings', 'quoteLoan')
+      .then((r) => { if (r?.monthlyRate != null) setRate(String(r.monthlyRate)); })
+      .catch(() => {});
+  }, []);
+  function save(v) {
+    setRate(v);
+    db.put('settings', { key: 'quoteLoan', monthlyRate: v === '' ? null : Number(v) }).catch(() => {});
+  }
+  return (
+    <div className="card p-4 space-y-2">
+      <h3 className="font-semibold text-ink">🏦 貸款月利率</h3>
+      <p className="text-xs text-ink-3">報價單分期試算所用的月利率，只在這裡設定；報價單只顯示「月付款」與「期數」，不顯示利率。</p>
+      <label className="flex items-center gap-2">
+        <input type="number" min="0" step="0.01" value={rate}
+          onChange={(e) => save(e.target.value)} placeholder="例：0.5" className="w-24 text-sm" />
+        <span className="text-sm text-ink-2">% / 月</span>
+      </label>
+    </div>
   );
 }
 
