@@ -52,12 +52,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const [note, setNote] = useState(quote?.note || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
-  // 貸款試算 + 每月營收（生財工具心法：算出這台車每月幫頭家淨賺多少）
+  // 貸款試算：rate 為「月利率 %」（讓客戶感覺每月負擔小、無痛消費）
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
     rate: quote?.loan?.rate != null ? String(quote.loan.rate) : '',
-    revenue: quote?.loan?.revenue != null ? String(quote.loan.revenue) : '',
   });
 
   // 業務署名記在本機，下次自動帶入
@@ -80,9 +79,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
 
   const loanPrincipal = Math.max(0, total - (Number(loan.down) || 0));
-  const monthlyPay = calcMonthlyPayment(loanPrincipal, loan.rate, loan.months);
-  const monthlyRevenue = Number(loan.revenue) || 0;
-  const monthlyNet = monthlyRevenue - monthlyPay;
+  // 輸入為月利率，換算成年利率（×12）給本息攤還公式
+  const monthlyPay = calcMonthlyPayment(loanPrincipal, (Number(loan.rate) || 0) * 12, loan.months);
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
@@ -139,8 +137,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       loan: {
         down: Number(loan.down) || 0,
         months: Number(loan.months) || 0,
-        rate: Number(loan.rate) || 0,
-        revenue: monthlyRevenue,
+        rate: Number(loan.rate) || 0, // 月利率
       },
       text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
     });
@@ -287,7 +284,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             ))}
             <button onClick={addItem} className="btn-outline text-xs">＋ 新增項目</button>
 
-            {/* 貸款試算：月付金 vs 每月營收 */}
+            {/* 貸款試算：主打「每月只要」，用月利率讓負擔感更小 */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-1.5">
               <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
               <div className="grid grid-cols-3 gap-1.5">
@@ -301,23 +298,15 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                     onChange={(e) => setLoan((v) => ({ ...v, months: e.target.value }))}
                     className="text-xs min-w-0 w-full" />
                 </Field>
-                <Field label="年利率 %">
-                  <input type="number" min="0" step="0.1" value={loan.rate}
+                <Field label="月利率 %">
+                  <input type="number" min="0" step="0.01" value={loan.rate}
                     onChange={(e) => setLoan((v) => ({ ...v, rate: e.target.value }))}
                     className="text-xs min-w-0 w-full" />
                 </Field>
               </div>
-              <Field label="這台車預估每月幫客戶賺多少（元）">
-                <input type="number" min="0" value={loan.revenue}
-                  onChange={(e) => setLoan((v) => ({ ...v, revenue: e.target.value }))}
-                  className="w-full text-xs" />
-              </Field>
               {monthlyPay > 0 && (
                 <p className="text-[11px] text-ink-2">
-                  月付 <strong className="text-accent">NT$ {formatMoney(monthlyPay)}</strong>
-                  {monthlyRevenue > 0 && (
-                    <>，每月淨賺 <strong className="text-ok">NT$ {formatMoney(monthlyNet)}</strong></>
-                  )}
+                  每月只要 <strong className="text-accent">NT$ {formatMoney(monthlyPay)}</strong>
                 </p>
               )}
             </div>
@@ -340,12 +329,24 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
           {/* 報價單預覽 — 固定淺色、專業排版，截圖給客人用 */}
           <div className="mx-auto" style={{
-            maxWidth: 380, background: '#ffffff', borderRadius: 14, overflow: 'hidden',
+            position: 'relative', maxWidth: 380, background: '#ffffff', borderRadius: 14, overflow: 'hidden',
             boxShadow: '0 8px 30px rgba(45,58,66,0.18)', border: '1px solid #eceef1',
             fontFamily: '"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif',
           }}>
+            {/* 浮水印：業務署名淡淡鋪滿，截圖轉傳時品牌隨行、也防止竄改 */}
+            <div aria-hidden style={{
+              position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none',
+              display: 'flex', flexWrap: 'wrap', alignContent: 'center', justifyContent: 'center',
+              transform: 'rotate(-24deg) scale(1.5)', opacity: 0.05,
+            }}>
+              {Array.from({ length: 30 }).map((_, i) => (
+                <span key={i} style={{ color: '#2e3a42', fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', margin: '9px 14px' }}>
+                  {profile.name || '報價僅供參考'}
+                </span>
+              ))}
+            </div>
             {/* 信頭 */}
-            <div style={{ background: 'linear-gradient(135deg,#3f4d5a 0%,#2b343d 100%)', padding: '22px 24px 18px' }}>
+            <div style={{ position: 'relative', zIndex: 1, background: 'linear-gradient(135deg,#3f4d5a 0%,#2b343d 100%)', padding: '22px 24px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <p style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: 8, lineHeight: 1 }}>報價單</p>
@@ -360,7 +361,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               </div>
             </div>
 
-            <div style={{ padding: '18px 24px 22px' }}>
+            <div style={{ position: 'relative', zIndex: 1, padding: '18px 24px 22px' }}>
               {/* 客戶 / 業務 */}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ minWidth: 0 }}>
@@ -436,26 +437,19 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 </span>
               </div>
 
-              {/* 貸款 / 生財試算 */}
+              {/* 分期試算：主打「每月只要」 */}
               {monthlyPay > 0 && (
                 <div style={{ border: '1px solid #ecdfce', background: '#fdfaf6', borderRadius: 10, padding: '12px 16px', marginTop: 12 }}>
-                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>分期試算</p>
+                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>輕鬆分期</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <span style={{ color: '#8b7355', fontSize: 11 }}>
-                      頭期 {formatMoney(Number(loan.down) || 0)}・{loan.months} 期{Number(loan.rate) > 0 ? `・年利率 ${loan.rate}%` : ''}
+                      頭期 {formatMoney(Number(loan.down) || 0)}・{loan.months} 期{Number(loan.rate) > 0 ? `・月利率 ${loan.rate}%` : ''}
                     </span>
-                    <span style={{ color: '#2e3a42', fontSize: 16, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                      月付 {formatMoney(monthlyPay)}
+                    <span style={{ color: '#2e3a42', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月只要</span>
+                      <span style={{ fontSize: 18 }}>{formatMoney(monthlyPay)}</span>
                     </span>
                   </div>
-                  {monthlyRevenue > 0 && (
-                    <div style={{ borderTop: '1px dashed #ecdfce', marginTop: 9, paddingTop: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ color: '#6f957a', fontSize: 11, fontWeight: 600 }}>每月預估淨賺</span>
-                      <span style={{ color: '#5e8a6c', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                        + {formatMoney(monthlyNet)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
 
