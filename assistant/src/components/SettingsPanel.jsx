@@ -11,6 +11,7 @@ import {
   showSystemNotification, registerPeriodicReminderCheck,
 } from '../notify';
 import { Field } from './ui';
+import { sha256Hex } from '../utils/lock';
 
 const HELP_CARDS = [
   { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
@@ -32,8 +33,9 @@ const HELP_CARDS = [
   { icon: '📦', title: '舊版資料匯入', desc: '支援匯入舊版格式 { _v:1, crm, jnl, sal } 的 JSON 備份。' },
 ];
 
-const SECTION_KEYS = ['backup', 'sync', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['deals', 'backup', 'sync', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
+  deals: '📈 業績表',
   backup: '💾 備份還原',
   sync: '☁️ 雲端同步',
   notify: '🔔 通知',
@@ -77,7 +79,7 @@ function summarizeBackup(data) {
   throw new Error('無法辨識的備份格式（僅支援本系統匯出的 JSON）');
 }
 
-export default function SettingsPanel({ onClose }) {
+export default function SettingsPanel({ onClose, onOpenDeals }) {
   const {
     cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets, industries,
     saveCats, saveStages, saveCustomFields, saveDealFields, saveThresholds,
@@ -189,6 +191,9 @@ export default function SettingsPanel({ onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* ── 業績表入口 + 密碼 ── */}
+          {activeSection === 'deals' && <DealsSection onOpenDeals={onOpenDeals} />}
+
           {/* ── Backup ── */}
           {activeSection === 'backup' && (
             <section className="space-y-4">
@@ -778,6 +783,99 @@ function CustomFieldEditor({ fields, onChange }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ── 📈 業績表入口 + 密碼保護 ──────────────────────────────────────────────────
+// 業績表已從主導覽移除，只能從這裡進入；可設密碼（雙重輸入）避免給客人看到。
+function DealsSection({ onOpenDeals }) {
+  const [hash, setHash] = useState(undefined); // undefined=載入中, ''/null=未設, string=已設
+  const [unlock, setUnlock] = useState('');
+  const [err, setErr] = useState('');
+  const [cur, setCur] = useState('');  // 目前密碼（修改/取消時驗證）
+  const [p1, setP1] = useState('');    // 新密碼
+  const [p2, setP2] = useState('');    // 再次輸入
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    db.get('settings', 'dealsLock').then((r) => setHash(r?.hash || null)).catch(() => setHash(null));
+  }, []);
+
+  async function tryOpen() {
+    setErr('');
+    if (!hash) { onOpenDeals(); return; }
+    if ((await sha256Hex(unlock)) === hash) { setUnlock(''); onOpenDeals(); }
+    else setErr('密碼錯誤，請重新輸入');
+  }
+
+  async function savePassword() {
+    setMsg('');
+    if (hash && (await sha256Hex(cur)) !== hash) { setMsg('目前密碼錯誤'); return; }
+    if (!p1) { setMsg('請輸入新密碼'); return; }
+    if (p1 !== p2) { setMsg('兩次輸入的密碼不一致'); return; }
+    const nh = await sha256Hex(p1);
+    await db.put('settings', { key: 'dealsLock', hash: nh, _ts: Date.now() });
+    setHash(nh); setCur(''); setP1(''); setP2(''); setMsg('✅ 密碼已設定，下次開啟業績表需輸入');
+  }
+
+  async function clearPassword() {
+    setMsg('');
+    if ((await sha256Hex(cur)) !== hash) { setMsg('目前密碼錯誤'); return; }
+    await db.put('settings', { key: 'dealsLock', hash: '', _ts: Date.now() });
+    setHash(null); setCur(''); setP1(''); setP2(''); setMsg('✅ 已取消密碼保護');
+  }
+
+  if (hash === undefined) return <p className="text-ink-3 text-sm">載入中…</p>;
+
+  return (
+    <section className="space-y-4">
+      {/* 開啟入口 */}
+      <div className="card p-4 space-y-3">
+        <h3 className="font-semibold text-ink">📈 開啟業績表</h3>
+        <p className="text-xs text-ink-3">業績表已從主選單移除，只能從這裡進入，避免給客人看報表時被看到。</p>
+        {hash ? (
+          <div className="space-y-2">
+            <Field label="輸入密碼解鎖">
+              <input type="password" value={unlock} autoComplete="off"
+                onChange={(e) => setUnlock(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') tryOpen(); }}
+                className="w-full" />
+            </Field>
+            {err && <p className="text-danger text-xs">{err}</p>}
+            <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟業績表</button>
+          </div>
+        ) : (
+          <>
+            <button onClick={onOpenDeals} className="btn-primary w-full">開啟業績表</button>
+            <p className="text-danger text-xs">⚠️ 尚未設定密碼，任何人都能開啟。建議在下方設定密碼。</p>
+          </>
+        )}
+      </div>
+
+      {/* 密碼設定（雙重輸入） */}
+      <div className="card p-4 space-y-3">
+        <h3 className="font-semibold text-ink text-sm">🔒 {hash ? '修改業績表密碼' : '設定業績表密碼'}</h3>
+        {hash && (
+          <Field label="目前密碼">
+            <input type="password" value={cur} autoComplete="off" onChange={(e) => setCur(e.target.value)} className="w-full" />
+          </Field>
+        )}
+        <Field label={hash ? '新密碼' : '設定密碼'}>
+          <input type="password" value={p1} autoComplete="new-password" onChange={(e) => setP1(e.target.value)} className="w-full" />
+        </Field>
+        <Field label="再次輸入密碼">
+          <input type="password" value={p2} autoComplete="new-password" onChange={(e) => setP2(e.target.value)} className="w-full" />
+        </Field>
+        {msg && <p className={`text-xs ${msg.startsWith('✅') ? 'text-ok' : 'text-danger'}`}>{msg}</p>}
+        <div className="flex gap-2">
+          <button onClick={savePassword} disabled={!p1 || !p2} className="btn-primary text-sm flex-1 disabled:opacity-40">
+            {hash ? '更新密碼' : '設定密碼'}
+          </button>
+          {hash && <button onClick={clearPassword} className="btn-outline text-sm text-danger shrink-0">取消密碼</button>}
+        </div>
+        <p className="text-[11px] text-ink-3">密碼以雜湊方式儲存（不存明文），僅供防止客人隨手翻看，非高強度加密。若忘記密碼，可清除瀏覽器此網站資料重設（會一併清空本機資料，請先到「備份還原」下載備份）。</p>
+      </div>
+    </section>
   );
 }
 

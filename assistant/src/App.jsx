@@ -50,6 +50,7 @@ function AppInner() {
   const [tab, setTab] = useState('today');
   const [showSettings, setShowSettings] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
+  const [showDeals, setShowDeals] = useState(false); // 業績表（從設定經密碼解鎖後開啟）
   const [crmFocusId, setCrmFocusId] = useState(null);
 
   function openClient(id) {
@@ -96,7 +97,6 @@ function AppInner() {
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />
           )}
-          {tab === 'deals' && <DealsPage onOpenClient={openClient} />}
           {tab === 'catalog' && <ProductCatalog />}
         </div>
       </main>
@@ -117,7 +117,6 @@ function AppInner() {
           { key: 'today', icon: '☀️', label: '今日' },
           { key: 'calendar', icon: '📅', label: '行事曆' },
           { key: 'crm', icon: '👥', label: '客戶' },
-          { key: 'deals', icon: '📈', label: '業績' },
         ].map((item) => (
           <button
             key={item.key}
@@ -139,8 +138,24 @@ function AppInner() {
         </button>
       </nav>
 
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          onOpenDeals={() => { setShowSettings(false); setShowDeals(true); }}
+        />
+      )}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
+
+      {/* 業績表：從設定解鎖後全螢幕開啟（不放主導覽，避免給客人看到） */}
+      {showDeals && (
+        <div className="fixed inset-0 z-50 bg-bg overflow-y-auto anim-fade-in">
+          <div className="sticky top-0 z-10 flex items-center justify-between bg-s1 border-b border-bdr px-4 h-14">
+            <span className="font-bold text-accent text-base">📈 業績表</span>
+            <button onClick={() => setShowDeals(false)} className="btn-ghost gap-1.5 text-sm">✕ 關閉</button>
+          </div>
+          <DealsPage onOpenClient={(id) => { setShowDeals(false); openClient(id); }} />
+        </div>
+      )}
       <TimerModal />
     </div>
   );
