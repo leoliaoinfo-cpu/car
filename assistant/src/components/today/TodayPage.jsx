@@ -20,6 +20,8 @@ export default function TodayPage({ onOpenClient }) {
   const todayStr = dayjs().format('YYYY-MM-DD');
   const [lastBackupAt, setLastBackupAt] = useState(undefined); // undefined=載入中, null=從未備份
   const [taskInput, setTaskInput] = useState('');
+  const [taskDue, setTaskDue] = useState(''); // 新增待辦的處理日期（選填）
+  const [expandFuture, setExpandFuture] = useState(false); // 是否展開「未來排程」
   const [taskClient, setTaskClient] = useState(null); // @提及連結的客戶 {id, name}
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
@@ -131,13 +133,23 @@ export default function TodayPage({ onOpenClient }) {
   }, [clients, customFields, todayStr]);
 
   // 中央待辦：未完成的都顯示；今天剛勾完的保留（劃線），可反悔取消勾選
-  const visibleTasks = useMemo(() =>
-    tasks
-      .filter((t) => !t.done || t.doneAt === todayStr)
-      .sort((a, b) => (a.done === b.done ? (a.createdAt || '').localeCompare(b.createdAt || '') : a.done ? 1 : -1)),
-    [tasks, todayStr]);
+  // 待辦分區：有處理日期→「排程」（逾期/今天一定顯示、未來收合），無日期→「無期限」；
+  // 有日期者一律由近到遠排序（越緊急越前面）
+  const taskGroups = useMemo(() => {
+    const undone = tasks.filter((t) => !t.done);
+    const byDue = (a, b) => a.due.localeCompare(b.due);
+    return {
+      due: undone.filter((t) => t.due && t.due <= todayStr).sort(byDue),          // 逾期＋今天
+      future: undone.filter((t) => t.due && t.due > todayStr).sort(byDue),        // 未來（預設收合）
+      noDate: undone.filter((t) => !t.due)
+        .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')),    // 無期限
+      doneToday: tasks.filter((t) => t.done && t.doneAt === todayStr),            // 今天剛勾完（劃線）
+    };
+  }, [tasks, todayStr]);
 
   const undoneTaskCount = useMemo(() => tasks.filter((t) => !t.done).length, [tasks]);
+  const hasAnyTask = taskGroups.due.length + taskGroups.future.length
+    + taskGroups.noDate.length + taskGroups.doneToday.length > 0;
 
   // 客戶待辦：所有客戶簽約前待辦中未完成的，集中到今日工作逐一處理
   const clientTodos = useMemo(() => {
@@ -159,16 +171,22 @@ export default function TodayPage({ onOpenClient }) {
     if (!text) return;
     // @提及的客戶連結：使用者若把 @客戶名 刪掉就不連結
     const linked = taskClient && text.includes(`@${taskClient.name}`) ? taskClient : null;
+    const due = taskDue || null;
     setTaskInput(''); // 先清空再儲存，避免儲存期間輸入的下一筆被清掉
     setTaskClient(null);
+    setTaskDue('');
     await saveTask({
-      id: generateId('task'), text, done: false, doneAt: null,
+      id: generateId('task'), text, done: false, doneAt: null, due,
       clientId: linked?.id || null, clientName: linked?.name || null,
     });
   }
 
   async function toggleTask(t) {
     await saveTask({ ...t, done: !t.done, doneAt: !t.done ? todayStr : null });
+  }
+
+  async function setTaskDate(t, due) {
+    await saveTask({ ...t, due: due || null });
   }
 
   async function toggleClientTodo(client, todoId) {
@@ -453,6 +471,13 @@ export default function TodayPage({ onOpenClient }) {
             />
             <button onClick={addTask} className="btn-primary text-xs shrink-0">加入</button>
           </div>
+          {/* 處理日期（選填）：填了就進「排程」、不填進「無期限」，不會每天都出現 */}
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[11px] text-ink-3 shrink-0">🗓 處理日期</span>
+            <input type="date" value={taskDue} onChange={(e) => setTaskDue(e.target.value)} className="text-xs" />
+            {taskDue && <button onClick={() => setTaskDue('')} className="text-ink-3 hover:text-ink text-xs">清除</button>}
+            <span className="text-[10px] text-ink-3 flex-1 text-right">不填＝無期限</span>
+          </div>
           {mentionCandidates.length > 0 && (
             <div className="mt-2 rounded-lg border border-bdr bg-s2 overflow-hidden anim-fade-in">
               <p className="text-[10px] text-ink-3 px-3 pt-2 pb-1">選擇要連結的客戶</p>
@@ -470,17 +495,53 @@ export default function TodayPage({ onOpenClient }) {
             </div>
           )}
         </div>
-        {visibleTasks.length === 0 && (
+        {!hasAnyTask && (
           <p className="text-center text-ink-3 text-xs py-4">沒有待辦，輸入上方欄位新增</p>
         )}
-        {visibleTasks.map((t) => (
-          <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
-            <input type="checkbox" checked={!!t.done} onChange={() => toggleTask(t)} className="shrink-0" />
-            <span className={`flex-1 text-sm min-w-0 break-words ${t.done ? 'line-through text-ink-3' : 'text-ink'}`}>
-              <TaskText task={t} onOpenClient={onOpenClient} />
-            </span>
-            <button onClick={() => deleteTask(t.id)} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
-          </div>
+
+        {/* 排程：逾期＋今天（由近到遠，一定顯示） */}
+        {(taskGroups.due.length > 0 || taskGroups.future.length > 0) && (
+          <p className="text-[11px] font-semibold text-ink-3 px-3 pt-2 pb-1">🗓 排程</p>
+        )}
+        {taskGroups.due.map((t) => (
+          <TaskRow key={t.id} task={t} todayStr={todayStr} onToggle={() => toggleTask(t)}
+            onDelete={() => deleteTask(t.id)} onOpenClient={onOpenClient} onSetDate={(d) => setTaskDate(t, d)} />
+        ))}
+
+        {/* 未來排程：預設收合，不會每天都出現 */}
+        {taskGroups.future.length > 0 && (expandFuture ? (
+          <>
+            {taskGroups.future.map((t) => (
+              <TaskRow key={t.id} task={t} todayStr={todayStr} onToggle={() => toggleTask(t)}
+                onDelete={() => deleteTask(t.id)} onOpenClient={onOpenClient} onSetDate={(d) => setTaskDate(t, d)} />
+            ))}
+            <button onClick={() => setExpandFuture(false)}
+              className="w-full text-center text-[11px] text-ink-3 py-1.5 hover:text-ink border-b border-bdr/50">▲ 收合未來待辦</button>
+          </>
+        ) : (
+          <button onClick={() => setExpandFuture(true)}
+            className="w-full flex items-center gap-1.5 text-left text-[11px] text-accent px-3 py-2 hover:bg-s2 border-b border-bdr/50">
+            <span>▸</span> 之後還有 {taskGroups.future.length} 則排程待辦（點開查看）
+          </button>
+        ))}
+
+        {/* 無期限 */}
+        {taskGroups.noDate.length > 0 && (
+          <>
+            {(taskGroups.due.length > 0 || taskGroups.future.length > 0) && (
+              <p className="text-[11px] font-semibold text-ink-3 px-3 pt-2 pb-1">♾️ 無期限</p>
+            )}
+            {taskGroups.noDate.map((t) => (
+              <TaskRow key={t.id} task={t} todayStr={todayStr} onToggle={() => toggleTask(t)}
+                onDelete={() => deleteTask(t.id)} onOpenClient={onOpenClient} onSetDate={(d) => setTaskDate(t, d)} />
+            ))}
+          </>
+        )}
+
+        {/* 今天剛勾完的（劃線，可反悔取消勾選） */}
+        {taskGroups.doneToday.map((t) => (
+          <TaskRow key={t.id} task={t} todayStr={todayStr} onToggle={() => toggleTask(t)}
+            onDelete={() => deleteTask(t.id)} onOpenClient={onOpenClient} onSetDate={(d) => setTaskDate(t, d)} />
         ))}
       </Section>
 
@@ -558,6 +619,35 @@ function TaskText({ task, onOpenClient }) {
       </button>
       {task.text.slice(idx + mention.length)}
     </>
+  );
+}
+
+/** 單筆待辦：勾選、文字、可點的日期標籤（改處理日期）、刪除 */
+function TaskRow({ task, todayStr, onToggle, onDelete, onOpenClient, onSetDate }) {
+  const due = task.due || '';
+  const late = due && due < todayStr;
+  const isToday = due === todayStr;
+  const color = late ? '#b26b6b' : isToday ? '#bf8a5e' : '#7291a8';
+  const label = due
+    ? (late ? `逾期 ${dayjs(todayStr).diff(dayjs(due), 'day')} 天` : isToday ? '今天' : formatDate(due))
+    : '＋日期';
+  return (
+    <div className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
+      <input type="checkbox" checked={!!task.done} onChange={onToggle} className="shrink-0" />
+      <span className={`flex-1 text-sm min-w-0 break-words ${task.done ? 'line-through text-ink-3' : 'text-ink'}`}>
+        <TaskText task={task} onOpenClient={onOpenClient} />
+      </span>
+      {/* 日期標籤：點一下叫出原生日期選擇器可改；有 due 上色、無 due 虛線 */}
+      <label className="relative shrink-0 cursor-pointer" title="設定 / 修改處理日期">
+        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap border ${due ? '' : 'border-dashed border-bdr text-ink-3'}`}
+          style={due ? { background: color + '20', color, borderColor: 'transparent' } : undefined}>
+          {due && late && '⚠️ '}{label}
+        </span>
+        <input type="date" value={due} onChange={(e) => onSetDate(e.target.value)}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style={{ padding: 0, border: 'none' }} />
+      </label>
+      <button onClick={onDelete} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
+    </div>
   );
 }
 
