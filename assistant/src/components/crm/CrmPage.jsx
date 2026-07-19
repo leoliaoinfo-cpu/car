@@ -211,11 +211,11 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       {/* Sidebar — drawer on mobile, fixed on desktop */}
       <aside className={`
         fixed inset-y-0 left-0 z-40 w-64 bg-s1 border-r border-bdr flex flex-col transition-transform duration-300
-        md:static md:translate-x-0 md:z-auto md:h-full
+        lg:static lg:translate-x-0 lg:z-auto lg:h-full
         ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Mobile close */}
-        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-bdr">
+        <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-bdr">
           <span className="font-semibold text-ink">篩選分類</span>
           <button onClick={() => setShowSidebar(false)} className="text-ink-3 text-lg">✕</button>
         </div>
@@ -273,14 +273,14 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
 
       {/* Overlay for mobile drawer */}
       {showSidebar && (
-        <div className="md:hidden fixed inset-0 bg-black/30 z-30" onClick={() => setShowSidebar(false)} />
+        <div className="lg:hidden fixed inset-0 bg-black/30 z-30" onClick={() => setShowSidebar(false)} />
       )}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-bdr bg-s1 flex-wrap">
-          <button onClick={() => setShowSidebar(true)} className="md:hidden btn-ghost text-sm">☰</button>
+          <button onClick={() => setShowSidebar(true)} className="lg:hidden btn-ghost text-sm">☰</button>
           {selectMode ? (
             <>
               <button onClick={toggleCheckAll} className="btn-outline text-sm">
@@ -349,7 +349,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
             {/* Client list */}
             <div
               ref={listRef}
-              className={`overflow-y-auto ${selectedClient ? 'hidden md:block md:w-80 lg:w-96' : 'flex-1'}`}
+              className={`overflow-y-auto ${selectedClient ? 'hidden lg:block lg:w-72 xl:w-96' : 'flex-1'}`}
             >
               <div style={{ height: totalHeight, position: 'relative' }}>
                 <div style={{ transform: `translateY(${offsetY}px)` }}>

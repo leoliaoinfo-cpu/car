@@ -108,23 +108,25 @@ export default function ProductCatalog({ onClose }) {
 
       {/* 放大檢視（lightbox） */}
       {lightbox != null && items && items[lightbox] && (
-        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col anim-fade-in"
+        <div className="fixed inset-0 z-[60] bg-black flex items-center justify-center anim-fade-in overflow-hidden"
           onClick={() => setLightbox(null)}
           onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-          <div className="flex items-center justify-between px-4 py-3 text-white shrink-0">
-            <span className="text-sm font-medium">
+          {/* 圖片：滿版全螢幕、置中最大化（完整不裁切，隨螢幕翻轉自動填滿） */}
+          <img src={`catalog/${items[lightbox].slug}.jpg`} alt={items[lightbox].label}
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-full w-auto h-auto object-contain select-none"
+            style={{ touchAction: 'pinch-zoom' }} />
+
+          {/* 頂部資訊列（浮在圖片上、漸層底避免看不清） */}
+          <div className="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 text-white bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+            <span className="text-sm font-medium drop-shadow">
               {items[lightbox].label}
-              <span className="text-white/50 ml-2 text-xs">{lightbox + 1} / {total}</span>
+              <span className="text-white/60 ml-2 text-xs">{lightbox + 1} / {total}</span>
             </span>
-            <button onClick={() => setLightbox(null)}
-              className="text-white/80 hover:text-white text-2xl leading-none px-2">✕</button>
+            <button onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+              className="text-white/90 hover:text-white text-2xl leading-none px-2 pointer-events-auto">✕</button>
           </div>
-          <div className="flex-1 flex items-center justify-center overflow-auto px-2 pb-4 min-h-0">
-            <img src={`catalog/${items[lightbox].slug}.jpg`} alt={items[lightbox].label}
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              style={{ touchAction: 'pinch-zoom' }} />
-          </div>
+
           {/* 左右切換 + 底部頁數圓點（手機可直接左右滑動換頁） */}
           {total > 1 && (
             <>
@@ -132,14 +134,16 @@ export default function ProductCatalog({ onClose }) {
                 className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center backdrop-blur">‹</button>
               <button onClick={(e) => { e.stopPropagation(); go(1); }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center backdrop-blur">›</button>
-              <div className="shrink-0 flex items-center justify-center gap-1.5 pb-4 pt-1 flex-wrap px-4">
-                {items.map((it, i) => (
-                  <button key={it.slug} onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
-                    aria-label={it.label}
-                    className={`h-1.5 rounded-full transition-all ${i === lightbox ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`} />
-                ))}
+              <div className="absolute bottom-0 inset-x-0 pt-6 pb-3 bg-gradient-to-t from-black/70 to-transparent">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap px-4">
+                  {items.map((it, i) => (
+                    <button key={it.slug} onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
+                      aria-label={it.label}
+                      className={`h-1.5 rounded-full transition-all ${i === lightbox ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`} />
+                  ))}
+                </div>
+                <p className="text-center text-white/50 text-[11px] mt-2 md:hidden">← 滑動換頁 →</p>
               </div>
-              <p className="shrink-0 text-center text-white/40 text-[11px] pb-3 md:hidden">← 滑動換頁 →</p>
             </>
           )}
         </div>
