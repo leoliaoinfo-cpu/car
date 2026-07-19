@@ -663,6 +663,26 @@ function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
   const [expanded, setExpanded] = useState(() => new Set());
   const COLOR = '#9382a5';
   const q = filter.trim().toLowerCase();
+  const todayStr = dayjs().format('YYYY-MM-DD');
+
+  // 待辦處理日期小標籤（唯讀，與客戶檔案的日期同步顯示）
+  const dueTag = (due) => {
+    if (!due) return null;
+    const late = due < todayStr, isToday = due === todayStr;
+    const color = late ? '#b26b6b' : isToday ? '#bf8a5e' : '#7291a8';
+    const label = late ? `逾期 ${dayjs(todayStr).diff(dayjs(due), 'day')} 天` : isToday ? '今天' : dayjs(due).format('MM/DD');
+    return (
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0"
+        style={{ background: color + '20', color }}>{late && '⚠️ '}{label}</span>
+    );
+  };
+  // 客戶待辦排序：有日期近到遠、無日期在後
+  const byDue = (a, b) => {
+    const ad = a.due || '', bd = b.due || '';
+    if (!!ad !== !!bd) return ad ? -1 : 1;
+    if (ad && bd && ad !== bd) return ad.localeCompare(bd);
+    return 0;
+  };
 
   // 攤平所有未完成的客戶待辦
   const flat = useMemo(() => {
@@ -679,6 +699,7 @@ function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
       if (!map.has(client.id)) map.set(client.id, { client, todos: [] });
       map.get(client.id).todos.push(todo);
     }
+    for (const g of map.values()) g.todos.sort(byDue);
     return [...map.values()].sort((a, b) => {
       const pa = a.client.pinned ? 1 : 0, pb = b.client.pinned ? 1 : 0;
       if (pa !== pb) return pb - pa;
@@ -757,6 +778,7 @@ function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
                     <label key={td.id} className="flex items-center gap-2.5 pl-8 pr-3 py-1.5 cursor-pointer hover:bg-s2/60">
                       <input type="checkbox" checked={false} onChange={() => toggleClientTodo(c, td.id)} className="shrink-0" />
                       <span className="flex-1 text-sm text-ink-2 min-w-0 break-words">{td.text}</span>
+                      {dueTag(td.due)}
                     </label>
                   ))}
                 </div>
@@ -784,6 +806,7 @@ function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
                         className="flex-1 text-left text-sm text-accent min-w-0 truncate hover:underline">
                         {c.pinned && '📌 '}{c.name} ›
                       </button>
+                      {dueTag(td.due)}
                     </div>
                   ))}
                 </div>

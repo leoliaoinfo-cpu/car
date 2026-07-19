@@ -75,6 +75,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   });
   const [signingNote, setSigningNote] = useState(client.signingNote || '');
   const [todoInput, setTodoInput] = useState('');
+  const [todoDue, setTodoDue] = useState(''); // 新增待辦的處理日期（選填）
   const [showDealModal, setShowDealModal] = useState(false);
   const [quoteModal, setQuoteModal] = useState(null); // null=關閉, 'new'=新增, quote物件=編輯
   const [confirmDeleteQuoteId, setConfirmDeleteQuoteId] = useState(null);
@@ -217,10 +218,19 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   async function addTodo() {
     const text = todoInput.trim();
     if (!text) return;
+    const due = todoDue || null;
     setTodoInput(''); // 先清空再儲存，避免儲存期間輸入的下一筆被清掉
+    setTodoDue('');
     await updateClient(client.id, (c) => ({
       ...c,
-      todos: [...(c.todos || []), { id: generateId('todo'), text, done: false }],
+      todos: [...(c.todos || []), { id: generateId('todo'), text, done: false, due }],
+    }));
+  }
+
+  async function setTodoDate(id, due) {
+    await updateClient(client.id, (c) => ({
+      ...c,
+      todos: (c.todos || []).map((td) => td.id === id ? { ...td, due: due || null } : td),
     }));
   }
 
@@ -923,23 +933,51 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             {(client.todos || []).length === 0 && (
               <p className="text-xs text-ink-3">尚無待辦，下方可新增（或套用交車待辦範本）。</p>
             )}
-            {(client.todos || []).map((td) => (
-              <div key={td.id} className="flex items-center gap-2 text-sm group">
-                <input type="checkbox" checked={td.done} onChange={() => toggleTodo(td.id)} className="shrink-0" />
-                <span className={`flex-1 ${td.done ? 'line-through text-ink-3' : 'text-ink-2'}`}>{td.text}</span>
-                <button onClick={() => removeTodo(td.id)} className="text-danger/40 hover:text-danger text-xs">✕</button>
-              </div>
-            ))}
+            {[...(client.todos || [])]
+              .sort((a, b) => {
+                if (!!a.done !== !!b.done) return a.done ? 1 : -1;   // 未完成在前
+                const ad = a.due || '', bd = b.due || '';
+                if (!!ad !== !!bd) return ad ? -1 : 1;               // 有日期在前
+                if (ad && bd && ad !== bd) return ad.localeCompare(bd); // 由近到遠
+                return 0;
+              })
+              .map((td) => {
+                const due = td.due || '';
+                const late = due && !td.done && due < today();
+                const isToday = due === today();
+                const color = late ? '#b26b6b' : isToday ? '#bf8a5e' : '#7291a8';
+                const label = due
+                  ? (late ? `逾期 ${dayjs(today()).diff(dayjs(due), 'day')} 天` : isToday ? '今天' : dayjs(due).format('MM/DD'))
+                  : '＋日期';
+                return (
+                  <div key={td.id} className="flex items-center gap-2 text-sm group">
+                    <input type="checkbox" checked={td.done} onChange={() => toggleTodo(td.id)} className="shrink-0" />
+                    <span className={`flex-1 min-w-0 break-words ${td.done ? 'line-through text-ink-3' : 'text-ink-2'}`}>{td.text}</span>
+                    {/* 日期標籤：點一下叫出日期選擇器可設定 / 修改 */}
+                    <label className="relative shrink-0 cursor-pointer" title="設定 / 修改處理日期">
+                      <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap border ${due ? '' : 'border-dashed border-bdr text-ink-3'}`}
+                        style={due ? { background: color + '20', color, borderColor: 'transparent' } : undefined}>
+                        {due && late && '⚠️ '}{label}
+                      </span>
+                      <input type="date" value={due} onChange={(e) => setTodoDate(td.id, e.target.value)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style={{ padding: 0, border: 'none' }} />
+                    </label>
+                    <button onClick={() => removeTodo(td.id)} className="text-danger/40 hover:text-danger text-xs">✕</button>
+                  </div>
+                );
+              })}
           </div>
-          <div className="flex gap-2 mt-1">
+          <div className="flex gap-2 mt-1 flex-wrap">
             <input
               value={todoInput}
               onChange={(e) => setTodoInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') addTodo(); }}
               placeholder="新增待辦（保險、車貸文件…）"
-              className="flex-1 text-sm"
+              className="flex-1 text-sm min-w-0"
             />
-            <button onClick={addTodo} className="btn-outline text-xs">加入</button>
+            <input type="date" value={todoDue} onChange={(e) => setTodoDue(e.target.value)}
+              className="text-xs shrink-0" title="處理日期（選填，不填＝無期限）" />
+            <button onClick={addTodo} className="btn-outline text-xs shrink-0">加入</button>
           </div>
         </section>
 
