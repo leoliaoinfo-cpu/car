@@ -440,23 +440,8 @@ export default function TodayPage({ onOpenClient }) {
         ))}
       </Section>
 
-      {/* 客戶待辦：各客戶簽約前待辦集中處理 */}
-      {clientTodos.length > 0 && (
-        <Section icon="👤" title="客戶待辦" count={clientTodos.length} color="#9382a5">
-          {clientTodos.map(({ client: c, todo: td }) => (
-            <div key={td.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
-              <input type="checkbox" checked={false} onChange={() => toggleClientTodo(c, td.id)} className="shrink-0" />
-              <span className="flex-1 text-sm text-ink min-w-0 break-words">{td.text}</span>
-              <button
-                onClick={() => onOpenClient(c.id)}
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/12 text-accent shrink-0 hover:bg-accent/20"
-              >
-                {c.name} ›
-              </button>
-            </div>
-          ))}
-        </Section>
-      )}
+      {/* 客戶待辦：依客戶 / 依項目分組收合、可篩選，置頂客戶優先 */}
+      <ClientTodosSection clients={clients} onOpenClient={onOpenClient} toggleClientTodo={toggleClientTodo} />
 
       {/* 本日成果：自動從客戶時間軸統計 */}
       {todayResults.length > 0 && (
@@ -529,6 +514,151 @@ function TaskText({ task, onOpenClient }) {
       </button>
       {task.text.slice(idx + mention.length)}
     </>
+  );
+}
+
+/**
+ * 客戶待辦（可收合分組）：
+ *  - 「依客戶」：每位客戶一列，顯示剩餘待辦數，點擊才展開全部待辦；置頂客戶排最前
+ *  - 「依項目」：相同待辦名稱合併成一組，展開看有哪些客戶還沒完成
+ *  - 篩選框：輸入客戶名或項目關鍵字即時過濾（篩選時自動展開符合的群組）
+ */
+function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
+  const [mode, setMode] = useState('client'); // 'client' | 'item'
+  const [filter, setFilter] = useState('');
+  const [expanded, setExpanded] = useState(() => new Set());
+  const COLOR = '#9382a5';
+  const q = filter.trim().toLowerCase();
+
+  // 攤平所有未完成的客戶待辦
+  const flat = useMemo(() => {
+    const out = [];
+    for (const c of clients) for (const td of c.todos || []) if (!td.done) out.push({ client: c, todo: td });
+    return out;
+  }, [clients]);
+  const total = flat.length;
+
+  // 依客戶分組：置頂優先 → 剩餘數多者 → 名稱
+  const byClient = useMemo(() => {
+    const map = new Map();
+    for (const { client, todo } of flat) {
+      if (!map.has(client.id)) map.set(client.id, { client, todos: [] });
+      map.get(client.id).todos.push(todo);
+    }
+    return [...map.values()].sort((a, b) => {
+      const pa = a.client.pinned ? 1 : 0, pb = b.client.pinned ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      if (b.todos.length !== a.todos.length) return b.todos.length - a.todos.length;
+      return a.client.name.localeCompare(b.client.name, 'zh-Hant');
+    });
+  }, [flat]);
+
+  // 依項目分組：相同待辦名稱合併，數量多者在前
+  const byItem = useMemo(() => {
+    const map = new Map();
+    for (const { client, todo } of flat) {
+      const key = todo.text.trim() || '（未命名）';
+      if (!map.has(key)) map.set(key, { text: key, items: [] });
+      map.get(key).items.push({ client, todo });
+    }
+    for (const g of map.values()) {
+      g.items.sort((a, b) => (b.client.pinned ? 1 : 0) - (a.client.pinned ? 1 : 0)
+        || a.client.name.localeCompare(b.client.name, 'zh-Hant'));
+    }
+    return [...map.values()].sort((a, b) => (b.items.length - a.items.length)
+      || a.text.localeCompare(b.text, 'zh-Hant'));
+  }, [flat]);
+
+  const filteredClient = q
+    ? byClient.filter((g) => g.client.name.toLowerCase().includes(q) || g.todos.some((t) => t.text.toLowerCase().includes(q)))
+    : byClient;
+  const filteredItem = q
+    ? byItem.filter((g) => g.text.toLowerCase().includes(q) || g.items.some((it) => it.client.name.toLowerCase().includes(q)))
+    : byItem;
+
+  if (total === 0) return null;
+
+  const toggleExp = (key) => setExpanded((s) => {
+    const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n;
+  });
+  const badge = (n) => (
+    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md tabular-nums shrink-0"
+      style={{ background: COLOR + '22', color: COLOR }}>{n}</span>
+  );
+  const empty = <p className="text-center text-ink-3 text-xs py-4">找不到符合「{filter}」的客戶或項目</p>;
+
+  return (
+    <Section icon="👤" title="客戶待辦" count={total} color={COLOR}>
+      {/* 分組模式切換 + 篩選 */}
+      <div className="flex items-center gap-2 px-3 pt-1 pb-2">
+        <div className="flex rounded-lg bg-s2 p-0.5 text-xs shrink-0">
+          {[['client', '依客戶'], ['item', '依項目']].map(([m, label]) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={`px-2.5 py-1 rounded-md font-medium transition-colors ${mode === m ? 'bg-s1 text-accent shadow-card' : 'text-ink-3'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input value={filter} onChange={(e) => setFilter(e.target.value)}
+          placeholder="篩選客戶或項目" className="flex-1 text-xs min-w-0" />
+      </div>
+
+      {mode === 'client' ? (
+        filteredClient.length === 0 ? empty : filteredClient.map(({ client: c, todos }) => {
+          const open = expanded.has('c:' + c.id) || !!q;
+          return (
+            <div key={c.id} className="border-b border-bdr/50 last:border-0">
+              <div className="w-full flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-s2 transition-colors"
+                onClick={() => toggleExp('c:' + c.id)}>
+                <span className="text-ink-3 text-[10px] w-3 shrink-0">{open ? '▼' : '▶'}</span>
+                {c.pinned && <span className="text-[11px] shrink-0" title="置頂客戶">📌</span>}
+                <span className="font-medium text-sm text-ink flex-1 min-w-0 truncate">{c.name}</span>
+                {badge(todos.length)}
+                <button onClick={(e) => { e.stopPropagation(); onOpenClient(c.id); }}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/12 text-accent shrink-0 hover:bg-accent/20">開啟 ›</button>
+              </div>
+              {open && (
+                <div className="pb-1">
+                  {todos.map((td) => (
+                    <label key={td.id} className="flex items-center gap-2.5 pl-8 pr-3 py-1.5 cursor-pointer hover:bg-s2/60">
+                      <input type="checkbox" checked={false} onChange={() => toggleClientTodo(c, td.id)} className="shrink-0" />
+                      <span className="flex-1 text-sm text-ink-2 min-w-0 break-words">{td.text}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        filteredItem.length === 0 ? empty : filteredItem.map(({ text, items }) => {
+          const open = expanded.has('i:' + text) || !!q;
+          return (
+            <div key={text} className="border-b border-bdr/50 last:border-0">
+              <div className="w-full flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-s2 transition-colors"
+                onClick={() => toggleExp('i:' + text)}>
+                <span className="text-ink-3 text-[10px] w-3 shrink-0">{open ? '▼' : '▶'}</span>
+                <span className="font-medium text-sm text-ink flex-1 min-w-0 truncate">{text}</span>
+                {badge(items.length)}
+              </div>
+              {open && (
+                <div className="pb-1">
+                  {items.map(({ client: c, todo: td }) => (
+                    <div key={c.id + ':' + td.id} className="flex items-center gap-2.5 pl-8 pr-3 py-1.5 hover:bg-s2/60">
+                      <input type="checkbox" checked={false} onChange={() => toggleClientTodo(c, td.id)} className="shrink-0" />
+                      <button onClick={() => onOpenClient(c.id)}
+                        className="flex-1 text-left text-sm text-accent min-w-0 truncate hover:underline">
+                        {c.pinned && '📌 '}{c.name} ›
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </Section>
   );
 }
 
