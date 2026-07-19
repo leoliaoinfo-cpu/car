@@ -162,6 +162,22 @@ export default function TodayPage({ onOpenClient }) {
     return out;
   }, [clients]);
 
+  // 今日待辦：所有「處理日期 ≤ 今天」且未完成的待辦（中央待辦＋客戶待辦），彙整到頂部一眼看到
+  const todayActionTodos = useMemo(() => {
+    const out = [];
+    for (const t of tasks) {
+      if (!t.done && t.due && t.due <= todayStr)
+        out.push({ kind: 'task', key: 't:' + t.id, text: t.text, due: t.due, clientId: t.clientId || null, clientName: t.clientName || null, task: t });
+    }
+    for (const c of clients) {
+      for (const td of c.todos || []) {
+        if (!td.done && td.due && td.due <= todayStr)
+          out.push({ kind: 'client', key: 'c:' + c.id + ':' + td.id, text: td.text, due: td.due, clientId: c.id, clientName: c.name, client: c, todoId: td.id });
+      }
+    }
+    return out.sort((a, b) => a.due.localeCompare(b.due) || (a.clientName || '').localeCompare(b.clientName || '', 'zh-Hant'));
+  }, [tasks, clients, todayStr]);
+
   const allClear = overdue.length === 0 && dueToday.length === 0 && deliveries.length === 0
     && todayTimers.length === 0 && occasionGroups.length === 0 && todayEvents.length === 0
     && undoneTaskCount === 0 && clientTodos.length === 0;
@@ -325,6 +341,36 @@ export default function TodayPage({ onOpenClient }) {
                   <a href={`tel:${c.phone}`} className="btn-outline text-xs shrink-0" onClick={(e) => e.stopPropagation()}>📞</a>
                 )}
                 <button onClick={() => onOpenClient(c.id)} className="btn-primary text-xs shrink-0">交車</button>
+              </div>
+            );
+          })}
+        </Section>
+      )}
+
+      {/* 今日待辦：處理日期到期（今天／逾期）的待辦，跨中央與各客戶彙整 */}
+      {todayActionTodos.length > 0 && (
+        <Section icon="🗓" title="今日待辦" count={todayActionTodos.length} color="#7291a8">
+          {todayActionTodos.map((it) => {
+            const late = it.due < todayStr;
+            const color = late ? '#b26b6b' : '#bf8a5e';
+            return (
+              <div key={it.key} className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
+                <input type="checkbox" checked={false}
+                  onChange={() => (it.kind === 'task' ? toggleTask(it.task) : toggleClientTodo(it.client, it.todoId))}
+                  className="shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm text-ink break-words">{it.text}</span>
+                  {it.clientId && (
+                    <button onClick={() => onOpenClient(it.clientId)}
+                      className="text-[10px] px-1.5 py-0.5 ml-1.5 rounded-full bg-accent/12 text-accent hover:bg-accent/20 align-middle">
+                      {it.clientName} ›
+                    </button>
+                  )}
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0"
+                  style={{ background: color + '20', color }}>
+                  {late ? `⚠️ 逾期 ${dayjs(todayStr).diff(dayjs(it.due), 'day')} 天` : '今天'}
+                </span>
               </div>
             );
           })}

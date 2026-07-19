@@ -10,13 +10,14 @@ import dayjs from 'dayjs';
 const EV = {
   event:    { icon: '🗓', label: '活動', color: '#6f9a9c' },
   follow:   { icon: '📅', label: '追蹤', color: '#bf8a5e' },
+  todo:     { icon: '✅', label: '待辦', color: '#7291a8' },
   timer:    { icon: '⏰', label: '提醒', color: '#9382a5' },
   deal:     { icon: '🏆', label: '成交', color: '#a99760' },
   occasion: { icon: '🎉', label: '紀念日', color: '#b58a96' },
 };
 
 export default function CalendarPage({ onOpenClient }) {
-  const { clients, timers, deals, customFields, events, saveEvent, deleteEvent, updateClient, thresholds } = useApp();
+  const { clients, timers, deals, customFields, events, tasks, saveEvent, deleteEvent, saveTask, updateClient, thresholds } = useApp();
   const todayStr = today();
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -51,12 +52,23 @@ export default function CalendarPage({ onOpenClient }) {
         sub: `NT$ ${formatMoney(d.amount)}${d.note ? `・${d.note}` : ''}`,
       });
     }
+    // 待辦（有處理日期、未完成）：中央待辦 ＋ 各客戶待辦
+    for (const t of tasks) {
+      if (!t.done && t.due)
+        push(t.due, { type: 'todo', clientId: t.clientId || null, title: t.text, sub: t.clientName || '', todoRef: { kind: 'task', task: t } });
+    }
+    for (const c of clients) {
+      for (const td of c.todos || []) {
+        if (!td.done && td.due)
+          push(td.due, { type: 'todo', clientId: c.id, title: td.text, sub: c.name, todoRef: { kind: 'client', client: c, todoId: td.id } });
+      }
+    }
     // 提醒依時間排序、追蹤在前
     for (const k of Object.keys(map)) {
       map[k].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     }
     return map;
-  }, [clients, timers, deals]);
+  }, [clients, timers, deals, tasks]);
 
   // 月曆格子：從該月第一週的週一到最後一週的週日
   const weeks = useMemo(() => {
@@ -150,6 +162,19 @@ export default function CalendarPage({ onOpenClient }) {
         date: todayStr, text: '已聯繫', type: 'contact',
       }],
     }));
+  }
+
+  async function completeTodo(e) {
+    const r = e.todoRef;
+    if (!r) return;
+    if (r.kind === 'task') {
+      await saveTask({ ...r.task, done: true, doneAt: todayStr });
+    } else {
+      await updateClient(r.client.id, (c) => ({
+        ...c,
+        todos: (c.todos || []).map((td) => td.id === r.todoId ? { ...td, done: true } : td),
+      }));
+    }
   }
 
   function handleExportICS() {
@@ -317,8 +342,18 @@ export default function CalendarPage({ onOpenClient }) {
                   </button>
                 </>
               )}
+              {e.type === 'todo' && (
+                <>
+                  <span className="text-[10px] font-medium shrink-0"
+                    style={{ color: selectedDate < todayStr ? '#b26b6b' : '#7291a8' }}>
+                    {selectedDate < todayStr ? '已逾期' : selectedDate === todayStr ? '今日' : '排定'}
+                  </span>
+                  <button onClick={(ev) => { ev.stopPropagation(); completeTodo(e); }}
+                    className="btn-primary text-xs shrink-0">完成</button>
+                </>
+              )}
               {isUserEvent && <span className="text-ink-3 text-xs shrink-0">✏️</span>}
-              {!isUserEvent && e.clientId && <span className="text-ink-3 text-xs shrink-0">›</span>}
+              {!isUserEvent && e.type !== 'todo' && e.clientId && <span className="text-ink-3 text-xs shrink-0">›</span>}
             </div>
           );
         })}
