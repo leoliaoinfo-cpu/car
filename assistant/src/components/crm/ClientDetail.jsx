@@ -198,7 +198,8 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       lastContact: t,
       missedCalls: 0,
       log: [...(c.log || []), entry],
-      ...(isDelivery ? { nextDate: addDays(t, DELIVERY_FOLLOWUP_DAYS[0]) } : {}),
+      // 交車完成：下次追蹤設 3 天後，並清除「預計交車日」（已交車就不再提醒）
+      ...(isDelivery ? { nextDate: addDays(t, DELIVERY_FOLLOWUP_DAYS[0]), deliveryDate: '' } : {}),
     }));
   }
 
@@ -351,6 +352,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
   function setNextDate(dateStr) {
     updateClient(client.id, (c) => ({ ...c, nextDate: dateStr }));
+  }
+
+  function setDeliveryDate(dateStr) {
+    updateClient(client.id, (c) => ({ ...c, deliveryDate: dateStr }));
   }
 
   return (
@@ -649,6 +654,29 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               </button>
             ))}
           </div>
+        </section>
+
+        {/* 預計交車日：到期會出現在「今日工作 → 今日交車」；記錄「交車」事件後自動清除 */}
+        <section className="card p-4 space-y-3">
+          <h3 className="font-semibold text-sm text-ink-2">🚚 預計交車日</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="date"
+              value={client.deliveryDate || ''}
+              onChange={(e) => setDeliveryDate(e.target.value)}
+              className="text-sm"
+            />
+            <span className="text-xs text-ink-3">快速：</span>
+            {[{ label: '今天', days: 0 }, { label: '明天', days: 1 }, { label: '3 天後', days: 3 }, { label: '7 天後', days: 7 }].map(({ label, days }) => (
+              <button key={label} onClick={() => setDeliveryDate(addDays(today(), days))} className="btn-outline text-xs px-2 py-1">
+                {label}
+              </button>
+            ))}
+            {client.deliveryDate && (
+              <button onClick={() => setDeliveryDate('')} className="text-danger/60 hover:text-danger text-xs px-1">清除</button>
+            )}
+          </div>
+          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「今日工作」最上方提醒你。實際交車時到下方「業務流程」按「🚚 交車」即可自動歸檔並建立售後回訪。</p>
         </section>
 
         {/* 生日 / 重要日子（行事曆活動，可每年重複提醒） */}

@@ -82,6 +82,16 @@ export default function TodayPage({ onOpenClient }) {
     clients.filter((c) => c.nextDate === todayStr),
     [clients, todayStr]);
 
+  // 今日交車 + 逾期未交車（預計交車日已過但還沒按「交車」歸檔）；置頂客戶優先、再依日期
+  const deliveries = useMemo(() =>
+    clients
+      .filter((c) => c.deliveryDate && c.deliveryDate <= todayStr)
+      .sort((a, b) =>
+        (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)
+        || a.deliveryDate.localeCompare(b.deliveryDate)
+        || a.name.localeCompare(b.name, 'zh-Hant')),
+    [clients, todayStr]);
+
   const pinnedClients = useMemo(() =>
     clients.filter((c) => c.pinned),
     [clients]);
@@ -140,7 +150,7 @@ export default function TodayPage({ onOpenClient }) {
     return out;
   }, [clients]);
 
-  const allClear = overdue.length === 0 && dueToday.length === 0
+  const allClear = overdue.length === 0 && dueToday.length === 0 && deliveries.length === 0
     && todayTimers.length === 0 && occasionGroups.length === 0 && todayEvents.length === 0
     && undoneTaskCount === 0 && clientTodos.length === 0;
 
@@ -251,7 +261,8 @@ export default function TodayPage({ onOpenClient }) {
       )}
 
       {/* 統計方塊 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <StatTile label="今日交車" value={deliveries.length} color={deliveries.length > 0 ? '#c0764f' : '#7d9b76'} />
         <StatTile label="逾期追蹤" value={overdue.length} color={overdue.length > 0 ? '#b26b6b' : '#7d9b76'} />
         <StatTile label="今日追蹤" value={dueToday.length} color="#bf8a5e" />
         <StatTile label="即將簽約" value={pinnedClients.length} color="#7291a8" />
@@ -269,6 +280,39 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 待辦卡片：桌面 2 欄瀑布流、手機單欄（iOS 小工具風） */}
       <div className="md:columns-2 md:gap-4">
+      {/* 今日交車（含逾期未交車）— 最優先，放最上方 */}
+      {deliveries.length > 0 && (
+        <Section icon="🚚" title="今日交車" count={deliveries.length} color="#c0764f">
+          {deliveries.map((c) => {
+            const late = c.deliveryDate < todayStr;
+            const lateDays = late ? dayjs(todayStr).diff(dayjs(c.deliveryDate), 'day') : 0;
+            const color = late ? '#b26b6b' : '#c0764f';
+            return (
+              <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onOpenClient(c.id)}>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {c.pinned && <span className="text-[11px]" title="置頂客戶">📌</span>}
+                    <span className="font-medium text-sm text-ink">{c.name}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+                      style={{ background: color + '20', color }}>
+                      {late ? `逾期 ${lateDays} 天未交車` : '今天交車'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-3 mt-0.5">
+                    預計 {formatDate(c.deliveryDate)}{c.phone ? ` · ${c.phone}` : ''}
+                  </p>
+                </div>
+                {c.phone && (
+                  <a href={`tel:${c.phone}`} className="btn-outline text-xs shrink-0" onClick={(e) => e.stopPropagation()}>📞</a>
+                )}
+                <button onClick={() => onOpenClient(c.id)} className="btn-primary text-xs shrink-0">交車</button>
+              </div>
+            );
+          })}
+        </Section>
+      )}
+
       {/* 逾期追蹤 */}
       {overdue.length > 0 && (
         <Section icon="⚠️" title="逾期追蹤" count={overdue.length} color="#b26b6b">
