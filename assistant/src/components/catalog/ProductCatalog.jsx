@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * 產品型錄：直接展示公司原廠行銷型錄圖片（車型、配件、報價），方便當場給客戶看。
@@ -25,6 +25,24 @@ export default function ProductCatalog({ onClose }) {
   const go = useCallback((dir) => {
     setLightbox((i) => (i == null ? i : (i + dir + total) % total));
   }, [total]);
+
+  // 手勢換頁：單指左右滑動切上一張／下一張（雙指縮放不觸發）
+  const touchRef = useRef(null);
+  const onTouchStart = (e) => {
+    if (e.touches.length !== 1) { touchRef.current = null; return; }
+    touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  };
+  const onTouchEnd = (e) => {
+    const s = touchRef.current;
+    touchRef.current = null;
+    if (!s || e.changedTouches.length !== 1) return;
+    const dx = e.changedTouches[0].clientX - s.x;
+    const dy = e.changedTouches[0].clientY - s.y;
+    // 水平位移夠大、且明顯比垂直大、時間不太久 → 換頁
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3 && Date.now() - s.t < 700) {
+      go(dx < 0 ? 1 : -1);
+    }
+  };
 
   // 放大檢視時：← → 切換、Esc 關閉
   useEffect(() => {
@@ -91,7 +109,8 @@ export default function ProductCatalog({ onClose }) {
       {/* 放大檢視（lightbox） */}
       {lightbox != null && items && items[lightbox] && (
         <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col anim-fade-in"
-          onClick={() => setLightbox(null)}>
+          onClick={() => setLightbox(null)}
+          onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           <div className="flex items-center justify-between px-4 py-3 text-white shrink-0">
             <span className="text-sm font-medium">
               {items[lightbox].label}
@@ -106,13 +125,21 @@ export default function ProductCatalog({ onClose }) {
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               style={{ touchAction: 'pinch-zoom' }} />
           </div>
-          {/* 左右切換 */}
+          {/* 左右切換 + 底部頁數圓點（手機可直接左右滑動換頁） */}
           {total > 1 && (
             <>
               <button onClick={(e) => { e.stopPropagation(); go(-1); }}
                 className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center backdrop-blur">‹</button>
               <button onClick={(e) => { e.stopPropagation(); go(1); }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white text-xl flex items-center justify-center backdrop-blur">›</button>
+              <div className="shrink-0 flex items-center justify-center gap-1.5 pb-4 pt-1 flex-wrap px-4">
+                {items.map((it, i) => (
+                  <button key={it.slug} onClick={(e) => { e.stopPropagation(); setLightbox(i); }}
+                    aria-label={it.label}
+                    className={`h-1.5 rounded-full transition-all ${i === lightbox ? 'w-5 bg-white' : 'w-1.5 bg-white/40'}`} />
+                ))}
+              </div>
+              <p className="shrink-0 text-center text-white/40 text-[11px] pb-3 md:hidden">← 滑動換頁 →</p>
             </>
           )}
         </div>
