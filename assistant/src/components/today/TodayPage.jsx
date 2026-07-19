@@ -216,7 +216,8 @@ export default function TodayPage({ onOpenClient }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 space-y-5">
+    <div className="max-w-5xl mx-auto p-4">
+      <div className="space-y-4 mb-4">
       {/* 日期標題 */}
       <div className="flex items-end justify-between flex-wrap gap-2">
         <div>
@@ -264,10 +265,13 @@ export default function TodayPage({ onOpenClient }) {
           <p className="text-xs text-ink-3 mt-1">到「客戶追蹤」開發新客戶，或檢查久未聯繫的名單。</p>
         </div>
       )}
+      </div>
 
+      {/* 待辦卡片：桌面 2 欄瀑布流、手機單欄（iOS 小工具風） */}
+      <div className="md:columns-2 md:gap-4">
       {/* 逾期追蹤 */}
       {overdue.length > 0 && (
-        <Section title={`⚠️ 逾期追蹤（${overdue.length}）`} titleColor="#b26b6b">
+        <Section icon="⚠️" title="逾期追蹤" count={overdue.length} color="#b26b6b">
           {overdue.map((c) => (
             <ClientTaskRow key={c.id} client={c} cats={cats}
               tag={`逾期 ${dayjs(todayStr).diff(dayjs(c.nextDate), 'day')} 天`} tagColor="#b26b6b"
@@ -278,7 +282,7 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 今日追蹤 */}
       {dueToday.length > 0 && (
-        <Section title={`📅 今日追蹤（${dueToday.length}）`} titleColor="#bf8a5e">
+        <Section icon="📅" title="今日追蹤" count={dueToday.length} color="#bf8a5e">
           {dueToday.map((c) => (
             <ClientTaskRow key={c.id} client={c} cats={cats}
               tag="今日" tagColor="#bf8a5e"
@@ -289,12 +293,12 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 今日活動：行事曆自建的生日 / 紀念日 / 重要日子 */}
       {todayEvents.length > 0 && (
-        <Section title={`🗓 今日活動（${todayEvents.length}）`} titleColor="#6f9a9c">
+        <Section icon="🗓" title="今日活動" count={todayEvents.length} color="#6f9a9c">
           {todayEvents.map(({ event: e, years }) => {
             const client = e.clientId ? clients.find((c) => c.id === e.clientId) : null;
             return (
               <div key={e.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0">
-                <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: '#6f9a9c' }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: '#6f9a9c' }} />
                 {e.time && <span className="text-xs font-mono text-ink-3 shrink-0">{e.time}</span>}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -327,10 +331,10 @@ export default function TodayPage({ onOpenClient }) {
       {occasionGroups.map(({ field, items }) => {
         const color = FIELD_COLORS[(field.colorIdx || 0) % FIELD_COLORS.length];
         return (
-          <Section key={field.id} title={`🎉 ${field.name}（${items.length}）`} titleColor={color}>
+          <Section key={field.id} icon="🎉" title={field.name} count={items.length} color={color}>
             {items.map(({ client: c, years }) => (
               <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0">
-                <span className="w-1 self-stretch rounded-full shrink-0" style={{ background: color }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onOpenClient(c.id)}>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-medium text-sm text-ink">{c.name}</span>
@@ -357,7 +361,7 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 今日提醒 */}
       {todayTimers.length > 0 && (
-        <Section title={`⏰ 提醒（${todayTimers.length}）`} titleColor="#9382a5">
+        <Section icon="⏰" title="提醒" count={todayTimers.length} color="#9382a5">
           {todayTimers.map((t) => {
             const past = dayjs(t.triggerAt).isBefore(dayjs());
             return (
@@ -385,7 +389,7 @@ export default function TodayPage({ onOpenClient }) {
       )}
 
       {/* 中央待辦：直接記錄與處理雜事 */}
-      <Section title={`📋 待辦事項${undoneTaskCount > 0 ? `（${undoneTaskCount}）` : ''}`} titleColor="#7291a8">
+      <Section icon="📋" title="待辦事項" count={undoneTaskCount} color="#7291a8">
         <div className="px-3 py-2.5 border-b border-bdr/50">
           <div className="flex gap-2">
             <input
@@ -438,7 +442,7 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 客戶待辦：各客戶簽約前待辦集中處理 */}
       {clientTodos.length > 0 && (
-        <Section title={`👤 客戶待辦（${clientTodos.length}）`} titleColor="#9382a5">
+        <Section icon="👤" title="客戶待辦" count={clientTodos.length} color="#9382a5">
           {clientTodos.map(({ client: c, todo: td }) => (
             <div key={td.id} className="flex items-center gap-2.5 px-3 py-2 border-b border-bdr/50 last:border-0">
               <input type="checkbox" checked={false} onChange={() => toggleClientTodo(c, td.id)} className="shrink-0" />
@@ -456,7 +460,7 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 本日成果：自動從客戶時間軸統計 */}
       {todayResults.length > 0 && (
-        <Section title="📊 本日成果" titleColor="#7d9b76">
+        <Section icon="📊" title="本日成果" color="#7d9b76">
           <div className="flex flex-wrap gap-2 px-3 py-3">
             {todayResults.map((r) => (
               <div key={r.type} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
@@ -478,7 +482,7 @@ export default function TodayPage({ onOpenClient }) {
 
       {/* 即將簽約 */}
       {pinnedClients.length > 0 && (
-        <Section title={`📌 即將簽約（${pinnedClients.length}）`} titleColor="#7291a8">
+        <Section icon="📌" title="即將簽約" count={pinnedClients.length} color="#7291a8">
           {pinnedClients.map((c) => {
             const todos = c.todos || [];
             const doneCount = todos.filter((td) => td.done).length;
@@ -504,6 +508,7 @@ export default function TodayPage({ onOpenClient }) {
           })}
         </Section>
       )}
+      </div>
     </div>
   );
 }
@@ -527,21 +532,28 @@ function TaskText({ task, onOpenClient }) {
   );
 }
 
+// iOS 小工具風統計方塊：淡色底、大數字、下方標籤
 function StatTile({ label, value, color }) {
   return (
-    <div className="card px-3 py-3 text-center">
-      <p className="text-2xl font-bold" style={{ color }}>{value}</p>
-      <p className="text-[11px] text-ink-3 mt-0.5">{label}</p>
+    <div className="rounded-2xl px-3.5 py-3 border border-bdr" style={{ background: color + '14' }}>
+      <p className="text-[26px] font-bold leading-none tabular-nums" style={{ color }}>{value}</p>
+      <p className="text-[11px] text-ink-2 mt-1.5 font-medium">{label}</p>
     </div>
   );
 }
 
-function Section({ title, titleColor, children }) {
+/** iOS 小工具風卡片：大圓角、標頭（圖示＋標題＋右側件數徽章），內容為條列 */
+function Section({ icon, title, count, color, children }) {
   return (
-    <section className="card overflow-hidden">
-      <h2 className="text-sm font-semibold px-3 py-2.5 border-b border-bdr" style={{ color: titleColor }}>
-        {title}
-      </h2>
+    <section className="bg-s1 rounded-[22px] border border-bdr shadow-card overflow-hidden break-inside-avoid mb-4">
+      <div className="flex items-center gap-2 px-4 pt-3.5 pb-1.5">
+        <span className="text-[15px] leading-none shrink-0">{icon}</span>
+        <h2 className="text-[15px] font-bold text-ink flex-1 min-w-0 truncate">{title}</h2>
+        {count > 0 && (
+          <span className="text-[13px] font-bold px-2 py-0.5 rounded-lg tabular-nums shrink-0"
+            style={{ background: color + '22', color }}>{count}</span>
+        )}
+      </div>
       {children}
     </section>
   );
@@ -554,7 +566,7 @@ function ClientTaskRow({ client, cats, tag, tagColor, onOpen, onDone }) {
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0">
-      <div className="w-1 self-stretch rounded-full shrink-0" style={{ background: STATUS_COLOR[status] }} />
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] }} />
       <div className="flex-1 min-w-0 cursor-pointer" onClick={onOpen}>
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="font-medium text-sm text-ink">{client.name}</span>
