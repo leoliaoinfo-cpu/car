@@ -104,7 +104,7 @@ function AppInner() {
       {/* 手機：型錄浮動按鈕（右下角，不擋底部導覽） */}
       <button
         onClick={() => setShowCatalog(true)}
-        className="md:hidden fixed right-4 bottom-20 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
+        className="md:hidden fixed right-4 bottom-28 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
         title="產品型錄"
       >
         <span className="text-xl leading-none">📖</span>

@@ -64,6 +64,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [focusDetail, setFocusDetail] = useState(false); // 桌面：收合側欄＋列表，只看客戶詳情
   const [showNewForm, setShowNewForm] = useState(false);
   const listRef = useRef(null);
 
@@ -211,7 +212,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       {/* Sidebar — drawer on mobile, fixed on desktop */}
       <aside className={`
         fixed inset-y-0 left-0 z-40 w-64 bg-s1 border-r border-bdr flex flex-col transition-transform duration-300
-        lg:static lg:translate-x-0 lg:z-auto lg:h-full
+        ${focusDetail ? '' : 'lg:static lg:translate-x-0 lg:z-auto lg:h-full'}
         ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Mobile close */}
@@ -280,7 +281,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-bdr bg-s1 flex-wrap">
-          <button onClick={() => setShowSidebar(true)} className="lg:hidden btn-ghost text-sm">☰</button>
+          <button onClick={() => setShowSidebar(true)} className={`btn-ghost text-sm ${focusDetail ? '' : 'lg:hidden'}`}>☰</button>
           {selectMode ? (
             <>
               <button onClick={toggleCheckAll} className="btn-outline text-sm">
@@ -322,8 +323,16 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
                   </button>
                 ))}
               </div>
+              {/* 桌面：收合側欄＋列表，只看客戶詳情（再點彈回） */}
+              {effectiveView === 'list' && selectedClient && (
+                <button onClick={() => setFocusDetail((v) => !v)}
+                  className="hidden lg:inline-flex btn-outline text-sm"
+                  title={focusDetail ? '展開分類與列表' : '收合，專注客戶詳情'}>
+                  {focusDetail ? '◧ 展開列表' : '⛶ 專注詳情'}
+                </button>
+              )}
               {effectiveView === 'list' && (
-                <button onClick={() => { setSelectMode(true); setSelectedId(null); }} className="btn-outline text-sm">
+                <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="btn-outline text-sm">
                   ☑ 選取
                 </button>
               )}
@@ -349,7 +358,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
             {/* Client list */}
             <div
               ref={listRef}
-              className={`overflow-y-auto ${selectedClient ? 'hidden lg:block lg:w-72 xl:w-96' : 'flex-1'}`}
+              className={`overflow-y-auto ${selectedClient ? (focusDetail ? 'hidden' : 'hidden lg:block lg:w-72 xl:w-96') : 'flex-1'}`}
             >
               <div style={{ height: totalHeight, position: 'relative' }}>
                 <div style={{ transform: `translateY(${offsetY}px)` }}>
@@ -382,8 +391,8 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
                   client={selectedClient}
                   cats={cats}
                   stages={stages}
-                  onClose={() => setSelectedId(null)}
-                  onDelete={async (id) => { await deleteClient(id); setSelectedId(null); }}
+                  onClose={() => { setSelectedId(null); setFocusDetail(false); }}
+                  onDelete={async (id) => { await deleteClient(id); setSelectedId(null); setFocusDetail(false); }}
                 />
               </div>
             )}
