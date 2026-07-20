@@ -300,6 +300,14 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
             </>
           ) : (
             <>
+              {/* 收合/展開：隱藏側欄＋列表放大客戶詳情，再點彈回（平板橫向、電腦；平板直向兩欄時也可用） */}
+              {effectiveView === 'list' && selectedClient && (
+                <button onClick={() => setFocusDetail((v) => !v)}
+                  className="hidden md:inline-flex btn-primary text-sm shrink-0"
+                  title={focusDetail ? '展開分類與客戶列表' : '收合側欄與列表，放大客戶詳情'}>
+                  {focusDetail ? '◨ 展開列表' : '⤢ 放大詳情'}
+                </button>
+              )}
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -323,14 +331,6 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
                   </button>
                 ))}
               </div>
-              {/* 桌面：收合側欄＋列表，只看客戶詳情（再點彈回） */}
-              {effectiveView === 'list' && selectedClient && (
-                <button onClick={() => setFocusDetail((v) => !v)}
-                  className="hidden lg:inline-flex btn-outline text-sm"
-                  title={focusDetail ? '展開分類與列表' : '收合，專注客戶詳情'}>
-                  {focusDetail ? '◧ 展開列表' : '⛶ 專注詳情'}
-                </button>
-              )}
               {effectiveView === 'list' && (
                 <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="btn-outline text-sm">
                   ☑ 選取
@@ -358,7 +358,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
             {/* Client list */}
             <div
               ref={listRef}
-              className={`overflow-y-auto ${selectedClient ? (focusDetail ? 'hidden' : 'hidden lg:block lg:w-72 xl:w-96') : 'flex-1'}`}
+              className={`overflow-y-auto ${selectedClient ? (focusDetail ? 'hidden' : 'hidden md:block md:w-64 xl:w-96') : 'flex-1'}`}
             >
               <div style={{ height: totalHeight, position: 'relative' }}>
                 <div style={{ transform: `translateY(${offsetY}px)` }}>
