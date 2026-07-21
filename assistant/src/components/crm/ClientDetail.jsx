@@ -8,6 +8,7 @@ import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
 import { Field, ClientPicker } from '../ui';
+import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
@@ -980,6 +981,9 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             <button onClick={addTodo} className="btn-outline text-xs shrink-0">加入</button>
           </div>
         </section>
+
+        {/* 照片 / 名片（本機儲存、壓縮、刪客戶一併刪） */}
+        <ClientPhotos clientId={client.id} />
 
         {/* Timer section */}
         <section className="card p-4 space-y-3">

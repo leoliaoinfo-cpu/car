@@ -3,7 +3,7 @@
  * 2. 到期提醒通知：periodic background sync（Android 安裝後可背景檢查）
  *    ＋接收頁面訊息顯示系統通知（頁面開著時所有平台通用）
  */
-const CACHE = 'assistant-v2';
+const CACHE = 'assistant-v3';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => {

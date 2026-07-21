@@ -283,16 +283,20 @@ export function AppProvider({ children }) {
   const deleteClient = useCallback(async (id) => {
     clientsRef.current = clientsRef.current.filter((c) => c.id !== id);
     await db.delete('clients', id);
+    await db.deletePhotosByClient(id).catch(() => {}); // 一併釋放照片佔用的空間
     dispatch({ type: 'DELETE_CLIENT', id });
     await cleanupClientLinks([id]);
   }, [cleanupClientLinks]);
 
-  /** 批次刪除客戶（每筆各留墓碑，同步後其他裝置也會刪除） */
+  /** 批次刪除客戶（每筆各留墓碑，同步後其他裝置也會刪除；本機照片一併刪除） */
   const deleteClients = useCallback(async (ids) => {
     const set = new Set(ids);
     clientsRef.current = clientsRef.current.filter((c) => !set.has(c.id));
     dispatch({ type: 'DELETE_CLIENTS', ids });
-    for (const id of ids) await db.delete('clients', id);
+    for (const id of ids) {
+      await db.delete('clients', id);
+      await db.deletePhotosByClient(id).catch(() => {});
+    }
     await cleanupClientLinks(set);
   }, [cleanupClientLinks]);
 

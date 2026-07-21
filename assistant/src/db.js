@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'business_assistant_v2';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let dbPromise = null;
 
@@ -71,6 +71,12 @@ function openRaw() {
           const ev = database.createObjectStore('events', { keyPath: 'id' });
           ev.createIndex('date', 'date');
           ev.createIndex('clientId', 'clientId');
+        }
+        // v6：客戶照片 / 名片（存壓縮後的 Blob，僅存本機、不進雲端同步與備份，
+        // 避免同步檔爆量；刪客戶時一併刪除對應照片）
+        if (!database.objectStoreNames.contains('photos')) {
+          const ph = database.createObjectStore('photos', { keyPath: 'id' });
+          ph.createIndex('clientId', 'clientId');
         }
       },
   });
@@ -155,6 +161,32 @@ export const db = {
     await Promise.all([...items.map((item) => tx.store.put(item)), tx.done]);
   },
 
+  // ── 客戶照片 / 名片（本機專屬，不同步、不寫墓碑、不觸發上傳）──────────────
+  async getPhotos(clientId) {
+    const database = await getDB();
+    return database.getAllFromIndex('photos', 'clientId', clientId);
+  },
+  async putPhoto(photo) {
+    await (await getDB()).put('photos', photo);
+    return photo;
+  },
+  async deletePhoto(id) {
+    await (await getDB()).delete('photos', id);
+  },
+  /** 刪某客戶的所有照片（刪客戶時呼叫，釋放其佔用的空間） */
+  async deletePhotosByClient(clientId) {
+    const database = await getDB();
+    const tx = database.transaction('photos', 'readwrite');
+    let cursor = await tx.store.index('clientId').openCursor(clientId);
+    while (cursor) { await cursor.delete(); cursor = await cursor.continue(); }
+    await tx.done;
+  },
+  /** 目前所有照片佔用的位元組數（供設定頁顯示已用空間） */
+  async photosUsage() {
+    const all = await (await getDB()).getAll('photos');
+    return all.reduce((sum, p) => sum + (p.size || p.blob?.size || 0), 0);
+  },
+
   /**
    * 每日資料保養（防止資料檔經年累月無限膨脹拖垮同步）：
    * - 清過期墓碑（同步合併時也會清，這裡涵蓋「沒開同步」的情況）
@@ -180,6 +212,16 @@ export const db = {
       const ts = t.done && t.doneAt ? Date.parse(t.doneAt) : NaN;
       if (!Number.isNaN(ts) && now - ts >= DONE_KEEP_MS) await db.delete('tasks', t.id);
     }
+    // 清孤兒照片（對應客戶已不存在，例如還原舊備份後）——釋放其佔用的空間
+    const clientIds = new Set((await db.getAll('clients')).map((c) => c.id));
+    const database = await getDB();
+    const tx = database.transaction('photos', 'readwrite');
+    let cur = await tx.store.openCursor();
+    while (cur) {
+      if (!clientIds.has(cur.value.clientId)) await cur.delete();
+      cur = await cur.continue();
+    }
+    await tx.done;
   },
 
   /** Full export of all stores */
