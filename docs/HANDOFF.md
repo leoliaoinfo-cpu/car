@@ -122,3 +122,53 @@ npm run preview -- --port 4173 &
 ## 十、給新對話的啟動提示
 
 把原始碼 zip 解開（或 clone 上述分支），讀完本文件即可接手。使用者是貨車業務本人，偏好：直接動工、每輪附截圖與單檔版、莫蘭迪藍灰深色、手機優先、資料絕不遺失（改動前先想清楚會不會覆蓋既有資料）。
+
+---
+
+## 十一、最新進度（接手前必讀，截至 commit `9f3d964`）
+
+第九節之後又完成了以下（皆已 push 到 `claude/car-sales-handoff-sht2ks`，每個 commit 訊息都有詳細說明，`git log` 即進度紀錄）：
+
+**報價單／型錄**
+- 整合 KIA 卡旺 2026 原廠車型（8 款）與配件（35 項，含價格與忠於圖片的介紹文字）到報價器；配件依 10 類分組、組內金額由高到低、已選反白、同類擇一自動取代。
+- 貸款改「期數按鈕」：選期數自動算月付；各期年利率在「設定→報價選單」設定，報價單只顯示月付款＋期數、不顯示利率。頭期改 %按鈕。免責聲明嚴謹版。浮水印文字可在設定自訂（預設「報價僅供參考」，非業務名）。
+- 報價單一鍵下載完整 PNG（html2canvas，clone 到畫面外避免裁切）。
+- **產品型錄**（`components/catalog/ProductCatalog.jsx`）：13 張行銷圖壓縮放 `public/catalog/`＋`manifest.json`，響應式縮圖牆＋放大檢視（滿版全螢幕、手滑換頁、圓點指示）。入口：桌面 header「型錄」分頁、手機右下浮動鈕、報價單內「看型錄」。SW 網路優先自動快取。
+
+**今日工作／待辦／行事曆**
+- 今日工作改 **iOS 小工具風**（`components/today/TodayPage.jsx`）：卡片＋件數徽章、圓點條列、桌面 2 欄瀑布流。
+- **客戶待辦分組收合**（`ClientTodosSection`）：依客戶／依項目切換、篩選、置頂優先。
+- 待辦（中央 `tasks` 與客戶 `client.todos`）新增**處理日期 `due`**：分「排程（近到遠）／無期限」，未來預設收合；到期彙整到今日工作頂部「今日待辦」卡片、並顯示在行事曆對應日期（`EV.todo`，可按完成）。
+- **預計交車日** `client.deliveryDate`：客戶詳情可設，到期／逾期在今日工作頂部「今日交車」卡片提醒；記錄「交車」事件時自動清除。
+
+**業績表 / 安全**
+- 業績表**移出主導覽**，改由「設定→📈 業績表」進入；可設**密碼保護**（SHA-256 雜湊、雙重輸入、隨 settings 同步）。
+- **忘記密碼**：安全問題固定「就讀的國小」、答案兩個字，初次設定密碼時一併設定；答對可重設。相關：`utils/lock.js`、`SettingsPanel.jsx` 的 `DealsSection`。
+
+**平板／RWD**
+- `manifest.orientation` 改 `any`（可翻轉）。
+- 客戶追蹤三欄佈局斷點 md→lg；平板直向改「列表＋詳情」兩欄＋抽屜側欄；工具列最左有醒目藍底「⤢ 放大詳情／◨ 展開列表」可收合側欄與列表、詳情全寬（`focusDetail` state）。
+
+**客戶照片 / 名片（DB 升到 v6）**
+- `components/crm/ClientPhotos.jsx`＋`utils/image.js`：客戶詳情可上傳名片與照片，**上傳自動壓縮**（canvas，名片 1800px/q.78、照片 1600px/q.72）。
+- 存**獨立 IndexedDB store `photos`**（存 Blob，keyPath id、index clientId）。**刻意不納入 `ALL_STORES`/`SYNCED_STORES`/備份**——避免 data.json 爆量。db 方法：`getPhotos/putPhoto/deletePhoto/deletePhotosByClient/photosUsage`。
+- 刪客戶（單筆＋批次）時 `db.deletePhotosByClient` 一併刪；`housekeep` 清孤兒照片；顯示用 objectURL 於卸載/刪除時 revoke。
+- SW 快取升 `assistant-v3`。
+
+## 十二、⚠️ 待決策事項（尚未實作，需與使用者確認後才動）
+
+**照片跨裝置**：目前照片只存本機、不跨裝置。使用者希望跨裝置，但要求「撐五年、數千客戶不癱瘓」。已向使用者說明並給三方案，**使用者尚未拍板**：
+1. **物件儲存（建議，Cloudflare R2 / S3 相容）**：唯一能真正撐五年＋數 TB 的做法。照片存 R2（key=`clientId/photoId.jpg`），`data.json` 只同步「照片 id/清單」metadata（很小）；需使用者開帳號設金鑰＋CORS。
+2. **只名片跨裝置**：名片量小、壓很小，存 GitHub repo 獨立檔可行；大量照片仍本機。
+3. **全部維持本機**（現況）。
+> 關鍵技術結論：**絕不可**把照片塞進 GitHub 同步的 `data.json`，也不建議一張一檔塞進 git repo——git 歷史會膨脹、刪不掉、repo 五年必爆。務必用物件儲存或維持本機。
+
+其他可做未做：報價單 PDF、業績 CSV（使用者說不用）、KPI 視覺化、把「有處理日期的待辦」也納入 .ics 匯出（目前只匯出活動與提醒）。
+
+## 十三、給 GPT Codex／其他 AI 接手的啟動步驟
+
+1. `git clone https://github.com/leoliaoinfo-cpu/car && cd car`
+2. `git checkout claude/car-sales-handoff-sht2ks`（最新進度都在這條分支）
+3. 讀本文件（`docs/HANDOFF.md`）＋ `git log` 了解每步決策。
+4. 開發：`cd assistant && npm ci && npm run dev`；建置：`npm run build`（產出單檔 `dist/index.html`）。
+5. 接手開場可貼給 Codex：「這是一個 React+Vite 的貨車業務 PWA，程式在 assistant/，資料存 IndexedDB、透過 GitHub 私人 repo 同步。請先讀 docs/HANDOFF.md 和 git log 掌握現況，接著處理〈待決策事項〉裡的照片跨裝置，其餘照使用者需求逐項進行。」
