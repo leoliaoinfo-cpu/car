@@ -13,11 +13,6 @@ import {
 import { Field } from './ui';
 import { sha256Hex } from '../utils/lock';
 import { STORAGE_KEYS } from '../storageKeys';
-import { formatBytes } from '../utils/image';
-import {
-  connectPhotoSync, disconnectPhotoSync, getPhotoSyncConfig, isPhotoSyncEnabled,
-  processPendingPhotoDeletes, uploadAllLocalPhotos,
-} from '../photoSync';
 
 const HELP_CARDS = [
   { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
@@ -1093,128 +1088,7 @@ function SyncSection({ reloadAll }) {
           <p>把金鑰貼到上面欄位按「啟用同步」。手機、電腦都做這一步，之後就全自動，不用再管。</p>
         </div>
       )}
-
-      <PhotoSyncSettings dataSyncEnabled={enabled} />
     </section>
-  );
-}
-
-function PhotoSyncSettings({ dataSyncEnabled }) {
-  const initial = getPhotoSyncConfig();
-  const [enabled, setEnabled] = useState(isPhotoSyncEnabled());
-  const [endpoint, setEndpoint] = useState(initial.endpoint);
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [usage, setUsage] = useState(0);
-
-  useEffect(() => { db.photosUsage().then(setUsage).catch(() => {}); }, []);
-
-  async function handleConnect() {
-    setBusy(true);
-    setMessage('');
-    try {
-      const saved = await connectPhotoSync(endpoint, key);
-      setEndpoint(saved);
-      setKey('');
-      setEnabled(true);
-      await processPendingPhotoDeletes();
-      setMessage('✅ 照片雲端連線成功');
-    } catch (error) {
-      setMessage(`❌ ${error.message}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleUploadExisting() {
-    setBusy(true);
-    setMessage('準備上傳…');
-    try {
-      const result = await uploadAllLocalPhotos(({ done, total }) => setMessage(`上傳中 ${done} / ${total}…`));
-      setUsage(await db.photosUsage());
-      setMessage(result.uploaded
-        ? `✅ 已上傳 ${result.uploaded} 張；照片索引會隨 GitHub 資料同步到其他裝置`
-        : `✅ 本機 ${result.total} 張照片都已在雲端`);
-    } catch (error) {
-      setMessage(`❌ 上傳中斷：${error.message}（已完成的部分會保留，可稍後續傳）`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleDisconnect() {
-    disconnectPhotoSync();
-    setEnabled(false);
-    setMessage('已從這台裝置移除照片雲端金鑰；本機與雲端照片都保留');
-  }
-
-  return (
-    <div className="card p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-semibold text-ink">📷 照片跨裝置（Cloudflare R2）</h3>
-          <p className="text-xs text-ink-3 mt-1 leading-relaxed">
-            原圖放在 R2 物件儲存，GitHub 的 data.json 只同步小型照片索引，避免數年後儲存庫膨脹。
-            金鑰只留在這台裝置；手機、電腦各設定一次。
-          </p>
-        </div>
-        <span className={`text-[11px] shrink-0 ${enabled ? 'text-ok' : 'text-ink-3'}`}>
-          {enabled ? '● 已啟用' : '○ 未啟用'}
-        </span>
-      </div>
-
-      {!dataSyncEnabled && (
-        <p className="text-xs text-danger bg-s2 rounded-lg px-3 py-2">先啟用上方 GitHub 資料同步，照片索引才能跨裝置。</p>
-      )}
-
-      {enabled ? (
-        <div className="space-y-3">
-          <div className="bg-s2 rounded-lg p-3 text-sm space-y-1.5">
-            <div className="flex justify-between gap-3">
-              <span className="text-ink-3">Worker 網址</span>
-              <span className="text-ink font-mono text-[11px] truncate">{endpoint}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-3">本機快取</span><span className="text-ink">{formatBytes(usage)}</span>
-            </div>
-          </div>
-          <button onClick={handleUploadExisting} disabled={busy || !dataSyncEnabled}
-            className="btn-primary text-sm w-full disabled:opacity-40">
-            {busy ? '處理中…' : '☁️ 上傳本機既有照片（可續傳）'}
-          </button>
-          <button onClick={handleDisconnect} disabled={busy} className="btn-outline text-sm w-full">
-            移除此裝置的照片雲端設定
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <Field label="Cloudflare Worker 網址" required>
-            <input value={endpoint} onChange={(event) => setEndpoint(event.target.value)}
-              placeholder="https://car-photo-sync.你的帳號.workers.dev" className="w-full text-sm font-mono" />
-          </Field>
-          <Field label="照片同步金鑰" required>
-            <input type="password" value={key} onChange={(event) => setKey(event.target.value)}
-              placeholder="部署 Worker 時設定的 PHOTO_SYNC_KEY" className="w-full text-sm font-mono" autoComplete="off" />
-          </Field>
-          <button onClick={handleConnect} disabled={busy || !dataSyncEnabled}
-            className="btn-primary w-full disabled:opacity-40">
-            {busy ? '測試連線中…' : '🔗 啟用照片跨裝置'}
-          </button>
-        </div>
-      )}
-
-      {message && <p className="text-xs text-ink-2 bg-s2 rounded-lg px-3 py-2">{message}</p>}
-      <details className="text-xs text-ink-2">
-        <summary className="cursor-pointer font-medium text-accent">第一次設定 R2 / Worker</summary>
-        <ol className="list-decimal pl-4 mt-2 space-y-1 leading-relaxed">
-          <li>Cloudflare 建立 R2 bucket（建議名稱 <span className="font-mono">car-client-photos</span>）。</li>
-          <li>部署 repo 內 <span className="font-mono">photo-worker/</span>，把 R2 binding 命名為 <span className="font-mono">PHOTOS</span>。</li>
-          <li>用 Secret 設定一組至少 24 字元的 <span className="font-mono">PHOTO_SYNC_KEY</span>，不要寫進程式碼。</li>
-          <li>把 Worker 網址與同一把金鑰填到每台裝置，再按「上傳本機既有照片」。</li>
-        </ol>
-      </details>
-    </div>
   );
 }
 

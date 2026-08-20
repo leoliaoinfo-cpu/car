@@ -1,6 +1,8 @@
 # 一份看完就懂：貨車業務系統交接（給 Codex／新 AI）
 
-> 2026-08-20 最新狀態：瀏覽器資料已改用 `car_sales_assistant_v1` 與 `car-sales.*` 專屬命名；報價已支援單項／整單多筆優惠，DB v7 有獨立內部成本快照；照片跨裝置已確定採 Cloudflare R2，DB v8 只同步 `photoMeta`／`photoDeletes`，照片 Blob 不進 GitHub。下方較早的「照片尚待決策」敘述已被本段取代，完整細節以 `docs/HANDOFF.md` 最新段落為準。
+> **2026-08-20 最新決策：** 報價單項／整單優惠與內部成本中心已完成。
+> 照片跨裝置不採 Cloudflare R2；系統照片只存本機，跨裝置及客戶共享使用
+> 既有 LINE 相簿。DB 版本保留 v8 只為避免曾開啟短暫 v8 的瀏覽器降版失敗。
 
 > **2026-08-20 重大修復：** `/car/` 與 `/TEST/` 同屬 `leoliaoinfo-cpu.github.io`
 > origin，瀏覽器資料不能只靠路徑隔離。汽車系統固定使用 IndexedDB
@@ -40,9 +42,9 @@
 - 報價單／業績相關規矩：報價單**不顯示利率**（只顯示月付款＋期數）、浮水印預設非業務名、業績表要密碼保護（別讓客人看到）。
 - 產品內容（車型/配件介紹）**以原廠圖片文字為準，不可自己編**。
 
-**現在最優先要處理的事**：`docs/HANDOFF.md`〈十二、待決策事項〉的「照片跨裝置」。目前客戶照片只存本機、不跨裝置；我要跨裝置，但要能撐五年、數千客戶不癱瘓。你先讀懂三個方案與技術結論（**絕不可把照片塞進 GitHub 同步的 data.json，也不要一張一檔塞 git repo**），然後用繁中跟我確認要走哪個方案（我傾向物件儲存如 Cloudflare R2）、需要我提供什麼（帳號、金鑰、CORS 設定），再開始實作，並把設定做成像現在「設定→雲端同步」那樣的引導畫面。
+**目前照片決策**：不要新增需付款或維護的雲端照片服務。系統照片只做本機快速查看；跨裝置與客戶共享使用客戶 LINE 相簿。不可再把照片塞進 GitHub `data.json`，也不要重新加入 Cloudflare R2，除非使用者日後明確改變決定。
 
-其餘待辦與新需求，我會逐項告訴你。先讓我知道你已讀完 HANDOFF、掌握現況，並針對照片跨裝置給我你的建議。
+其餘待辦與新需求，使用者會逐項告知。先讀完 HANDOFF、掌握現況，再依最新需求處理。
 
 
 ---
@@ -206,13 +208,13 @@ npm run preview -- --port 4173 &
 - 刪客戶（單筆＋批次）時 `db.deletePhotosByClient` 一併刪；`housekeep` 清孤兒照片；顯示用 objectURL 於卸載/刪除時 revoke。
 - SW 快取升 `assistant-v3`。
 
-## 十二、⚠️ 待決策事項（尚未實作，需與使用者確認後才動）
+## 十二、最新決策與後續事項
 
-**照片跨裝置**：目前照片只存本機、不跨裝置。使用者希望跨裝置，但要求「撐五年、數千客戶不癱瘓」。已向使用者說明並給三方案，**使用者尚未拍板**：
-1. **物件儲存（建議，Cloudflare R2 / S3 相容）**：唯一能真正撐五年＋數 TB 的做法。照片存 R2（key=`clientId/photoId.jpg`），`data.json` 只同步「照片 id/清單」metadata（很小）；需使用者開帳號設金鑰＋CORS。
-2. **只名片跨裝置**：名片量小、壓很小，存 GitHub repo 獨立檔可行；大量照片仍本機。
-3. **全部維持本機**（現況）。
-> 關鍵技術結論：**絕不可**把照片塞進 GitHub 同步的 `data.json`，也不建議一張一檔塞進 git repo——git 歷史會膨脹、刪不掉、repo 五年必爆。務必用物件儲存或維持本機。
+**照片跨裝置已決策**：不使用 Cloudflare R2，不增加付款設定或雲端維護。系統照片維持本機 IndexedDB 壓縮保存，不進 GitHub `data.json`；跨裝置與客戶共享改用既有 LINE 相簿。LINE 不與系統串接。
+
+**報價與成本中心已完成**：報價項目及整張報價均可新增多筆優惠；客戶版不顯示成本／利潤。密碼區提供成本設定、報價試算與單車利潤。
+
+**資料庫相容性**：正式站曾短暫發布 DB v8，程式必須保留 `DB_VERSION = 8`，但不建立或同步 R2 照片資料。
 
 其他可做未做：報價單 PDF、業績 CSV（使用者說不用）、KPI 視覺化、把「有處理日期的待辦」也納入 .ics 匯出（目前只匯出活動與提醒）。
 
@@ -222,7 +224,7 @@ npm run preview -- --port 4173 &
 2. `git checkout claude/car-sales-handoff-sht2ks`（最新進度都在這條分支）
 3. 讀本文件（`docs/HANDOFF.md`）＋ `git log` 了解每步決策。
 4. 開發：`cd assistant && npm ci && npm run dev`；建置：`npm run build`（產出單檔 `dist/index.html`）。
-5. 接手開場可貼給 Codex：「這是一個 React+Vite 的貨車業務 PWA，程式在 assistant/，資料存 IndexedDB、透過 GitHub 私人 repo 同步。請先讀 docs/HANDOFF.md 和 git log 掌握現況，接著處理〈待決策事項〉裡的照片跨裝置，其餘照使用者需求逐項進行。」
+5. 接手開場可貼給 Codex：「這是一個 React+Vite 的貨車業務 PWA，程式在 assistant/，資料存 IndexedDB、透過 GitHub 私人 repo 同步；照片只存本機，跨裝置使用 LINE 相簿。請先讀 docs/HANDOFF.md 和 git log 掌握現況，再依後續事項逐項進行。」
 
 ---
 

@@ -11,8 +11,6 @@ export const STORAGE_KEYS = {
   syncToken: `${STORAGE_PREFIX}sync.token`,
   syncRepo: `${STORAGE_PREFIX}sync.repo`,
   syncLastAt: `${STORAGE_PREFIX}sync.lastSyncAt`,
-  photoSyncEndpoint: `${STORAGE_PREFIX}photoSync.endpoint`,
-  photoSyncKey: `${STORAGE_PREFIX}photoSync.key`,
   icsExportedAt: `${STORAGE_PREFIX}ics.exportedAt`,
   icsSnoozeAt: `${STORAGE_PREFIX}ics.remindSnoozeAt`,
 };
