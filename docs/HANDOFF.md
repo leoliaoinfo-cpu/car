@@ -161,12 +161,20 @@ npm run preview -- --port 4173 &
 - 刪客戶（單筆＋批次）時 `db.deletePhotosByClient` 一併刪；`housekeep` 清孤兒照片；顯示用 objectURL 於卸載/刪除時 revoke。
 - SW 快取升 `assistant-v3`。
 
-## 十二、⚠️ 待決策事項（尚未實作，需與使用者確認後才動）
+### 2026-08-20：報價優惠、內部成本與照片跨裝置
 
-**照片跨裝置**：目前照片只存本機、不跨裝置。使用者希望跨裝置，但要求「撐五年、數千客戶不癱瘓」。已向使用者說明並給三方案，**使用者尚未拍板**：
-1. **物件儲存（建議，Cloudflare R2 / S3 相容）**：唯一能真正撐五年＋數 TB 的做法。照片存 R2（key=`clientId/photoId.jpg`），`data.json` 只同步「照片 id/清單」metadata（很小）；需使用者開帳號設金鑰＋CORS。
-2. **只名片跨裝置**：名片量小、壓很小，存 GitHub repo 獨立檔可行；大量照片仍本機。
-3. **全部維持本機**（現況）。
+- 報價項目已支援多筆 `discounts[{id,name,amount}]`，另有多筆 `generalDiscounts`；舊負數折抵會在編輯時轉成整單優惠。
+- 客戶報價依車輛／專屬改裝／其他費用／優惠摘要分區；有優惠才顯示刪除線、折後價與標籤，成本與利潤不在報價 DOM 截圖區。
+- DB v7 新增 `pricingRecords`，成本目錄放 `settings.costCatalog`。密碼區新增「業績與利潤／報價試算／成本設定」，舊成交不以目前成本回推，標示待補成本。
+- 儲存或輸出報價前會檢查成本完整性；缺成本或低於成本都要再次確認，警告不顯示成本數字。
+- DB v8 新增 `photoMeta` 與 `photoDeletes`。照片 Blob 仍只在本機 `photos` 快取與 Cloudflare R2，絕不進 GitHub `data.json`；索引與刪除佇列才隨私人資料 repo 同步。
+- 照片雲端使用 `photo-worker/`、R2 binding `PHOTOS`、Secret `PHOTO_SYNC_KEY`；支援離線續傳、跨裝置按客戶下載、本機快取及刪除同步。
+- 所有照片雲端 localStorage key 使用 `car-sales.photoSync.*`，延續 `/car/` 與 `/TEST/` 的儲存隔離。
+
+## 十二、後續事項
+
+**照片跨裝置**：使用者已決定採 Cloudflare R2。程式與 Worker 已完成；新裝置仍需在「設定 → 雲端同步」填入 Worker 網址與 `PHOTO_SYNC_KEY`。
+目前架構：照片存 R2（key=`clients/clientId/photoId.jpg`），`data.json` 只同步小型 metadata；每台裝置各自保存 Worker 網址與金鑰，來源白名單由 `photo-worker/wrangler.jsonc` 設定。
 > 關鍵技術結論：**絕不可**把照片塞進 GitHub 同步的 `data.json`，也不建議一張一檔塞進 git repo——git 歷史會膨脹、刪不掉、repo 五年必爆。務必用物件儲存或維持本機。
 
 其他可做未做：報價單 PDF、業績 CSV（使用者說不用）、KPI 視覺化、把「有處理日期的待辦」也納入 .ics 匯出（目前只匯出活動與提醒）。
@@ -177,4 +185,4 @@ npm run preview -- --port 4173 &
 2. `git checkout claude/car-sales-handoff-sht2ks`（最新進度都在這條分支）
 3. 讀本文件（`docs/HANDOFF.md`）＋ `git log` 了解每步決策。
 4. 開發：`cd assistant && npm ci && npm run dev`；建置：`npm run build`（產出單檔 `dist/index.html`）。
-5. 接手開場可貼給 Codex：「這是一個 React+Vite 的貨車業務 PWA，程式在 assistant/，資料存 IndexedDB、透過 GitHub 私人 repo 同步。請先讀 docs/HANDOFF.md 和 git log 掌握現況，接著處理〈待決策事項〉裡的照片跨裝置，其餘照使用者需求逐項進行。」
+5. 接手開場可貼給 Codex：「這是一個 React+Vite 的貨車業務 PWA，程式在 assistant/，資料存 IndexedDB、透過 GitHub 私人 repo 同步；照片另走 Cloudflare R2。請先讀 docs/HANDOFF.md 和 git log 掌握現況，再依後續事項逐項進行。」

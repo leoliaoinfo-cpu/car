@@ -1,8 +1,8 @@
 import { openDB } from 'idb';
-import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
+import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys.js';
 
 const DB_NAME = CAR_DB_NAME;
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise = null;
 
@@ -86,6 +86,14 @@ function openRaw() {
           pr.createIndex('quoteId', 'quoteId');
           pr.createIndex('dealId', 'dealId');
         }
+        // v8：照片本體仍只放本機 photos；photoMeta 是可同步的小型 R2 索引，
+        // photoDeletes 是離線刪除佇列，讓其他已連上照片雲端的裝置也能代為清理。
+        if (!database.objectStoreNames.contains('photoMeta')) {
+          const pm = database.createObjectStore('photoMeta', { keyPath: 'id' });
+          pm.createIndex('clientId', 'clientId');
+        }
+        if (!database.objectStoreNames.contains('photoDeletes'))
+          database.createObjectStore('photoDeletes', { keyPath: 'id' });
       },
   });
 }
@@ -102,6 +110,7 @@ function getDB() {
 const ALL_STORES = [
   'clients', 'cats', 'stages', 'customFields',
   'deals', 'dealFields', 'pricingRecords', 'tasks', 'events',
+  'photoMeta', 'photoDeletes',
   'journalEntries', 'archivedJournal',
   'salaryMonths', 'timers', 'timerHistory', 'settings',
 ];
@@ -110,6 +119,7 @@ const ALL_STORES = [
 export const STORE_KEYS = {
   clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
   deals: 'id', dealFields: 'id', pricingRecords: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
+  photoMeta: 'id', photoDeletes: 'id',
   settings: 'key', salaryMonths: 'key',
   journalEntries: 'date', archivedJournal: 'date',
 };
@@ -211,6 +221,13 @@ export const db = {
     const database = await getDB();
     return database.getAllFromIndex('photos', 'clientId', clientId);
   },
+  async getAllPhotos() {
+    return (await getDB()).getAll('photos');
+  },
+  async getPhotoMeta(clientId) {
+    const database = await getDB();
+    return database.getAllFromIndex('photoMeta', 'clientId', clientId);
+  },
   async putPhoto(photo) {
     await (await getDB()).put('photos', photo);
     return photo;
@@ -225,6 +242,12 @@ export const db = {
     let cursor = await tx.store.index('clientId').openCursor(clientId);
     while (cursor) { await cursor.delete(); cursor = await cursor.continue(); }
     await tx.done;
+  },
+  /** 走標準 delete 留墓碑，防止其他裝置把已刪照片索引復活。 */
+  async deletePhotoMetaByClient(clientId) {
+    const rows = await db.getPhotoMeta(clientId);
+    for (const row of rows) await db.delete('photoMeta', row.id);
+    return rows;
   },
   /** 目前所有照片佔用的位元組數（供設定頁顯示已用空間） */
   async photosUsage() {

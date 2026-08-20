@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "car-photo-sync",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-14",
+  "vars": {
+    "ALLOWED_ORIGINS": "https://leoliaoinfo-cpu.github.io,http://localhost:5173,http://127.0.0.1:4173"
+  },
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "car-client-photos"
+    }
+  ]
+}

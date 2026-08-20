@@ -3,6 +3,7 @@ import {
 } from 'react';
 import { db, setOnBlocked } from './db';
 import { startSync, setOnRemoteApplied } from './sync';
+import { deleteClientPhotoData } from './photoSync';
 import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
   resolveQuotePresets, INDUSTRY_SUGGESTIONS,
@@ -311,7 +312,7 @@ export function AppProvider({ children }) {
   const deleteClient = useCallback(async (id) => {
     clientsRef.current = clientsRef.current.filter((c) => c.id !== id);
     await db.delete('clients', id);
-    await db.deletePhotosByClient(id).catch(() => {}); // 一併釋放照片佔用的空間
+    await deleteClientPhotoData(id).catch(() => db.deletePhotosByClient(id));
     dispatch({ type: 'DELETE_CLIENT', id });
     await cleanupClientLinks([id]);
   }, [cleanupClientLinks]);
@@ -323,7 +324,7 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_CLIENTS', ids });
     for (const id of ids) {
       await db.delete('clients', id);
-      await db.deletePhotosByClient(id).catch(() => {});
+      await deleteClientPhotoData(id).catch(() => db.deletePhotosByClient(id));
     }
     await cleanupClientLinks(set);
   }, [cleanupClientLinks]);

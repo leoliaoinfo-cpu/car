@@ -1,5 +1,6 @@
 import { db, STORE_KEYS, SYNCED_STORES, setMutationListener } from './db';
 import { STORAGE_KEYS } from './storageKeys';
+import { processPendingPhotoDeletes, uploadAllLocalPhotos } from './photoSync';
 
 /**
  * ☁️ 雲端同步引擎 —— 用使用者自己的 GitHub 私人 repo 當免費雲端資料庫。
@@ -190,6 +191,8 @@ export async function syncNow() {
       const at = new Date().toISOString();
       localStorage.setItem(LS_LAST, at);
       setStatus({ state: 'ok', lastSyncAt: at });
+      processPendingPhotoDeletes().catch(() => {});
+      uploadAllLocalPhotos().catch(() => {});
       break;
     }
   } catch (err) {
@@ -216,6 +219,7 @@ export function startSync() {
   clearInterval(pullTimer);
   pullTimer = setInterval(syncNow, PULL_INTERVAL_MS);
   document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onOnline);
   setStatus({ state: 'idle' });
   syncNow(); // 啟動先同步一次
 }
@@ -224,11 +228,16 @@ function onVisible() {
   if (document.visibilityState === 'visible') syncNow();
 }
 
+function onOnline() {
+  syncNow();
+}
+
 export function stopSync() {
   setMutationListener(null);
   clearTimeout(pushTimer);
   clearInterval(pullTimer);
   document.removeEventListener('visibilitychange', onVisible);
+  window.removeEventListener('online', onOnline);
   localStorage.removeItem(LS_TOKEN);
   localStorage.removeItem(LS_REPO);
   setStatus({ state: 'off', error: null });

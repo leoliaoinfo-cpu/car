@@ -1,2 +1,5 @@
 node_modules/
 dist/
+photo-worker/node_modules/
+photo-worker/.wrangler/
+photo-worker/.dev.vars

@@ -1,5 +1,7 @@
 # 一份看完就懂：貨車業務系統交接（給 Codex／新 AI）
 
+> 2026-08-20 最新狀態：瀏覽器資料已改用 `car_sales_assistant_v1` 與 `car-sales.*` 專屬命名；報價已支援單項／整單多筆優惠，DB v7 有獨立內部成本快照；照片跨裝置已確定採 Cloudflare R2，DB v8 只同步 `photoMeta`／`photoDeletes`，照片 Blob 不進 GitHub。下方較早的「照片尚待決策」敘述已被本段取代，完整細節以 `docs/HANDOFF.md` 最新段落為準。
+
 > **2026-08-20 重大修復：** `/car/` 與 `/TEST/` 同屬 `leoliaoinfo-cpu.github.io`
 > origin，瀏覽器資料不能只靠路徑隔離。汽車系統固定使用 IndexedDB
 > `car_sales_assistant_v1`、localStorage 前綴 `car-sales.`、cache 前綴
