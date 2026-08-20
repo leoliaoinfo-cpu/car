@@ -9,6 +9,7 @@ import {
 } from './utils/crm';
 import { today } from './utils/date';
 import dayjs from 'dayjs';
+import { STORAGE_KEYS } from './storageKeys';
 
 const AppContext = createContext(null);
 
@@ -216,9 +217,9 @@ export function AppProvider({ children }) {
         });
         // 每日一次資料保養：清過期墓碑與 30 天前完成的待辦/提醒（防同步檔長期膨脹）
         try {
-          const last = localStorage.getItem('housekeepAt');
+          const last = localStorage.getItem(STORAGE_KEYS.housekeepAt);
           if (!last || Date.now() - Date.parse(last) > 24 * 3600 * 1000) {
-            localStorage.setItem('housekeepAt', new Date().toISOString());
+            localStorage.setItem(STORAGE_KEYS.housekeepAt, new Date().toISOString());
             db.housekeep().catch(() => {});
           }
         } catch { /* noop */ }

@@ -1,6 +1,7 @@
 import { openDB } from 'idb';
+import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
 
-const DB_NAME = 'business_assistant_v2';
+const DB_NAME = CAR_DB_NAME;
 const DB_VERSION = 6;
 
 let dbPromise = null;
@@ -121,6 +122,43 @@ export function downloadJSON(data, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * 唯讀匯出事故前的共用資料庫，供人工拆分與救援。
+ * 絕不把內容自動搬進汽車系統，因為舊庫可能混有 /TEST/ 的不同產業資料。
+ * photos 的 Blob 另留在舊庫，不塞進 JSON；這裡只輸出照片 metadata 方便盤點。
+ */
+export async function downloadLegacySharedRescue() {
+  if (typeof indexedDB === 'undefined') throw new Error('瀏覽器不支援 IndexedDB');
+  if (typeof indexedDB.databases === 'function') {
+    const databases = await indexedDB.databases();
+    if (!databases.some((item) => item.name === LEGACY_SHARED_DB_NAME)) {
+      throw new Error('這台裝置沒有舊共用資料庫');
+    }
+  }
+
+  const legacy = await openDB(LEGACY_SHARED_DB_NAME);
+  try {
+    const stores = [...legacy.objectStoreNames];
+    const data = {
+      _v: 'shared-rescue-1',
+      exportedAt: new Date().toISOString(),
+      warning: '此檔可能混有 /car/ 與 /TEST/ 兩套系統資料，請勿直接整份匯入；需先人工拆分。',
+      sourceDatabase: LEGACY_SHARED_DB_NAME,
+      stores: {},
+    };
+    for (const store of stores) {
+      const rows = await legacy.getAll(store);
+      data.stores[store] = store === 'photos'
+        ? rows.map(({ blob, ...meta }) => ({ ...meta, blobOmitted: !!blob }))
+        : rows;
+    }
+    downloadJSON(data, `shared-data-rescue-${new Date().toISOString().slice(0, 10)}.json`);
+    return data;
+  } finally {
+    legacy.close();
+  }
 }
 
 export const db = {

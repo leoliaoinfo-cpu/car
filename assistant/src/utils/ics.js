@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from '../storageKeys';
+
 /**
  * 產生 .ics（iCalendar）檔，匯入 iPhone / Google 等系統行事曆後，
  * 靠手機原生的提醒準時通知——繞過網頁 App 無法背景推播的限制。
@@ -105,8 +107,8 @@ export function buildICS({ events = [], timers = [], clients = [] }) {
   return L.join('\r\n');
 }
 
-const LS_EXPORTED_AT = 'ics.exportedAt';
-const LS_SNOOZE_AT = 'ics.remindSnoozeAt';
+const LS_EXPORTED_AT = STORAGE_KEYS.icsExportedAt;
+const LS_SNOOZE_AT = STORAGE_KEYS.icsSnoozeAt;
 
 /** 產生並下載 .ics 檔；記錄匯出時間供「久沒匯出」提醒判斷。回傳事件筆數 */
 export function downloadICS({ events = [], timers = [], clients = [] }) {

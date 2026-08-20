@@ -16,7 +16,7 @@ export async function requestNotifyPermission() {
 
 export async function showSystemNotification(body) {
   if (notifyPermission() !== 'granted') return false;
-  const options = { body, tag: 'assistant-timer', icon: 'icon-192.png', badge: 'icon-192.png' };
+  const options = { body, tag: 'car-sales-assistant-timer', icon: 'icon-192.png', badge: 'icon-192.png' };
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
     if (reg) { await reg.showNotification('業務系統', options); return true; }
@@ -31,7 +31,7 @@ export async function registerPeriodicReminderCheck() {
     if (!reg || !('periodicSync' in reg)) return false;
     const perm = await navigator.permissions.query({ name: 'periodic-background-sync' });
     if (perm.state !== 'granted') return false;
-    await reg.periodicSync.register('check-reminders', { minInterval: 60 * 60 * 1000 });
+    await reg.periodicSync.register('car-sales-check-reminders', { minInterval: 60 * 60 * 1000 });
     return true;
   } catch { return false; }
 }

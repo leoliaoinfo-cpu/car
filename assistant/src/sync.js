@@ -1,4 +1,5 @@
 import { db, STORE_KEYS, SYNCED_STORES, setMutationListener } from './db';
+import { STORAGE_KEYS } from './storageKeys';
 
 /**
  * ☁️ 雲端同步引擎 —— 用使用者自己的 GitHub 私人 repo 當免費雲端資料庫。
@@ -12,9 +13,9 @@ import { db, STORE_KEYS, SYNCED_STORES, setMutationListener } from './db';
  * token 只存在本機 localStorage，不會進入同步資料。
  */
 
-const LS_TOKEN = 'sync.token';
-const LS_REPO = 'sync.repo';       // "owner/repo"
-const LS_LAST = 'sync.lastSyncAt'; // ISO 時間，僅顯示用
+const LS_TOKEN = STORAGE_KEYS.syncToken;
+const LS_REPO = STORAGE_KEYS.syncRepo;       // "owner/repo"
+const LS_LAST = STORAGE_KEYS.syncLastAt;     // ISO 時間，僅顯示用
 const FILE_PATH = 'data.json';
 const API = 'https://api.github.com';
 const PULL_INTERVAL_MS = 60_000;

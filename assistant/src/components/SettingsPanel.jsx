@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { db, downloadJSON } from '../db';
+import { db, downloadJSON, downloadLegacySharedRescue } from '../db';
 import { useApp } from '../context';
 import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS } from '../utils/crm';
 import {
@@ -12,6 +12,7 @@ import {
 } from '../notify';
 import { Field } from './ui';
 import { sha256Hex } from '../utils/lock';
+import { STORAGE_KEYS } from '../storageKeys';
 
 const HELP_CARDS = [
   { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
@@ -89,13 +90,13 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
   const [status, setStatus] = useState('');
   const [pendingImport, setPendingImport] = useState(null); // { data, summary }
   const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('theme') || 'dark'; } catch { return 'dark'; }
+    try { return localStorage.getItem(STORAGE_KEYS.theme) || 'dark'; } catch { return 'dark'; }
   });
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
-    try { localStorage.setItem('theme', next); } catch { /* 隱私模式忽略 */ }
+    try { localStorage.setItem(STORAGE_KEYS.theme, next); } catch { /* 隱私模式忽略 */ }
     document.documentElement.classList.toggle('dark', next === 'dark');
   }
   const fileRef = useRef(null);
@@ -108,6 +109,15 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
       setStatus('✅ 備份下載成功');
     } catch (e) {
       setStatus('❌ 備份失敗：' + e.message);
+    }
+  }
+
+  async function handleLegacyRescue() {
+    try {
+      await downloadLegacySharedRescue();
+      setStatus('✅ 舊共用資料救援檔已下載；檔案可能混有兩套系統，請勿直接整份匯入');
+    } catch (e) {
+      setStatus('❌ 無法下載舊共用資料：' + e.message);
     }
   }
 
@@ -231,6 +241,14 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
                 <button onClick={() => legacyRef.current?.click()} className="btn-outline text-sm">匯入舊版 JSON</button>
                 <input ref={legacyRef} type="file" accept=".json" className="hidden" onChange={handleLegacyImport} />
                 <p className="text-xs text-ink-3">支援格式：{'{ _v:1, crm, jnl, sal }'}</p>
+              </div>
+              <div className="card p-4 space-y-3 border border-danger/30">
+                <h3 className="font-semibold text-danger text-sm">事故資料救援（唯讀）</h3>
+                <p className="text-xs text-ink-2 leading-relaxed">
+                  下載修復前共用資料庫的盤點檔。舊資料不會被刪除；因可能混有汽車與 TEST 兩套資料，
+                  <strong>請勿直接整份匯入</strong>，交由工程人員拆分後再恢復。
+                </p>
+                <button onClick={handleLegacyRescue} className="btn-outline text-sm">⬇️ 下載舊共用資料救援檔</button>
               </div>
             </section>
           )}

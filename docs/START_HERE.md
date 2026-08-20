@@ -1,5 +1,11 @@
 # 一份看完就懂：貨車業務系統交接（給 Codex／新 AI）
 
+> **2026-08-20 重大修復：** `/car/` 與 `/TEST/` 同屬 `leoliaoinfo-cpu.github.io`
+> origin，瀏覽器資料不能只靠路徑隔離。汽車系統固定使用 IndexedDB
+> `car_sales_assistant_v1`、localStorage 前綴 `car-sales.`、cache 前綴
+> `car-sales-assistant-`。舊共用庫 `business_assistant_v2` 可能混有兩套產業資料，
+> 只准下載救援檔後人工拆分，禁止自動搬入新庫。
+
 > ⚠️ 重要：這份檔案只是「說明與進度」，方便快速了解狀況。
 > **要真正接手改程式，Codex 必須連到 GitHub repo `leoliaoinfo-cpu/car`、分支 `claude/car-sales-handoff-sht2ks`**（程式碼在那裡，這份文件裡沒有程式碼）。
 

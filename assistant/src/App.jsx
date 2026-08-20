@@ -8,6 +8,7 @@ import DealsPage from './components/deals/DealsPage';
 import SettingsPanel from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import TimerModal from './components/TimerModal';
+import { STORAGE_KEYS } from './storageKeys';
 
 // ── Error Boundary — 任何子元件炸掉都能顯示有意義的訊息 ──────────────────────
 class ErrorBoundary extends Component {
@@ -52,6 +53,14 @@ function AppInner() {
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [showDeals, setShowDeals] = useState(false); // 業績表（從設定經密碼解鎖後開啟）
   const [crmFocusId, setCrmFocusId] = useState(null);
+  const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.isolationNoticeDismissed) !== '1'; } catch { return true; }
+  });
+
+  function dismissIsolationNotice() {
+    setShowIsolationNotice(false);
+    try { localStorage.setItem(STORAGE_KEYS.isolationNoticeDismissed, '1'); } catch { /* noop */ }
+  }
 
   function openClient(id) {
     setCrmFocusId(id);
@@ -85,6 +94,18 @@ function AppInner() {
         <div className="bg-danger/10 border-b border-danger/30 px-4 py-1.5 text-xs text-danger">
           ⚠️ 無法存取瀏覽器儲存空間，目前的變動<strong>不會被保存</strong>。
           若使用無痕/私密瀏覽請改用一般模式；一般模式下仍出現請截圖回報。
+        </div>
+      )}
+
+      {showIsolationNotice && (
+        <div className="bg-accent/10 border-b border-accent/30 px-4 py-2.5 text-xs text-ink-2 flex items-start gap-3">
+          <div className="flex-1 leading-relaxed">
+            <strong className="text-accent">✅ 汽車系統已改用獨立儲存空間。</strong>
+            舊的共用資料沒有刪除。若此頁暫時沒有汽車資料，請到「設定 → 備份還原」匯入汽車系統專用備份，
+            或到「雲端同步」重新連線汽車系統專用的私人 repo；不要直接匯入混合救援檔。
+          </div>
+          <button onClick={() => setShowSettings(true)} className="btn-outline text-[11px] shrink-0">開啟設定</button>
+          <button onClick={dismissIsolationNotice} className="text-ink-3 text-lg leading-none shrink-0" aria-label="關閉提示">×</button>
         </div>
       )}
 

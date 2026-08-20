@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useApp } from '../../context';
+import { STORAGE_KEYS } from '../../storageKeys';
 import {
   getClientStatus, clientMatchesFilter, sortClients,
   CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId, findDuplicateClient,
@@ -71,12 +72,12 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
   // 檢視模式：列表 / 看板（桌面限定，記住上次選擇）
   const isDesktop = useIsDesktop();
   const [view, setView] = useState(() => {
-    try { return localStorage.getItem('crmView') === 'board' ? 'board' : 'list'; } catch { return 'list'; }
+    try { return localStorage.getItem(STORAGE_KEYS.crmView) === 'board' ? 'board' : 'list'; } catch { return 'list'; }
   });
   const effectiveView = isDesktop && view === 'board' ? 'board' : 'list';
   function changeView(v) {
     setView(v);
-    try { localStorage.setItem('crmView', v); } catch { /* noop */ }
+    try { localStorage.setItem(STORAGE_KEYS.crmView, v); } catch { /* noop */ }
   }
 
   // 批次選取模式（清理老舊名單用）

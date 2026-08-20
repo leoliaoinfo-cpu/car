@@ -3,14 +3,17 @@
  * 2. 到期提醒通知：periodic background sync（Android 安裝後可背景檢查）
  *    ＋接收頁面訊息顯示系統通知（頁面開著時所有平台通用）
  */
-const CACHE = 'assistant-v3';
+const CACHE_PREFIX = 'car-sales-assistant-';
+const CACHE = `${CACHE_PREFIX}v4`;
+const DB_NAME = 'car_sales_assistant_v1';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     // 清掉舊版快取（更名、換圖示後不留殘影）
     const keys = await caches.keys();
-    await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    // 只清本系統自己的舊快取；不可刪同網域 /TEST/ 等其他系統的 cache。
+    await Promise.all(keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE).map((k) => caches.delete(k)));
     await self.clients.claim();
   })());
 });
@@ -36,7 +39,7 @@ function countDueTimers() {
     let db = null;
     const done = (n) => { try { db?.close(); } catch { /* noop */ } resolve(n); };
     try {
-      const open = indexedDB.open('business_assistant_v2');
+      const open = indexedDB.open(DB_NAME);
       open.onsuccess = () => {
         db = open.result;
         try {
@@ -58,14 +61,14 @@ function countDueTimers() {
 function showReminder(count) {
   return self.registration.showNotification('業務系統', {
     body: `您有 ${count} 則提醒到期`,
-    tag: 'assistant-timer',
+    tag: 'car-sales-assistant-timer',
     icon: 'icon-192.png',
     badge: 'icon-192.png',
   });
 }
 
 self.addEventListener('periodicsync', (e) => {
-  if (e.tag !== 'check-reminders') return;
+  if (e.tag !== 'car-sales-check-reminders') return;
   e.waitUntil(countDueTimers().then((n) => (n > 0 ? showReminder(n) : undefined)));
 });
 

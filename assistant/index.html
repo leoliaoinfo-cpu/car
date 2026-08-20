@@ -15,7 +15,7 @@
     <script>
       // 在 React 載入前套用主題，避免閃色（預設深色）
       try {
-        var t = localStorage.getItem('theme') || 'dark';
+        var t = localStorage.getItem('car-sales.theme') || 'dark';
         if (t === 'dark') document.documentElement.classList.add('dark');
       } catch (e) {}
     </script>

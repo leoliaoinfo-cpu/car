@@ -1,5 +1,11 @@
 # 汽車銷售業務系統 — 交接文件（給新對話/新環境接手用）
 
+> **2026-08-20 重大修復：瀏覽器儲存已永久隔離。** GitHub Pages 的 `/car/` 與
+> `/TEST/` 路徑仍屬同一個 origin，不能共用 IndexedDB/localStorage/CacheStorage 名稱。
+> 汽車系統現在固定使用 IndexedDB `car_sales_assistant_v1`、localStorage 前綴
+> `car-sales.`、cache 前綴 `car-sales-assistant-`。舊共用庫 `business_assistant_v2`
+> 只准唯讀救援，**不可自動遷移**，因內容可能已混有兩套不同產業資料。
+
 > 把這份文件連同原始碼交給任何 AI 或工程師，即可完整接手開發。
 > 最新程式碼在 GitHub：`leoliaoinfo-cpu/car` 分支 `claude/car-sales-handoff-sht2ks`（自舊 repo `leoliaoinfo-cpu/TEST` 分支 `claude/caravan-truck-business-system-ul6st3` commit `95d5021` 遷移而來）。
 
@@ -11,7 +17,7 @@
 
 - **前端**：React 18 + Vite（`vite-plugin-singlefile` 打包成單一 `dist/index.html`，離線可用、雙擊可開）
 - **樣式**：Tailwind CSS 3，主題色全走 CSS 變數（`--c-*`，RGB channel 形式支援 alpha），深/淺雙主題
-- **儲存**：瀏覽器 IndexedDB（`idb` 套件），資料庫名 `business_assistant_v2`，目前 DB_VERSION = 4；**無後端**
+- **儲存**：瀏覽器 IndexedDB（`idb` 套件），汽車系統專用資料庫名 `car_sales_assistant_v1`；**無後端**
 - **雲端同步**（選用）：`src/sync.js`——用使用者自己的 GitHub 私人 repo 存 `data.json`；`db.put` 自動蓋 `_ts`、`db.delete` 寫 tombstones（v4 新 store），逐筆 LWW 合併＋墓碑防復活，sha CAS 防互蓋；token 只存 localStorage（`sync.token`/`sync.repo`）。變動防抖 4 秒自動推、60 秒輪詢＋visibilitychange 自動拉
 - **日期**：dayjs（zh-tw locale）
 - **主程式目錄**：`assistant/`；啟動 `cd assistant && npm ci && npm run dev`；打包 `npm run build`
@@ -107,7 +113,7 @@ npm run preview -- --port 4173 &
 ## 八、部署現況與注意
 
 - GitHub：`leoliaoinfo-cpu/car`（本系統專屬 repo），開發分支 `claude/car-sales-handoff-sht2ks`
-- GitHub Pages：deploy.yml 已改為部署本 repo（push 到 main 或開發分支即建置部署，Pages 網址獨立）。舊 repo `leoliaoinfo-cpu/TEST` 的 Pages 由使用者另一個系統使用，與本 repo 無關、不可去動
+- GitHub Pages：deploy.yml 已改為部署本 repo（push 到 main 或開發分支即建置部署）。`/car/` 與 `/TEST/` 雖是不同路徑，瀏覽器儲存仍共享同一 origin，因此所有儲存鍵必須維持上述專屬命名空間。舊 repo `leoliaoinfo-cpu/TEST` 的 Pages 由使用者另一個系統使用，不可去動
 - 單檔 `dist/index.html` 可直接給使用者雙擊使用
 
 ## 九、路線圖（未做）
