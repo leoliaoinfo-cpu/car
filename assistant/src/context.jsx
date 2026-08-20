@@ -10,6 +10,7 @@ import {
 import { today } from './utils/date';
 import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
+import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
 
 const AppContext = createContext(null);
 
@@ -46,10 +47,12 @@ const initialState = {
   customFields: [],
   deals: [],
   dealFields: DEFAULT_DEAL_FIELDS,
+  pricingRecords: [],
   tasks: [],
   events: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
   quotePresets: DEFAULT_QUOTE_PRESETS,
+  costCatalog: EMPTY_COST_CATALOG,
   industries: INDUSTRY_SUGGESTIONS,
   timers: [],
   thresholds: DEFAULT_THRESHOLDS,
@@ -102,6 +105,15 @@ function reducer(state, action) {
       return { ...state, deals: state.deals.filter((d) => d.id !== action.id) };
     case 'SET_DEAL_FIELDS':
       return { ...state, dealFields: action.payload };
+    case 'UPSERT_PRICING_RECORD': {
+      const idx = state.pricingRecords.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.pricingRecords];
+      if (idx === -1) next.push(action.payload);
+      else next[idx] = action.payload;
+      return { ...state, pricingRecords: next };
+    }
+    case 'DELETE_PRICING_RECORD':
+      return { ...state, pricingRecords: state.pricingRecords.filter((row) => row.id !== action.id) };
 
     // Tasks（中央待辦）
     case 'UPSERT_TASK': {
@@ -129,6 +141,8 @@ function reducer(state, action) {
       return { ...state, todoTemplate: action.payload };
     case 'SET_QUOTE_PRESETS':
       return { ...state, quotePresets: action.payload };
+    case 'SET_COST_CATALOG':
+      return { ...state, costCatalog: action.payload };
     case 'SET_INDUSTRIES':
       return { ...state, industries: action.payload };
 
@@ -180,19 +194,21 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, tasks, events, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
           db.getAll('customFields'),
           db.getAll('deals'),
           db.getAll('dealFields'),
+          db.getAll('pricingRecords'),
           db.getAll('tasks'),
           db.getAll('events'),
           db.getAll('timers'),
           db.get('settings', 'crmThresholds').catch(() => null),
           db.get('settings', 'todoTemplate').catch(() => null),
           db.get('settings', 'quotePresets').catch(() => null),
+          db.get('settings', 'costCatalog').catch(() => null),
           db.get('settings', 'industries').catch(() => null),
         ]);
 
@@ -208,10 +224,11 @@ export function AppProvider({ children }) {
           type: 'LOAD_INIT',
           payload: {
             clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, tasks, events, timers,
+            deals, dealFields: resolvedDealFields, pricingRecords, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: resolveQuotePresets(presetsRow),
+            costCatalog: normalizeCostCatalog(costCatalogRow),
             industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
           },
         });
@@ -266,7 +283,11 @@ export function AppProvider({ children }) {
   /** 刪除客戶時一併清除其關聯的行事曆活動與未完成提醒，避免日曆留下孤兒項目 */
   const cleanupClientLinks = useCallback(async (idSet) => {
     const set = idSet instanceof Set ? idSet : new Set(idSet);
-    const [evs, tms] = await Promise.all([db.getAll('events'), db.getAll('timers')]);
+    const [evs, tms, pricing] = await Promise.all([
+      db.getAll('events'),
+      db.getAll('timers'),
+      db.getAll('pricingRecords').catch(() => []),
+    ]);
     for (const e of evs) {
       if (e.clientId && set.has(e.clientId)) {
         await db.delete('events', e.id);
@@ -277,6 +298,12 @@ export function AppProvider({ children }) {
       if (t.clientId && set.has(t.clientId) && !t.confirmedAt) {
         await db.delete('timers', t.id);
         dispatch({ type: 'DELETE_TIMER', id: t.id });
+      }
+    }
+    for (const record of pricing) {
+      if (record.clientId && set.has(record.clientId)) {
+        await db.delete('pricingRecords', record.id);
+        dispatch({ type: 'DELETE_PRICING_RECORD', id: record.id });
       }
     }
   }, []);
@@ -336,12 +363,25 @@ export function AppProvider({ children }) {
   const deleteDeal = useCallback(async (id) => {
     dispatch({ type: 'DELETE_DEAL', id });
     await db.delete('deals', id);
+    await db.delete('pricingRecords', `deal:${id}`).catch(() => {});
+    dispatch({ type: 'DELETE_PRICING_RECORD', id: `deal:${id}` });
   }, []);
 
   const saveDealFields = useCallback(async (fields) => {
     dispatch({ type: 'SET_DEAL_FIELDS', payload: fields });
     await overwriteStore('dealFields', fields);
   }, [overwriteStore]);
+
+  const savePricingRecord = useCallback(async (record) => {
+    dispatch({ type: 'UPSERT_PRICING_RECORD', payload: record });
+    await db.put('pricingRecords', record);
+    return record;
+  }, []);
+
+  const deletePricingRecord = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_PRICING_RECORD', id });
+    await db.delete('pricingRecords', id);
+  }, []);
 
   // ── Tasks（中央待辦）──────────────────────────────────────────────────────
   const saveTask = useCallback(async (task) => {
@@ -381,6 +421,13 @@ export function AppProvider({ children }) {
     await db.put('settings', { key: 'quotePresets', ...presets }).catch(() => {});
   }, []);
 
+  const saveCostCatalog = useCallback(async (catalog) => {
+    const normalized = normalizeCostCatalog(catalog);
+    dispatch({ type: 'SET_COST_CATALOG', payload: normalized });
+    await db.put('settings', normalized);
+    return normalized;
+  }, []);
+
   // ── 產業選項（設定頁可增刪排序；客戶表單下拉選單與側欄篩選共用）──────────
   const saveIndustries = useCallback(async (items) => {
     dispatch({ type: 'SET_INDUSTRIES', payload: items });
@@ -407,19 +454,21 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, tasks, events, timers, thresholdRow, templateRow, presetsRow, industriesRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
       db.getAll('customFields'),
       db.getAll('deals'),
       db.getAll('dealFields'),
+      db.getAll('pricingRecords'),
       db.getAll('tasks'),
       db.getAll('events'),
       db.getAll('timers'),
       db.get('settings', 'crmThresholds').catch(() => null),
       db.get('settings', 'todoTemplate').catch(() => null),
       db.get('settings', 'quotePresets').catch(() => null),
+      db.get('settings', 'costCatalog').catch(() => null),
       db.get('settings', 'industries').catch(() => null),
     ]);
     dispatch({
@@ -431,12 +480,14 @@ export function AppProvider({ children }) {
         customFields,
         deals,
         dealFields: dealFields.length > 0 ? dealFields : DEFAULT_DEAL_FIELDS,
+        pricingRecords,
         tasks,
         events,
         timers,
         thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
         quotePresets: resolveQuotePresets(presetsRow),
+        costCatalog: normalizeCostCatalog(costCatalogRow),
         industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
       },
     });
@@ -456,12 +507,15 @@ export function AppProvider({ children }) {
     saveDeal,
     deleteDeal,
     saveDealFields,
+    savePricingRecord,
+    deletePricingRecord,
     saveTask,
     deleteTask,
     saveEvent,
     deleteEvent,
     saveTodoTemplate,
     saveQuotePresets,
+    saveCostCatalog,
     saveIndustries,
     saveThresholds,
     saveTimer,

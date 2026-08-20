@@ -171,7 +171,7 @@ function AppInner() {
       {showDeals && (
         <div className="fixed inset-0 z-50 bg-bg overflow-y-auto anim-fade-in">
           <div className="sticky top-0 z-10 flex items-center justify-between bg-s1 border-b border-bdr px-4 h-14">
-            <span className="font-bold text-accent text-base">📈 業績表</span>
+            <span className="font-bold text-accent text-base">📈 內部業績與成本</span>
             <button onClick={() => setShowDeals(false)} className="btn-ghost gap-1.5 text-sm">✕ 關閉</button>
           </div>
           <DealsPage onOpenClient={(id) => { setShowDeals(false); openClient(id); }} />

@@ -6,6 +6,10 @@ import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
+import {
+  buildPricingRecord, calculateQuoteTotals, normalizeDiscount, normalizeQuoteItems,
+  pricingSafetyStatus,
+} from '../../utils/pricing';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -43,14 +47,30 @@ function shortHash(str) {
  * 新增模式（quote=null）會把總額寫入客戶時間軸；傳入既有 quote 則為編輯模式。
  */
 export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
-  const { quotePresets } = useApp();
+  const { quotePresets, costCatalog, pricingRecords } = useApp();
   const isEdit = !!quote;
+  const [quoteId] = useState(() => quote?.id || generateId('quote'));
+  const normalizedInitial = normalizeQuoteItems(quote?.items || []);
   const [model, setModel] = useState(quote?.model || '');
+  const [modelId, setModelId] = useState(() => quote?.modelId
+    || quotePresets.models?.find((row) => row.name === quote?.model)?.id
+    || null);
   const [items, setItems] = useState(() =>
-    quote?.items?.length
-      ? quote.items.map((it) => ({ ...it, price: String(it.price) }))
-      : [{ id: generateId('qi'), name: '車輛售價', price: '' }]
+    normalizedInitial.items.length
+      ? normalizedInitial.items.map((it) => ({
+        ...it,
+        price: String(it.price),
+        discounts: (it.discounts || []).map((row) => ({ ...row, amount: String(row.amount) })),
+      }))
+      : [{ id: generateId('qi'), name: '車輛售價', price: '', kind: 'vehicle', catalogId: null, discounts: [] }]
   );
+  const [generalDiscounts, setGeneralDiscounts] = useState(() => [
+    ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
+    ...normalizedInitial.legacyDiscounts,
+  ].map((row) => {
+    const normalized = normalizeDiscount(row);
+    return { ...normalized, amount: String(normalized.amount) };
+  }));
   const [note, setNote] = useState(quote?.note || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
@@ -85,9 +105,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     db.put('settings', { key: 'quoteProfile', ...next }).catch(() => {});
   }
 
-  const total = items.reduce((s, it) => s + (Number(it.price) || 0), 0);
-  // 補助折抵為負數項目，一併列入
-  const validItems = items.filter((it) => it.name.trim() && Number(it.price) !== 0);
+  const validItems = items.filter((it) => it.name.trim() && Number(it.price) > 0);
+  const validGeneralDiscounts = generalDiscounts
+    .filter((row) => row.name.trim() && Number(row.amount) > 0);
+  const totals = calculateQuoteTotals(validItems, validGeneralDiscounts);
+  const total = totals.total;
 
   // 報價單編號：由日期＋此單 id 推導（同一張單編號固定，看起來更正式）
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
@@ -104,10 +126,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
     setModel(m.name);
+    setModelId(m.id);
     setItems((list) => {
-      const idx = list.findIndex((it) => it.name.trim() === '車輛售價');
-      if (idx !== -1) return list.map((it, i) => (i === idx ? { ...it, price: String(m.price) } : it));
-      return [{ id: generateId('qi'), name: '車輛售價', price: String(m.price) }, ...list];
+      const idx = list.findIndex((it) => it.kind === 'vehicle' || it.name.trim() === '車輛售價');
+      if (idx !== -1) return list.map((it, i) => (i === idx ? {
+        ...it, name: '車輛售價', price: String(m.price), kind: 'vehicle', catalogId: m.id,
+      } : it));
+      return [{
+        id: generateId('qi'), name: '車輛售價', price: String(m.price),
+        kind: 'vehicle', catalogId: m.id, discounts: [],
+      }, ...list];
     });
   }
 
@@ -115,12 +143,12 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const isPicked = (name) => items.some((it) => it.name.trim() === name);
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
-  function toggleLine({ name, price, group }) {
+  function toggleLine({ id: catalogId, name, price, group }) {
     setItems((list) => {
-      const picked = list.some((it) => it.name.trim() === name);
+      const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
       if (picked) {
-        const next = list.filter((it) => it.name.trim() !== name);
-        return next.length ? next : [{ id: generateId('qi'), name: '', price: '' }];
+        const next = list.filter((it) => it.catalogId !== catalogId && it.name.trim() !== name);
+        return next.length ? next : [{ id: generateId('qi'), name: '', price: '', kind: 'other', catalogId: null, discounts: [] }];
       }
       let base = list;
       if (group) {
@@ -128,8 +156,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
         base = list.filter((it) => !siblings.includes(it.name.trim()));
       }
       const emptyIdx = base.findIndex((it) => !it.name.trim() && !Number(it.price));
-      if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, name, price: String(price) } : it));
-      return [...base, { id: generateId('qi'), name, price: String(price) }];
+      const value = { name, price: String(price), kind: 'addon', catalogId, discounts: [] };
+      if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, ...value } : it));
+      return [...base, { id: generateId('qi'), ...value }];
     });
   }
 
@@ -138,17 +167,114 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   }
 
   function addItem() {
-    setItems((list) => [...list, { id: generateId('qi'), name: '', price: '' }]);
+    setItems((list) => [...list, {
+      id: generateId('qi'), name: '', price: '', kind: 'other', catalogId: null, discounts: [],
+    }]);
   }
 
   function removeItem(id) {
     setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== id) : list));
   }
 
+  function addItemDiscount(itemId) {
+    setItems((list) => list.map((item) => (item.id === itemId ? {
+      ...item,
+      discounts: [...(item.discounts || []), { id: generateId('discount'), name: '專案優惠', amount: '' }],
+    } : item)));
+  }
+
+  function setItemDiscount(itemId, discountId, patch) {
+    setItems((list) => list.map((item) => {
+      if (item.id !== itemId) return item;
+      let nextPatch = patch;
+      if (Object.prototype.hasOwnProperty.call(patch, 'amount')) {
+        const other = (item.discounts || []).filter((row) => row.id !== discountId)
+          .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+        const max = Math.max(0, (Number(item.price) || 0) - other);
+        nextPatch = { ...patch, amount: String(Math.min(max, Math.max(0, Number(patch.amount) || 0))) };
+      }
+      return {
+        ...item,
+        discounts: (item.discounts || []).map((row) => (row.id === discountId ? { ...row, ...nextPatch } : row)),
+      };
+    }));
+  }
+
+  function removeItemDiscount(itemId, discountId) {
+    setItems((list) => list.map((item) => (item.id === itemId
+      ? { ...item, discounts: (item.discounts || []).filter((row) => row.id !== discountId) }
+      : item)));
+  }
+
+  function addGeneralDiscount(row = null) {
+    const value = row ? normalizeDiscount(row) : { name: '整單優惠', amount: 0 };
+    setGeneralDiscounts((list) => [...list, {
+      id: generateId('discount'), name: value.name, amount: value.amount ? String(value.amount) : '',
+    }]);
+  }
+
+  function setGeneralDiscount(id, patch) {
+    setGeneralDiscounts((list) => list.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }
+
+  function removeGeneralDiscount(id) {
+    setGeneralDiscounts((list) => list.filter((row) => row.id !== id));
+  }
+
+  function makeQuotePayload() {
+    return {
+      id: quoteId,
+      clientId: client?.id || null,
+      date: quote?.date || dayjs().format('YYYY-MM-DD'),
+      model: model.trim(),
+      modelId,
+      items: validItems.map((it) => ({
+        id: it.id,
+        catalogId: it.catalogId || null,
+        kind: it.kind || 'other',
+        name: it.name.trim(),
+        price: Number(it.price) || 0,
+        discounts: (it.discounts || [])
+          .filter((row) => row.name.trim() && Number(row.amount) > 0)
+          .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
+      })),
+      generalDiscounts: validGeneralDiscounts.map((row) => ({
+        id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0,
+      })),
+      originalTotal: totals.originalTotal,
+      itemDiscountTotal: totals.itemDiscountTotal,
+      generalDiscountTotal: totals.generalDiscountTotal,
+      discountTotal: totals.discountTotal,
+      total,
+      note: note.trim(),
+      loan: { down: effectiveDown, months: selMonths, rate: annualRate },
+      text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
+    };
+  }
+
+  function pricingForCurrentQuote() {
+    const draft = makeQuotePayload();
+    const existing = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
+    return buildPricingRecord({ quote: draft, costCatalog, existing });
+  }
+
+  function confirmPricingSafety() {
+    const pricing = pricingForCurrentQuote();
+    const status = pricingSafetyStatus(pricing);
+    if (status === 'incomplete') {
+      return window.confirm('內部提醒：部分項目的成本尚未設定，現在無法完整確認是否低於成本。仍要繼續嗎？');
+    }
+    if (status === 'belowCost') {
+      return window.confirm('內部警告：這張報價已低於設定成本。請再次確認，仍要繼續嗎？');
+    }
+    return true;
+  }
+
   // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
   async function downloadImage() {
     const src = previewRef.current;
     if (!src || capturing) return;
+    if (!confirmPricingSafety()) return;
     setCapturing(true);
     // 複製一份到畫面外、完整展開（脫離捲動容器），避免 html2canvas 裁掉底部
     const clone = src.cloneNode(true);
@@ -188,21 +314,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   }
 
   async function handleRecord() {
-    await onSaveQuote({
-      id: quote?.id || generateId('quote'),
-      date: quote?.date || dayjs().format('YYYY-MM-DD'),
-      model: model.trim(),
-      items: validItems.map((it) => ({ id: it.id, name: it.name.trim(), price: Number(it.price) })),
-      note: note.trim(),
-      total,
-      loan: {
-        down: effectiveDown,
-        months: selMonths,
-        rate: annualRate, // 年利率（設定帶入，報價單不顯示）
-      },
-      text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
-    });
+    if (!confirmPricingSafety()) return;
+    const payload = makeQuotePayload();
+    await onSaveQuote({ ...payload, _pricingRecord: pricingForCurrentQuote() });
   }
+
+  const previewGroups = [
+    { key: 'vehicle', label: '車輛', rows: validItems.filter((item) => item.kind === 'vehicle') },
+    { key: 'addon', label: '專屬改裝', rows: validItems.filter((item) => item.kind === 'addon') },
+    { key: 'other', label: '其他費用', rows: validItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon') },
+  ].filter((group) => group.rows.length > 0);
 
   return (
     <>
@@ -222,7 +343,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           <div className="space-y-2 mb-4">
             <Field label="車型">
               <div className="flex gap-2">
-                <input value={model} onChange={(e) => setModel(e.target.value)}
+                <input value={model} onChange={(e) => { setModel(e.target.value); setModelId(null); }}
                   placeholder="例：單廂三人座 手排六速" className="flex-1 min-w-0 text-sm" />
                 {quotePresets.models?.length > 0 && (
                   <select
@@ -280,7 +401,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                                   <span className="text-xs font-bold shrink-0" style={{ color }}>{formatMoney(a.price)}</span>
                                 </div>
                                 {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
-                                <button type="button" onClick={() => toggleLine({ name: a.name, price: Number(a.price) || 0, group: a.group })}
+                                <button type="button" onClick={() => toggleLine(a)}
                                   className="text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors"
                                   style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
                                   {picked ? '✓ 已加入' : '＋ 加入報價'}
@@ -295,7 +416,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                             const picked = isPicked(a.name);
                             return (
                               <button key={a.id} type="button" title={a.desc || ''}
-                                onClick={() => toggleLine({ name: a.name, price: Number(a.price) || 0, group: a.group })}
+                                onClick={() => toggleLine(a)}
                                 className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors"
                                 style={picked
                                   ? { background: color, borderColor: color, color: '#fff' }
@@ -313,22 +434,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 })}
               </div>
             )}
-            {/* 補助折抵快選（負數帶入；已選反白） */}
+            {/* 整單優惠範本：加入後才出現可編輯欄位 */}
             {quotePresets.subsidies.length > 0 && (
               <div className="flex gap-1.5 flex-wrap items-center">
-                <span className="text-[11px] text-ink-3 shrink-0">🏛 補助折抵：</span>
-                {quotePresets.subsidies.map((s) => {
-                  const picked = isPicked(s.name);
-                  return (
-                    <button key={s.id} type="button"
-                      onClick={() => toggleLine({ name: s.name, price: -(Math.abs(Number(s.amount) || 0)) })}
-                      className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors ${
-                        picked ? 'bg-ok text-white border-ok' : 'text-ok border-ok/40 hover:bg-ok/10'}`}>
-                      {picked && <span>✓</span>}
-                      {s.name} -{formatMoney(Math.abs(s.amount))}
-                    </button>
-                  );
-                })}
+                <span className="text-[11px] text-ink-3 shrink-0">🏷 優惠範本：</span>
+                {quotePresets.subsidies.map((s) => (
+                  <button key={s.id} type="button" onClick={() => addGeneralDiscount(s)}
+                    className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border text-ok border-ok/40 hover:bg-ok/10">
+                    ＋ {s.name} -{formatMoney(Math.abs(s.amount))}
+                  </button>
+                ))}
               </div>
             )}
             <div className="flex gap-2 text-[11px] font-medium text-ink-3">
@@ -336,18 +451,78 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               <span className="w-28">金額（元）</span>
               <span className="w-4" />
             </div>
-            {items.map((it) => (
-              <div key={it.id} className="flex gap-2">
-                <input value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value })}
-                  placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
-                <input type="number" min="0" value={it.price}
-                  onChange={(e) => setItem(it.id, { price: e.target.value })}
-                  className="w-28 text-sm" />
-                <button onClick={() => removeItem(it.id)}
-                  className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
-              </div>
-            ))}
+            {items.map((it) => {
+              const selected = it.name.trim() && Number(it.price) > 0;
+              const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+              return (
+                <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
+                  <div className="flex gap-2">
+                    <input value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value })}
+                      placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
+                    <input type="number" min="0" value={it.price}
+                      onChange={(e) => setItem(it.id, { price: e.target.value })}
+                      className="w-28 text-sm" />
+                    <button onClick={() => removeItem(it.id)}
+                      className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
+                  </div>
+                  {selected && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-ink-3">
+                        {(it.discounts || []).length > 0
+                          ? `已優惠 ${formatMoney(discountSum)}・折後 ${formatMoney(Math.max(0, Number(it.price) - discountSum))}`
+                          : '此項目目前沒有優惠'}
+                      </span>
+                      <button type="button" onClick={() => addItemDiscount(it.id)}
+                        className="text-[11px] text-accent hover:bg-accent/10 rounded-lg px-2 py-1 shrink-0">
+                        ＋ 新增優惠折扣
+                      </button>
+                    </div>
+                  )}
+                  {(it.discounts || []).length > 0 && (
+                    <div className="space-y-1.5 border-l-2 border-ok/40 pl-2">
+                      {it.discounts.map((discount) => (
+                        <div key={discount.id} className="flex gap-2 items-center">
+                          <input value={discount.name}
+                            onChange={(e) => setItemDiscount(it.id, discount.id, { name: e.target.value })}
+                            placeholder="優惠名稱" className="flex-1 text-xs min-w-0" />
+                          <input type="number" min="0" value={discount.amount}
+                            onChange={(e) => setItemDiscount(it.id, discount.id, { amount: e.target.value })}
+                            placeholder="折扣金額" className="w-28 text-xs" />
+                          <button type="button" onClick={() => removeItemDiscount(it.id, discount.id)}
+                            className="text-danger/50 hover:text-danger px-1">✕</button>
+                        </div>
+                      ))}
+                      <p className="text-[10px] text-ink-3">單項優惠合計不會超過此項目售價；更多折扣請放到下方整單優惠。</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <button onClick={addItem} className="btn-outline text-xs">＋ 新增項目</button>
+
+            <div className="bg-ok/5 border border-ok/25 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-ink-2">🏷 總優惠折扣區</p>
+                  <p className="text-[10px] text-ink-3">放不屬於單一項目的活動、補助或整單折抵。</p>
+                </div>
+                <button type="button" onClick={() => addGeneralDiscount()}
+                  className="btn-outline text-[11px] shrink-0">＋ 新增整單優惠</button>
+              </div>
+              {generalDiscounts.map((discount) => (
+                <div key={discount.id} className="flex gap-2 items-center">
+                  <input value={discount.name}
+                    onChange={(e) => setGeneralDiscount(discount.id, { name: e.target.value })}
+                    placeholder="優惠名稱" className="flex-1 text-xs min-w-0" />
+                  <input type="number" min="0" value={discount.amount}
+                    onChange={(e) => setGeneralDiscount(discount.id, { amount: e.target.value })}
+                    placeholder="折扣金額" className="w-28 text-xs" />
+                  <button type="button" onClick={() => removeGeneralDiscount(discount.id)}
+                    className="text-danger/50 hover:text-danger px-1">✕</button>
+                </div>
+              ))}
+              {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入整單優惠。</p>}
+            </div>
 
             {/* 貸款試算：頭期＋選期數（年利率在設定，報價單不顯示利率） */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-2">
@@ -482,48 +657,85 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 </div>
               )}
 
-              {/* 項目表 */}
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, textAlign: 'left', padding: '0 0 7px', fontWeight: 600, borderBottom: '1.5px solid #e8ecef' }}>項目</th>
-                    <th style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, textAlign: 'right', padding: '0 0 7px', fontWeight: 600, borderBottom: '1.5px solid #e8ecef' }}>金額</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {validItems.map((it) => {
-                    const p = Number(it.price);
-                    const isDiscount = p < 0;
-                    return (
-                      <tr key={it.id}>
-                        <td style={{ color: isDiscount ? '#6f957a' : '#4a5862', fontSize: 13, padding: '9px 0', borderBottom: '1px solid #f0f3f5' }}>
-                          {it.name}{isDiscount && <span style={{ fontSize: 10, color: '#9ec0a8', marginLeft: 5 }}>折抵</span>}
-                        </td>
-                        <td style={{
-                          color: isDiscount ? '#6f957a' : '#2e3a42', fontSize: 13.5, padding: '9px 0',
-                          textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                          borderBottom: '1px solid #f0f3f5',
-                        }}>
-                          {isDiscount ? `−${formatMoney(Math.abs(p))}` : formatMoney(p)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {validItems.length === 0 && (
-                    <tr><td style={{ color: '#b3bdc4', fontSize: 12, padding: '14px 0', textAlign: 'center' }} colSpan={2}>
-                      （尚未輸入項目）
-                    </td></tr>
-                  )}
-                </tbody>
-              </table>
+              {/* 客戶版項目：有優惠才顯示刪除線、折後價與優惠標籤 */}
+              <div>
+                {previewGroups.map((group) => (
+                  <div key={group.key} style={{ marginBottom: 13 }}>
+                    <p style={{
+                      color: group.key === 'addon' ? '#9a6d3e' : '#8b98a1', fontSize: 9.5,
+                      fontWeight: 700, letterSpacing: 1.5, paddingBottom: 5,
+                      borderBottom: '1.5px solid #e8ecef',
+                    }}>{group.label}</p>
+                    {group.rows.map((item) => {
+                      const itemTotal = totals.itemTotals[item.id] || { original: 0, discount: 0, net: 0 };
+                      const hasDiscount = itemTotal.discount > 0;
+                      return (
+                        <div key={item.id} style={{ padding: '9px 0', borderBottom: '1px solid #f0f3f5' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                            <span style={{ color: '#4a5862', fontSize: 12.5, lineHeight: 1.45 }}>{item.name}</span>
+                            <span style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                              {hasDiscount && (
+                                <span style={{ color: '#aab4bc', fontSize: 10.5, textDecoration: 'line-through', marginRight: 6 }}>
+                                  {formatMoney(itemTotal.original)}
+                                </span>
+                              )}
+                              <span style={{ color: hasDiscount ? '#3f7652' : '#2e3a42', fontSize: hasDiscount ? 15 : 13.5, fontWeight: 800 }}>
+                                {formatMoney(itemTotal.net)}
+                              </span>
+                            </span>
+                          </div>
+                          {hasDiscount && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+                              {(item.discounts || []).filter((row) => Number(row.amount) > 0).map((discount) => (
+                                <span key={discount.id} style={{
+                                  color: '#5f8669', background: '#edf5ef', border: '1px solid #d8e9dc',
+                                  borderRadius: 999, padding: '2px 6px', fontSize: 9,
+                                }}>
+                                  {discount.name || '專案優惠'} −{formatMoney(discount.amount)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+                {validItems.length === 0 && (
+                  <p style={{ color: '#b3bdc4', fontSize: 12, padding: '14px 0', textAlign: 'center' }}>（尚未輸入項目）</p>
+                )}
+              </div>
 
-              {/* 總計 */}
+              {validGeneralDiscounts.length > 0 && (
+                <div style={{ background: '#f4f8f5', borderRadius: 9, padding: '9px 12px', marginTop: 8 }}>
+                  <p style={{ color: '#6f957a', fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, marginBottom: 5 }}>整單優惠</p>
+                  {validGeneralDiscounts.map((discount) => (
+                    <div key={discount.id} style={{ display: 'flex', justifyContent: 'space-between', color: '#5f7f67', fontSize: 11.5, padding: '2px 0' }}>
+                      <span>{discount.name}</span><strong>−{formatMoney(discount.amount)}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 優惠摘要＋最終專案價 */}
+              <div style={{ borderTop: '1px solid #e8ecef', marginTop: 14, paddingTop: 10 }}>
+                {[
+                  ['原價合計', totals.originalTotal],
+                  ['單項優惠', -totals.itemDiscountTotal],
+                  ['整單優惠', -totals.generalDiscountTotal],
+                  ['優惠總額', -totals.discountTotal],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', color: value < 0 ? '#6f957a' : '#8b98a1', fontSize: 10.5, padding: '2px 2px' }}>
+                    <span>{label}</span><span>{value < 0 ? '−' : ''}{formatMoney(Math.abs(value))}</span>
+                  </div>
+                ))}
+              </div>
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: 'linear-gradient(135deg,#3f4d5a,#2b343d)', borderRadius: 10,
-                padding: '13px 18px', marginTop: 16,
+                padding: '13px 18px', marginTop: 10,
               }}>
-                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>總計金額</span>
+                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>最終專案價</span>
                 <span style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
                   {formatMoney(total)}

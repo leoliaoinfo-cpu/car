@@ -32,6 +32,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
     deals, dealFields, saveDeal, todoTemplate, industries,
+    pricingRecords, savePricingRecord, deletePricingRecord,
     events, saveEvent, deleteEvent,
   } = useApp();
 
@@ -251,6 +252,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
   /** 報價單：新增寫入 quotes + 時間軸事件；編輯同步更新對應事件的金額與說明 */
   async function handleSaveQuote(q) {
+    const { _pricingRecord, ...quoteData } = q;
     const isEdit = quoteModal && quoteModal !== 'new';
     setQuoteModal(null);
     const t = today();
@@ -258,7 +260,12 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       const quotes = [...(c.quotes || [])];
       const idx = quotes.findIndex((x) => x.id === q.id);
       const record = {
-        id: q.id, date: q.date, model: q.model, items: q.items,
+        id: q.id, date: q.date, model: q.model, modelId: q.modelId, items: q.items,
+        generalDiscounts: q.generalDiscounts,
+        originalTotal: q.originalTotal,
+        itemDiscountTotal: q.itemDiscountTotal,
+        generalDiscountTotal: q.generalDiscountTotal,
+        discountTotal: q.discountTotal,
         note: q.note, total: q.total, loan: q.loan,
       };
       if (idx === -1) quotes.push(record);
@@ -278,6 +285,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         ...(isEdit ? {} : { lastContact: t, missedCalls: 0 }),
       };
     });
+    if (_pricingRecord) await savePricingRecord({ ..._pricingRecord, clientId: client.id, quoteId: quoteData.id });
   }
 
   async function removeQuote(id) {
@@ -287,6 +295,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       ...c,
       quotes: (c.quotes || []).filter((q) => q.id !== id),
     }));
+    await deletePricingRecord(`quote:${id}`).catch(() => {});
   }
 
   /** 時間軸事件：編輯 / 刪除 */
@@ -316,17 +325,41 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   /** 成交歸檔：寫入業績表 + 客戶時間軸 */
   async function handleArchiveDeal(deal) {
     setShowDealModal(false);
-    await saveDeal(deal);
-    const monthLabel = dayjs(deal.date).format('M月');
+    const latestQuote = [...(client.quotes || [])]
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
+    const fullDeal = {
+      ...deal,
+      quoteId: latestQuote?.id || null,
+      model: latestQuote?.model || deal.note || '',
+    };
+    await saveDeal(fullDeal);
+    const quotePricing = latestQuote
+      ? pricingRecords.find((row) => row.id === `quote:${latestQuote.id}`)
+      : null;
+    if (quotePricing) {
+      const profit = quotePricing.costTotal == null ? null : Number(fullDeal.amount || 0) - quotePricing.costTotal;
+      await savePricingRecord({
+        ...quotePricing,
+        id: `deal:${fullDeal.id}`,
+        kind: 'deal',
+        dealId: fullDeal.id,
+        saleTotal: Number(fullDeal.amount) || 0,
+        profit,
+        belowCost: profit != null && profit < 0,
+        capturedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    const monthLabel = dayjs(fullDeal.date).format('M月');
     await updateClient(client.id, (c) => ({
       ...c,
-      lastContact: deal.date,
+      lastContact: fullDeal.date,
       log: [...(c.log || []), {
         id: generateId('log'),
-        date: deal.date,
+        date: fullDeal.date,
         type: 'deal',
-        text: `成交歸檔至 ${monthLabel}業績表${deal.note ? `：${deal.note}` : ''}`,
-        ...(deal.amount > 0 ? { amount: deal.amount } : {}),
+        text: `成交歸檔至 ${monthLabel}業績表${fullDeal.note ? `：${fullDeal.note}` : ''}`,
+        ...(fullDeal.amount > 0 ? { amount: fullDeal.amount } : {}),
       }],
     }));
   }

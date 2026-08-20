@@ -36,7 +36,7 @@ const HELP_CARDS = [
 
 const SECTION_KEYS = ['deals', 'backup', 'sync', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
-  deals: '📈 業績表',
+  deals: '📈 內部業績與成本',
   backup: '💾 備份還原',
   sync: '☁️ 雲端同步',
   notify: '🔔 通知',
@@ -883,8 +883,8 @@ function DealsSection({ onOpenDeals }) {
     <section className="space-y-4">
       {/* 開啟入口 */}
       <div className="card p-4 space-y-3">
-        <h3 className="font-semibold text-ink">📈 開啟業績表</h3>
-        <p className="text-xs text-ink-3">業績表已從主選單移除，只能從這裡進入，避免給客人看報表時被看到。</p>
+        <h3 className="font-semibold text-ink">📈 開啟內部業績與成本</h3>
+        <p className="text-xs text-ink-3">業績、成本設定、報價試算與單車利潤都只從這裡進入，避免給客人看到內部數字。</p>
         {hash ? (
           <div className="space-y-2">
             <Field label="輸入密碼解鎖">
@@ -925,7 +925,7 @@ function DealsSection({ onOpenDeals }) {
           </div>
         ) : (
           <>
-            <button onClick={onOpenDeals} className="btn-primary w-full">開啟業績表</button>
+            <button onClick={onOpenDeals} className="btn-primary w-full">開啟內部業績與成本</button>
             <p className="text-danger text-xs">⚠️ 尚未設定密碼，任何人都能開啟。建議在下方設定密碼。</p>
           </>
         )}
