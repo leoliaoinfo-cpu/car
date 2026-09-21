@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { db, downloadJSON, downloadLegacySharedRescue } from '../db';
 import { useApp } from '../context';
-import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS } from '../utils/crm';
+import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../utils/crm';
 import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
@@ -343,9 +343,10 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
               />
               <PresetEditor
                 title="🚚 選購配備選單"
-                desc="報價單一鍵帶入的配備（配備版本、燈組、底盤、金屬件…），價格可改。"
+                desc="報價單一鍵帶入的配備；尚未取得廠商價格時可標記待報價。"
                 items={quotePresets.addons}
                 newName="新配備"
+                allowPending
                 onChange={(addons) => saveQuotePresets({ ...quotePresets, addons })}
               />
               <PresetEditor
@@ -387,17 +388,17 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
   );
 }
 
-// ── LoanTermsEditor（貸款期數與年利率：報價單依期數自動算月付，不顯示利率）────
+// ── LoanTermsEditor（貸款期數與試算年利率）──────────────────────────────────
 function LoanTermsEditor() {
   const [terms, setTerms] = useState(DEFAULT_LOAN_TERMS);
   useEffect(() => {
     db.get('settings', 'quoteLoan')
-      .then((r) => { if (Array.isArray(r?.terms) && r.terms.length) setTerms(r.terms); })
+      .then((r) => setTerms(resolveLoanTerms(r?.terms)))
       .catch(() => {});
   }, []);
   function save(next) {
     setTerms(next);
-    db.put('settings', { key: 'quoteLoan', terms: next }).catch(() => {});
+    db.put('settings', { key: 'quoteLoan', terms: next, version: 'estimate-4.5-v1' }).catch(() => {});
   }
   const update = (i, patch) => save(terms.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const remove = (i) => save(terms.filter((_, idx) => idx !== i));
@@ -407,7 +408,7 @@ function LoanTermsEditor() {
     <div className="card p-4 space-y-2">
       <h3 className="font-semibold text-ink">🏦 貸款期數與年利率</h3>
       <p className="text-xs text-ink-3">
-        報價單選期數時，用該期數的年利率自動算出月付款。報價單只顯示「月付款」與「期數」，不會顯示利率。
+        預設以 4.5% 做客戶概算並顯示預估月付與總利息；實際利率仍由三信／中租迪和依信用、金額與方案核定。這裡可自行修改。
       </p>
       <div className="space-y-1.5">
         {terms.map((t, i) => (
@@ -479,7 +480,7 @@ function LoadCatalogButton({ onLoad }) {
 }
 
 // ── PresetEditor（報價選單：車體配備 / 補助折抵，名稱＋金額）──────────────────
-function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChange }) {
+function PresetEditor({ title, desc, items, newName, amountKey = 'price', allowPending = false, onChange }) {
   function update(id, patch) {
     onChange(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }
@@ -487,7 +488,7 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChan
     onChange(items.filter((it) => it.id !== id));
   }
   function add() {
-    onChange([...items, { id: generateId('preset'), name: newName, [amountKey]: 0 }]);
+    onChange([...items, { id: generateId('preset'), name: newName, [amountKey]: 0, ...(allowPending ? { pendingPrice: false } : {}) }]);
   }
 
   return (
@@ -508,7 +509,7 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChan
         </div>
       )}
       {items.map((it) => (
-        <div key={it.id} className="card p-3 flex items-center gap-2">
+        <div key={it.id} className="card p-3 flex flex-wrap items-center gap-2">
           <input
             value={it.name}
             onChange={(e) => update(it.id, { name: e.target.value })}
@@ -518,8 +519,15 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', onChan
             type="number" min="0"
             value={it[amountKey] ?? 0}
             onChange={(e) => update(it.id, { [amountKey]: Number(e.target.value) || 0 })}
-            className="w-28 text-sm shrink-0"
+            disabled={allowPending && it.pendingPrice}
+            className="w-28 text-sm shrink-0 disabled:opacity-40"
           />
+          {allowPending && (
+            <button type="button" onClick={() => update(it.id, { pendingPrice: !it.pendingPrice })}
+              className={`text-[10px] rounded-full border px-2 py-1 shrink-0 ${it.pendingPrice ? 'border-warn text-warn bg-warn/10' : 'border-bdr text-ink-3'}`}>
+              {it.pendingPrice ? '待報價' : '固定價'}
+            </button>
+          )}
           <button onClick={() => remove(it.id)} className="text-danger/50 hover:text-danger text-sm shrink-0">✕</button>
         </div>
       ))}

@@ -261,6 +261,8 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       const idx = quotes.findIndex((x) => x.id === q.id);
       const record = {
         id: q.id, date: q.date, model: q.model, modelId: q.modelId, items: q.items,
+        clientId: client.id, customerName: q.customerName, customerPhone: q.customerPhone,
+        requirements: q.requirements,
         generalDiscounts: q.generalDiscounts,
         originalTotal: q.originalTotal,
         itemDiscountTotal: q.itemDiscountTotal,

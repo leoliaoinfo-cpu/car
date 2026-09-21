@@ -19,6 +19,7 @@ export default function DealsPage({ onOpenClient }) {
     quotePresets,
     costCatalog,
     pricingRecords,
+    quoteDrafts,
     saveDeal,
     deleteDeal,
     saveCostCatalog,
@@ -147,7 +148,7 @@ export default function DealsPage({ onOpenClient }) {
       </div>
 
       {section === 'quotes' && (
-        <QuotePricingPanel clients={clients} pricingRecords={pricingRecords}
+        <QuotePricingPanel clients={clients} quoteDrafts={quoteDrafts} pricingRecords={pricingRecords}
           costCatalog={costCatalog} onSavePricing={savePricingRecord} />
       )}
 

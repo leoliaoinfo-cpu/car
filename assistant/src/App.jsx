@@ -7,6 +7,7 @@ import CrmPage from './components/crm/CrmPage';
 import DealsPage from './components/deals/DealsPage';
 import SettingsPanel from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
+import QuoteWorkspace from './components/quote/QuoteWorkspace';
 import TimerModal from './components/TimerModal';
 import { STORAGE_KEYS } from './storageKeys';
 
@@ -118,6 +119,7 @@ function AppInner() {
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />
           )}
+          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} />}
           {tab === 'catalog' && <ProductCatalog />}
         </div>
       </main>
@@ -138,6 +140,7 @@ function AppInner() {
           { key: 'today', icon: '☀️', label: '今日' },
           { key: 'calendar', icon: '📅', label: '行事曆' },
           { key: 'crm', icon: '👥', label: '客戶' },
+          { key: 'quotes', icon: '🧾', label: '報價單' },
         ].map((item) => (
           <button
             key={item.key}

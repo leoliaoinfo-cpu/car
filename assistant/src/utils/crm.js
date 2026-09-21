@@ -189,12 +189,54 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v2';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v4';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '外觀空力', '燈組', '音響', '配件', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
+
+const VENDOR_QUOTE_ADDONS = [
+  { id: 'qa-floor-rubber', cat: '客製車體', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型、貨斗尺寸與厚度向廠商確認價格' },
+  { id: 'qa-floor-galvanized', cat: '客製車體', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true, desc: '依板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-stainless', cat: '客製車體', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
+  { id: 'qa-tailgate-four-cylinder', cat: '客製車體', name: '四缸升降尾門（特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+];
+
+// 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
+// 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
+const SUPPLIER_SHEET_ADDONS = [
+  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '中央置物盒另加 500 元；12 個月保固' },
+  { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, desc: '12 個月保固' },
+  { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, desc: '48 個月保固' },
+  { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, desc: '48 個月保固' },
+  { id: 'qa-audio-65', cat: '音響', name: '6.5吋音響升級', price: 5000, desc: '含專用線組；12 個月保固' },
+  { id: 'qa-tweeter', cat: '音響', name: '高音喇叭', price: 3000, desc: '含專用線組；12 個月保固' },
+  { id: 'qa-star-led-head', cat: '燈組', name: '卡旺之星 LED 頭燈組', price: 4000, desc: '6 個月保固' },
+  { id: 'qa-star-led-tail', cat: '燈組', name: '卡旺之星 LED 尾燈組', price: 2500, desc: '6 個月保固' },
+  { id: 'qa-star-led-fog', cat: '燈組', name: '卡旺之星 LED 霧燈', price: 1800, desc: '黃金／白光／螢光綠；6 個月保固' },
+  { id: 'qa-puddle-lamp', cat: '燈組', name: '側邊照地燈 2P', price: 3500, desc: '有裝防水快速開關；6 個月保固' },
+  { id: 'qa-interior-led-single', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（單廂）', price: 500, desc: '6 個月保固' },
+  { id: 'qa-interior-led-double', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（雙廂）', price: 600, desc: '6 個月保固' },
+  { id: 'qa-phone-basic', cat: '配件', name: '一般手機架組', price: 1300 },
+  { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
+  { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
+
+  { id: 'qa-film-fsk-front', cat: '隔熱紙', group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
+  { id: 'qa-film-fsk-body-s', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
+  { id: 'qa-film-fsk-body-l', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・大單廂）', price: 7000, desc: '料號 99PVYPUFSKB120L' },
+  { id: 'qa-film-fsk-body-d', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・雙廂）', price: 11000, desc: '料號 99PVYPUFSKB120D' },
+  { id: 'qa-film-smith-front', cat: '隔熱紙', group: 'g-film-front', name: 'Smith 隔熱紙－前擋（BELLA-70）', price: 5500, desc: '料號 99PVYPUT122；單廂／大單廂／雙廂' },
+  { id: 'qa-film-smith-body-s', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・單廂）', price: 4500, desc: '料號 99PVYPUT120S' },
+  { id: 'qa-film-smith-body-l', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・大單廂）', price: 5500, desc: '料號 99PVYPUT120L' },
+  { id: 'qa-film-smith-body-d', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・雙廂）', price: 8500, desc: '料號 99PVYPUT120D' },
+  { id: 'qa-film-3m-front', cat: '隔熱紙', group: 'g-film-front', name: '3M 隔熱紙－前擋（P70）', price: 7000, desc: '料號 99PVY3M35C；單廂／大單廂／雙廂' },
+  { id: 'qa-film-3m-body-s', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・單廂）', price: 5000, desc: '料號 99PVY3M20CS' },
+  { id: 'qa-film-3m-body-l', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・大單廂）', price: 6000, desc: '料號 99PVY3M20CL' },
+  { id: 'qa-film-3m-body-d', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・雙廂）', price: 10000, desc: '料號 99PVY3M20CD' },
+];
+
+const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS];
 
 export const DEFAULT_QUOTE_PRESETS = {
   _catalog: QUOTE_CATALOG_VERSION,
@@ -211,6 +253,7 @@ export const DEFAULT_QUOTE_PRESETS = {
   ],
   // 選購配備（一鍵帶入報價項目；cat 分類、desc 產品介紹皆依原廠型錄圖片文字）
   addons: [
+    ...REQUIRED_QUOTE_ADDONS,
     // 配備版本升級
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
@@ -276,13 +319,25 @@ export const DEFAULT_QUOTE_PRESETS = {
 // 貸款期數與對應年利率（後台可改；報價單選期數時用該期年利率自動算月付款、但不顯示利率）
 // 預設年利率取自常見市場區間，業務可依實際銀行核貸調整
 export const DEFAULT_LOAN_TERMS = [
-  { months: 12, rate: 2.88 },
-  { months: 24, rate: 3.00 },
-  { months: 36, rate: 3.25 },
-  { months: 48, rate: 3.50 },
-  { months: 60, rate: 3.75 },
-  { months: 72, rate: 4.20 },
+  { months: 12, rate: 4.5 },
+  { months: 24, rate: 4.5 },
+  { months: 36, rate: 4.5 },
+  { months: 48, rate: 4.5 },
+  { months: 60, rate: 4.5 },
+  { months: 72, rate: 4.5 },
 ];
+
+const LEGACY_DEFAULT_LOAN_RATES = new Map([
+  [12, 2.88], [24, 3], [36, 3.25], [48, 3.5], [60, 3.75], [72, 4.2],
+]);
+
+/** 把舊版內建利率升級成目前業務統一使用的 4.5% 概算；使用者自行改過的值則保留。 */
+export function resolveLoanTerms(terms) {
+  if (!Array.isArray(terms) || terms.length === 0) return DEFAULT_LOAN_TERMS;
+  const isLegacyDefault = terms.length === LEGACY_DEFAULT_LOAN_RATES.size
+    && terms.every((term) => LEGACY_DEFAULT_LOAN_RATES.get(Number(term.months)) === Number(term.rate));
+  return isLegacyDefault ? DEFAULT_LOAN_TERMS : terms;
+}
 
 // 舊版通用預設配備名稱（用於判斷使用者是否從未客製過報價選單）
 const LEGACY_ADDON_NAMES = ['框式車斗', '篷式車斗', '冷凍廂', '升降尾門', '貨斗加高'];
@@ -301,7 +356,15 @@ export function resolveQuotePresets(row) {
     && names.length === LEGACY_ADDON_NAMES.length
     && names.every((n) => LEGACY_ADDON_NAMES.includes(n));
   if (untouched) return DEFAULT_QUOTE_PRESETS;
-  return { ...row, models: row.models || DEFAULT_QUOTE_PRESETS.models };
+  const addonIds = new Set(row.addons.map((item) => item.id));
+  const addonNames = new Set(row.addons.map((item) => item.name));
+  const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name));
+  return {
+    ...row,
+    _catalog: QUOTE_CATALOG_VERSION,
+    models: row.models || DEFAULT_QUOTE_PRESETS.models,
+    addons: [...row.addons, ...newAddons],
+  };
 }
 
 /** 產業標籤建議（決定推什麼車斗） */

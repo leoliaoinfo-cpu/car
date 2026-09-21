@@ -22,7 +22,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
   }
 
   async function save() {
-    await onSave({ ...draft, key: 'costCatalog', version: 1, updatedAt: new Date().toISOString() });
+    await onSave({ ...draft, key: 'costCatalog', updatedAt: new Date().toISOString() });
     setMessage('✅ 成本設定已儲存；之後建立或重新編輯的報價會凍結新成本快照。');
   }
 
@@ -86,11 +86,22 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
   );
 }
 
-export function QuotePricingPanel({ clients, pricingRecords, costCatalog, onSavePricing }) {
+export function QuotePricingPanel({ clients, quoteDrafts = [], pricingRecords, costCatalog, onSavePricing }) {
   const [editing, setEditing] = useState(null);
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
-  const quotes = useMemo(() => clients.flatMap((client) => (client.quotes || []).map((quote) => ({ client, quote })))
-    .sort((a, b) => (b.quote.date || '').localeCompare(a.quote.date || '')), [clients]);
+  const quotes = useMemo(() => {
+    const clientMap = new Map(clients.map((client) => [client.id, client]));
+    const clientQuotes = clients.flatMap((client) => (client.quotes || []).map((quote) => ({ client, quote })));
+    const standaloneQuotes = quoteDrafts.map((quote) => ({
+      client: clientMap.get(quote.clientId) || {
+        id: quote.clientId || null,
+        name: quote.customerName || '未填客戶',
+      },
+      quote,
+    }));
+    return [...clientQuotes, ...standaloneQuotes]
+      .sort((a, b) => (b.quote.date || '').localeCompare(a.quote.date || ''));
+  }, [clients, quoteDrafts]);
 
   async function createSnapshot(client, quote) {
     const record = buildPricingRecord({

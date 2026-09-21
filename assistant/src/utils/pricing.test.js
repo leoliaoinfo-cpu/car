@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  pricingSafetyStatus, updatePricingCosts,
+  normalizeCostCatalog, pricingSafetyStatus, updatePricingCosts,
 } from './pricing.js';
+import { DEFAULT_QUOTE_PRESETS, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
 test('calculates item and whole-quote discounts', () => {
   const items = [
@@ -75,8 +76,68 @@ test('keeps profit unknown until every line has a cost', () => {
   assert.equal(completed.profit, 105000);
 });
 
+test('keeps vendor-pending items out of current totals and cost checks', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-pending', modelId: 'm1',
+      items: [
+        { id: 'v', kind: 'vehicle', catalogId: 'm1', price: 800000 },
+        { id: 'floor', kind: 'addon', catalogId: 'floor1', price: 0, pending: true },
+      ],
+    },
+    costCatalog: { models: { m1: { cost: 700000 } }, addons: {} },
+  });
+  assert.equal(record.lines.length, 1);
+  assert.equal(record.saleTotal, 800000);
+  assert.equal(record.costComplete, true);
+  assert.equal(record.profit, 100000);
+});
+
 test('classifies all three quote safety states', () => {
+  assert.equal(pricingSafetyStatus({ lines: [], saleTotal: 0, costComplete: false }), 'ok');
   assert.equal(pricingSafetyStatus({ costComplete: false, belowCost: false }), 'incomplete');
   assert.equal(pricingSafetyStatus({ costComplete: true, belowCost: true }), 'belowCost');
   assert.equal(pricingSafetyStatus({ costComplete: true, belowCost: false }), 'ok');
+});
+
+test('seeds supplier sheet costs and converts each 80-percent row to a number', () => {
+  const catalog = normalizeCostCatalog(null);
+  assert.equal(catalog.addons['qa-star-led-head'].cost, 3200);
+  assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
+  assert.equal(catalog.addons['qa-star-led-fog'].cost, 1440);
+  assert.equal(catalog.addons['qa-puddle-lamp'].cost, 2800);
+  assert.equal(catalog.addons['qa-interior-led-single'].cost, 400);
+  assert.equal(catalog.addons['qa-interior-led-double'].cost, 480);
+  assert.equal(catalog.addons['qa-phone-basic'].cost, 1040);
+  assert.equal(catalog.addons['qa-phone-a-pillar'].cost, 1200);
+});
+
+test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
+  const catalog = normalizeCostCatalog({
+    key: 'costCatalog', version: 2,
+    models: {}, addons: { 'qa-star-led-head': { cost: 3000 } },
+  });
+  assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
+  assert.equal(catalog.addons['qa-star-led-tail'], undefined);
+});
+
+test('adds supplier sheet options to existing quote menus without exposing costs', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v3', models: [], addons: [], subsidies: [],
+  });
+  const galvanized = resolved.addons.find((item) => item.id === 'qa-floor-galvanized');
+  const film = resolved.addons.find((item) => item.id === 'qa-film-fsk-front');
+  assert.equal(galvanized.name, '錏花板（鍍鋅鋼板） 台語：灰板');
+  assert.equal(film.price, 8000);
+  assert.equal(Object.prototype.hasOwnProperty.call(film, 'cost'), false);
+  assert.ok(resolved.addons.find((item) => item.id === 'qa-brake-kit'));
+});
+
+test('uses 4.5 percent as the default customer loan estimate', () => {
+  assert.ok(DEFAULT_QUOTE_PRESETS.addons.length > 0);
+  assert.ok(resolveLoanTerms(null).every((term) => term.rate === 4.5));
+  assert.ok(resolveLoanTerms([
+    { months: 12, rate: 2.88 }, { months: 24, rate: 3 }, { months: 36, rate: 3.25 },
+    { months: 48, rate: 3.5 }, { months: 60, rate: 3.75 }, { months: 72, rate: 4.2 },
+  ]).every((term) => term.rate === 4.5));
 });

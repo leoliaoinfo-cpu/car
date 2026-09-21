@@ -1,5 +1,13 @@
 # 汽車銷售業務系統 — 交接文件（給新對話/新環境接手用）
 
+> **2026-09-21 最新進度：** 主導覽已新增「獨立報價單」工作區。報價草稿存於
+> DB v9 `quoteDrafts`，可不先建客戶檔就逐步填需求、勾配件、標記待廠商報價、
+> 補價、存檔及輸出 PNG；客戶詳情與獨立工作區共用同一套 QuoteModal。
+> 報價器的「內部成本」抽屜與業績區共用密碼，關閉即重新上鎖，可逐項修改
+> 這張報價的成本快照與優惠，並自動合計成本、優惠、折後價及預估利潤。
+> 成本不在客戶預覽／PNG 內。2026 配件表與 2025/11 隔熱紙表已補入選單，
+> 八折已逐筆換算為成本，隔熱紙業務價依使用者定義為成本。貸款以 4.5% 概算。
+
 > **2026-08-20 重大修復：瀏覽器儲存已永久隔離。** GitHub Pages 的 `/car/` 與
 > `/TEST/` 路徑仍屬同一個 origin，不能共用 IndexedDB/localStorage/CacheStorage 名稱。
 > 汽車系統現在固定使用 IndexedDB `car_sales_assistant_v1`、localStorage 前綴
@@ -9,7 +17,7 @@
 > **2026-08-20 最新決策：** 報價已支援單項／整單多筆優惠，密碼區已加入
 > 內部成本中心。照片跨裝置不採 Cloudflare R2，也不增加任何需付款或維護的
 > 雲端服務；系統照片維持本機壓縮保存，跨裝置與客戶共享照片使用既有 LINE 相簿。
-> DB 版本維持 v8，僅為相容曾開啟短暫 v8 版本的瀏覽器，不能降回 v7。
+> DB v8 的相容性仍須保留；目前已升到 v9，新增獨立報價草稿 store，往後不可降版。
 
 > 把這份文件連同原始碼交給任何 AI 或工程師，即可完整接手開發。
 > 最新程式碼在 GitHub：`leoliaoinfo-cpu/car` 分支 `claude/car-sales-handoff-sht2ks`（自舊 repo `leoliaoinfo-cpu/TEST` 分支 `claude/caravan-truck-business-system-ul6st3` commit `95d5021` 遷移而來）。
@@ -53,10 +61,13 @@
   - 編輯基本資料採**欄位白名單合併**（EDITABLE_FIELDS），永不覆蓋報價單/時間軸/待辦（重要 bug 修復，見第六節）
 
 ### 🧾 商用車報價器（客戶詳情內）
+- 主導覽另有「🧾 報價單」：可在沒有客戶檔時先存獨立草稿，之後可連結既有客戶。
+- 先填客戶需求，再選車型與配件；橡膠底板、`錏花板（鍍鋅鋼板） 台語：灰板`、白鐵底板、四缸特製升降尾門可標記「待廠商報價」，未確認價格不列入目前總額。
+- 內部成本抽屜與業績區共用密碼；逐項顯示／編輯售價、成本、單項優惠、折後價、利潤，並合計成本總額與優惠總額。抽屜位於圖片擷取區外。
 - 車體配備快選 chips（框式/篷式/冷凍廂/升降尾門/貨斗加高，含價格一鍵帶入）
 - 補助折抵快選（汰舊換新、貨物稅減免→**負數扣抵**，報價單綠色顯示）
 - 兩組選單皆可在「設定→🚚報價選單」自訂名稱與金額
-- 貸款試算：頭期/期數/年利率→本息平均攤還**月付金**；填「每月幫客戶賺多少」→報價單印出「**每月淨賺**」話術
+- 貸款概算：預設年利率 4.5%，配合公司為三信／中租迪和；顯示月付與預估總利息，明示實際利率、額度、還款方式與核貸結果以貸款機構為準。全額貸／超貸主要走中租迪和。
 - 預覽固定淺色（不受深色主題影響），適合截圖傳 LINE；業務署名（姓名/電話）記在 settings.quoteProfile 自動帶入
 - 報價存於 `client.quotes[]`（含 items/loan），**可回頭編輯**（時間軸事件金額同步更新，不重複建事件）；刪除報價保留時間軸歷史
 
@@ -68,7 +79,7 @@
 ### ⚙️ 設定
 分頁：💾備份還原（匯出 JSON／匯入前驗格式+顯示摘要+自動先下載現況備份）、🏷客戶分類、📶業務進度、✏️自訂欄位（日期型可設**紀念日循環**：每年/一次性/連續N年→出現在今日工作與行事曆）、🏆業績欄位、📋待辦範本（可編輯）、🚚報價選單、⏱追蹤規則（久未聯繫/冷掉天數）、📖使用說明。右上角 🌙/☀️ 主題切換（localStorage.theme，預設 dark）
 
-## 四、資料模型（IndexedDB `business_assistant_v2`，v3）
+## 四、資料模型（IndexedDB `car_sales_assistant_v1`，v9）
 
 | Store | Key | 內容 |
 |---|---|---|
@@ -77,6 +88,8 @@
 | `customFields` | id | name, type(text/number/date), colorIdx, recur('none'/'yearly'/'once'/'count'), recurCount |
 | `deals` | id | clientId, clientName, date, amount, fields{dealFieldId:金額}, note |
 | `dealFields` | id | name, colorIdx, order |
+| `pricingRecords` | id | 報價／成交的成本快照、逐項成本、成本總計與預估／實際利潤 |
+| `quoteDrafts` | id | 獨立報價草稿：客戶快照、需求、車型、items（含 pending／discounts）、整單優惠與總價摘要 |
 | `tasks` | id | text, done, doneAt, createdAt（中央待辦） |
 | `timers` | id | clientId?, clientName?, note, triggerAt(ISO), confirmedAt |
 | `settings` | key | crmThresholds{coldDays,deadDays}、todoTemplate{items[]}、quotePresets{addons[{id,name,price}],subsidies[{id,name,amount}]}、quoteProfile{name,phone}、lastBackupAt{value} |
@@ -93,7 +106,7 @@ CSS 變數（`assistant/src/index.css`，RGB channel）：
 - 深色 `html.dark`（**預設**）：bg 23,28,33｜s1 31,38,44｜s2 41,50,58｜s3 51,62,71｜bdr 63,76,87｜accent 147,180,205｜on-accent 23,28,33｜danger 208,140,140｜ok 154,184,148｜ink 226,233,238｜ink2 168,182,192｜ink3 118,133,145
 - 彩色標記（雙主題通用中間調）：STATUS_COLOR ok#7d9b76/warn#bf8a5e/hot#c0764f/cold#b26b6b；CAT_COLORS、FIELD_COLORS、EVENT_TYPES 色票見 `utils/crm.js`
 - 主題切換：index.html 內聯 script 於 React 前套用（防閃色）；按鈕在設定面板右上
-- 手機優先：桌面頂欄 hidden md:flex；手機底部導覽（今日/行事曆/客戶/業績/設定）；報價單預覽固定淺色
+- 手機優先：桌面頂欄 hidden md:flex；手機底部導覽（今日/行事曆/客戶/報價單/設定）；報價單預覽固定淺色
 
 ## 六、關鍵設計決策與已修的坑（新接手必讀）
 
@@ -172,7 +185,7 @@ npm run preview -- --port 4173 &
 
 **報價與成本中心已完成**：車價、型錄改裝及手動項目可新增多筆單項優惠，另有多筆整單優惠；客戶報價不顯示成本／利潤。DB v7 新增 `pricingRecords`，密碼保護區提供成本設定、報價試算與單車利潤，儲存或分享前會檢查缺成本及低於成本。
 
-**資料庫相容性**：照片雲端版本曾短暫把正式站升到 DB v8，之後即使撤回功能也不可降版；目前程式保留 `DB_VERSION = 8`，但不建立或同步 R2 照片資料。
+**資料庫相容性**：照片雲端版本曾短暫把正式站升到 DB v8，之後即使撤回功能也不可降版；目前 `DB_VERSION = 9`（v9 新增 `quoteDrafts`），但仍不建立或同步 R2 照片資料。
 
 其他可做未做：報價單 PDF、業績 CSV（使用者說不用）、KPI 視覺化、把「有處理日期的待辦」也納入 .ics 匯出（目前只匯出活動與提醒）。
 

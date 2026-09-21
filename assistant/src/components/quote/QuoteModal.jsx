@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS } from '../../utils/crm';
+import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, normalizeDiscount, normalizeQuoteItems,
-  pricingSafetyStatus,
+  pricingSafetyStatus, updatePricingCosts,
 } from '../../utils/pricing';
+import { sha256Hex } from '../../utils/lock';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -43,10 +44,10 @@ function shortHash(str) {
 }
 
 /**
- * 報價單產生器：填車型與項目價格 → 產生美觀的報價單（固定淺色，方便截圖給客人）。
- * 新增模式（quote=null）會把總額寫入客戶時間軸；傳入既有 quote 則為編輯模式。
+ * 報價單產生器：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
+ * 可由客戶頁寫入時間軸，也可由主導覽的獨立報價工作區儲存草稿。
  */
-export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
+export default function QuoteModal({ client, clients = [], quote, onSaveQuote, onClose }) {
   const { quotePresets, costCatalog, pricingRecords } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
@@ -60,9 +61,10 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       ? normalizedInitial.items.map((it) => ({
         ...it,
         price: String(it.price),
+        pending: !!it.pending,
         discounts: (it.discounts || []).map((row) => ({ ...row, amount: String(row.amount) })),
       }))
-      : [{ id: generateId('qi'), name: '車輛售價', price: '', kind: 'vehicle', catalogId: null, discounts: [] }]
+      : [{ id: generateId('qi'), name: '車輛售價', price: '', pending: false, kind: 'vehicle', catalogId: null, discounts: [] }]
   );
   const [generalDiscounts, setGeneralDiscounts] = useState(() => [
     ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
@@ -72,6 +74,10 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     return { ...normalized, amount: String(normalized.amount) };
   }));
   const [note, setNote] = useState(quote?.note || '');
+  const [requirements, setRequirements] = useState(quote?.requirements || '');
+  const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
+  const [customerName, setCustomerName] = useState(quote?.customerName || client?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
@@ -83,9 +89,17 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
     downPct: null, // 選了百分比時依總價自動算頭期；自訂金額時為 null
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
+    lender: quote?.loan?.lender || '',
   });
   // 期數/年利率表（設定帶入）
   const [loanTerms, setLoanTerms] = useState(DEFAULT_LOAN_TERMS);
+  // 內部成本抽屜：與業績區共用密碼；關閉即重新上鎖，避免把手機交回客戶時被看到。
+  const [costPanelOpen, setCostPanelOpen] = useState(false);
+  const [costLockHash, setCostLockHash] = useState(undefined);
+  const [costUnlocked, setCostUnlocked] = useState(false);
+  const [costPassword, setCostPassword] = useState('');
+  const [costLockError, setCostLockError] = useState('');
+  const [privateLineCosts, setPrivateLineCosts] = useState({});
 
   // 業務署名、浮水印、貸款月利率記在設定，下次自動帶入
   useEffect(() => {
@@ -96,8 +110,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       .then((row) => { if (row) setWatermark(row.text || ''); })
       .catch(() => {});
     db.get('settings', 'quoteLoan')
-      .then((row) => { if (Array.isArray(row?.terms) && row.terms.length) setLoanTerms(row.terms); })
+      .then((row) => setLoanTerms(resolveLoanTerms(row?.terms)))
       .catch(() => {});
+    db.get('settings', 'dealsLock')
+      .then((row) => setCostLockHash(row?.hash || null))
+      .catch(() => setCostLockHash(null));
   }, [quote]);
 
   function saveProfile(next) {
@@ -105,14 +122,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
     db.put('settings', { key: 'quoteProfile', ...next }).catch(() => {});
   }
 
-  const validItems = items.filter((it) => it.name.trim() && Number(it.price) > 0);
+  const selectedItems = items.filter((it) => it.name.trim() && (it.pending || Number(it.price) > 0));
+  const pricedItems = selectedItems.filter((it) => !it.pending && Number(it.price) > 0);
+  const pendingItems = selectedItems.filter((it) => it.pending);
   const validGeneralDiscounts = generalDiscounts
     .filter((row) => row.name.trim() && Number(row.amount) > 0);
-  const totals = calculateQuoteTotals(validItems, validGeneralDiscounts);
+  const totals = calculateQuoteTotals(pricedItems, validGeneralDiscounts);
   const total = totals.total;
 
   // 報價單編號：由日期＋此單 id 推導（同一張單編號固定，看起來更正式）
-  const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || 'new')}`;
+  const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || quoteId)}`;
 
   // 頭期：選了 % 依總價自動算，否則用自訂金額
   const effectiveDown = loan.downPct != null ? Math.round(total * loan.downPct / 100) : (Number(loan.down) || 0);
@@ -122,33 +141,79 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   const selTerm = loanTerms.find((t) => Number(t.months) === selMonths);
   const annualRate = selTerm ? Number(selTerm.rate) || 0 : 0;
   const monthlyPay = calcMonthlyPayment(loanPrincipal, annualRate, selMonths);
+  const estimatedInterest = monthlyPay > 0 && selMonths > 0
+    ? Math.max(0, monthlyPay * selMonths - loanPrincipal)
+    : 0;
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
+    const currentVehicle = items.find((it) => it.kind === 'vehicle' || it.name.trim() === '車輛售價');
+    if (currentVehicle) {
+      setPrivateLineCosts((current) => {
+        const next = { ...current };
+        delete next[currentVehicle.id];
+        return next;
+      });
+    }
     setModel(m.name);
     setModelId(m.id);
     setItems((list) => {
       const idx = list.findIndex((it) => it.kind === 'vehicle' || it.name.trim() === '車輛售價');
       if (idx !== -1) return list.map((it, i) => (i === idx ? {
-        ...it, name: '車輛售價', price: String(m.price), kind: 'vehicle', catalogId: m.id,
+        ...it, name: '車輛售價', price: String(m.price), pending: false, kind: 'vehicle', catalogId: m.id,
       } : it));
       return [{
         id: generateId('qi'), name: '車輛售價', price: String(m.price),
-        kind: 'vehicle', catalogId: m.id, discounts: [],
+        pending: false, kind: 'vehicle', catalogId: m.id, discounts: [],
       }, ...list];
     });
+  }
+
+  function toggleCostPanel() {
+    if (costPanelOpen) {
+      setCostPanelOpen(false);
+      setCostUnlocked(false);
+      setCostPassword('');
+      setCostLockError('');
+      return;
+    }
+    setCostPanelOpen(true);
+    setCostUnlocked(costLockHash === null);
+  }
+
+  async function unlockCostPanel() {
+    setCostLockError('');
+    if (!costLockHash) {
+      setCostUnlocked(true);
+      return;
+    }
+    if ((await sha256Hex(costPassword)) === costLockHash) {
+      setCostUnlocked(true);
+      setCostPassword('');
+    } else {
+      setCostLockError('密碼錯誤');
+    }
+  }
+
+  function pickClient(clientId) {
+    setLinkedClientId(clientId);
+    const picked = clients.find((row) => row.id === clientId);
+    if (picked) {
+      setCustomerName(picked.name || '');
+      setCustomerPhone(picked.phone || '');
+    }
   }
 
   // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
   const isPicked = (name) => items.some((it) => it.name.trim() === name);
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
-  function toggleLine({ id: catalogId, name, price, group }) {
+  function toggleLine({ id: catalogId, name, price, group, pendingPrice = false }) {
     setItems((list) => {
       const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
       if (picked) {
         const next = list.filter((it) => it.catalogId !== catalogId && it.name.trim() !== name);
-        return next.length ? next : [{ id: generateId('qi'), name: '', price: '', kind: 'other', catalogId: null, discounts: [] }];
+        return next.length ? next : [{ id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [] }];
       }
       let base = list;
       if (group) {
@@ -156,7 +221,14 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
         base = list.filter((it) => !siblings.includes(it.name.trim()));
       }
       const emptyIdx = base.findIndex((it) => !it.name.trim() && !Number(it.price));
-      const value = { name, price: String(price), kind: 'addon', catalogId, discounts: [] };
+      const value = {
+        name,
+        price: pendingPrice ? '' : String(price),
+        pending: !!pendingPrice,
+        kind: 'addon',
+        catalogId,
+        discounts: [],
+      };
       if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, ...value } : it));
       return [...base, { id: generateId('qi'), ...value }];
     });
@@ -168,11 +240,16 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
   function addItem() {
     setItems((list) => [...list, {
-      id: generateId('qi'), name: '', price: '', kind: 'other', catalogId: null, discounts: [],
+      id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [],
     }]);
   }
 
   function removeItem(id) {
+    setPrivateLineCosts((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
     setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== id) : list));
   }
 
@@ -224,17 +301,20 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   function makeQuotePayload() {
     return {
       id: quoteId,
-      clientId: client?.id || null,
+      clientId: client?.id || linkedClientId || null,
       date: quote?.date || dayjs().format('YYYY-MM-DD'),
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
       model: model.trim(),
       modelId,
-      items: validItems.map((it) => ({
+      items: selectedItems.map((it) => ({
         id: it.id,
         catalogId: it.catalogId || null,
         kind: it.kind || 'other',
         name: it.name.trim(),
-        price: Number(it.price) || 0,
-        discounts: (it.discounts || [])
+        price: it.pending ? 0 : (Number(it.price) || 0),
+        pending: !!it.pending,
+        discounts: it.pending ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
       })),
@@ -246,16 +326,24 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       generalDiscountTotal: totals.generalDiscountTotal,
       discountTotal: totals.discountTotal,
       total,
+      requirements: requirements.trim(),
       note: note.trim(),
-      loan: { down: effectiveDown, months: selMonths, rate: annualRate },
-      text: `報價單：${model.trim() || '未填車型'}｜${validItems.map((i) => i.name.trim()).join('、')}`,
+      loan: { down: effectiveDown, months: selMonths, rate: annualRate, lender: loan.lender || '' },
+      text: `報價單：${model.trim() || '未填車型'}｜${selectedItems.map((i) => i.name.trim()).join('、')}`,
     };
   }
 
   function pricingForCurrentQuote() {
     const draft = makeQuotePayload();
     const existing = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
-    return buildPricingRecord({ quote: draft, costCatalog, existing });
+    const base = buildPricingRecord({ quote: draft, costCatalog, existing });
+    const lineCosts = {};
+    for (const line of base.lines) {
+      const overridden = Object.prototype.hasOwnProperty.call(privateLineCosts, line.id);
+      const value = overridden ? privateLineCosts[line.id] : (line.costKnown ? line.cost : '');
+      if (value !== '' && value != null) lineCosts[line.id] = Math.max(0, Number(value) || 0);
+    }
+    return updatePricingCosts(base, lineCosts, base.otherCosts);
   }
 
   function confirmPricingSafety() {
@@ -293,7 +381,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
       });
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('capture failed');
-      const fileName = `報價單-${(client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
+      const fileName = `報價單-${(customerName || client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
       // 行動裝置：系統分享（iPhone 可存到照片或直接傳 LINE）
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -320,10 +408,13 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
   }
 
   const previewGroups = [
-    { key: 'vehicle', label: '車輛', rows: validItems.filter((item) => item.kind === 'vehicle') },
-    { key: 'addon', label: '專屬改裝', rows: validItems.filter((item) => item.kind === 'addon') },
-    { key: 'other', label: '其他費用', rows: validItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon') },
+    { key: 'vehicle', label: '車輛', rows: selectedItems.filter((item) => item.kind === 'vehicle') },
+    { key: 'addon', label: '專屬改裝', rows: selectedItems.filter((item) => item.kind === 'addon') },
+    { key: 'other', label: '其他費用', rows: selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon') },
   ].filter((group) => group.rows.length > 0);
+  const internalPricing = pricingForCurrentQuote();
+  const internalLineMap = new Map(internalPricing.lines.map((line) => [line.id, line]));
+  const missingCostCount = internalPricing.lines.filter((line) => !line.costKnown).length;
 
   return (
     <>
@@ -333,14 +424,46 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
             <div className="flex items-center gap-1">
+              <button type="button" onClick={toggleCostPanel}
+                className={`btn-outline text-xs gap-1 py-1 ${costPanelOpen ? 'border-warn text-warn' : ''}`}>
+                🔒 {costPanelOpen ? '關閉內部' : '內部成本'}
+              </button>
               <button type="button" onClick={() => setShowCatalog(true)}
                 className="btn-outline text-xs gap-1 py-1">📖 看型錄</button>
               <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
             </div>
           </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-3 text-[10px] text-ink-3 whitespace-nowrap">
+            <span className="rounded-full bg-accent/10 text-accent px-2 py-1">1 客戶需求</span>
+            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">2 車型配件</span>
+            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">3 金額優惠</span>
+            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">4 預覽圖片</span>
+          </div>
 
           {/* 輸入區 */}
           <div className="space-y-2 mb-4">
+            {!client?.id && (
+              <div className="bg-s2 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-semibold text-ink-2">👤 客戶資料</p>
+                {clients.length > 0 && (
+                  <select value={linkedClientId} onChange={(e) => pickClient(e.target.value)} className="w-full text-sm">
+                    <option value="">不連結客戶檔，直接輸入</option>
+                    {clients.map((row) => <option key={row.id} value={row.id}>{row.name || '未命名客戶'}{row.phone ? `・${row.phone}` : ''}</option>)}
+                  </select>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="客戶姓名／公司" className="w-full text-sm" />
+                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="聯絡電話（選填）" className="w-full text-sm" />
+                </div>
+              </div>
+            )}
+            <Field label="客戶需求／用途">
+              <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3}
+                placeholder="例：市場載貨、需要防滑底板、尾門載重與平台尺寸待確認…"
+                className="w-full text-sm resize-y" />
+            </Field>
             <Field label="車型">
               <div className="flex gap-2">
                 <input value={model} onChange={(e) => { setModel(e.target.value); setModelId(null); }}
@@ -398,7 +521,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                                   <p className="text-xs text-ink font-medium leading-snug">
                                     {picked && <span style={{ color }}>✓ </span>}{a.name}
                                   </p>
-                                  <span className="text-xs font-bold shrink-0" style={{ color }}>{formatMoney(a.price)}</span>
+                                  <span className="text-xs font-bold shrink-0" style={{ color }}>
+                                    {a.pendingPrice ? '待報價' : formatMoney(a.price)}
+                                  </span>
                                 </div>
                                 {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
                                 <button type="button" onClick={() => toggleLine(a)}
@@ -423,7 +548,9 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                                   : { borderColor: color + '55' }}>
                                 {picked && <span>✓</span>}
                                 <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{a.name}</span>
-                                <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>{formatMoney(a.price)}</span>
+                                <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
+                                  {a.pendingPrice ? '待報價' : formatMoney(a.price)}
+                                </span>
                               </button>
                             );
                           })}
@@ -448,11 +575,11 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
             )}
             <div className="flex gap-2 text-[11px] font-medium text-ink-3">
               <span className="flex-1">項目名稱</span>
-              <span className="w-28">金額（元）</span>
+              <span className="w-28">金額／待報價</span>
               <span className="w-4" />
             </div>
             {items.map((it) => {
-              const selected = it.name.trim() && Number(it.price) > 0;
+              const selected = it.name.trim() && (it.pending || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               return (
                 <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
@@ -461,24 +588,35 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                       placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
                     <input type="number" min="0" value={it.price}
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
-                      className="w-28 text-sm" />
+                      disabled={it.pending} placeholder={it.pending ? '待報價' : '0'}
+                      className="w-28 text-sm disabled:opacity-40" />
                     <button onClick={() => removeItem(it.id)}
                       className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
                   </div>
-                  {selected && (
+                  {it.name.trim() && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] text-ink-3">
-                        {(it.discounts || []).length > 0
+                        {it.pending
+                          ? '此項待向廠商確認價格，暫不列入總額'
+                          : (it.discounts || []).length > 0
                           ? `已優惠 ${formatMoney(discountSum)}・折後 ${formatMoney(Math.max(0, Number(it.price) - discountSum))}`
-                          : '此項目目前沒有優惠'}
+                          : selected ? '此項目目前沒有優惠' : '請輸入金額或標記待報價'}
                       </span>
-                      <button type="button" onClick={() => addItemDiscount(it.id)}
-                        className="text-[11px] text-accent hover:bg-accent/10 rounded-lg px-2 py-1 shrink-0">
-                        ＋ 新增優惠折扣
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button type="button" onClick={() => setItem(it.id, { pending: !it.pending, discounts: it.pending ? it.discounts : [] })}
+                          className={`text-[11px] rounded-lg border px-2 py-1 ${it.pending ? 'border-warn bg-warn/10 text-warn' : 'border-bdr text-ink-3'}`}>
+                          {it.pending ? '✓ 待報價' : '設為待報價'}
+                        </button>
+                        {selected && !it.pending && (
+                          <button type="button" onClick={() => addItemDiscount(it.id)}
+                            className="text-[11px] text-accent hover:bg-accent/10 rounded-lg px-2 py-1">
+                            ＋ 新增優惠折扣
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {(it.discounts || []).length > 0 && (
+                  {!it.pending && (it.discounts || []).length > 0 && (
                     <div className="space-y-1.5 border-l-2 border-ok/40 pl-2">
                       {it.discounts.map((discount) => (
                         <div key={discount.id} className="flex gap-2 items-center">
@@ -526,7 +664,22 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
 
             {/* 貸款試算：頭期＋選期數（年利率在設定，報價單不顯示利率） */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-2">
-              <p className="text-[11px] font-medium text-ink-2">🏦 貸款試算（選填）</p>
+              <div>
+                <p className="text-[11px] font-medium text-ink-2">🏦 貸款概算（選填）</p>
+                <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">預設用年利率 4.5% 試算；正式利率由貸款公司依客戶信用、金額與方案核定。</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-ink-3 mb-1">配合貸款公司</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {['三信', '中租迪和'].map((lender) => (
+                    <button key={lender} type="button"
+                      onClick={() => setLoan((value) => ({ ...value, lender: value.lender === lender ? '' : lender }))}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${loan.lender === lender ? 'bg-accent text-on-accent border-accent' : 'border-bdr text-ink-2'}`}>
+                      {lender}{lender === '中租迪和' ? '（全額／超貸）' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <p className="text-[11px] text-ink-3 mb-1">頭期款</p>
                 <div className="flex gap-1.5 flex-wrap items-center">
@@ -567,14 +720,18 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 </div>
               </div>
               {monthlyPay > 0 && (
-                <div className="flex items-baseline justify-between bg-s1 rounded-lg px-3 py-2">
-                  <span className="text-[11px] text-ink-3">分 {selMonths} 期</span>
-                  <span className="text-sm text-ink">每月只要 <strong className="text-accent text-base">NT$ {formatMoney(monthlyPay)}</strong></span>
+                <div className="bg-s1 rounded-lg px-3 py-2 space-y-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11px] text-ink-3">分 {selMonths} 期・年利率 {annualRate}% 概算</span>
+                    <span className="text-sm text-ink">每月約 <strong className="text-accent text-base">NT$ {formatMoney(monthlyPay)}</strong></span>
+                  </div>
+                  <p className="text-[10px] text-ink-3 text-right">預估總利息約 NT$ {formatMoney(estimatedInterest)}</p>
                 </div>
               )}
               {selMonths > 0 && monthlyPay === 0 && (
                 <p className="text-[10px] text-ink-3">此期數尚未在「設定 → 報價選單」設定年利率</p>
               )}
+              <p className="text-[10px] text-ink-3 leading-relaxed">一般有頭款約一成多；全額貸／超貸主要走中租迪和。多數方案先繳利息、後繳本金，仍以正式核貸條件為準。</p>
             </div>
 
             <Field label="備註">
@@ -592,6 +749,112 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               </Field>
             </div>
           </div>
+
+          {/* 內部成本抽屜刻意放在 previewRef 外，絕不進入客戶報價圖片。 */}
+          {costPanelOpen && (
+            <section className="mb-4 rounded-2xl border-2 border-warn/40 bg-s2 p-3 md:p-4 shadow-card">
+              {costLockHash === undefined ? (
+                <p className="text-sm text-ink-3 text-center py-4">正在讀取內部密碼設定…</p>
+              ) : costLockHash && !costUnlocked ? (
+                <div className="max-w-sm mx-auto space-y-3 py-2">
+                  <div className="text-center">
+                    <p className="font-bold text-ink">🔐 內部成本已隱藏</p>
+                    <p className="text-xs text-ink-3 mt-1">與「設定 → 內部業績與成本」使用同一組密碼。</p>
+                  </div>
+                  <input type="password" value={costPassword} autoComplete="off" autoFocus
+                    onChange={(e) => setCostPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') unlockCostPanel(); }}
+                    placeholder="輸入內部密碼" className="w-full text-sm" />
+                  {costLockError && <p className="text-xs text-danger">{costLockError}</p>}
+                  <button type="button" onClick={unlockCostPanel} disabled={!costPassword}
+                    className="btn-primary w-full text-sm disabled:opacity-40">解鎖成本試算</button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-ink">🔒 業務內部成本試算</p>
+                      <p className="text-[11px] text-ink-3 mt-1">只改這張報價的成本快照；長期預設成本可到密碼保護的「成本設定」修改。</p>
+                    </div>
+                    <span className="text-[10px] rounded-full bg-danger/10 text-danger px-2 py-1 shrink-0">不會輸出</span>
+                  </div>
+
+                  {!costLockHash && (
+                    <p className="text-xs text-danger bg-danger/10 rounded-lg px-3 py-2">
+                      ⚠️ 目前尚未設定密碼。請到「設定 → 內部業績與成本」設定，避免客戶自行打開。
+                    </p>
+                  )}
+
+                  {pricedItems.length === 0 ? (
+                    <p className="text-sm text-ink-3 text-center py-5">先勾選有價格的車型或配件，這裡就會列出成本與優惠空間。</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {pricedItems.map((item) => {
+                        const line = internalLineMap.get(item.id);
+                        if (!line) return null;
+                        const lineDiscount = (item.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+                        const lineProfit = line.costKnown ? line.netPrice - line.cost : null;
+                        const shownCost = Object.prototype.hasOwnProperty.call(privateLineCosts, item.id)
+                          ? privateLineCosts[item.id]
+                          : (line.costKnown ? String(line.cost) : '');
+                        return (
+                          <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-3 space-y-2">
+                            <p className="text-sm font-semibold text-ink">{item.name}</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                              <InternalMetric label="售價" value={Number(item.price) || 0} />
+                              <label className="block">
+                                <span className="block text-[10px] text-ink-3 mb-1">成本（可改）</span>
+                                <input type="number" min="0" value={shownCost}
+                                  onChange={(e) => setPrivateLineCosts((current) => ({ ...current, [item.id]: e.target.value }))}
+                                  placeholder="待補成本" className="w-full text-xs" />
+                              </label>
+                              <InternalMetric label="單項優惠" value={lineDiscount} tone="ok" prefix="−" />
+                              <InternalMetric label="折後價" value={line.netPrice} />
+                              <InternalMetric label="折後利潤" value={lineProfit} tone={lineProfit != null && lineProfit < 0 ? 'danger' : 'accent'} />
+                            </div>
+
+                            <div className="border-t border-bdr/60 pt-2 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] text-ink-3">此項優惠明細</span>
+                                <button type="button" onClick={() => addItemDiscount(item.id)} className="text-[11px] text-accent">＋新增優惠</button>
+                              </div>
+                              {(item.discounts || []).map((discount) => (
+                                <div key={discount.id} className="flex gap-2 items-center">
+                                  <input value={discount.name}
+                                    onChange={(e) => setItemDiscount(item.id, discount.id, { name: e.target.value })}
+                                    placeholder="優惠名稱" className="flex-1 min-w-0 text-xs" />
+                                  <input type="number" min="0" value={discount.amount}
+                                    onChange={(e) => setItemDiscount(item.id, discount.id, { amount: e.target.value })}
+                                    placeholder="折扣" className="w-24 text-xs" />
+                                  <button type="button" onClick={() => removeItemDiscount(item.id, discount.id)} className="text-danger/60">✕</button>
+                                </div>
+                              ))}
+                              {(item.discounts || []).length === 0 && <p className="text-[10px] text-ink-3">尚未給這個項目優惠。</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-xl bg-ink text-white p-3">
+                    <InternalSummary label="原價合計" value={totals.originalTotal} />
+                    <InternalSummary label="成本總計" value={internalPricing.costComplete ? internalPricing.costTotal : internalPricing.knownCostTotal}
+                      note={missingCostCount ? `尚有 ${missingCostCount} 項待補` : ''} />
+                    <InternalSummary label="優惠折扣總計" value={totals.discountTotal} prefix="−" />
+                    <InternalSummary label="客戶報價" value={total} />
+                    <InternalSummary label="預估利潤" value={internalPricing.profit}
+                      tone={internalPricing.profit != null && internalPricing.profit < 0 ? 'danger' : 'ok'} />
+                    <InternalSummary label="成本以上可用空間"
+                      value={internalPricing.profit == null ? null : Math.max(0, internalPricing.profit)} tone="accent" />
+                  </div>
+                  {validGeneralDiscounts.length > 0 && (
+                    <p className="text-[11px] text-ink-3">優惠折扣總計已包含整單優惠 NT$ {formatMoney(totals.generalDiscountTotal)}。</p>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* 報價單預覽 — 固定淺色、專業排版，可下載成整張 PNG */}
           <div ref={previewRef} className="mx-auto" style={{
@@ -634,8 +897,8 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 3 }}>客戶</p>
-                  <p style={{ color: '#2e3a42', fontSize: 16, fontWeight: 700 }}>{client?.name || '貴賓'}</p>
-                  {client?.phone && <p style={{ color: '#8b98a1', fontSize: 11, marginTop: 1 }}>{client.phone}</p>}
+                  <p style={{ color: '#2e3a42', fontSize: 16, fontWeight: 700 }}>{customerName || client?.name || '貴賓'}</p>
+                  {(customerPhone || client?.phone) && <p style={{ color: '#8b98a1', fontSize: 11, marginTop: 1 }}>{customerPhone || client.phone}</p>}
                 </div>
                 {(profile.name || profile.phone) && (
                   <div style={{ textAlign: 'right', minWidth: 0 }}>
@@ -645,6 +908,13 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                   </div>
                 )}
               </div>
+
+              {requirements.trim() && (
+                <div style={{ background: '#f4f7f9', borderRadius: 9, padding: '9px 12px', marginBottom: 14 }}>
+                  <p style={{ color: '#84929c', fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, marginBottom: 4 }}>客戶需求</p>
+                  <p style={{ color: '#4a5862', fontSize: 11.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{requirements}</p>
+                </div>
+              )}
 
               {/* 車型 */}
               {model.trim() && (
@@ -674,17 +944,23 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
                             <span style={{ color: '#4a5862', fontSize: 12.5, lineHeight: 1.45 }}>{item.name}</span>
                             <span style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                              {hasDiscount && (
+                              {item.pending ? (
+                                <span style={{ color: '#a9793f', background: '#fff7e8', border: '1px solid #ecd8b7', borderRadius: 999, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 }}>
+                                  待廠商報價
+                                </span>
+                              ) : hasDiscount && (
                                 <span style={{ color: '#aab4bc', fontSize: 10.5, textDecoration: 'line-through', marginRight: 6 }}>
                                   {formatMoney(itemTotal.original)}
                                 </span>
                               )}
-                              <span style={{ color: hasDiscount ? '#3f7652' : '#2e3a42', fontSize: hasDiscount ? 15 : 13.5, fontWeight: 800 }}>
-                                {formatMoney(itemTotal.net)}
-                              </span>
+                              {!item.pending && (
+                                <span style={{ color: hasDiscount ? '#3f7652' : '#2e3a42', fontSize: hasDiscount ? 15 : 13.5, fontWeight: 800 }}>
+                                  {formatMoney(itemTotal.net)}
+                                </span>
+                              )}
                             </span>
                           </div>
-                          {hasDiscount && (
+                          {!item.pending && hasDiscount && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
                               {(item.discounts || []).filter((row) => Number(row.amount) > 0).map((discount) => (
                                 <span key={discount.id} style={{
@@ -701,7 +977,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                     })}
                   </div>
                 ))}
-                {validItems.length === 0 && (
+                {selectedItems.length === 0 && (
                   <p style={{ color: '#b3bdc4', fontSize: 12, padding: '14px 0', textAlign: 'center' }}>（尚未輸入項目）</p>
                 )}
               </div>
@@ -735,26 +1011,35 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
                 background: 'linear-gradient(135deg,#3f4d5a,#2b343d)', borderRadius: 10,
                 padding: '13px 18px', marginTop: 10,
               }}>
-                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>最終專案價</span>
+                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>
+                  {pendingItems.length > 0 ? '目前已確認金額' : '最終專案價'}
+                </span>
                 <span style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
                   {formatMoney(total)}
                 </span>
               </div>
+              {pendingItems.length > 0 && (
+                <p style={{ color: '#9a6d3e', background: '#fff8ec', borderRadius: 8, padding: '7px 10px', fontSize: 9.5, lineHeight: 1.5, marginTop: 8 }}>
+                  尚有 {pendingItems.length} 項待廠商報價，以上金額不包含待報價項目，完整總價確認後更新。
+                </p>
+              )}
 
-              {/* 分期試算：主打「每月只要」 */}
+              {/* 分期試算：使用 4.5% 或設定值做概算，實際條件仍以核貸為準 */}
               {monthlyPay > 0 && (
                 <div style={{ border: '1px solid #ecdfce', background: '#fdfaf6', borderRadius: 10, padding: '12px 16px', marginTop: 12 }}>
-                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>輕鬆分期</p>
+                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>貸款概算{loan.lender ? `・${loan.lender}` : ''}</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ color: '#8b7355', fontSize: 12, fontWeight: 600 }}>
-                      分 {loan.months} 期
+                    <span style={{ color: '#8b7355', fontSize: 11, fontWeight: 600 }}>
+                      分 {loan.months} 期・年利率 {annualRate}%
                     </span>
                     <span style={{ color: '#2e3a42', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月只要</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月約</span>
                       <span style={{ fontSize: 19 }}>{formatMoney(monthlyPay)}</span>
                     </span>
                   </div>
+                  <p style={{ color: '#9a856b', fontSize: 9.5, textAlign: 'right', marginTop: 4 }}>預估總利息約 NT$ {formatMoney(estimatedInterest)}</p>
+                  <p style={{ color: '#a5937e', fontSize: 8.8, lineHeight: 1.5, marginTop: 6 }}>以上為概算；實際利率、額度、還款方式與核貸結果依貸款機構及客戶條件為準。</p>
                 </div>
               )}
 
@@ -774,7 +1059,7 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           </div>
 
           {/* 下載整張報價單圖片（不論多長都是一張完整 PNG） */}
-          <button onClick={downloadImage} disabled={total <= 0 || capturing}
+          <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
             className="btn-primary w-full mt-3 disabled:opacity-40">
             {capturing ? '產生圖片中…' : '📥 下載報價單圖片（一張完整）'}
           </button>
@@ -783,14 +1068,39 @@ export default function QuoteModal({ client, quote, onSaveQuote, onClose }) {
           </p>
           <div className="flex gap-2 mt-3">
             <button onClick={onClose} className="btn-outline flex-1">關閉</button>
-            <button onClick={handleRecord} disabled={total <= 0}
+            <button onClick={handleRecord} disabled={selectedItems.length === 0}
               className="btn-outline flex-1 disabled:opacity-40">
-              💲 {isEdit ? '儲存修改' : '記錄報價'}
+              💾 {isEdit ? '儲存修改' : (client?.id ? '記錄報價' : '儲存報價草稿')}
             </button>
           </div>
         </div>
       </div>
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
     </>
+  );
+}
+
+function InternalMetric({ label, value, prefix = '', tone = 'default' }) {
+  const color = tone === 'danger' ? 'text-danger' : tone === 'ok' ? 'text-ok' : tone === 'accent' ? 'text-accent' : 'text-ink';
+  return (
+    <div className="min-w-0">
+      <span className="block text-[10px] text-ink-3 mb-1">{label}</span>
+      <strong className={`block text-xs truncate ${value == null ? 'text-warn' : color}`}>
+        {value == null ? '待補成本' : `${prefix}NT$ ${formatMoney(Math.abs(value))}`}
+      </strong>
+    </div>
+  );
+}
+
+function InternalSummary({ label, value, prefix = '', tone = 'default', note = '' }) {
+  const color = tone === 'danger' ? 'text-red-300' : tone === 'ok' ? 'text-green-300' : tone === 'accent' ? 'text-amber-300' : 'text-white';
+  return (
+    <div>
+      <span className="block text-[10px] text-white/60">{label}</span>
+      <strong className={`block text-sm mt-0.5 ${value == null ? 'text-amber-300' : color}`}>
+        {value == null ? '尚未算完' : `${prefix}NT$ ${formatMoney(Math.abs(value))}`}
+      </strong>
+      {note && <span className="block text-[9px] text-amber-200 mt-0.5">{note}</span>}
+    </div>
   );
 }
