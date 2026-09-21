@@ -8,9 +8,8 @@ import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, normalizeDiscount, normalizeQuoteItems,
-  pricingSafetyStatus, updatePricingCosts,
+  pricingSafetyStatus,
 } from '../../utils/pricing';
-import { sha256Hex } from '../../utils/lock';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -78,28 +77,21 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
   const [customerName, setCustomerName] = useState(quote?.customerName || client?.name || '');
   const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
+  const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false });
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   const [capturing, setCapturing] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
   const previewRef = useRef(null);
-  // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入、報價單不顯示
+  // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入。
   const [loan, setLoan] = useState({
     down: quote?.loan?.down != null ? String(quote.loan.down) : '',
     downPct: null, // 選了百分比時依總價自動算頭期；自訂金額時為 null
     months: quote?.loan?.months != null ? String(quote.loan.months) : '',
-    lender: quote?.loan?.lender || '',
   });
   // 期數/年利率表（設定帶入）
   const [loanTerms, setLoanTerms] = useState(DEFAULT_LOAN_TERMS);
-  // 內部成本抽屜：與業績區共用密碼；關閉即重新上鎖，避免把手機交回客戶時被看到。
-  const [costPanelOpen, setCostPanelOpen] = useState(false);
-  const [costLockHash, setCostLockHash] = useState(undefined);
-  const [costUnlocked, setCostUnlocked] = useState(false);
-  const [costPassword, setCostPassword] = useState('');
-  const [costLockError, setCostLockError] = useState('');
-  const [privateLineCosts, setPrivateLineCosts] = useState({});
 
   // 業務署名、浮水印、貸款月利率記在設定，下次自動帶入
   useEffect(() => {
@@ -112,9 +104,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     db.get('settings', 'quoteLoan')
       .then((row) => setLoanTerms(resolveLoanTerms(row?.terms)))
       .catch(() => {});
-    db.get('settings', 'dealsLock')
-      .then((row) => setCostLockHash(row?.hash || null))
-      .catch(() => setCostLockHash(null));
   }, [quote]);
 
   function saveProfile(next) {
@@ -136,25 +125,14 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   // 頭期：選了 % 依總價自動算，否則用自訂金額
   const effectiveDown = loan.downPct != null ? Math.round(total * loan.downPct / 100) : (Number(loan.down) || 0);
   const loanPrincipal = Math.max(0, total - effectiveDown);
-  const selMonths = Number(loan.months) || 0;
+  const selMonths = Math.min(84, Number(loan.months) || 0);
   // 選到的期數對應年利率（設定帶入）；找不到就 0（單純除法）
   const selTerm = loanTerms.find((t) => Number(t.months) === selMonths);
   const annualRate = selTerm ? Number(selTerm.rate) || 0 : 0;
   const monthlyPay = calcMonthlyPayment(loanPrincipal, annualRate, selMonths);
-  const estimatedInterest = monthlyPay > 0 && selMonths > 0
-    ? Math.max(0, monthlyPay * selMonths - loanPrincipal)
-    : 0;
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
   function pickModel(m) {
-    const currentVehicle = items.find((it) => it.kind === 'vehicle' || it.name.trim() === '車輛售價');
-    if (currentVehicle) {
-      setPrivateLineCosts((current) => {
-        const next = { ...current };
-        delete next[currentVehicle.id];
-        return next;
-      });
-    }
     setModel(m.name);
     setModelId(m.id);
     setItems((list) => {
@@ -167,32 +145,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         pending: false, kind: 'vehicle', catalogId: m.id, discounts: [],
       }, ...list];
     });
-  }
-
-  function toggleCostPanel() {
-    if (costPanelOpen) {
-      setCostPanelOpen(false);
-      setCostUnlocked(false);
-      setCostPassword('');
-      setCostLockError('');
-      return;
-    }
-    setCostPanelOpen(true);
-    setCostUnlocked(costLockHash === null);
-  }
-
-  async function unlockCostPanel() {
-    setCostLockError('');
-    if (!costLockHash) {
-      setCostUnlocked(true);
-      return;
-    }
-    if ((await sha256Hex(costPassword)) === costLockHash) {
-      setCostUnlocked(true);
-      setCostPassword('');
-    } else {
-      setCostLockError('密碼錯誤');
-    }
   }
 
   function pickClient(clientId) {
@@ -244,12 +196,27 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     }]);
   }
 
-  function removeItem(id) {
-    setPrivateLineCosts((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
+  function addExtraAddon() {
+    const name = extraAddon.name.trim();
+    if (!name || (!extraAddon.pending && !(Number(extraAddon.price) > 0))) return;
+    const value = {
+      id: generateId('qi'),
+      name,
+      price: extraAddon.pending ? '' : String(Math.max(0, Number(extraAddon.price) || 0)),
+      pending: !!extraAddon.pending,
+      kind: 'addon',
+      catalogId: null,
+      discounts: [],
+    };
+    setItems((list) => {
+      const emptyIdx = list.findIndex((item) => !item.name.trim() && !Number(item.price));
+      if (emptyIdx === -1) return [...list, value];
+      return list.map((item, index) => (index === emptyIdx ? { ...item, ...value, id: item.id } : item));
     });
+    setExtraAddon({ name: '', price: '', pending: false });
+  }
+
+  function removeItem(id) {
     setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== id) : list));
   }
 
@@ -328,7 +295,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       total,
       requirements: requirements.trim(),
       note: note.trim(),
-      loan: { down: effectiveDown, months: selMonths, rate: annualRate, lender: loan.lender || '' },
+      loan: { down: effectiveDown, months: selMonths, rate: annualRate },
       text: `報價單：${model.trim() || '未填車型'}｜${selectedItems.map((i) => i.name.trim()).join('、')}`,
     };
   }
@@ -336,14 +303,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   function pricingForCurrentQuote() {
     const draft = makeQuotePayload();
     const existing = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
-    const base = buildPricingRecord({ quote: draft, costCatalog, existing });
-    const lineCosts = {};
-    for (const line of base.lines) {
-      const overridden = Object.prototype.hasOwnProperty.call(privateLineCosts, line.id);
-      const value = overridden ? privateLineCosts[line.id] : (line.costKnown ? line.cost : '');
-      if (value !== '' && value != null) lineCosts[line.id] = Math.max(0, Number(value) || 0);
-    }
-    return updatePricingCosts(base, lineCosts, base.otherCosts);
+    return buildPricingRecord({ quote: draft, costCatalog, existing });
   }
 
   function confirmPricingSafety() {
@@ -412,9 +372,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     { key: 'addon', label: '專屬改裝', rows: selectedItems.filter((item) => item.kind === 'addon') },
     { key: 'other', label: '其他費用', rows: selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon') },
   ].filter((group) => group.rows.length > 0);
-  const internalPricing = pricingForCurrentQuote();
-  const internalLineMap = new Map(internalPricing.lines.map((line) => [line.id, line]));
-  const missingCostCount = internalPricing.lines.filter((line) => !line.costKnown).length;
 
   return (
     <>
@@ -424,10 +381,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={toggleCostPanel}
-                className={`btn-outline text-xs gap-1 py-1 ${costPanelOpen ? 'border-warn text-warn' : ''}`}>
-                🔒 {costPanelOpen ? '關閉內部' : '內部成本'}
-              </button>
               <button type="button" onClick={() => setShowCatalog(true)}
                 className="btn-outline text-xs gap-1 py-1">📖 看型錄</button>
               <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
@@ -573,6 +526,32 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 ))}
               </div>
             )}
+            <div className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2">
+              <div>
+                <p className="text-xs font-semibold text-ink-2">➕ 額外配件／未列配件</p>
+                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入；價格還不知道時，直接勾選「待確認金額」。</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_7rem] gap-2">
+                <input value={extraAddon.name}
+                  onChange={(e) => setExtraAddon((value) => ({ ...value, name: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addExtraAddon(); }}
+                  placeholder="額外配件名稱" className="w-full text-sm" />
+                <input type="number" min="0" value={extraAddon.price}
+                  onChange={(e) => setExtraAddon((value) => ({ ...value, price: e.target.value }))}
+                  disabled={extraAddon.pending}
+                  placeholder={extraAddon.pending ? '待確認' : '金額'} className="w-full text-sm disabled:opacity-40" />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer">
+                  <input type="checkbox" checked={extraAddon.pending}
+                    onChange={(e) => setExtraAddon((value) => ({ ...value, pending: e.target.checked, price: e.target.checked ? '' : value.price }))} />
+                  待確認金額（暫不計入總額）
+                </label>
+                <button type="button" onClick={addExtraAddon}
+                  disabled={!extraAddon.name.trim() || (!extraAddon.pending && !(Number(extraAddon.price) > 0))}
+                  className="btn-primary text-xs shrink-0 disabled:opacity-40">加入報價</button>
+              </div>
+            </div>
             <div className="flex gap-2 text-[11px] font-medium text-ink-3">
               <span className="flex-1">項目名稱</span>
               <span className="w-28">金額／待報價</span>
@@ -636,7 +615,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 </div>
               );
             })}
-            <button onClick={addItem} className="btn-outline text-xs">＋ 新增項目</button>
+            <button onClick={addItem} className="btn-outline text-xs">＋ 新增其他費用</button>
 
             <div className="bg-ok/5 border border-ok/25 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -662,23 +641,11 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入整單優惠。</p>}
             </div>
 
-            {/* 貸款試算：頭期＋選期數（年利率在設定，報價單不顯示利率） */}
+            {/* 貸款試算：只提供期數、利率與月付概算，不揭露配合公司或總利息。 */}
             <div className="bg-s2 rounded-lg p-2.5 space-y-2">
               <div>
                 <p className="text-[11px] font-medium text-ink-2">🏦 貸款概算（選填）</p>
                 <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">預設用年利率 4.5% 試算；正式利率由貸款公司依客戶信用、金額與方案核定。</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-ink-3 mb-1">配合貸款公司</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {['三信', '中租迪和'].map((lender) => (
-                    <button key={lender} type="button"
-                      onClick={() => setLoan((value) => ({ ...value, lender: value.lender === lender ? '' : lender }))}
-                      className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${loan.lender === lender ? 'bg-accent text-on-accent border-accent' : 'border-bdr text-ink-2'}`}>
-                      {lender}{lender === '中租迪和' ? '（全額／超貸）' : ''}
-                    </button>
-                  ))}
-                </div>
               </div>
               <div>
                 <p className="text-[11px] text-ink-3 mb-1">頭期款</p>
@@ -725,13 +692,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                     <span className="text-[11px] text-ink-3">分 {selMonths} 期・年利率 {annualRate}% 概算</span>
                     <span className="text-sm text-ink">每月約 <strong className="text-accent text-base">NT$ {formatMoney(monthlyPay)}</strong></span>
                   </div>
-                  <p className="text-[10px] text-ink-3 text-right">預估總利息約 NT$ {formatMoney(estimatedInterest)}</p>
                 </div>
               )}
               {selMonths > 0 && monthlyPay === 0 && (
                 <p className="text-[10px] text-ink-3">此期數尚未在「設定 → 報價選單」設定年利率</p>
               )}
-              <p className="text-[10px] text-ink-3 leading-relaxed">一般有頭款約一成多；全額貸／超貸主要走中租迪和。多數方案先繳利息、後繳本金，仍以正式核貸條件為準。</p>
+              <p className="text-[10px] text-ink-3 leading-relaxed">以上僅供概算；實際利率、額度、頭期款與還款方式仍以金融機構正式核定為準。</p>
             </div>
 
             <Field label="備註">
@@ -749,112 +715,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               </Field>
             </div>
           </div>
-
-          {/* 內部成本抽屜刻意放在 previewRef 外，絕不進入客戶報價圖片。 */}
-          {costPanelOpen && (
-            <section className="mb-4 rounded-2xl border-2 border-warn/40 bg-s2 p-3 md:p-4 shadow-card">
-              {costLockHash === undefined ? (
-                <p className="text-sm text-ink-3 text-center py-4">正在讀取內部密碼設定…</p>
-              ) : costLockHash && !costUnlocked ? (
-                <div className="max-w-sm mx-auto space-y-3 py-2">
-                  <div className="text-center">
-                    <p className="font-bold text-ink">🔐 內部成本已隱藏</p>
-                    <p className="text-xs text-ink-3 mt-1">與「設定 → 內部業績與成本」使用同一組密碼。</p>
-                  </div>
-                  <input type="password" value={costPassword} autoComplete="off" autoFocus
-                    onChange={(e) => setCostPassword(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') unlockCostPanel(); }}
-                    placeholder="輸入內部密碼" className="w-full text-sm" />
-                  {costLockError && <p className="text-xs text-danger">{costLockError}</p>}
-                  <button type="button" onClick={unlockCostPanel} disabled={!costPassword}
-                    className="btn-primary w-full text-sm disabled:opacity-40">解鎖成本試算</button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-bold text-ink">🔒 業務內部成本試算</p>
-                      <p className="text-[11px] text-ink-3 mt-1">只改這張報價的成本快照；長期預設成本可到密碼保護的「成本設定」修改。</p>
-                    </div>
-                    <span className="text-[10px] rounded-full bg-danger/10 text-danger px-2 py-1 shrink-0">不會輸出</span>
-                  </div>
-
-                  {!costLockHash && (
-                    <p className="text-xs text-danger bg-danger/10 rounded-lg px-3 py-2">
-                      ⚠️ 目前尚未設定密碼。請到「設定 → 內部業績與成本」設定，避免客戶自行打開。
-                    </p>
-                  )}
-
-                  {pricedItems.length === 0 ? (
-                    <p className="text-sm text-ink-3 text-center py-5">先勾選有價格的車型或配件，這裡就會列出成本與優惠空間。</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {pricedItems.map((item) => {
-                        const line = internalLineMap.get(item.id);
-                        if (!line) return null;
-                        const lineDiscount = (item.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-                        const lineProfit = line.costKnown ? line.netPrice - line.cost : null;
-                        const shownCost = Object.prototype.hasOwnProperty.call(privateLineCosts, item.id)
-                          ? privateLineCosts[item.id]
-                          : (line.costKnown ? String(line.cost) : '');
-                        return (
-                          <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-3 space-y-2">
-                            <p className="text-sm font-semibold text-ink">{item.name}</p>
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                              <InternalMetric label="售價" value={Number(item.price) || 0} />
-                              <label className="block">
-                                <span className="block text-[10px] text-ink-3 mb-1">成本（可改）</span>
-                                <input type="number" min="0" value={shownCost}
-                                  onChange={(e) => setPrivateLineCosts((current) => ({ ...current, [item.id]: e.target.value }))}
-                                  placeholder="待補成本" className="w-full text-xs" />
-                              </label>
-                              <InternalMetric label="單項優惠" value={lineDiscount} tone="ok" prefix="−" />
-                              <InternalMetric label="折後價" value={line.netPrice} />
-                              <InternalMetric label="折後利潤" value={lineProfit} tone={lineProfit != null && lineProfit < 0 ? 'danger' : 'accent'} />
-                            </div>
-
-                            <div className="border-t border-bdr/60 pt-2 space-y-1.5">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-[11px] text-ink-3">此項優惠明細</span>
-                                <button type="button" onClick={() => addItemDiscount(item.id)} className="text-[11px] text-accent">＋新增優惠</button>
-                              </div>
-                              {(item.discounts || []).map((discount) => (
-                                <div key={discount.id} className="flex gap-2 items-center">
-                                  <input value={discount.name}
-                                    onChange={(e) => setItemDiscount(item.id, discount.id, { name: e.target.value })}
-                                    placeholder="優惠名稱" className="flex-1 min-w-0 text-xs" />
-                                  <input type="number" min="0" value={discount.amount}
-                                    onChange={(e) => setItemDiscount(item.id, discount.id, { amount: e.target.value })}
-                                    placeholder="折扣" className="w-24 text-xs" />
-                                  <button type="button" onClick={() => removeItemDiscount(item.id, discount.id)} className="text-danger/60">✕</button>
-                                </div>
-                              ))}
-                              {(item.discounts || []).length === 0 && <p className="text-[10px] text-ink-3">尚未給這個項目優惠。</p>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 rounded-xl bg-ink text-white p-3">
-                    <InternalSummary label="原價合計" value={totals.originalTotal} />
-                    <InternalSummary label="成本總計" value={internalPricing.costComplete ? internalPricing.costTotal : internalPricing.knownCostTotal}
-                      note={missingCostCount ? `尚有 ${missingCostCount} 項待補` : ''} />
-                    <InternalSummary label="優惠折扣總計" value={totals.discountTotal} prefix="−" />
-                    <InternalSummary label="客戶報價" value={total} />
-                    <InternalSummary label="預估利潤" value={internalPricing.profit}
-                      tone={internalPricing.profit != null && internalPricing.profit < 0 ? 'danger' : 'ok'} />
-                    <InternalSummary label="成本以上可用空間"
-                      value={internalPricing.profit == null ? null : Math.max(0, internalPricing.profit)} tone="accent" />
-                  </div>
-                  {validGeneralDiscounts.length > 0 && (
-                    <p className="text-[11px] text-ink-3">優惠折扣總計已包含整單優惠 NT$ {formatMoney(totals.generalDiscountTotal)}。</p>
-                  )}
-                </div>
-              )}
-            </section>
-          )}
 
           {/* 報價單預覽 — 固定淺色、專業排版，可下載成整張 PNG */}
           <div ref={previewRef} className="mx-auto" style={{
@@ -1028,17 +888,16 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               {/* 分期試算：使用 4.5% 或設定值做概算，實際條件仍以核貸為準 */}
               {monthlyPay > 0 && (
                 <div style={{ border: '1px solid #ecdfce', background: '#fdfaf6', borderRadius: 10, padding: '12px 16px', marginTop: 12 }}>
-                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>貸款概算{loan.lender ? `・${loan.lender}` : ''}</p>
+                  <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>貸款概算</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <span style={{ color: '#8b7355', fontSize: 11, fontWeight: 600 }}>
-                      分 {loan.months} 期・年利率 {annualRate}%
+                      分 {selMonths} 期・年利率 {annualRate}%
                     </span>
                     <span style={{ color: '#2e3a42', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                       <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月約</span>
                       <span style={{ fontSize: 19 }}>{formatMoney(monthlyPay)}</span>
                     </span>
                   </div>
-                  <p style={{ color: '#9a856b', fontSize: 9.5, textAlign: 'right', marginTop: 4 }}>預估總利息約 NT$ {formatMoney(estimatedInterest)}</p>
                   <p style={{ color: '#a5937e', fontSize: 8.8, lineHeight: 1.5, marginTop: 6 }}>以上為概算；實際利率、額度、還款方式與核貸結果依貸款機構及客戶條件為準。</p>
                 </div>
               )}
@@ -1077,30 +936,5 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       </div>
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
     </>
-  );
-}
-
-function InternalMetric({ label, value, prefix = '', tone = 'default' }) {
-  const color = tone === 'danger' ? 'text-danger' : tone === 'ok' ? 'text-ok' : tone === 'accent' ? 'text-accent' : 'text-ink';
-  return (
-    <div className="min-w-0">
-      <span className="block text-[10px] text-ink-3 mb-1">{label}</span>
-      <strong className={`block text-xs truncate ${value == null ? 'text-warn' : color}`}>
-        {value == null ? '待補成本' : `${prefix}NT$ ${formatMoney(Math.abs(value))}`}
-      </strong>
-    </div>
-  );
-}
-
-function InternalSummary({ label, value, prefix = '', tone = 'default', note = '' }) {
-  const color = tone === 'danger' ? 'text-red-300' : tone === 'ok' ? 'text-green-300' : tone === 'accent' ? 'text-amber-300' : 'text-white';
-  return (
-    <div>
-      <span className="block text-[10px] text-white/60">{label}</span>
-      <strong className={`block text-sm mt-0.5 ${value == null ? 'text-amber-300' : color}`}>
-        {value == null ? '尚未算完' : `${prefix}NT$ ${formatMoney(Math.abs(value))}`}
-      </strong>
-      {note && <span className="block text-[9px] text-amber-200 mt-0.5">{note}</span>}
-    </div>
   );
 }

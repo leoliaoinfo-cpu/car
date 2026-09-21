@@ -189,18 +189,25 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v4';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v5';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', '升降尾門', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
 
 const VENDOR_QUOTE_ADDONS = [
-  { id: 'qa-floor-rubber', cat: '客製車體', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型、貨斗尺寸與厚度向廠商確認價格' },
-  { id: 'qa-floor-galvanized', cat: '客製車體', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true, desc: '依板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
-  { id: 'qa-floor-stainless', cat: '客製車體', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-tailgate-four-cylinder', cat: '客製車體', name: '四缸升降尾門（特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+  { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型、貨斗尺寸與厚度向廠商確認價格' },
+  { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true, desc: '依板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
+  { id: 'qa-tailgate-25', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-30-35', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3～3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-40-45', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4～4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-50-55', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5～5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-60-special', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
+  { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
+  { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+  { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 0, pendingPrice: true, desc: '依車型、車頭與車體尺寸向廠商確認規格及價格' },
 ];
 
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
@@ -325,6 +332,7 @@ export const DEFAULT_LOAN_TERMS = [
   { months: 48, rate: 4.5 },
   { months: 60, rate: 4.5 },
   { months: 72, rate: 4.5 },
+  { months: 84, rate: 4.5 },
 ];
 
 const LEGACY_DEFAULT_LOAN_RATES = new Map([
@@ -336,7 +344,14 @@ export function resolveLoanTerms(terms) {
   if (!Array.isArray(terms) || terms.length === 0) return DEFAULT_LOAN_TERMS;
   const isLegacyDefault = terms.length === LEGACY_DEFAULT_LOAN_RATES.size
     && terms.every((term) => LEGACY_DEFAULT_LOAN_RATES.get(Number(term.months)) === Number(term.rate));
-  return isLegacyDefault ? DEFAULT_LOAN_TERMS : terms;
+  const previousDefaultMonths = [12, 24, 36, 48, 60, 72];
+  const isPrevious45Default = terms.length === previousDefaultMonths.length
+    && terms.every((term) => previousDefaultMonths.includes(Number(term.months)) && Number(term.rate) === 4.5);
+  if (isLegacyDefault || isPrevious45Default) return DEFAULT_LOAN_TERMS;
+  const valid = terms
+    .map((term) => ({ months: Math.round(Number(term.months)), rate: Number(term.rate) || 0 }))
+    .filter((term) => term.months > 0 && term.months <= 84);
+  return valid.length > 0 ? valid : DEFAULT_LOAN_TERMS;
 }
 
 // 舊版通用預設配備名稱（用於判斷使用者是否從未客製過報價選單）

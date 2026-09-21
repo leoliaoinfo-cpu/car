@@ -136,8 +136,24 @@ test('adds supplier sheet options to existing quote menus without exposing costs
 test('uses 4.5 percent as the default customer loan estimate', () => {
   assert.ok(DEFAULT_QUOTE_PRESETS.addons.length > 0);
   assert.ok(resolveLoanTerms(null).every((term) => term.rate === 4.5));
+  assert.equal(resolveLoanTerms(null).at(-1).months, 84);
   assert.ok(resolveLoanTerms([
     { months: 12, rate: 2.88 }, { months: 24, rate: 3 }, { months: 36, rate: 3.25 },
     { months: 48, rate: 3.5 }, { months: 60, rate: 3.75 }, { months: 72, rate: 4.2 },
   ]).every((term) => term.rate === 4.5));
+  assert.equal(resolveLoanTerms([
+    { months: 12, rate: 4.5 }, { months: 24, rate: 4.5 }, { months: 36, rate: 4.5 },
+    { months: 48, rate: 4.5 }, { months: 60, rate: 4.5 }, { months: 72, rate: 4.5 },
+  ]).at(-1).months, 84);
+  assert.ok(resolveLoanTerms([{ months: 96, rate: 4.5 }]).every((term) => term.months <= 84));
+});
+
+test('splits cargo floors and liftgates into quote categories with special orders pending', () => {
+  const addons = DEFAULT_QUOTE_PRESETS.addons;
+  assert.equal(addons.find((item) => item.id === 'qa-floor-rubber').cat, '貨斗底板');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-50-55').price, 48000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').price, 8000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-60-special').pendingPrice, true);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
+  assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, true);
 });

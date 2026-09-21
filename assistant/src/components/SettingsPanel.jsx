@@ -11,7 +11,6 @@ import {
   showSystemNotification, registerPeriodicReminderCheck,
 } from '../notify';
 import { Field } from './ui';
-import { sha256Hex } from '../utils/lock';
 import { STORAGE_KEYS } from '../storageKeys';
 
 const HELP_CARDS = [
@@ -397,24 +396,29 @@ function LoanTermsEditor() {
       .catch(() => {});
   }, []);
   function save(next) {
-    setTerms(next);
-    db.put('settings', { key: 'quoteLoan', terms: next, version: 'estimate-4.5-v1' }).catch(() => {});
+    const valid = next
+      .map((term) => ({ months: Math.min(84, Math.max(1, Math.round(Number(term.months) || 1))), rate: Number(term.rate) || 0 }))
+      .filter((term, index, list) => list.findIndex((row) => row.months === term.months) === index);
+    setTerms(valid);
+    db.put('settings', { key: 'quoteLoan', terms: valid, version: 'estimate-4.5-v2' }).catch(() => {});
   }
   const update = (i, patch) => save(terms.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const remove = (i) => save(terms.filter((_, idx) => idx !== i));
-  const add = () => save([...terms, { months: 0, rate: 0 }]);
+  const standardMonths = [12, 24, 36, 48, 60, 72, 84];
+  const nextMonth = standardMonths.find((months) => !terms.some((term) => Number(term.months) === months));
+  const add = () => { if (nextMonth) save([...terms, { months: nextMonth, rate: 4.5 }]); };
 
   return (
     <div className="card p-4 space-y-2">
       <h3 className="font-semibold text-ink">🏦 貸款期數與年利率</h3>
       <p className="text-xs text-ink-3">
-        預設以 4.5% 做客戶概算並顯示預估月付與總利息；實際利率仍由三信／中租迪和依信用、金額與方案核定。這裡可自行修改。
+        預設以 4.5% 做客戶月付概算，最高 84 期；客戶畫面只顯示月付金。實際條件仍由金融機構依客戶條件核定。
       </p>
       <div className="space-y-1.5">
         {terms.map((t, i) => (
           <div key={i} className="flex items-center gap-2">
-            <input type="number" min="1" value={t.months}
-              onChange={(e) => update(i, { months: Number(e.target.value) })}
+            <input type="number" min="1" max="84" value={t.months}
+              onChange={(e) => update(i, { months: Math.min(84, Math.max(1, Number(e.target.value) || 1)) })}
               className="w-16 text-sm" />
             <span className="text-xs text-ink-3">期</span>
             <input type="number" min="0" step="0.01" value={t.rate}
@@ -425,7 +429,7 @@ function LoanTermsEditor() {
           </div>
         ))}
       </div>
-      <button onClick={add} className="btn-outline text-xs">+ 新增期數</button>
+      <button onClick={add} disabled={!nextMonth} className="btn-outline text-xs disabled:opacity-40">+ 新增期數</button>
     </div>
   );
 }
@@ -813,159 +817,33 @@ function CustomFieldEditor({ fields, onChange }) {
 }
 
 // ── 📈 業績表入口 + 密碼保護 ──────────────────────────────────────────────────
-// 業績表已從主導覽移除，只能從這裡進入；可設密碼（雙重輸入）避免給客人看到。
+// 業績表已從主導覽移除，只能從這裡輸入固定通關答案進入，避免給客人看到。
 function DealsSection({ onOpenDeals }) {
-  const [hash, setHash] = useState(undefined); // undefined=載入中, ''/null=未設, string=已設
-  const [answerHash, setAnswerHash] = useState(null); // 忘記密碼安全答案（就讀國小）的雜湊
   const [unlock, setUnlock] = useState('');
   const [err, setErr] = useState('');
-  const [cur, setCur] = useState('');  // 目前密碼（修改/取消時驗證）
-  const [p1, setP1] = useState('');    // 新密碼
-  const [p2, setP2] = useState('');    // 再次輸入
-  const [ans, setAns] = useState('');  // 設定密碼時一併設定的安全答案
-  const [msg, setMsg] = useState('');
-  // 忘記密碼流程
-  const [forgot, setForgot] = useState(false);
-  const [fAns, setFAns] = useState('');
-  const [fOk, setFOk] = useState(false);
-  const [fp1, setFp1] = useState('');
-  const [fp2, setFp2] = useState('');
-  const [fMsg, setFMsg] = useState('');
 
-  useEffect(() => {
-    db.get('settings', 'dealsLock').then((r) => {
-      setHash(r?.hash || null);
-      setAnswerHash(r?.answerHash || null);
-    }).catch(() => setHash(null));
-  }, []);
-
-  async function tryOpen() {
+  function tryOpen() {
     setErr('');
-    if (!hash) { onOpenDeals(); return; }
-    if ((await sha256Hex(unlock)) === hash) { setUnlock(''); onOpenDeals(); }
+    if (unlock.trim() === '東平') { setUnlock(''); onOpenDeals(); }
     else setErr('密碼錯誤，請重新輸入');
   }
 
-  async function savePassword() {
-    setMsg('');
-    if (hash && (await sha256Hex(cur)) !== hash) { setMsg('目前密碼錯誤'); return; }
-    if (!p1) { setMsg('請輸入新密碼'); return; }
-    if (p1 !== p2) { setMsg('兩次輸入的密碼不一致'); return; }
-    // 初次設定（或尚未設過安全答案）時，必須一併設定「忘記密碼」的安全答案
-    const needAns = !hash || !answerHash;
-    if (needAns && ans.trim().length === 0) { setMsg('請設定「忘記密碼」的安全答案（就讀的國小，兩個字）'); return; }
-    const nh = await sha256Hex(p1);
-    const ah = ans.trim() ? await sha256Hex(ans.trim()) : answerHash; // 沒填就沿用舊的
-    await db.put('settings', { key: 'dealsLock', hash: nh, answerHash: ah, _ts: Date.now() });
-    setHash(nh); setAnswerHash(ah); setCur(''); setP1(''); setP2(''); setAns('');
-    setMsg('✅ 密碼已設定，下次開啟業績表需輸入');
-  }
-
-  async function clearPassword() {
-    setMsg('');
-    if ((await sha256Hex(cur)) !== hash) { setMsg('目前密碼錯誤'); return; }
-    await db.put('settings', { key: 'dealsLock', hash: '', answerHash: '', _ts: Date.now() });
-    setHash(null); setAnswerHash(null); setCur(''); setP1(''); setP2(''); setAns(''); setMsg('✅ 已取消密碼保護');
-  }
-
-  // 忘記密碼：答對安全問題（就讀國小）→ 允許重設新密碼
-  async function verifyForgot() {
-    setFMsg('');
-    if (!answerHash) { setFMsg('尚未設定安全問題，無法用此方式重設'); return; }
-    if ((await sha256Hex(fAns.trim())) === answerHash) { setFOk(true); setFMsg(''); }
-    else setFMsg('答案錯誤');
-  }
-  async function resetByAnswer() {
-    setFMsg('');
-    if (!fp1) { setFMsg('請輸入新密碼'); return; }
-    if (fp1 !== fp2) { setFMsg('兩次輸入不一致'); return; }
-    const nh = await sha256Hex(fp1);
-    await db.put('settings', { key: 'dealsLock', hash: nh, answerHash, _ts: Date.now() });
-    setHash(nh); setForgot(false); setFOk(false); setFAns(''); setFp1(''); setFp2('');
-    setErr(''); setMsg('✅ 已用安全問題重設密碼，請用新密碼解鎖');
-  }
-
-  if (hash === undefined) return <p className="text-ink-3 text-sm">載入中…</p>;
-
   return (
-    <section className="space-y-4">
-      {/* 開啟入口 */}
-      <div className="card p-4 space-y-3">
+    <section>
+      <div className="card p-4 space-y-3 border border-warn/30">
         <h3 className="font-semibold text-ink">📈 開啟內部業績與成本</h3>
-        <p className="text-xs text-ink-3">業績、成本設定、報價試算與單車利潤都只從這裡進入，避免給客人看到內部數字。</p>
-        {hash ? (
-          <div className="space-y-2">
-            <Field label="輸入密碼解鎖">
-              <input type="password" value={unlock} autoComplete="off"
-                onChange={(e) => setUnlock(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') tryOpen(); }}
-                className="w-full" />
-            </Field>
-            {err && <p className="text-danger text-xs">{err}</p>}
-            <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟業績表</button>
-            {/* 忘記密碼：以安全問題（就讀國小）重設 */}
-            {!forgot ? (
-              <button onClick={() => { setForgot(true); setFMsg(''); }} className="text-xs text-accent hover:underline">忘記密碼？</button>
-            ) : (
-              <div className="mt-1 bg-s2 rounded-lg p-3 space-y-2">
-                <p className="text-xs font-medium text-ink-2">忘記密碼：你就讀的國小？（兩個字）</p>
-                {!fOk ? (
-                  <>
-                    <input value={fAns} maxLength={2} autoComplete="off" onChange={(e) => setFAns(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') verifyForgot(); }}
-                      placeholder="請填兩個字" className="w-full text-sm" />
-                    <div className="flex gap-2">
-                      <button onClick={verifyForgot} disabled={!fAns.trim()} className="btn-primary text-xs flex-1 disabled:opacity-40">驗證答案</button>
-                      <button onClick={() => { setForgot(false); setFAns(''); setFMsg(''); }} className="btn-outline text-xs shrink-0">取消</button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs text-ok">✅ 答案正確，請設定新密碼</p>
-                    <input type="password" value={fp1} autoComplete="new-password" onChange={(e) => setFp1(e.target.value)} placeholder="新密碼" className="w-full text-sm" />
-                    <input type="password" value={fp2} autoComplete="new-password" onChange={(e) => setFp2(e.target.value)} placeholder="再次輸入新密碼" className="w-full text-sm" />
-                    <button onClick={resetByAnswer} disabled={!fp1 || !fp2} className="btn-primary text-xs w-full disabled:opacity-40">重設密碼</button>
-                  </>
-                )}
-                {fMsg && <p className={`text-xs ${fMsg.startsWith('✅') ? 'text-ok' : 'text-danger'}`}>{fMsg}</p>}
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <button onClick={onOpenDeals} className="btn-primary w-full">開啟內部業績與成本</button>
-            <p className="text-danger text-xs">⚠️ 尚未設定密碼，任何人都能開啟。建議在下方設定密碼。</p>
-          </>
-        )}
-      </div>
-
-      {/* 密碼設定（雙重輸入） */}
-      <div className="card p-4 space-y-3">
-        <h3 className="font-semibold text-ink text-sm">🔒 {hash ? '修改業績表密碼' : '設定業績表密碼'}</h3>
-        {hash && (
-          <Field label="目前密碼">
-            <input type="password" value={cur} autoComplete="off" onChange={(e) => setCur(e.target.value)} className="w-full" />
+        <p className="text-xs text-ink-3">業績、成本設定、報價試算與單車利潤都只從這裡進入；報價畫面不提供成本入口。</p>
+        <div className="space-y-2">
+          <Field label="輸入密碼解鎖">
+            <input type="password" value={unlock} autoComplete="off"
+              onChange={(e) => setUnlock(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') tryOpen(); }}
+              className="w-full" />
           </Field>
-        )}
-        <Field label={hash ? '新密碼' : '設定密碼'}>
-          <input type="password" value={p1} autoComplete="new-password" onChange={(e) => setP1(e.target.value)} className="w-full" />
-        </Field>
-        <Field label="再次輸入密碼">
-          <input type="password" value={p2} autoComplete="new-password" onChange={(e) => setP2(e.target.value)} className="w-full" />
-        </Field>
-        {/* 忘記密碼問題：初次設定必填、之後可留空不改 */}
-        <Field label="忘記密碼問題：你就讀的國小（答案兩個字）">
-          <input value={ans} maxLength={2} autoComplete="off" onChange={(e) => setAns(e.target.value)}
-            placeholder={answerHash ? '留空＝不修改答案' : '請填兩個字'} className="w-full" />
-        </Field>
-        {msg && <p className={`text-xs ${msg.startsWith('✅') ? 'text-ok' : 'text-danger'}`}>{msg}</p>}
-        <div className="flex gap-2">
-          <button onClick={savePassword} disabled={!p1 || !p2} className="btn-primary text-sm flex-1 disabled:opacity-40">
-            {hash ? '更新密碼' : '設定密碼'}
-          </button>
-          {hash && <button onClick={clearPassword} className="btn-outline text-sm text-danger shrink-0">取消密碼</button>}
+          <p className="text-[11px] text-warn">提示：就讀的國小（兩個字）</p>
+          {err && <p className="text-danger text-xs">{err}</p>}
+          <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟內部業績與成本</button>
         </div>
-        <p className="text-[11px] text-ink-3">密碼與安全答案都以雜湊方式儲存（不存明文），僅供防止客人隨手翻看，非高強度加密。忘記密碼時，可在上方「開啟業績表」點「忘記密碼？」，答對安全問題即可重設。</p>
       </div>
     </section>
   );
