@@ -835,10 +835,12 @@ function DealsSection({ onOpenDeals }) {
         <p className="text-xs text-ink-3">業績、成本設定、報價試算與單車利潤都只從這裡進入；報價畫面不提供成本入口。</p>
         <div className="space-y-2">
           <Field label="輸入密碼解鎖">
-            <input type="password" value={unlock} autoComplete="off"
+            <input type="text" inputMode="text" lang="zh-Hant" value={unlock}
+              autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false}
               onChange={(e) => setUnlock(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') tryOpen(); }}
-              className="w-full" />
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) tryOpen(); }}
+              style={{ WebkitTextSecurity: 'disc' }}
+              placeholder="請輸入兩個中文字" className="w-full" />
           </Field>
           <p className="text-[11px] text-warn">提示：就讀的國小（兩個字）</p>
           {err && <p className="text-danger text-xs">{err}</p>}

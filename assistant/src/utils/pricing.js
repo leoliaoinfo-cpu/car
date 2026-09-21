@@ -1,6 +1,6 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 
-const COST_CATALOG_VERSION = 2;
+const COST_CATALOG_VERSION = 3;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -51,11 +51,21 @@ const SUPPLIER_ADDON_COSTS = {
   'qa-film-3m-body-d': { cost: 3142 },
 };
 
+// v3 新增成本：舊版只補這個新項目，不重新塞回使用者刻意清空的其他成本。
+const V3_ADDON_COSTS = {
+  'qa-truck-air-deflector': { cost: 3000 },
+};
+
+const DEFAULT_ADDON_COSTS = {
+  ...SUPPLIER_ADDON_COSTS,
+  ...V3_ADDON_COSTS,
+};
+
 export const EMPTY_COST_CATALOG = {
   key: 'costCatalog',
   version: COST_CATALOG_VERSION,
   models: {},
-  addons: SUPPLIER_ADDON_COSTS,
+  addons: DEFAULT_ADDON_COSTS,
 };
 
 const money = (value) => Math.max(0, Math.round(Number(value) || 0));
@@ -126,14 +136,16 @@ export function calculateQuoteTotals(items = [], generalDiscounts = []) {
 }
 
 export function normalizeCostCatalog(row) {
-  const shouldSeedSupplierCosts = !row || (Number(row.version) || 0) < COST_CATALOG_VERSION;
+  const previousVersion = Number(row?.version) || 0;
   return {
     ...EMPTY_COST_CATALOG,
     ...(row || {}),
     version: COST_CATALOG_VERSION,
     models: { ...(row?.models || {}) },
     addons: {
-      ...(shouldSeedSupplierCosts ? SUPPLIER_ADDON_COSTS : {}),
+      ...(!row ? DEFAULT_ADDON_COSTS : {}),
+      ...(row && previousVersion < 2 ? SUPPLIER_ADDON_COSTS : {}),
+      ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
       ...(row?.addons || {}),
     },
   };

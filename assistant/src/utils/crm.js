@@ -189,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v5';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v6';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -207,7 +207,7 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-tailgate-60-special', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
   { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
   { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
-  { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 0, pendingPrice: true, desc: '依車型、車頭與車體尺寸向廠商確認規格及價格' },
+  { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 3500, pendingPrice: false, desc: '依車型、車頭與車體尺寸安裝；售價 3,500 元' },
 ];
 
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
@@ -371,14 +371,21 @@ export function resolveQuotePresets(row) {
     && names.length === LEGACY_ADDON_NAMES.length
     && names.every((n) => LEGACY_ADDON_NAMES.includes(n));
   if (untouched) return DEFAULT_QUOTE_PRESETS;
-  const addonIds = new Set(row.addons.map((item) => item.id));
-  const addonNames = new Set(row.addons.map((item) => item.name));
+  const airDeflector = REQUIRED_QUOTE_ADDONS.find((item) => item.id === 'qa-truck-air-deflector');
+  const migratedAddons = row.addons.map((item) => {
+    const isPreviousDefault = item.id === 'qa-truck-air-deflector'
+      && item.pendingPrice === true
+      && (Number(item.price) || 0) === 0;
+    return isPreviousDefault ? { ...item, ...airDeflector } : item;
+  });
+  const addonIds = new Set(migratedAddons.map((item) => item.id));
+  const addonNames = new Set(migratedAddons.map((item) => item.name));
   const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name));
   return {
     ...row,
     _catalog: QUOTE_CATALOG_VERSION,
     models: row.models || DEFAULT_QUOTE_PRESETS.models,
-    addons: [...row.addons, ...newAddons],
+    addons: [...migratedAddons, ...newAddons],
   };
 }
 

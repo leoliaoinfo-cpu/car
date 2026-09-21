@@ -8,7 +8,6 @@ import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, normalizeDiscount, normalizeQuoteItems,
-  pricingSafetyStatus,
 } from '../../utils/pricing';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
@@ -306,23 +305,10 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     return buildPricingRecord({ quote: draft, costCatalog, existing });
   }
 
-  function confirmPricingSafety() {
-    const pricing = pricingForCurrentQuote();
-    const status = pricingSafetyStatus(pricing);
-    if (status === 'incomplete') {
-      return window.confirm('內部提醒：部分項目的成本尚未設定，現在無法完整確認是否低於成本。仍要繼續嗎？');
-    }
-    if (status === 'belowCost') {
-      return window.confirm('內部警告：這張報價已低於設定成本。請再次確認，仍要繼續嗎？');
-    }
-    return true;
-  }
-
   // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
   async function downloadImage() {
     const src = previewRef.current;
     if (!src || capturing) return;
-    if (!confirmPricingSafety()) return;
     setCapturing(true);
     // 複製一份到畫面外、完整展開（脫離捲動容器），避免 html2canvas 裁掉底部
     const clone = src.cloneNode(true);
@@ -362,7 +348,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   }
 
   async function handleRecord() {
-    if (!confirmPricingSafety()) return;
     const payload = makeQuotePayload();
     await onSaveQuote({ ...payload, _pricingRecord: pricingForCurrentQuote() });
   }

@@ -110,6 +110,7 @@ test('seeds supplier sheet costs and converts each 80-percent row to a number', 
   assert.equal(catalog.addons['qa-interior-led-double'].cost, 480);
   assert.equal(catalog.addons['qa-phone-basic'].cost, 1040);
   assert.equal(catalog.addons['qa-phone-a-pillar'].cost, 1200);
+  assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
@@ -119,6 +120,7 @@ test('lets a version-2 cost catalog keep edited values and intentional blanks', 
   });
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'], undefined);
+  assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
 });
 
 test('adds supplier sheet options to existing quote menus without exposing costs', () => {
@@ -155,5 +157,22 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').price, 8000);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-60-special').pendingPrice, true);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
-  assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, true);
+  assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').price, 3500);
+  assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, false);
+});
+
+test('upgrades the old pending deflector price while preserving custom edits', () => {
+  const oldDefault = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v5', models: [], subsidies: [],
+    addons: [{ id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 0, pendingPrice: true }],
+  });
+  const migrated = oldDefault.addons.find((item) => item.id === 'qa-truck-air-deflector');
+  assert.equal(migrated.price, 3500);
+  assert.equal(migrated.pendingPrice, false);
+
+  const customized = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v5', models: [], subsidies: [],
+    addons: [{ id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 4000, pendingPrice: false }],
+  });
+  assert.equal(customized.addons.find((item) => item.id === 'qa-truck-air-deflector').price, 4000);
 });
