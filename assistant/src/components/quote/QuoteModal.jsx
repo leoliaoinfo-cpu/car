@@ -34,6 +34,8 @@ function catColor(cat) {
   return CAT_COLORS_Q[h % CAT_COLORS_Q.length];
 }
 
+const PAINT_COLOR_CATALOG_IDS = new Set(['qa-paint1', 'qa-paint2', 'qa-paint3']);
+
 /** 由字串推導 4 碼英數（報價單編號用，同輸入固定輸出） */
 function shortHash(str) {
   let h = 0;
@@ -156,14 +158,21 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   }
 
   // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
-  const isPicked = (name) => items.some((it) => it.name.trim() === name);
+  const isCatalogPicked = (catalogId) => items.some((it) => it.catalogId === catalogId);
+  const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
+  const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
   function toggleLine({ id: catalogId, name, price, group, pendingPrice = false }) {
     setItems((list) => {
       const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
       if (picked) {
-        const next = list.filter((it) => it.catalogId !== catalogId && it.name.trim() !== name);
+        const dependentIds = new Set(quotePresets.addons
+          .filter((addon) => addon.parentId === catalogId)
+          .map((addon) => addon.id));
+        const next = list.filter((it) => it.catalogId !== catalogId
+          && it.name.trim() !== name
+          && !dependentIds.has(it.catalogId));
         return next.length ? next : [{ id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [] }];
       }
       let base = list;
@@ -178,6 +187,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         pending: !!pendingPrice,
         kind: 'addon',
         catalogId,
+        note: '',
         discounts: [],
       };
       if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, ...value } : it));
@@ -280,6 +290,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         name: it.name.trim(),
         price: it.pending ? 0 : (Number(it.price) || 0),
         pending: !!it.pending,
+        note: String(it.note || '').trim(),
         discounts: it.pending ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
@@ -433,7 +444,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   </button>
                 </div>
                 <p className="text-[10px] text-ink-3 -mt-1">點選即加入、再點取消；已選會反白。車身改色 / 防刮尾門 / 後照鏡為擇一，換新的自動取代。</p>
-                {groupAddonsByCat(quotePresets.addons).map(([cat, list]) => {
+                {groupAddonsByCat(visibleAddons).map(([cat, list]) => {
                   const color = catColor(cat);
                   // 整個類別同屬一個擇一群組時才標「擇一」（例如車身改色底色、防刮尾門尺寸）
                   const groupSet = new Set(list.map((a) => a.group || ''));
@@ -450,13 +461,14 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       {showDesc ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {list.map((a) => {
-                            const picked = isPicked(a.name);
+                            const picked = isPicked(a);
                             return (
                               <div key={a.id}
                                 className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'}`}
                                 style={picked ? { background: color + '18', borderColor: color } : undefined}>
                                 <div className="flex items-start justify-between gap-2">
                                   <p className="text-xs text-ink font-medium leading-snug">
+                                    {a.parentId && <span className="text-ink-3">↳ </span>}
                                     {picked && <span style={{ color }}>✓ </span>}{a.name}
                                   </p>
                                   <span className="text-xs font-bold shrink-0" style={{ color }}>
@@ -476,7 +488,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       ) : (
                         <div className="flex gap-1.5 flex-wrap">
                           {list.map((a) => {
-                            const picked = isPicked(a.name);
+                            const picked = isPicked(a);
                             return (
                               <button key={a.id} type="button" title={a.desc || ''}
                                 onClick={() => toggleLine(a)}
@@ -485,6 +497,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                                   ? { background: color, borderColor: color, color: '#fff' }
                                   : { borderColor: color + '55' }}>
                                 {picked && <span>✓</span>}
+                                {a.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
                                 <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{a.name}</span>
                                 <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
                                   {a.pendingPrice ? '待報價' : formatMoney(a.price)}
@@ -545,6 +558,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             {items.map((it) => {
               const selected = it.name.trim() && (it.pending || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+              const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
               return (
                 <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
                   <div className="flex gap-2">
@@ -557,6 +571,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                     <button onClick={() => removeItem(it.id)}
                       className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
                   </div>
+                  {needsColorNote && (
+                    <div className="rounded-lg border border-accent/25 bg-accent/5 p-2">
+                      <label className="block text-[10px] font-medium text-ink-2 mb-1">🎨 車色備註</label>
+                      <input value={it.note || ''}
+                        onChange={(e) => setItem(it.id, { note: e.target.value })}
+                        placeholder="例如：珍珠白、消光黑、指定色號…"
+                        className="w-full text-xs" />
+                    </div>
+                  )}
                   {it.name.trim() && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] text-ink-3">
@@ -787,7 +810,14 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       return (
                         <div key={item.id} style={{ padding: '9px 0', borderBottom: '1px solid #f0f3f5' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                            <span style={{ color: '#4a5862', fontSize: 12.5, lineHeight: 1.45 }}>{item.name}</span>
+                            <span style={{ color: '#4a5862', fontSize: 12.5, lineHeight: 1.45 }}>
+                              {item.name}
+                              {item.note && (
+                                <span style={{ display: 'block', color: '#8b98a1', fontSize: 10.5, marginTop: 2 }}>
+                                  車色備註：{item.note}
+                                </span>
+                              )}
+                            </span>
                             <span style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                               {item.pending ? (
                                 <span style={{ color: '#a9793f', background: '#fff7e8', border: '1px solid #ecd8b7', borderRadius: 999, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 }}>

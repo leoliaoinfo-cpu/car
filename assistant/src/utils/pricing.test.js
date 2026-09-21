@@ -128,8 +128,14 @@ test('adds supplier sheet options to existing quote menus without exposing costs
     key: 'quotePresets', _catalog: 'kavan-2026-v3', models: [], addons: [], subsidies: [],
   });
   const galvanized = resolved.addons.find((item) => item.id === 'qa-floor-galvanized');
+  const galvanizedFlat = resolved.addons.find((item) => item.id === 'qa-floor-galvanized-flat');
+  const consoleBox = resolved.addons.find((item) => item.id === 'qa-android-console-box');
   const film = resolved.addons.find((item) => item.id === 'qa-film-fsk-front');
-  assert.equal(galvanized.name, '錏花板（鍍鋅鋼板） 台語：灰板');
+  assert.equal(galvanized.name, '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)');
+  assert.equal(galvanizedFlat.name, '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)');
+  assert.equal(galvanizedFlat.pendingPrice, true);
+  assert.equal(consoleBox.parentId, 'qa-android-surround');
+  assert.equal(consoleBox.price, 500);
   assert.equal(film.price, 8000);
   assert.equal(Object.prototype.hasOwnProperty.call(film, 'cost'), false);
   assert.ok(resolved.addons.find((item) => item.id === 'qa-brake-kit'));
@@ -212,4 +218,27 @@ test('splits existing combined liftgate sizes into individual quote options', ()
   assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-45'));
   assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-50'));
   assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-55'));
+});
+
+test('upgrades the old galvanized floor name and adds the dependent console option', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v8', models: [], subsidies: [],
+    addons: [
+      { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true },
+      { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '中央置物盒另加 500 元；12 個月保固' },
+    ],
+  });
+  assert.equal(
+    resolved.addons.find((item) => item.id === 'qa-floor-galvanized').name,
+    '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)',
+  );
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '12 個月保固');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-console-box').parentId, 'qa-android-surround');
+});
+
+test('keeps an item-level color note when normalizing a saved quote', () => {
+  const normalized = normalizeQuoteItems([
+    { id: 'paint', catalogId: 'qa-paint1', name: '車身烤漆改色（單廂）', price: 36000, note: '珍珠白' },
+  ]);
+  assert.equal(normalized.items[0].note, '珍珠白');
 });

@@ -189,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v8';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v9';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -198,7 +198,8 @@ export const QUOTE_ADDON_CATS = [
 
 const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型、貨斗尺寸與厚度向廠商確認價格' },
-  { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true, desc: '依板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '依花紋板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '依平板板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
   { id: 'qa-tailgate-25', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
   { id: 'qa-tailgate-30', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
@@ -216,7 +217,8 @@ const VENDOR_QUOTE_ADDONS = [
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
-  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '中央置物盒另加 500 元；12 個月保固' },
+  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '12 個月保固' },
+  { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
   { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, desc: '12 個月保固' },
   { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, desc: '48 個月保固' },
   { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, desc: '48 個月保固' },
@@ -381,6 +383,8 @@ export function resolveQuotePresets(row) {
     && names.every((n) => LEGACY_ADDON_NAMES.includes(n));
   if (untouched) return DEFAULT_QUOTE_PRESETS;
   const airDeflector = REQUIRED_QUOTE_ADDONS.find((item) => item.id === 'qa-truck-air-deflector');
+  const galvanizedFloor = REQUIRED_QUOTE_ADDONS.find((item) => item.id === 'qa-floor-galvanized');
+  const androidSurround = REQUIRED_QUOTE_ADDONS.find((item) => item.id === 'qa-android-surround');
   const splitAddons = row.addons.flatMap((item) => {
     const replacementIds = LEGACY_TAILGATE_SIZE_SPLITS[item.id];
     if (!replacementIds) return [item];
@@ -398,7 +402,15 @@ export function resolveQuotePresets(row) {
     const isPreviousDefault = item.id === 'qa-truck-air-deflector'
       && item.pendingPrice === true
       && (Number(item.price) || 0) === 0;
-    const migrated = isPreviousDefault ? { ...item, ...airDeflector } : item;
+    let migrated = isPreviousDefault ? { ...item, ...airDeflector } : item;
+    if (migrated.id === 'qa-floor-galvanized'
+      && migrated.name === '錏花板（鍍鋅鋼板） 台語：灰板') {
+      migrated = { ...migrated, ...galvanizedFloor };
+    }
+    if (migrated.id === 'qa-android-surround'
+      && migrated.desc === '中央置物盒另加 500 元；12 個月保固') {
+      migrated = { ...migrated, desc: androidSurround.desc };
+    }
     if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat !== '升降尾門') {
       return { ...migrated, cat: '升降尾門' };
     }
