@@ -176,3 +176,16 @@ test('upgrades the old pending deflector price while preserving custom edits', (
   });
   assert.equal(customized.addons.find((item) => item.id === 'qa-truck-air-deflector').price, 4000);
 });
+
+test('moves an existing four-cylinder liftgate out of the custom-body category', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v6', models: [], subsidies: [],
+    addons: [{
+      id: 'qa-tailgate-four-cylinder', cat: '客製車體', name: '四缸升降尾門（特製規格）',
+      price: 0, pendingPrice: true,
+    }],
+  });
+  const fourCylinder = resolved.addons.find((item) => item.id === 'qa-tailgate-four-cylinder');
+  assert.equal(fourCylinder.cat, '升降尾門');
+  assert.equal(fourCylinder.pendingPrice, true);
+});

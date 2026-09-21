@@ -189,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v6';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v7';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -376,7 +376,11 @@ export function resolveQuotePresets(row) {
     const isPreviousDefault = item.id === 'qa-truck-air-deflector'
       && item.pendingPrice === true
       && (Number(item.price) || 0) === 0;
-    return isPreviousDefault ? { ...item, ...airDeflector } : item;
+    const migrated = isPreviousDefault ? { ...item, ...airDeflector } : item;
+    if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat !== '升降尾門') {
+      return { ...migrated, cat: '升降尾門' };
+    }
+    return migrated;
   });
   const addonIds = new Set(migratedAddons.map((item) => item.id));
   const addonNames = new Set(migratedAddons.map((item) => item.name));

@@ -63,11 +63,6 @@ export default function QuoteWorkspace({ onOpenClient }) {
             ＋ 新報價
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-1.5 mt-4 text-center text-[10px] md:text-xs">
-          {['1 填需求', '2 選配件', '3 補廠商價', '4 輸出圖片'].map((step, index) => (
-            <div key={step} className={`rounded-lg px-1 py-2 ${index === 0 ? 'bg-accent text-on-accent' : 'bg-s1/80 text-ink-2'}`}>{step}</div>
-          ))}
-        </div>
       </section>
 
       <div className="flex items-center gap-2">
