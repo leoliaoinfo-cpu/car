@@ -153,7 +153,13 @@ test('uses 4.5 percent as the default customer loan estimate', () => {
 test('splits cargo floors and liftgates into quote categories with special orders pending', () => {
   const addons = DEFAULT_QUOTE_PRESETS.addons;
   assert.equal(addons.find((item) => item.id === 'qa-floor-rubber').cat, '貨斗底板');
-  assert.equal(addons.find((item) => item.id === 'qa-tailgate-50-55').price, 48000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-30').price, 40000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-35').price, 40000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-40').price, 43000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-45').price, 43000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-50').price, 48000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-55').price, 48000);
+  assert.equal(addons.some((item) => item.id === 'qa-tailgate-30-35'), false);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').price, 8000);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-60-special').pendingPrice, true);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
@@ -188,4 +194,22 @@ test('moves an existing four-cylinder liftgate out of the custom-body category',
   const fourCylinder = resolved.addons.find((item) => item.id === 'qa-tailgate-four-cylinder');
   assert.equal(fourCylinder.cat, '升降尾門');
   assert.equal(fourCylinder.pendingPrice, true);
+});
+
+test('splits existing combined liftgate sizes into individual quote options', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v7', models: [], subsidies: [],
+    addons: [
+      { id: 'qa-tailgate-30-35', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3～3.5尺）', price: 41000 },
+      { id: 'qa-tailgate-40-45', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4～4.5尺）', price: 43000 },
+      { id: 'qa-tailgate-50-55', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5～5.5尺）', price: 48000 },
+    ],
+  });
+  assert.equal(resolved.addons.some((item) => item.id === 'qa-tailgate-30-35'), false);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-30').price, 41000);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').price, 41000);
+  assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-40'));
+  assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-45'));
+  assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-50'));
+  assert.ok(resolved.addons.find((item) => item.id === 'qa-tailgate-55'));
 });

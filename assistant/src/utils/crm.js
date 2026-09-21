@@ -189,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v7';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v8';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -201,9 +201,12 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鋼板） 台語：灰板', price: 0, pendingPrice: true, desc: '依板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
   { id: 'qa-tailgate-25', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-30-35', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3～3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-40-45', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4～4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-50-55', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5～5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-30', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-35', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-40', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-45', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-50', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-55', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
   { id: 'qa-tailgate-60-special', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
   { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
   { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
@@ -357,6 +360,12 @@ export function resolveLoanTerms(terms) {
 // 舊版通用預設配備名稱（用於判斷使用者是否從未客製過報價選單）
 const LEGACY_ADDON_NAMES = ['框式車斗', '篷式車斗', '冷凍廂', '升降尾門', '貨斗加高'];
 
+const LEGACY_TAILGATE_SIZE_SPLITS = {
+  'qa-tailgate-30-35': ['qa-tailgate-30', 'qa-tailgate-35'],
+  'qa-tailgate-40-45': ['qa-tailgate-40', 'qa-tailgate-45'],
+  'qa-tailgate-50-55': ['qa-tailgate-50', 'qa-tailgate-55'],
+};
+
 /**
  * 解析儲存的報價選單：
  * - 沒有存過 → 用原廠型錄
@@ -372,7 +381,20 @@ export function resolveQuotePresets(row) {
     && names.every((n) => LEGACY_ADDON_NAMES.includes(n));
   if (untouched) return DEFAULT_QUOTE_PRESETS;
   const airDeflector = REQUIRED_QUOTE_ADDONS.find((item) => item.id === 'qa-truck-air-deflector');
-  const migratedAddons = row.addons.map((item) => {
+  const splitAddons = row.addons.flatMap((item) => {
+    const replacementIds = LEGACY_TAILGATE_SIZE_SPLITS[item.id];
+    if (!replacementIds) return [item];
+    return replacementIds.map((id) => {
+      const replacement = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === id);
+      return {
+        ...item,
+        ...replacement,
+        price: Number.isFinite(Number(item.price)) ? Number(item.price) : replacement.price,
+        pendingPrice: item.pendingPrice ?? replacement.pendingPrice,
+      };
+    });
+  });
+  const migratedAddons = splitAddons.map((item) => {
     const isPreviousDefault = item.id === 'qa-truck-air-deflector'
       && item.pendingPrice === true
       && (Number(item.price) || 0) === 0;
