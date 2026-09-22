@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
+  applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
   normalizeCostCatalog, pricingSafetyStatus, updatePricingCosts,
 } from './pricing.js';
 import { DEFAULT_QUOTE_PRESETS, resolveLoanTerms, resolveQuotePresets } from './crm.js';
@@ -68,12 +68,54 @@ test('keeps profit unknown until every line has a cost', () => {
     costCatalog: { models: { m1: { cost: 700000 } }, addons: {} },
   });
   assert.equal(record.costComplete, false);
+  assert.equal(record.knownCostTotal, 700000);
   assert.equal(record.costTotal, null);
   assert.equal(record.profit, null);
 
   const completed = updatePricingCosts(record, { v: 700000, manual: 5000 });
   assert.equal(completed.costComplete, true);
+  assert.equal(completed.costTotal, 705000);
   assert.equal(completed.profit, 105000);
+});
+
+test('refreshes missing snapshot costs from the current catalog and keeps manual costs', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-refresh', modelId: 'm1', model: '卡旺',
+      items: [
+        { id: 'v', kind: 'vehicle', catalogId: 'm1', price: 800000 },
+        { id: 'a', kind: 'addon', catalogId: 'a1', price: 20000 },
+      ],
+    },
+    costCatalog: { models: { m1: { cost: 760000 } }, addons: { a1: { cost: 15000 } } },
+    existing: { lineCosts: { v: 755000 }, otherCosts: [] },
+  });
+  assert.equal(record.lines.find((line) => line.id === 'v').cost, 755000);
+  assert.equal(record.lines.find((line) => line.id === 'a').cost, 15000);
+  assert.equal(record.costTotal, 770000);
+  assert.equal(record.profit, 50000);
+});
+
+test('recalculates line profit and writes an internal discount back to the quote', () => {
+  const quote = {
+    id: 'q-discount',
+    items: [{
+      id: 'a', kind: 'addon', catalogId: 'a1', name: '配件', price: 20000,
+      discounts: [{ id: 'campaign', name: '活動優惠', amount: 2000 }],
+    }],
+    generalDiscounts: [],
+  };
+  const record = buildPricingRecord({ quote, costCatalog: { models: {}, addons: { a1: { cost: 10000 } } } });
+  const preview = updatePricingCosts(record, { a: 10000 }, [], { a: 5000 });
+  assert.equal(preview.itemDiscountTotal, 7000);
+  assert.equal(preview.saleTotal, 13000);
+  assert.equal(preview.profit, 3000);
+
+  const updatedQuote = applyPricingDiscountsToQuote(quote, { a: 5000 });
+  assert.equal(updatedQuote.items[0].discounts.length, 2);
+  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '活動優惠').amount, 2000);
+  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '業務優惠').amount, 5000);
+  assert.equal(updatedQuote.total, 13000);
 });
 
 test('keeps vendor-pending items out of current totals and cost checks', () => {

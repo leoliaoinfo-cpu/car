@@ -24,6 +24,8 @@ export default function DealsPage({ onOpenClient }) {
     deleteDeal,
     saveCostCatalog,
     savePricingRecord,
+    saveQuoteDraft,
+    updateClient,
   } = useApp();
   const [section, setSection] = useState('performance');
   const [view, setView] = useState('month');
@@ -31,6 +33,7 @@ export default function DealsPage({ onOpenClient }) {
   const [editingDeal, setEditingDeal] = useState(null);
   const [editingPricing, setEditingPricing] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [costSearch, setCostSearch] = useState('');
 
   const sortedFields = useMemo(
     () => [...dealFields].sort((a, b) => (a.order || 0) - (b.order || 0)),
@@ -130,6 +133,24 @@ export default function DealsPage({ onOpenClient }) {
     }, {}, []));
   }
 
+  function openCostSettings(search = '') {
+    setCostSearch(search);
+    setEditingPricing(null);
+    setSection('costs');
+  }
+
+  async function saveQuoteFromPricing({ quote, client, source }) {
+    if (source === 'draft') {
+      await saveQuoteDraft(quote);
+      return;
+    }
+    if (!client?.id) return;
+    await updateClient(client.id, (current) => ({
+      ...current,
+      quotes: (current.quotes || []).map((item) => (item.id === quote.id ? quote : item)),
+    }));
+  }
+
   const tabs = [
     ['performance', '業績與利潤'],
     ['quotes', '報價試算'],
@@ -149,12 +170,14 @@ export default function DealsPage({ onOpenClient }) {
 
       {section === 'quotes' && (
         <QuotePricingPanel clients={clients} quoteDrafts={quoteDrafts} pricingRecords={pricingRecords}
-          costCatalog={costCatalog} onSavePricing={savePricingRecord} />
+          costCatalog={costCatalog} onSavePricing={savePricingRecord}
+          onSaveQuote={saveQuoteFromPricing}
+          onOpenCostSettings={openCostSettings} />
       )}
 
       {section === 'costs' && (
         <CostCatalogPanel quotePresets={quotePresets} costCatalog={costCatalog}
-          onSave={saveCostCatalog} />
+          onSave={saveCostCatalog} initialSearch={costSearch} />
       )}
 
       {section === 'performance' && (
@@ -258,6 +281,7 @@ export default function DealsPage({ onOpenClient }) {
       )}
       {editingPricing && (
         <PricingEditorModal record={editingPricing} onClose={() => setEditingPricing(null)}
+          onOpenCostSettings={openCostSettings}
           onSave={async (record) => { await savePricingRecord(record); setEditingPricing(null); }} />
       )}
     </div>

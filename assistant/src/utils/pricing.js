@@ -135,6 +135,48 @@ export function calculateQuoteTotals(items = [], generalDiscounts = []) {
   };
 }
 
+export const PRICING_DISCOUNT_NAME = '業務優惠';
+
+function isPricingDiscount(row) {
+  return row?.name === PRICING_DISCOUNT_NAME || String(row?.id || '').startsWith('pricing-discount:');
+}
+
+/** 把內部試算輸入的單項優惠寫回客戶報價，保留原有其他優惠名稱與金額。 */
+export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
+  const normalized = normalizeQuoteItems(quote?.items || []);
+  const items = normalized.items.map((item) => {
+    if (!Object.prototype.hasOwnProperty.call(lineDiscounts, item.id)) return item;
+    const otherDiscounts = (item.discounts || [])
+      .filter((row) => !isPricingDiscount(row))
+      .map((row) => normalizeDiscount(row))
+      .filter((row) => row.amount > 0);
+    const otherTotal = otherDiscounts.reduce((sum, row) => sum + row.amount, 0);
+    const amount = Math.min(money(lineDiscounts[item.id]), Math.max(0, money(item.price) - otherTotal));
+    const previous = (item.discounts || []).find((row) => isPricingDiscount(row));
+    const pricingDiscount = amount > 0 ? [{
+      id: previous?.id || `pricing-discount:${item.id}`,
+      name: PRICING_DISCOUNT_NAME,
+      amount,
+    }] : [];
+    return { ...item, discounts: [...otherDiscounts, ...pricingDiscount] };
+  });
+  const generalDiscounts = [
+    ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
+    ...normalized.legacyDiscounts,
+  ].map((row) => normalizeDiscount(row)).filter((row) => row.amount > 0);
+  const totals = calculateQuoteTotals(items, generalDiscounts);
+  return {
+    ...quote,
+    items,
+    generalDiscounts,
+    originalTotal: totals.originalTotal,
+    itemDiscountTotal: totals.itemDiscountTotal,
+    generalDiscountTotal: totals.generalDiscountTotal,
+    discountTotal: totals.discountTotal,
+    total: totals.total,
+  };
+}
+
 export function normalizeCostCatalog(row) {
   const previousVersion = Number(row?.version) || 0;
   return {
@@ -174,6 +216,12 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       : null;
     if (cost == null && item.kind === 'vehicle') cost = ownCost(catalog.models, quote?.modelId || item.catalogId);
     if (cost == null && item.kind === 'addon') cost = ownCost(catalog.addons, item.catalogId);
+    const discounts = (item.discounts || []).map((row) => normalizeDiscount(row));
+    const pricingDiscountRequested = discounts
+      .filter((row) => isPricingDiscount(row))
+      .reduce((sum, row) => sum + row.amount, 0);
+    const totalDiscount = totals.itemTotals[item.id]?.discount || 0;
+    const pricingDiscount = Math.min(pricingDiscountRequested, totalDiscount);
     return {
       id: item.id,
       catalogId: item.catalogId || null,
@@ -181,6 +229,9 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       name: item.name || '',
       salePrice: money(item.price),
       netPrice: totals.itemTotals[item.id]?.net || 0,
+      discounts,
+      baseDiscountTotal: Math.max(0, totalDiscount - pricingDiscount),
+      pricingDiscount,
       cost,
       costKnown: cost != null,
     };
@@ -222,11 +273,26 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
   };
 }
 
-export function updatePricingCosts(record, lineCosts = {}, otherCosts = []) {
+export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], lineDiscounts = null) {
   const lines = (record?.lines || []).map((line) => {
     const has = Object.prototype.hasOwnProperty.call(lineCosts, line.id);
     const cost = has ? money(lineCosts[line.id]) : null;
-    return { ...line, cost, costKnown: has };
+    const baseDiscountTotal = money(line.baseDiscountTotal
+      ?? Math.max(0, money(line.salePrice) - money(line.netPrice) - money(line.pricingDiscount)));
+    const hasPricingDiscount = lineDiscounts != null
+      && Object.prototype.hasOwnProperty.call(lineDiscounts, line.id);
+    const pricingDiscount = Math.min(
+      hasPricingDiscount ? money(lineDiscounts[line.id]) : money(line.pricingDiscount),
+      Math.max(0, money(line.salePrice) - baseDiscountTotal),
+    );
+    return {
+      ...line,
+      baseDiscountTotal,
+      pricingDiscount,
+      netPrice: Math.max(0, money(line.salePrice) - baseDiscountTotal - pricingDiscount),
+      cost,
+      costKnown: has,
+    };
   });
   const normalizedOther = otherCosts.map((row) => ({
     id: row.id,
@@ -237,12 +303,26 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = []) {
   const knownCostTotal = lines.reduce((sum, line) => sum + (line.cost ?? 0), 0)
     + normalizedOther.reduce((sum, row) => sum + row.amount, 0);
   const costTotal = complete ? knownCostTotal : null;
-  const profit = costTotal == null ? null : money(record?.saleTotal) - costTotal;
+  const calculatedOriginalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
+  const calculatedItemDiscountTotal = lines.reduce((sum, line) => sum + Math.max(0, money(line.salePrice) - money(line.netPrice)), 0);
+  const editingQuoteDiscounts = lineDiscounts != null;
+  const originalTotal = editingQuoteDiscounts ? calculatedOriginalTotal : money(record?.originalTotal ?? calculatedOriginalTotal);
+  const itemDiscountTotal = editingQuoteDiscounts ? calculatedItemDiscountTotal : money(record?.itemDiscountTotal);
+  const generalDiscountTotal = money(record?.generalDiscountTotal);
+  const discountTotal = itemDiscountTotal + generalDiscountTotal;
+  const saleTotal = editingQuoteDiscounts
+    ? Math.max(0, originalTotal - discountTotal)
+    : money(record?.saleTotal);
+  const profit = costTotal == null ? null : saleTotal - costTotal;
   return {
     ...record,
     lines,
     lineCosts: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.cost])),
     otherCosts: normalizedOther,
+    originalTotal,
+    itemDiscountTotal,
+    discountTotal,
+    saleTotal,
     costComplete: complete,
     knownCostTotal,
     costTotal,

@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
-  buildPricingRecord, normalizeCostCatalog, updatePricingCosts,
+  applyPricingDiscountsToQuote, buildPricingRecord, normalizeCostCatalog, updatePricingCosts,
 } from '../../utils/pricing';
 
-export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
+export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSearch = '' }) {
   const [draft, setDraft] = useState(() => normalizeCostCatalog(costCatalog));
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
 
   useEffect(() => { setDraft(normalizeCostCatalog(costCatalog)); }, [costCatalog]);
+  useEffect(() => { if (initialSearch) setSearch(initialSearch); }, [initialSearch]);
 
   function setCost(section, id, value) {
     setDraft((current) => {
@@ -27,21 +28,25 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
   }
 
   const needle = search.trim().toLowerCase();
-  const models = (quotePresets.models || []).filter((row) => !needle || row.name.toLowerCase().includes(needle));
-  const addons = (quotePresets.addons || []).filter((row) => !needle || row.name.toLowerCase().includes(needle));
+  const allModels = quotePresets.models || [];
+  const allAddons = quotePresets.addons || [];
+  const models = allModels.filter((row) => !needle || row.name.toLowerCase().includes(needle));
+  const addons = allAddons.filter((row) => !needle || row.name.toLowerCase().includes(needle));
+  const missingModelCount = allModels.filter((item) => draft.models?.[item.id]?.cost == null).length;
+  const missingAddonCount = allAddons.filter((item) => draft.addons?.[item.id]?.cost == null).length;
 
   const row = (item, section) => {
     const cost = draft[section]?.[item.id]?.cost;
     const profit = cost == null ? null : (Number(item.price) || 0) - cost;
     return (
-      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_100px] md:grid-cols-[minmax(0,1fr)_110px_110px] gap-2 items-center px-3 py-2 border-b border-bdr/50 last:border-0">
+      <div key={item.id} className={`grid grid-cols-[minmax(0,1fr)_100px] md:grid-cols-[minmax(0,1fr)_110px_110px] gap-2 items-center px-3 py-2 border-b border-bdr/50 last:border-0 ${cost == null ? 'bg-warn/5' : ''}`}>
         <div className="min-w-0">
           <p className="text-xs text-ink truncate">{item.name}</p>
           <p className="text-[10px] text-ink-3">售價 NT$ {formatMoney(item.price)}</p>
         </div>
         <input type="number" min="0" value={cost ?? ''}
           onChange={(e) => setCost(section, item.id, e.target.value)}
-          placeholder="未設定" className="text-xs w-full" aria-label={`${item.name}成本`} />
+          placeholder="未設定" className={`text-xs w-full ${cost == null ? 'border-warn/60' : ''}`} aria-label={`${item.name}成本`} />
         <div className="hidden md:block text-right">
           <p className="text-[10px] text-ink-3">售價－成本</p>
           <p className={`text-xs font-semibold ${profit == null ? 'text-ink-3' : profit < 0 ? 'text-danger' : 'text-ok'}`}>
@@ -62,6 +67,11 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
           </p>
         </div>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
+        {(missingModelCount > 0 || missingAddonCount > 0) && (
+          <p className="text-xs text-warn bg-warn/10 border border-warn/25 rounded-lg px-3 py-2">
+            ⚠️ 尚有 {missingModelCount} 個車型、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價試算會提醒補填。
+          </p>
+        )}
       </div>
 
       <section className="card overflow-hidden">
@@ -86,67 +96,78 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave }) {
   );
 }
 
-export function QuotePricingPanel({ clients, quoteDrafts = [], pricingRecords, costCatalog, onSavePricing }) {
+export function QuotePricingPanel({
+  clients, quoteDrafts = [], pricingRecords, costCatalog,
+  onSavePricing, onSaveQuote, onOpenCostSettings,
+}) {
   const [editing, setEditing] = useState(null);
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
   const quotes = useMemo(() => {
     const clientMap = new Map(clients.map((client) => [client.id, client]));
-    const clientQuotes = clients.flatMap((client) => (client.quotes || []).map((quote) => ({ client, quote })));
+    const clientQuotes = clients.flatMap((client) => (client.quotes || []).map((quote) => ({ client, quote, source: 'client' })));
     const standaloneQuotes = quoteDrafts.map((quote) => ({
       client: clientMap.get(quote.clientId) || {
         id: quote.clientId || null,
         name: quote.customerName || '未填客戶',
       },
       quote,
+      source: 'draft',
     }));
     return [...clientQuotes, ...standaloneQuotes]
       .sort((a, b) => (b.quote.date || '').localeCompare(a.quote.date || ''));
   }, [clients, quoteDrafts]);
 
-  async function createSnapshot(client, quote) {
-    const record = buildPricingRecord({
-      quote: { ...quote, clientId: client.id }, costCatalog,
+  function refreshedRecord(client, quote) {
+    const existing = records.get(`quote:${quote.id}`) || null;
+    return buildPricingRecord({
+      quote: { ...quote, clientId: client.id }, costCatalog, existing,
     });
-    await onSavePricing(record);
-    setEditing(record);
   }
 
   return (
     <div className="space-y-3">
       <div className="card p-4">
         <h2 className="font-bold text-ink">🧮 報價試算</h2>
-        <p className="text-xs text-ink-3 mt-1">查看每張報價的折扣、成本與預估利潤；舊報價需由你按下「補成本」才會建立快照。</p>
+        <p className="text-xs text-ink-3 mt-1">每次開啟都會自動帶入已設定的成本並加總；手動填過的實際成本會優先保留，缺漏項目會要求補填。</p>
       </div>
       <div className="card overflow-hidden">
         {quotes.length === 0 && <p className="text-center text-sm text-ink-3 py-10">尚無報價紀錄</p>}
-        {quotes.map(({ client, quote }) => {
-          const record = records.get(`quote:${quote.id}`);
+        {quotes.map(({ client, quote, source }) => {
+          const record = refreshedRecord(client, quote);
           return (
             <div key={quote.id} className="px-3 py-3 border-b border-bdr/60 last:border-0">
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-ink truncate">{client.name || '未命名客戶'}・{quote.model || '未填車型'}</p>
                   <p className="text-[11px] text-ink-3 mt-0.5">{dayjs(quote.date).format('YYYY/MM/DD')}・報價 NT$ {formatMoney(quote.total)}</p>
-                  {record ? <PricingBadges record={record} /> : <p className="text-xs text-warn mt-1">⚠️ 舊報價待補成本</p>}
+                  <PricingBadges record={record} />
                 </div>
-                <button onClick={() => (record ? setEditing(record) : createSnapshot(client, quote))}
-                  className="btn-outline text-xs shrink-0">{record ? '查看／調整' : '補成本'}</button>
+                <button onClick={() => setEditing({ record, quote, client, source })}
+                  className="btn-outline text-xs shrink-0">查看／調整</button>
               </div>
             </div>
           );
         })}
       </div>
       {editing && (
-        <PricingEditorModal record={editing} onClose={() => setEditing(null)}
-          onSave={async (record) => { await onSavePricing(record); setEditing(null); }} />
+        <PricingEditorModal record={editing.record} quote={editing.quote} onClose={() => setEditing(null)}
+          onOpenCostSettings={onOpenCostSettings}
+          onSave={async (record, quote) => {
+            if (quote && onSaveQuote) await onSaveQuote({ quote, client: editing.client, source: editing.source });
+            await onSavePricing(record);
+            setEditing(null);
+          }} />
       )}
     </div>
   );
 }
 
-export function PricingEditorModal({ record, onSave, onClose }) {
+export function PricingEditorModal({ record, quote = null, onSave, onClose, onOpenCostSettings }) {
   const [lineCosts, setLineCosts] = useState(() => Object.fromEntries(
     (record.lines || []).map((line) => [line.id, line.costKnown ? String(line.cost) : '']),
+  ));
+  const [lineDiscounts, setLineDiscounts] = useState(() => Object.fromEntries(
+    (record.lines || []).map((line) => [line.id, line.pricingDiscount ? String(line.pricingDiscount) : '']),
   ));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
 
@@ -155,7 +176,12 @@ export function PricingEditorModal({ record, onSave, onClose }) {
     .map(([id, value]) => [id, Math.max(0, Number(value) || 0)]));
   const cleanOtherCosts = otherCosts.filter((row) => row.name.trim() && Number(row.amount) >= 0)
     .map((row) => ({ ...row, name: row.name.trim(), amount: Math.max(0, Number(row.amount) || 0) }));
-  const preview = updatePricingCosts(record, cleanLineCosts, cleanOtherCosts);
+  const cleanLineDiscounts = Object.fromEntries(Object.entries(lineDiscounts)
+    .map(([id, value]) => [id, Math.max(0, Number(value) || 0)]));
+  const preview = updatePricingCosts(record, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
+  const updatedQuote = quote ? applyPricingDiscountsToQuote(quote, cleanLineDiscounts) : null;
+  const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
+  const missingCatalogLines = missingLines.filter((line) => line.catalogId);
 
   function addOtherCost() {
     setOtherCosts((list) => [...list, { id: generateId('cost'), name: '其他成本', amount: '' }]);
@@ -169,7 +195,7 @@ export function PricingEditorModal({ record, onSave, onClose }) {
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
               <h3 className="font-bold text-lg text-ink">🔒 單車成本與利潤</h3>
-              <p className="text-xs text-ink-3">{record.model || '未填車型'}・售價 NT$ {formatMoney(record.saleTotal)}</p>
+              <p className="text-xs text-ink-3">{record.model || '未填車型'}・折後售價 NT$ {formatMoney(preview.saleTotal)}</p>
             </div>
             <button onClick={onClose} className="btn-ghost text-xl">✕</button>
           </div>
@@ -179,21 +205,35 @@ export function PricingEditorModal({ record, onSave, onClose }) {
               const lineCost = Object.prototype.hasOwnProperty.call(cleanLineCosts, line.id)
                 ? cleanLineCosts[line.id]
                 : null;
-              const contribution = lineCost == null ? null : line.netPrice - lineCost;
+              const previewLine = preview.lines.find((item) => item.id === line.id) || line;
+              const contribution = lineCost == null ? null : previewLine.netPrice - lineCost;
               return (
-              <div key={line.id} className="grid grid-cols-[minmax(0,1fr)_125px] gap-2 items-center bg-s2 rounded-lg p-2.5">
+              <div key={line.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
                 <div className="min-w-0">
                   <p className="text-xs text-ink truncate">{line.name}</p>
                   <p className="text-[10px] text-ink-3">
-                    原始售價 NT$ {formatMoney(line.salePrice)}・折後 NT$ {formatMoney(line.netPrice)}
+                    原始售價 NT$ {formatMoney(line.salePrice)}・折後 NT$ {formatMoney(previewLine.netPrice)}
                   </p>
+                  {line.baseDiscountTotal > 0 && <p className="text-[10px] text-ok">原有優惠 NT$ {formatMoney(line.baseDiscountTotal)}</p>}
                 </div>
-                <div>
-                  <input type="number" min="0" value={lineCosts[line.id] ?? ''}
-                    onChange={(e) => setLineCosts((current) => ({ ...current, [line.id]: e.target.value }))}
-                    placeholder="實際成本" className="text-xs w-full" />
-                  <p className={`text-[10px] text-right mt-1 ${contribution == null ? 'text-ink-3' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
-                    {contribution == null ? '待補成本' : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
+                <div className={`grid ${quote ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                  <label className="block">
+                    <span className="block text-[9px] text-ink-3 mb-0.5">實際成本</span>
+                    <input type="number" min="0" value={lineCosts[line.id] ?? ''}
+                      onChange={(e) => setLineCosts((current) => ({ ...current, [line.id]: e.target.value }))}
+                      placeholder="實際成本" className="text-xs w-full" />
+                  </label>
+                  {quote && (
+                    <label className="block">
+                      <span className="block text-[9px] text-ink-3 mb-0.5">優惠折扣</span>
+                      <input type="number" min="0" max={Math.max(0, line.salePrice - (line.baseDiscountTotal || 0))}
+                        value={lineDiscounts[line.id] ?? ''}
+                        onChange={(e) => setLineDiscounts((current) => ({ ...current, [line.id]: e.target.value }))}
+                        placeholder="折扣金額" className="text-xs w-full" />
+                    </label>
+                  )}
+                  <p className={`text-[10px] text-right mt-0.5 ${quote ? 'col-span-2' : ''} ${contribution == null ? 'text-warn font-semibold' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
+                    {contribution == null ? '⚠️ 未設定成本' : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
                   </p>
                 </div>
               </div>
@@ -216,19 +256,37 @@ export function PricingEditorModal({ record, onSave, onClose }) {
           </div>
 
           <div className="card p-3 mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-            <Metric label="原始售價" value={record.originalTotal} />
-            <Metric label="單項優惠" value={record.itemDiscountTotal} tone="ok" prefix="−" />
-            <Metric label="整單優惠" value={record.generalDiscountTotal} tone="ok" prefix="−" />
-            <Metric label="總成本" value={preview.costTotal} />
+            <Metric label="原始售價" value={preview.originalTotal} />
+            <Metric label="單項優惠" value={preview.itemDiscountTotal} tone="ok" prefix="−" />
+            <Metric label="整單優惠" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
+            <Metric label={preview.costComplete ? '總成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
             <Metric label={record.kind === 'deal' ? '實際利潤' : '預估利潤'} value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
             <Metric label="距離成本尚有空間" value={preview.profit == null ? null : Math.max(0, preview.profit)} tone="accent" />
           </div>
-          {!preview.costComplete && <p className="text-xs text-warn mt-2">⚠️ 還有項目未填成本，暫時不計算總利潤。</p>}
+          {missingLines.length > 0 && (
+            <div className="mt-3 rounded-xl border border-warn/35 bg-warn/10 p-3 space-y-2">
+              <p className="text-xs font-semibold text-warn">⚠️ 尚有 {missingLines.length} 個項目沒有成本，總成本與利潤暫不成立。</p>
+              <div className="flex flex-wrap gap-1">
+                {missingLines.map((line) => (
+                  <span key={line.id} className="text-[10px] text-warn bg-s1 border border-warn/25 rounded-full px-2 py-0.5">{line.name}</span>
+                ))}
+              </div>
+              {missingCatalogLines.length > 0 && onOpenCostSettings && (
+                <button type="button" onClick={() => onOpenCostSettings(missingCatalogLines[0].name)}
+                  className="btn-outline text-xs border-warn/50 text-warn">前往成本設定調整</button>
+              )}
+              {missingLines.length > missingCatalogLines.length && (
+                <p className="text-[10px] text-ink-3">自行新增的項目請直接在上方「實際成本」欄填寫。</p>
+              )}
+            </div>
+          )}
           {preview.belowCost && <p className="text-xs text-danger mt-2 font-semibold">⚠️ 此價格低於成本。</p>}
 
           <div className="flex gap-2 mt-4">
             <button onClick={onClose} className="btn-outline flex-1">取消</button>
-            <button onClick={() => onSave(preview)} className="btn-primary flex-1">儲存成本</button>
+            <button onClick={() => onSave(preview, updatedQuote)} className="btn-primary flex-1">
+              {quote ? '儲存成本與折扣' : '儲存成本'}
+            </button>
           </div>
         </div>
       </div>
