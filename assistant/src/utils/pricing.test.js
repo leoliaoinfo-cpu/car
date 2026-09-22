@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  applicableSupplierCosts, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
+  applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
 } from './pricing.js';
-import { DEFAULT_QUOTE_PRESETS, resolveLoanTerms, resolveQuotePresets } from './crm.js';
+import { canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
 test('calculates item and whole-quote discounts', () => {
   const items = [
@@ -17,6 +17,23 @@ test('calculates item and whole-quote discounts', () => {
   assert.equal(result.generalDiscountTotal, 10000);
   assert.equal(result.total, 795000);
   assert.equal(result.itemTotals.addon.net, 25000);
+});
+
+test('excludes vehicle sale from an accessory-only quote without losing its model or accessory costs', () => {
+  const items = [
+    { id: 'v', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 800000 },
+    { id: 'a', kind: 'addon', catalogId: 'a1', name: '升降尾門', price: 40000 },
+  ];
+  const accessoryOnly = includedQuoteItems(items, true);
+  assert.deepEqual(accessoryOnly.map((item) => item.id), ['a']);
+  assert.equal(calculateQuoteTotals(accessoryOnly).total, 40000);
+  const record = buildPricingRecord({
+    quote: { id: 'q-accessory', modelId: 'm1', excludeVehiclePrice: true, items: accessoryOnly },
+    costCatalog: { models: { m1: { cost: 700000 } }, addons: { a1: { cost: 30000 } } },
+  });
+  assert.equal(record.costTotal, 30000);
+  assert.equal(record.profit, 10000);
+  assert.deepEqual(includedQuoteItems(items, false), items);
 });
 
 test('caps a line discount so its net price cannot become negative', () => {
@@ -279,8 +296,31 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').price, 8000);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-60-special').pendingPrice, true);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
+  for (const [id, size] of [['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6']]) {
+    const doubleFold = addons.find((item) => item.id === `qa-tailgate-double-fold-${id}`);
+    assert.equal(doubleFold.name, `雙折尾門（${size}尺）`);
+    assert.equal(doubleFold.cat, '升降尾門');
+    assert.equal(doubleFold.group, 'g-tailgate-size');
+    assert.equal(doubleFold.pendingPrice, true);
+    assert.equal(doubleFold.price, 0);
+  }
+  assert.equal(addons.some((item) => item.id === 'qa-tailgate-double-fold-30'), false);
   assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').price, 3500);
   assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, false);
+});
+
+test('adds pending double-fold tailgates to saved menus without restoring renamed categories', () => {
+  const old = renameAddonCategory({ ...DEFAULT_QUOTE_PRESETS, _catalog: 'kavan-2026-v10',
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
+    addons: DEFAULT_QUOTE_PRESETS.addons.filter((item) => !item.id.startsWith('qa-tailgate-double-fold-')),
+  }, '升降尾門', '尾門其他配備');
+  const upgraded = resolveQuotePresets(old);
+  assert.equal(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-')).length, 6);
+  assert.ok(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-'))
+    .every((item) => item.cat === '尾門其他配備' && item.pendingPrice && item.price === 0));
+  assert.equal(upgraded.addonCategories.includes('升降尾門'), false);
+  assert.equal(upgraded.addonCategories.includes('尾門其他配備'), true);
+  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '尾門其他配備');
 });
 
 test('preserves a custom addon category when upgrading saved quote presets', () => {
@@ -289,6 +329,26 @@ test('preserves a custom addon category when upgrading saved quote presets', () 
     addons: [{ ...DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === 'qa-floor-rubber'), cat: '工地底板' }],
   });
   assert.equal(resolved.addons.find((item) => item.id === 'qa-floor-rubber').cat, '工地底板');
+});
+
+test('renames an addon category, its items and existing quote review markers without merging categories', () => {
+  const presets = {
+    ...DEFAULT_QUOTE_PRESETS,
+    addonCategories: ['貨斗底板', '升降尾門', '自訂空分類'],
+    addons: [
+      { id: 'floor', cat: '貨斗底板', name: '底板', price: 10000 },
+      { id: 'tail', cat: '升降尾門', name: '尾門', price: 40000 },
+    ],
+  };
+  const renamed = renameAddonCategory(presets, '貨斗底板', '底板區');
+  assert.deepEqual(renamed.addonCategories, ['底板區', '升降尾門', '自訂空分類']);
+  assert.equal(renamed.addons.find((item) => item.id === 'floor').cat, '底板區');
+  assert.equal(renamed.addons.find((item) => item.id === 'tail').cat, '升降尾門');
+  assert.deepEqual(canonicalAddonCategories(['貨斗底板', '升降尾門'], renamed.addonCategoryAliases), ['底板區', '升降尾門']);
+  assert.equal(renameAddonCategory(renamed, '底板區', '升降尾門'), renamed);
+  const renamedAgain = renameAddonCategory(renamed, '底板區', '貨斗區');
+  assert.deepEqual(canonicalAddonCategories(['貨斗底板', '底板區'], renamedAgain.addonCategoryAliases), ['貨斗區']);
+  assert.equal(renameAddonCategory(renamedAgain, '貨斗區', '貨斗底板'), renamedAgain);
 });
 
 test('moves default tailgate sizes into the Swift category without overwriting customized names', () => {

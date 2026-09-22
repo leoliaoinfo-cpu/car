@@ -99,6 +99,10 @@ export function normalizeQuoteItems(items = []) {
   return { items: positive, legacyDiscounts };
 }
 
+export function includedQuoteItems(items = [], excludeVehiclePrice = false) {
+  return items.filter((item) => !excludeVehiclePrice || item.kind !== 'vehicle');
+}
+
 export function calculateQuoteTotals(items = [], generalDiscounts = []) {
   let originalTotal = 0;
   let itemDiscountTotal = 0;

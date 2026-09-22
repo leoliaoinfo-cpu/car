@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { db } from '../db';
 import { useApp } from '../context';
-import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS, QUOTE_ADDON_CATS, resolveLoanTerms } from '../utils/crm';
+import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS, QUOTE_ADDON_CATS, renameAddonCategory, resolveLoanTerms } from '../utils/crm';
 import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
@@ -199,6 +199,8 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
                 categoryOrder={quotePresets.addonCategories || QUOTE_ADDON_CATS}
                 fullscreen={fullscreen}
                 onChange={(addons, addonCategories) => saveQuotePresets({ ...quotePresets, addons, addonCategories: addonCategories || quotePresets.addonCategories })}
+                onRenameCategory={(oldName, newName) => saveQuotePresets(renameAddonCategory(quotePresets, oldName, newName))}
+                reservedCategoryNames={Object.keys(quotePresets.addonCategoryAliases || {})}
               />
               <PresetEditor
                 title="優惠&折扣"
@@ -336,7 +338,7 @@ function LoadCatalogButton({ onLoad }) {
 }
 
 // ── AddonPresetEditor（配備分類直接沿用報價單的 cat 欄位）──────────────────
-function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
+function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenameCategory, reservedCategoryNames = [] }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [addCategory, setAddCategory] = useState('配件');
   const [expanded, setExpanded] = useState({});
@@ -344,6 +346,8 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
   const [manageCategories, setManageCategories] = useState(false);
   const [customCategoryId, setCustomCategoryId] = useState(null);
   const [customCategoryName, setCustomCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryNameDraft, setCategoryNameDraft] = useState('');
 
   const grouped = new Map();
   for (const item of items) {
@@ -371,10 +375,29 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
 
   function createCategory() {
     const name = newCategoryName.trim();
-    if (!name || categories.includes(name)) return;
+    if (!name || categories.includes(name) || reservedCategoryNames.includes(name)) return;
     onChange(items, [...categories, name]);
     setNewCategoryName('');
     setAddCategory(name);
+  }
+
+  function commitCategoryName() {
+    const name = categoryNameDraft.trim();
+    if (!editingCategory || !name || name === editingCategory
+      || categories.includes(name) || reservedCategoryNames.includes(name)) return;
+    onRenameCategory(editingCategory, name);
+    if (activeCategory === editingCategory) setActiveCategory(name);
+    if (addCategory === editingCategory) setAddCategory(name);
+    setExpanded((current) => {
+      const next = { ...current };
+      if (Object.prototype.hasOwnProperty.call(next, editingCategory)) {
+        next[name] = next[editingCategory];
+        delete next[editingCategory];
+      }
+      return next;
+    });
+    setEditingCategory(null);
+    setCategoryNameDraft('');
   }
 
   function shiftCategory(category, direction) {
@@ -396,7 +419,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
 
   function saveCustomCategory(id) {
     const category = customCategoryName.trim();
-    if (!category) return;
+    if (!category || reservedCategoryNames.includes(category)) return;
     onChange(items.map((item) => item.id === id ? { ...item, cat: category } : item),
       categories.includes(category) ? categories : [...categories, category]);
     setCustomCategoryId(null);
@@ -434,7 +457,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
           <button type="button" onClick={() => setExpanded(Object.fromEntries(categories.map((category) => [category, !allExpanded])))}
             className="btn-outline text-xs">{allExpanded ? '全部收合' : '全部展開'}</button>
           <button type="button" onClick={() => setManageCategories((value) => !value)} className="btn-outline text-xs">
-            {manageCategories ? '完成分類排序' : '＋ 新增分類／調整順序'}
+            {manageCategories ? '完成分類管理' : '＋ 新增／改名／排序分類'}
           </button>
         </div>
         {manageCategories && (
@@ -443,16 +466,32 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
               <input value={newCategoryName} onChange={(event) => setNewCategoryName(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') createCategory(); }}
                 placeholder="新增產品分類名稱" aria-label="新增產品分類名稱" className="text-xs flex-1 min-w-0" />
-              <button type="button" onClick={createCategory} disabled={!newCategoryName.trim() || categories.includes(newCategoryName.trim())}
+              <button type="button" onClick={createCategory} disabled={!newCategoryName.trim() || categories.includes(newCategoryName.trim()) || reservedCategoryNames.includes(newCategoryName.trim())}
                 className="btn-primary text-xs shrink-0">新增分類</button>
             </div>
-            <p className="text-[10px] text-ink-3">分類順序會同步到客戶及獨立報價的配備選單；空分類也會保留供日後使用。</p>
+            <p className="text-[10px] text-ink-3">分類名稱與順序會同步到客戶及獨立報價；改名會連同分類內配件一起更新，舊報價的確認紀錄仍保留。</p>
+            {reservedCategoryNames.includes(newCategoryName.trim()) && <p className="text-[10px] text-warn">這是曾用過的分類名稱，請換個名字，避免舊報價混淆。</p>}
             <div className={`grid gap-1.5 ${fullscreen ? 'sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
               {categories.map((category, index) => (
                 <div key={category} className="flex items-center gap-1 rounded-lg border border-bdr px-2 py-1.5 text-xs">
                   <span className="text-ink-3 w-5">{index + 1}.</span>
-                  <span className="flex-1 truncate text-ink">{category}</span>
+                  {editingCategory === category ? (
+                    <input value={categoryNameDraft} onChange={(event) => setCategoryNameDraft(event.target.value)}
+                      onKeyDown={(event) => { if (event.key === 'Enter') commitCategoryName(); if (event.key === 'Escape') setEditingCategory(null); }}
+                      aria-label={`${category}新分類名稱`} className="flex-1 min-w-0 text-xs" />
+                  ) : <span className="flex-1 truncate text-ink">{category}</span>}
                   <span className="text-ink-3">{grouped.get(category)?.length || 0}</span>
+                  {editingCategory === category ? (
+                    <>
+                      <button type="button" onClick={commitCategoryName}
+                        disabled={!categoryNameDraft.trim() || categoryNameDraft.trim() === category || categories.includes(categoryNameDraft.trim()) || reservedCategoryNames.includes(categoryNameDraft.trim())}
+                        aria-label={`儲存${category}分類名稱`} className="px-1 text-accent disabled:opacity-30">儲存</button>
+                      <button type="button" onClick={() => setEditingCategory(null)} aria-label={`取消編輯${category}分類名稱`} className="px-1 text-ink-3">取消</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => { setEditingCategory(category); setCategoryNameDraft(category); }}
+                      aria-label={`編輯${category}分類名稱`} className="px-1 text-accent">改名</button>
+                  )}
                   <button type="button" onClick={() => shiftCategory(category, -1)} disabled={index === 0}
                     aria-label={`${category}往前`} className="px-1 text-accent disabled:opacity-30">↑</button>
                   <button type="button" onClick={() => shiftCategory(category, 1)} disabled={index === categories.length - 1}
@@ -520,7 +559,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange }) {
                         <input value={customCategoryName} onChange={(event) => setCustomCategoryName(event.target.value)}
                           onKeyDown={(event) => { if (event.key === 'Enter') saveCustomCategory(item.id); }}
                           placeholder="輸入新分類名稱" aria-label="新分類名稱" className="text-xs flex-1 min-w-0" />
-                        <button type="button" onClick={() => saveCustomCategory(item.id)} disabled={!customCategoryName.trim()}
+                        <button type="button" onClick={() => saveCustomCategory(item.id)} disabled={!customCategoryName.trim() || reservedCategoryNames.includes(customCategoryName.trim())}
                           className="btn-primary text-[11px] shrink-0">套用分類</button>
                         <button type="button" onClick={() => setCustomCategoryId(null)} className="text-xs text-ink-3 shrink-0">取消</button>
                       </div>

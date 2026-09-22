@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, calcMonthlyPayment, canonicalAddonCategories, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
-  buildPricingRecord, calculateQuoteTotals, normalizeDiscount, normalizeQuoteItems,
+  buildPricingRecord, calculateQuoteTotals, includedQuoteItems, normalizeDiscount, normalizeQuoteItems,
 } from '../../utils/pricing';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
@@ -56,6 +56,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [modelId, setModelId] = useState(() => quote?.modelId
     || quotePresets.models?.find((row) => row.name === quote?.model)?.id
     || null);
+  const [excludeVehiclePrice, setExcludeVehiclePrice] = useState(!!quote?.excludeVehiclePrice);
   const [items, setItems] = useState(() =>
     normalizedInitial.items.length
       ? normalizedInitial.items.map((it) => ({
@@ -115,7 +116,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     db.put('settings', { key: 'quoteProfile', ...next }).catch(() => {});
   }
 
-  const selectedItems = items.filter((it) => it.name.trim() && (it.pending || Number(it.price) > 0));
+  const selectedItems = includedQuoteItems(items, excludeVehiclePrice)
+    .filter((it) => it.name.trim() && (it.pending || Number(it.price) > 0));
   const pricedItems = selectedItems.filter((it) => !it.pending && Number(it.price) > 0);
   const pendingItems = selectedItems.filter((it) => it.pending);
   const validGeneralDiscounts = generalDiscounts
@@ -151,6 +153,17 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     });
   }
 
+  function toggleVehiclePrice(exclude) {
+    setExcludeVehiclePrice(exclude);
+    if (exclude) return;
+    const selectedModel = quotePresets.models?.find((row) => row.id === modelId);
+    if (!selectedModel) return;
+    setItems((list) => list.some((item) => item.kind === 'vehicle') ? list : [{
+      id: generateId('qi'), name: '車輛售價', price: String(selectedModel.price),
+      pending: false, kind: 'vehicle', catalogId: selectedModel.id, discounts: [],
+    }, ...list]);
+  }
+
   function pickClient(clientId) {
     setLinkedClientId(clientId);
     const picked = clients.find((row) => row.id === clientId);
@@ -165,13 +178,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
   const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
-  const reviewedAddonCount = addonGroups.filter(([cat, list]) => noOptionCategories.includes(cat)
+  const reviewedNoOptionCategories = canonicalAddonCategories(noOptionCategories, quotePresets.addonCategoryAliases);
+  const reviewedAddonCount = addonGroups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
     || list.some((addon) => isPicked(addon))).length;
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
   function toggleLine({ id: catalogId, name, price, group, cat, pendingPrice = false }) {
     if (!isPicked({ id: catalogId, name }) && cat) {
-      setNoOptionCategories((list) => list.filter((category) => category !== cat));
+      setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
+        .filter((category) => category !== cat));
     }
     setItems((list) => {
       const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
@@ -292,7 +307,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       customerPhone: customerPhone.trim(),
       model: model.trim(),
       modelId,
-      noOptionCategories,
+      excludeVehiclePrice,
+      noOptionCategories: reviewedNoOptionCategories,
       items: selectedItems.map((it) => ({
         id: it.id,
         catalogId: it.catalogId || null,
@@ -328,7 +344,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
 
   function confirmAddonReview() {
     const unreviewed = addonGroups
-      .filter(([cat, list]) => !noOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
+      .filter(([cat, list]) => !reviewedNoOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
     return unreviewed.length === 0 || window.confirm(
       `還有 ${unreviewed.length} 個配備分類未確認（例如：${unreviewed.slice(0, 3).map(([cat]) => cat).join('、')}）。請先問客戶並選配，或勾選「沒有選配」。確定仍要繼續嗎？`,
     );
@@ -421,7 +437,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 </div>
               </div>
             )}
-            <Field label="客戶需求／用途">
+            <Field label="客戶需求／用途（內部備忘，不會出現在報價圖片）">
               <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3}
                 placeholder="例：市場載貨、需要防滑底板、尾門載重與平台尺寸待確認…"
                 className="w-full text-sm resize-y" />
@@ -443,6 +459,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   </select>
                 )}
               </div>
+              <label className="flex items-center gap-2 mt-2 text-xs text-ink-2 cursor-pointer">
+                <input type="checkbox" checked={excludeVehiclePrice}
+                  onChange={(event) => toggleVehiclePrice(event.target.checked)} />
+                此單只報改裝，不含車輛售價
+              </label>
+              {excludeVehiclePrice && <p className="text-[11px] text-ink-3 mt-1">保留車型供選配與成本比對；車價不計入總額，也不顯示在報價圖片。</p>}
             </Field>
 
             {/* 選購配備（依類別分組、組內金額由高到低；可展開看產品介紹） */}
@@ -461,7 +483,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 {addonGroups.map(([cat, list]) => {
                   const color = catColor(cat);
                   const pickedCount = list.filter((addon) => isPicked(addon)).length;
-                  const noOption = pickedCount === 0 && noOptionCategories.includes(cat);
+                  const noOption = pickedCount === 0 && reviewedNoOptionCategories.includes(cat);
                   const expanded = !!expandedAddonCategories[cat];
                   // 整個類別同屬一個擇一群組時才標「擇一」（例如車身改色底色、防刮尾門尺寸）
                   const groupSet = new Set(list.map((a) => a.group || ''));
@@ -484,9 +506,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                         <div className="px-2.5 pb-2.5 space-y-2">
                           <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
                             <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
-                              onChange={(event) => setNoOptionCategories((current) => event.target.checked
-                                ? [...new Set([...current, cat])]
-                                : current.filter((category) => category !== cat))} />
+                              onChange={(event) => setNoOptionCategories((current) => {
+                                const canonical = canonicalAddonCategories(current, quotePresets.addonCategoryAliases);
+                                return event.target.checked
+                                  ? [...new Set([...canonical, cat])]
+                                  : canonical.filter((category) => category !== cat);
+                              })} />
                             沒有選配（已向客戶確認）
                           </label>
                           {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
@@ -589,7 +614,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               <span className="w-28">金額／待報價</span>
               <span className="w-4" />
             </div>
-            {items.map((it) => {
+            {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
               const selected = it.name.trim() && (it.pending || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
@@ -811,13 +836,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 )}
               </div>
 
-              {requirements.trim() && (
-                <div style={{ background: '#f4f7f9', borderRadius: 9, padding: '9px 12px', marginBottom: 14 }}>
-                  <p style={{ color: '#84929c', fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, marginBottom: 4 }}>客戶需求</p>
-                  <p style={{ color: '#4a5862', fontSize: 11.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{requirements}</p>
-                </div>
-              )}
-
               {/* 車型 */}
               {model.trim() && (
                 <div style={{
@@ -826,6 +844,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 }}>
                   <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 2 }}>車型</p>
                   <p style={{ color: '#5a4632', fontSize: 14, fontWeight: 700 }}>{model}</p>
+                  {excludeVehiclePrice && <p style={{ color: '#8b98a1', fontSize: 10, marginTop: 3 }}>本報價不含車輛售價</p>}
                 </div>
               )}
 

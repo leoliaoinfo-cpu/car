@@ -189,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v10';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v11';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -211,6 +211,13 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-tailgate-60-special', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
   { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
   { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+  ...[
+    ['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6'],
+  ].map(([id, size]) => ({
+    id: `qa-tailgate-double-fold-${id}`, cat: '升降尾門', group: 'g-tailgate-size',
+    name: `雙折尾門（${size}尺）`, price: 0, pendingPrice: true,
+    desc: '實際尺寸、施工規格與價格待廠商確認',
+  })),
   { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 3500, pendingPrice: false, desc: '依車型、車頭與車體尺寸安裝；售價 3,500 元' },
 ];
 
@@ -369,6 +376,30 @@ const LEGACY_TAILGATE_SIZE_SPLITS = {
   'qa-tailgate-50-55': ['qa-tailgate-50', 'qa-tailgate-55'],
 };
 
+/** 分類名稱同時用於舊報價的「沒有選配」紀錄；改名時保留舊名稱對照。 */
+export function renameAddonCategory(presets, oldName, requestedName) {
+  const name = String(requestedName || '').trim();
+  const categories = [...new Set([...(presets.addonCategories || []),
+    ...(presets.addons || []).map((item) => item.cat || '其他')])];
+  const aliases = presets.addonCategoryAliases || {};
+  if (!name || name === oldName || !categories.includes(oldName)
+    || categories.includes(name) || Object.prototype.hasOwnProperty.call(aliases, name)) return presets;
+  return {
+    ...presets,
+    addonCategories: categories.map((category) => category === oldName ? name : category),
+    addons: (presets.addons || []).map((item) => item.cat === oldName ? { ...item, cat: name } : item),
+    addonCategoryAliases: {
+      ...Object.fromEntries(Object.entries(aliases).map(([previous, current]) =>
+        [previous, current === oldName ? name : current])),
+      [oldName]: name,
+    },
+  };
+}
+
+export function canonicalAddonCategories(names = [], aliases = {}) {
+  return [...new Set(names.map((name) => aliases[name] || name))];
+}
+
 /**
  * 解析儲存的報價選單：
  * - 沒有存過 → 用原廠型錄
@@ -418,19 +449,22 @@ export function resolveQuotePresets(row) {
       && migrated.name === `滑特${tailgateDefault.name}`) {
       migrated = { ...migrated, cat: tailgateDefault.cat, name: tailgateDefault.name };
     }
-    if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat !== '升降尾門') {
+    if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat === '客製車體') {
       return { ...migrated, cat: '升降尾門' };
     }
     return migrated;
   });
   const addonIds = new Set(migratedAddons.map((item) => item.id));
   const addonNames = new Set(migratedAddons.map((item) => item.name));
-  const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name));
+  const categoryAliases = row.addonCategoryAliases || {};
+  const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name))
+    .map((item) => ({ ...item, cat: categoryAliases[item.cat] || item.cat }));
   const addons = [...migratedAddons, ...newAddons];
   const storedCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];
-  if (!storedCategories.includes('滑特(升降尾門)')) {
-    const tailgateIndex = storedCategories.indexOf('升降尾門');
-    storedCategories.splice(tailgateIndex < 0 ? storedCategories.length : tailgateIndex, 0, '滑特(升降尾門)');
+  const swiftCategory = categoryAliases['滑特(升降尾門)'] || '滑特(升降尾門)';
+  if (!storedCategories.includes(swiftCategory)) {
+    const tailgateIndex = storedCategories.indexOf(categoryAliases['升降尾門'] || '升降尾門');
+    storedCategories.splice(tailgateIndex < 0 ? storedCategories.length : tailgateIndex, 0, swiftCategory);
   }
   const addonCategories = [...new Set([...storedCategories, ...addons.map((item) => item.cat || '其他')])];
   return {
