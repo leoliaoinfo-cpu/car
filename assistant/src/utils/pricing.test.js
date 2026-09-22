@@ -215,6 +215,14 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, false);
 });
 
+test('preserves a custom addon category when upgrading saved quote presets', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v8', models: [], subsidies: [],
+    addons: [{ ...DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === 'qa-floor-rubber'), cat: '工地底板' }],
+  });
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-floor-rubber').cat, '工地底板');
+});
+
 test('upgrades the old pending deflector price while preserving custom edits', () => {
   const oldDefault = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v5', models: [], subsidies: [],

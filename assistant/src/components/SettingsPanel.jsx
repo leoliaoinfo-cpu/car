@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { db, downloadJSON, downloadLegacySharedRescue } from '../db';
 import { useApp } from '../context';
-import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../utils/crm';
+import { CAT_COLORS, FIELD_COLORS, FIELD_COLOR_NAMES, generateId, DEFAULT_QUOTE_PRESETS, DEFAULT_LOAN_TERMS, QUOTE_ADDON_CATS, resolveLoanTerms } from '../utils/crm';
 import {
   connectSync, stopSync, syncNow, isSyncEnabled, getSyncRepo,
   getSyncStatus, subscribeSyncStatus,
@@ -340,19 +340,15 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
                 newName="新車型"
                 onChange={(models) => saveQuotePresets({ ...quotePresets, models })}
               />
-              <PresetEditor
-                title="🚚 選購配備選單"
-                desc="報價單一鍵帶入的配備；尚未取得廠商價格時可標記待報價。"
-                items={quotePresets.addons}
-                newName="新配備"
-                allowPending
+              <AddonPresetEditor
+                items={quotePresets.addons || []}
                 onChange={(addons) => saveQuotePresets({ ...quotePresets, addons })}
               />
               <PresetEditor
-                title="🏛 補助折抵選單"
-                desc="報價單一鍵帶入的折抵項（汰舊換新、貨物稅減免…），以負數扣抵總價。"
+                title="優惠&折扣"
+                desc="報價單一鍵帶入的整單優惠，可設定活動折扣、補助或其他折抵；加入報價後會自總價扣除。"
                 items={quotePresets.subsidies}
-                newName="新補助"
+                newName="新優惠"
                 amountKey="amount"
                 onChange={(subsidies) => saveQuotePresets({ ...quotePresets, subsidies })}
               />
@@ -483,7 +479,159 @@ function LoadCatalogButton({ onLoad }) {
   );
 }
 
-// ── PresetEditor（報價選單：車體配備 / 補助折抵，名稱＋金額）──────────────────
+// ── AddonPresetEditor（配備分類直接沿用報價單的 cat 欄位）──────────────────
+function AddonPresetEditor({ items, onChange }) {
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [addCategory, setAddCategory] = useState('配件');
+  const [expanded, setExpanded] = useState({});
+  const [customCategoryId, setCustomCategoryId] = useState(null);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+
+  const grouped = new Map();
+  for (const item of items) {
+    const category = String(item.cat || '').trim() || '其他';
+    if (!grouped.has(category)) grouped.set(category, []);
+    grouped.get(category).push(item);
+  }
+  const categories = [
+    ...QUOTE_ADDON_CATS.filter((category) => grouped.has(category)),
+    ...[...grouped.keys()].filter((category) => !QUOTE_ADDON_CATS.includes(category)),
+  ];
+  const categoryOptions = [...new Set([...QUOTE_ADDON_CATS, ...categories, '其他'])];
+  const selectedCategory = activeCategory === 'all' || grouped.has(activeCategory) ? activeCategory : 'all';
+  const selectedAddCategory = categoryOptions.includes(addCategory) ? addCategory : '配件';
+  const visibleCategories = selectedCategory === 'all'
+    ? categories
+    : categories.filter((category) => category === selectedCategory);
+
+  function update(id, patch) {
+    onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function moveToCategory(id, category) {
+    update(id, { cat: category });
+    setActiveCategory(category);
+    setAddCategory(category);
+    setExpanded((current) => ({ ...current, [category]: true }));
+  }
+
+  function add(category = addCategory) {
+    const target = categoryOptions.includes(category) ? category : '配件';
+    onChange([...items, { id: generateId('preset'), cat: target, name: '新配備', price: 0, pendingPrice: false }]);
+    setAddCategory(target);
+    setActiveCategory(target);
+    setExpanded((current) => ({ ...current, [target]: true }));
+  }
+
+  function saveCustomCategory(id) {
+    const category = customCategoryName.trim();
+    if (!category) return;
+    moveToCategory(id, category);
+    setCustomCategoryId(null);
+    setCustomCategoryName('');
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h3 className="font-semibold text-ink text-sm">🚚 選購配備選單</h3>
+        <p className="text-xs text-ink-3 mt-0.5">按分類管理配備；調整分類會同步到客戶與獨立報價。尚未取得廠商價格時可標記待報價。</p>
+      </div>
+
+      <div className="card p-3 space-y-3 bg-s2/60">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-ink">配備分類</p>
+            <p className="text-[11px] text-ink-3">點分類只看該區；點「全部」查看各分類區塊。</p>
+          </div>
+          <span className="text-[11px] text-ink-3 shrink-0">{categories.length} 類・{items.length} 項</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5" aria-label="配備分類篩選">
+          <button type="button" onClick={() => setActiveCategory('all')}
+            className={`text-xs rounded-lg border px-2.5 py-2 flex items-center justify-between gap-1 min-w-0 ${selectedCategory === 'all' ? 'bg-accent text-on-accent border-accent' : 'bg-s1 border-bdr text-ink-2'}`}>
+            <span className="truncate">全部分類</span><span className="shrink-0 font-semibold">{items.length}</span>
+          </button>
+          {categories.map((category) => (
+            <button key={category} type="button" onClick={() => { setActiveCategory(category); setAddCategory(category); setExpanded((current) => ({ ...current, [category]: true })); }}
+              className={`text-xs rounded-lg border px-2.5 py-2 flex items-center justify-between gap-1 min-w-0 ${selectedCategory === category ? 'bg-accent text-on-accent border-accent' : 'bg-s1 border-bdr text-ink-2'}`}>
+              <span className="truncate">{category}</span><span className="shrink-0 font-semibold">{grouped.get(category).length}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-bdr/60 pt-3">
+          <span className="text-xs text-ink-3">新增至</span>
+          <select value={selectedAddCategory} onChange={(event) => setAddCategory(event.target.value)}
+            aria-label="新配備分類" className="text-xs flex-1 min-w-[120px] max-w-[210px]">
+            {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+          <button type="button" onClick={() => add()} className="btn-primary text-xs shrink-0">＋ 新增配備</button>
+        </div>
+      </div>
+
+      {items.length === 0 && <p className="text-center text-ink-3 text-sm py-4">尚無配備，請先選分類再新增。</p>}
+      {visibleCategories.map((category, index) => {
+        const list = grouped.get(category);
+        const isExpanded = expanded[category] ?? (selectedCategory !== 'all' || index === 0);
+        return (
+          <div key={category} className="card overflow-hidden border-l-4 border-l-accent/60">
+            <div className="flex items-center gap-2 bg-s2/70 px-3 py-2.5">
+              <button type="button" onClick={() => setExpanded((current) => ({ ...current, [category]: !isExpanded }))}
+                aria-expanded={isExpanded} className="flex-1 min-w-0 flex items-center gap-2 text-left">
+                <span className="text-accent text-xs">{isExpanded ? '▼' : '▶'}</span>
+                <span className="font-semibold text-sm text-ink truncate">{category}</span>
+                <span className="text-[11px] text-ink-3 shrink-0">{list.length} 項</span>
+              </button>
+              <button type="button" onClick={() => add(category)} className="btn-outline text-[11px] shrink-0">＋ 在此新增</button>
+            </div>
+            {isExpanded && (
+              <div className="p-2.5 space-y-2">
+                {list.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_105px] gap-2">
+                      <input value={item.name} onChange={(event) => update(item.id, { name: event.target.value })}
+                        aria-label={`${item.name}名稱`} className="text-sm min-w-0" />
+                      <input type="number" min="0" value={item.price ?? 0}
+                        onChange={(event) => update(item.id, { price: Number(event.target.value) || 0 })}
+                        disabled={item.pendingPrice} aria-label={`${item.name}金額`} className="text-sm w-full disabled:opacity-40" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] text-ink-3">分類</span>
+                      <select value={category} onChange={(event) => moveToCategory(item.id, event.target.value)}
+                        aria-label={`${item.name}分類`} className="text-xs flex-1 min-w-[115px] max-w-[200px]">
+                        {categoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                      <button type="button" onClick={() => { setCustomCategoryId(item.id); setCustomCategoryName(''); }}
+                        className="text-[11px] text-accent shrink-0">＋ 自訂分類</button>
+                      <button type="button" onClick={() => update(item.id, { pendingPrice: !item.pendingPrice })}
+                        aria-label={`${item.name}價格狀態`}
+                        className={`text-[10px] rounded-full border px-2 py-1 shrink-0 ${item.pendingPrice ? 'border-warn text-warn bg-warn/10' : 'border-bdr text-ink-3'}`}>
+                        {item.pendingPrice ? '待報價' : '固定價'}
+                      </button>
+                      <button type="button" onClick={() => onChange(items.filter((entry) => entry.id !== item.id))}
+                        aria-label={`刪除${item.name}`} className="text-danger/60 hover:text-danger text-sm shrink-0">✕</button>
+                    </div>
+                    {customCategoryId === item.id && (
+                      <div className="flex items-center gap-2 rounded-lg bg-s2 p-2">
+                        <input value={customCategoryName} onChange={(event) => setCustomCategoryName(event.target.value)}
+                          onKeyDown={(event) => { if (event.key === 'Enter') saveCustomCategory(item.id); }}
+                          placeholder="輸入新分類名稱" aria-label="新分類名稱" className="text-xs flex-1 min-w-0" />
+                        <button type="button" onClick={() => saveCustomCategory(item.id)} disabled={!customCategoryName.trim()}
+                          className="btn-primary text-[11px] shrink-0">套用分類</button>
+                        <button type="button" onClick={() => setCustomCategoryId(null)} className="text-xs text-ink-3 shrink-0">取消</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+// ── PresetEditor（車型與補助折抵，名稱＋金額）───────────────────────────────
 function PresetEditor({ title, desc, items, newName, amountKey = 'price', allowPending = false, onChange }) {
   function update(id, patch) {
     onChange(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));

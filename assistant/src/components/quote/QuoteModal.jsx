@@ -868,13 +868,11 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 </div>
               )}
 
-              {/* 優惠摘要＋最終專案價 */}
+              {/* 客戶版只顯示售價、優惠折扣與專案價；細項優惠仍列在各項目下方。 */}
               <div style={{ borderTop: '1px solid #e8ecef', marginTop: 14, paddingTop: 10 }}>
                 {[
-                  ['原價合計', totals.originalTotal],
-                  ['單項優惠', -totals.itemDiscountTotal],
-                  ['整單優惠', -totals.generalDiscountTotal],
-                  ['優惠總額', -totals.discountTotal],
+                  ['售價', totals.originalTotal],
+                  ['優惠折扣', -totals.discountTotal],
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', color: value < 0 ? '#6f957a' : '#8b98a1', fontSize: 10.5, padding: '2px 2px' }}>
                     <span>{label}</span><span>{value < 0 ? '−' : ''}{formatMoney(Math.abs(value))}</span>
@@ -922,13 +920,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 <p style={{ color: '#9aa7b0', fontSize: 10.5, marginTop: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>備註　{note}</p>
               )}
 
-              {/* 頁尾：感謝＋嚴謹免責聲明 */}
-              <div style={{ borderTop: '1px solid #eceef1', marginTop: 16, paddingTop: 12, textAlign: 'center' }}>
-                <p style={{ color: '#8b98a1', fontSize: 10, fontWeight: 600, letterSpacing: 1 }}>感謝您的信賴</p>
-                <p style={{ color: '#aab4bc', fontSize: 9, lineHeight: 1.6, marginTop: 4 }}>
-                  本內容所有分期款項僅供參考，實際申貸條件、額度及利率，均以金融機構最終審核及正式合約為準。
-                </p>
-              </div>
             </div>
           </div>
 
