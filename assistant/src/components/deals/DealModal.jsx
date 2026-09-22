@@ -37,6 +37,7 @@ export default function DealModal({ deal, client, dealFields, onSave, onClose })
       if (n > 0) fields[f.id] = n;
     }
     await onSave({
+      ...(deal || {}),
       id: deal?.id || generateId('deal'),
       clientId: deal?.clientId ?? client?.id ?? null,
       clientName: deal?.clientName ?? client?.name ?? '',

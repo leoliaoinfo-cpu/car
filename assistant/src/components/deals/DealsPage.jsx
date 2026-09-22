@@ -11,6 +11,17 @@ import {
   QuotePricingPanel,
 } from './InternalPricing';
 
+const DELIVERY_SOP_STEPS = [
+  { id: 'contract', label: '簽約資料確認' },
+  { id: 'supplier', label: '比較並指派配件供應商' },
+  { id: 'orders', label: '配件訂貨與廠商進度確認' },
+  { id: 'tailgate', label: '升降尾門施作與完工確認' },
+  { id: 'paint', label: '車身噴漆與外觀確認' },
+  { id: 'plate', label: '驗車與領牌' },
+  { id: 'install', label: '其餘改裝配件安裝確認' },
+  { id: 'delivery', label: '交車前驗收與交車' },
+];
+
 export default function DealsPage({ onOpenClient }) {
   const {
     deals,
@@ -155,11 +166,12 @@ export default function DealsPage({ onOpenClient }) {
     ['performance', '業績與利潤'],
     ['quotes', '報價試算'],
     ['costs', '成本設定'],
+    ['fulfillment', '簽約→交車 SOP'],
   ];
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
-      <div className="card p-1 flex gap-1">
+      <div className="card p-1 grid grid-cols-2 sm:grid-cols-4 gap-1">
         {tabs.map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)}
             className={`flex-1 rounded-lg px-2 py-2 text-sm font-semibold ${section === key ? 'bg-accent text-on-accent' : 'text-ink-2 hover:bg-s2'}`}>
@@ -178,6 +190,11 @@ export default function DealsPage({ onOpenClient }) {
       {section === 'costs' && (
         <CostCatalogPanel quotePresets={quotePresets} costCatalog={costCatalog}
           onSave={saveCostCatalog} initialSearch={costSearch} />
+      )}
+
+      {section === 'fulfillment' && (
+        <DeliverySopPanel deals={deals} clients={clients} pricingById={pricingById}
+          onSaveDeal={saveDeal} onOpenPricing={openDealPricing} />
       )}
 
       {section === 'performance' && (
@@ -280,10 +297,84 @@ export default function DealsPage({ onOpenClient }) {
           onClose={() => setEditingDeal(null)} onSave={handleSaveDeal} />
       )}
       {editingPricing && (
-        <PricingEditorModal record={editingPricing} onClose={() => setEditingPricing(null)}
+        <PricingEditorModal record={editingPricing} costCatalog={costCatalog} onClose={() => setEditingPricing(null)}
           onOpenCostSettings={openCostSettings}
           onSave={async (record) => { await savePricingRecord(record); setEditingPricing(null); }} />
       )}
+    </div>
+  );
+}
+
+function DeliverySopPanel({ deals, clients, pricingById, onSaveDeal, onOpenPricing }) {
+  const [openDealId, setOpenDealId] = useState(null);
+  const clientNames = new Map(clients.map((client) => [client.id, client.name]));
+  const sortedDeals = [...deals].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  function updateStep(deal, stepId, patch) {
+    const previous = deal.deliverySop || {};
+    onSaveDeal({
+      ...deal,
+      deliverySop: {
+        ...previous,
+        [stepId]: { status: 'todo', note: '', ...(previous[stepId] || {}), ...patch, updatedAt: new Date().toISOString() },
+      },
+    });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="card p-4">
+        <h2 className="font-bold text-ink">📋 簽約後交車 SOP</h2>
+        <p className="text-xs text-ink-3 mt-1">逐車核對廠商、改裝、領牌與交車進度；不適用的尾門或噴漆可標為「不適用」。此流程只在內部業績區顯示。</p>
+      </div>
+      {sortedDeals.length === 0 && <p className="card p-6 text-center text-sm text-ink-3">尚無成交歸檔；簽約後即可在這裡追蹤交車流程。</p>}
+      {sortedDeals.map((deal) => {
+        const steps = deal.deliverySop || {};
+        const done = DELIVERY_SOP_STEPS.filter((step) => ['done', 'na'].includes(steps[step.id]?.status)).length;
+        const pricing = pricingById.get(`deal:${deal.id}`);
+        const assigned = (pricing?.lines || []).filter((line) => line.kind === 'addon' && line.supplierId).length;
+        const isOpen = openDealId === deal.id;
+        return (
+          <section key={deal.id} className="card overflow-hidden">
+            <button type="button" onClick={() => setOpenDealId(isOpen ? null : deal.id)}
+              className="w-full flex items-center justify-between gap-3 p-3 text-left">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink truncate">{clientNames.get(deal.clientId) || '未連結客戶'}・{deal.model || deal.note || '車輛'}</span>
+                <span className="block text-[11px] text-ink-3">{dayjs(deal.date).format('YYYY/MM/DD')}・已指派供應商 {assigned} 項</span>
+              </span>
+              <span className="shrink-0 text-xs text-accent font-semibold">{done}/{DELIVERY_SOP_STEPS.length} {isOpen ? '▲' : '▼'}</span>
+            </button>
+            {isOpen && (
+              <div className="border-t border-bdr p-3 space-y-2">
+                <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline text-xs">查看成本並指派供應商</button>
+                {DELIVERY_SOP_STEPS.map((step, index) => {
+                  const current = steps[step.id] || {};
+                  return (
+                    <div key={step.id} className="rounded-lg border border-bdr bg-s2/50 p-2.5 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-ink-3 w-4">{index + 1}</span>
+                        <span className="text-xs font-medium text-ink flex-1">{step.label}</span>
+                        <select value={current.status || 'todo'}
+                          onChange={(event) => updateStep(deal, step.id, { status: event.target.value })}
+                          aria-label={`${step.label}狀態`} className="text-xs w-24">
+                          <option value="todo">待處理</option>
+                          <option value="doing">進行中</option>
+                          <option value="done">已完成</option>
+                          <option value="na">不適用</option>
+                        </select>
+                      </div>
+                      <input key={`${deal.id}-${step.id}`} defaultValue={current.note || ''}
+                        onBlur={(event) => { if (event.target.value !== (current.note || '')) updateStep(deal, step.id, { note: event.target.value }); }}
+                        placeholder="廠商、預計日期或進度備註（離開欄位自動儲存）"
+                        aria-label={`${step.label}備註`} className="text-xs w-full" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }

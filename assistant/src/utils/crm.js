@@ -189,11 +189,11 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v9';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v10';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', '升降尾門', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', '滑特(升降尾門)', '升降尾門', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -201,14 +201,14 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '依花紋板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '依平板板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-tailgate-25', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-30', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-35', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-40', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-45', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-50', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-55', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-60-special', cat: '升降尾門', group: 'g-tailgate-size', name: '滑特升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
+  { id: 'qa-tailgate-25', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-30', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（3尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-35', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-40', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（4尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-45', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-50', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-55', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
+  { id: 'qa-tailgate-60-special', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
   { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
   { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
   { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 3500, pendingPrice: false, desc: '依車型、車頭與車體尺寸安裝；售價 3,500 元' },
@@ -252,6 +252,7 @@ const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS]
 
 export const DEFAULT_QUOTE_PRESETS = {
   _catalog: QUOTE_CATALOG_VERSION,
+  addonCategories: QUOTE_ADDON_CATS,
   // 車型與售價（報價單「選車型」下拉帶入車輛售價）
   models: [
     { id: 'qm-1', name: '單廂三人座 手排六速', price: 798000 },
@@ -376,7 +377,7 @@ const LEGACY_TAILGATE_SIZE_SPLITS = {
  */
 export function resolveQuotePresets(row) {
   if (!row || !Array.isArray(row.addons)) return DEFAULT_QUOTE_PRESETS;
-  if (row._catalog === QUOTE_CATALOG_VERSION) return row;
+  if (row._catalog === QUOTE_CATALOG_VERSION && Array.isArray(row.addonCategories)) return row;
   const names = row.addons.map((a) => a.name);
   const untouched = !row.models
     && names.length === LEGACY_ADDON_NAMES.length
@@ -411,6 +412,12 @@ export function resolveQuotePresets(row) {
       && migrated.desc === '中央置物盒另加 500 元；12 個月保固') {
       migrated = { ...migrated, desc: androidSurround.desc };
     }
+    const tailgateDefault = REQUIRED_QUOTE_ADDONS.find((addon) => addon.id === migrated.id);
+    if (tailgateDefault?.cat === '滑特(升降尾門)'
+      && migrated.cat === '升降尾門'
+      && migrated.name === `滑特${tailgateDefault.name}`) {
+      migrated = { ...migrated, cat: tailgateDefault.cat, name: tailgateDefault.name };
+    }
     if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat !== '升降尾門') {
       return { ...migrated, cat: '升降尾門' };
     }
@@ -419,11 +426,19 @@ export function resolveQuotePresets(row) {
   const addonIds = new Set(migratedAddons.map((item) => item.id));
   const addonNames = new Set(migratedAddons.map((item) => item.name));
   const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name));
+  const addons = [...migratedAddons, ...newAddons];
+  const storedCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];
+  if (!storedCategories.includes('滑特(升降尾門)')) {
+    const tailgateIndex = storedCategories.indexOf('升降尾門');
+    storedCategories.splice(tailgateIndex < 0 ? storedCategories.length : tailgateIndex, 0, '滑特(升降尾門)');
+  }
+  const addonCategories = [...new Set([...storedCategories, ...addons.map((item) => item.cat || '其他')])];
   return {
     ...row,
     _catalog: QUOTE_CATALOG_VERSION,
     models: row.models || DEFAULT_QUOTE_PRESETS.models,
-    addons: [...migratedAddons, ...newAddons],
+    addons,
+    addonCategories,
   };
 }
 

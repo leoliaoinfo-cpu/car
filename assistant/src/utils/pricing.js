@@ -1,6 +1,6 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 
-const COST_CATALOG_VERSION = 3;
+const COST_CATALOG_VERSION = 4;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -199,6 +199,41 @@ function ownCost(map, key) {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
+/** 同供應商有指定車型成本時，該車型優先於其「全部車型」成本。 */
+export function applicableSupplierCosts(costCatalog, addonId, modelId) {
+  const entries = costCatalog?.addons?.[addonId]?.supplierCosts;
+  if (!Array.isArray(entries)) return [];
+  const valid = entries.filter((row) => {
+    const cost = Number(row?.cost);
+    return row?.id && String(row.supplier || '').trim()
+      && row.cost !== '' && row.cost != null && Number.isFinite(cost) && cost >= 0;
+  });
+  const exactSuppliers = new Set(valid.filter((row) => modelId && row.modelId === modelId)
+    .map((row) => String(row.supplier).trim().toLowerCase()));
+  return valid.filter((row) => row.modelId === modelId
+    || (!row.modelId && !exactSuppliers.has(String(row.supplier).trim().toLowerCase())))
+    .map((row) => ({ ...row, supplier: String(row.supplier).trim(), cost: money(row.cost) }));
+}
+
+/** 未指定供應商先採適用成本最高者；有供應商資料卻沒有適用車型時視為缺成本。 */
+export function resolveAddonCost(costCatalog, addonId, modelId, supplierId = null) {
+  const entry = costCatalog?.addons?.[addonId];
+  if (Array.isArray(entry?.supplierCosts) && entry.supplierCosts.length > 0) {
+    const options = applicableSupplierCosts(costCatalog, addonId, modelId);
+    const selected = options.find((row) => row.id === supplierId);
+    const conservative = options.reduce((highest, row) => (!highest || row.cost > highest.cost ? row : highest), null);
+    const chosen = selected || conservative;
+    return {
+      cost: chosen?.cost ?? null,
+      supplierId: selected?.id || null,
+      supplierName: selected?.supplier || null,
+      source: selected ? 'supplier' : 'supplier-max',
+      options,
+    };
+  }
+  return { cost: ownCost(costCatalog?.addons, addonId), supplierId: null, supplierName: null, source: 'catalog', options: [] };
+}
+
 export function buildPricingRecord({ quote, costCatalog, existing = null, kind = 'quote', dealId = null }) {
   const catalog = normalizeCostCatalog(costCatalog);
   const normalized = normalizeQuoteItems(quote?.items || []);
@@ -210,12 +245,33 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
   ].map((row) => normalizeDiscount(row));
   const totals = calculateQuoteTotals(items, generalDiscounts);
   const existingCosts = existing?.lineCosts || {};
+  const existingSources = existing?.lineCostSources || {};
+  // 舊紀錄可能沒有 modelId；此時沿用舊手填成本，避免升級時覆蓋既有資料。
+  const sameModel = !existing?.modelId || existing.modelId === (quote?.modelId || null);
   const lines = items.map((item) => {
-    let cost = Object.prototype.hasOwnProperty.call(existingCosts, item.id)
-      ? money(existingCosts[item.id])
-      : null;
-    if (cost == null && item.kind === 'vehicle') cost = ownCost(catalog.models, quote?.modelId || item.catalogId);
-    if (cost == null && item.kind === 'addon') cost = ownCost(catalog.addons, item.catalogId);
+    const previousLine = existing?.lines?.find((line) => line.id === item.id);
+    const sameItem = !previousLine || (previousLine.catalogId === (item.catalogId || null)
+      && previousLine.kind === (item.kind || 'other'));
+    const hasExistingCost = sameModel && sameItem
+      && Object.prototype.hasOwnProperty.call(existingCosts, item.id);
+    const preservedManual = hasExistingCost
+      && (!existingSources[item.id] || existingSources[item.id] === 'manual');
+    let cost = preservedManual ? money(existingCosts[item.id]) : null;
+    let costSource = preservedManual ? 'manual' : null;
+    let supplierId = null;
+    let supplierName = null;
+    if (!preservedManual && item.kind === 'vehicle') {
+      cost = ownCost(catalog.models, quote?.modelId || item.catalogId);
+      costSource = 'catalog';
+    }
+    if (!preservedManual && item.kind === 'addon') {
+      const resolved = resolveAddonCost(catalog, item.catalogId, quote?.modelId,
+        sameModel && sameItem ? existing?.supplierSelections?.[item.id] : null);
+      cost = resolved.cost;
+      costSource = resolved.source;
+      supplierId = resolved.supplierId;
+      supplierName = resolved.supplierName;
+    }
     const discounts = (item.discounts || []).map((row) => normalizeDiscount(row));
     const pricingDiscountRequested = discounts
       .filter((row) => isPricingDiscount(row))
@@ -234,6 +290,9 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       pricingDiscount,
       cost,
       costKnown: cost != null,
+      costSource,
+      supplierId,
+      supplierName,
     };
   });
   const otherCosts = (existing?.otherCosts || []).map((row) => ({
@@ -257,6 +316,8 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     model: quote?.model || existing?.model || '',
     lines,
     lineCosts: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.cost])),
+    lineCostSources: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.costSource])),
+    supplierSelections: Object.fromEntries(lines.filter((line) => line.supplierId).map((line) => [line.id, line.supplierId])),
     otherCosts,
     saleTotal: totals.total,
     originalTotal: totals.originalTotal,
@@ -292,6 +353,9 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
       netPrice: Math.max(0, money(line.salePrice) - baseDiscountTotal - pricingDiscount),
       cost,
       costKnown: has,
+      costSource: has ? (record?.lineCostSources?.[line.id] || line.costSource || 'manual') : null,
+      supplierId: record?.supplierSelections?.[line.id] || null,
+      supplierName: record?.supplierSelections?.[line.id] ? line.supplierName : null,
     };
   });
   const normalizedOther = otherCosts.map((row) => ({
@@ -318,6 +382,8 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     ...record,
     lines,
     lineCosts: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.cost])),
+    lineCostSources: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.costSource])),
+    supplierSelections: Object.fromEntries(lines.filter((line) => line.supplierId).map((line) => [line.id, line.supplierId])),
     otherCosts: normalizedOther,
     originalTotal,
     itemDiscountTotal,

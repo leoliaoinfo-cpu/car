@@ -238,10 +238,10 @@ export function stopSync() {
 /**
  * 驗證 token、找到 repo、啟動同步。
  * @param {string} token GitHub fine-grained token（Contents 讀寫）
- * @param {string} repoName repo 名稱（不含帳號），預設 business-data
+ * @param {string} repoName repo 名稱（不含帳號），預設汽車系統專用 car-sales-data
  */
 export async function connectSync(token, repoName) {
-  const name = (repoName || 'business-data').trim();
+  const name = (repoName || 'car-sales-data').trim();
   const h = {
     Authorization: `Bearer ${token.trim()}`,
     Accept: 'application/vnd.github+json',

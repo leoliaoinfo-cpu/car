@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  normalizeCostCatalog, pricingSafetyStatus, updatePricingCosts,
+  applicableSupplierCosts, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
 } from './pricing.js';
 import { DEFAULT_QUOTE_PRESETS, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
@@ -96,6 +96,55 @@ test('refreshes missing snapshot costs from the current catalog and keeps manual
   assert.equal(record.profit, 50000);
 });
 
+test('selects costs by supplier and vehicle, using the highest applicable cost until a supplier is chosen', () => {
+  const catalog = normalizeCostCatalog({
+    version: 4, models: {}, addons: {
+      tailgate: { cost: 10000, supplierCosts: [
+        { id: 'a-all', supplier: '甲廠', modelId: '', cost: 22000 },
+        { id: 'a-m1', supplier: '甲廠', modelId: 'm1', cost: 26000 },
+        { id: 'b-all', supplier: '乙廠', modelId: '', cost: 24000 },
+        { id: 'c-m2', supplier: '丙廠', modelId: 'm2', cost: 32000 },
+      ] },
+    },
+  });
+  assert.deepEqual(applicableSupplierCosts(catalog, 'tailgate', 'm1').map((row) => row.id), ['a-m1', 'b-all']);
+  assert.equal(resolveAddonCost(catalog, 'tailgate', 'm1').cost, 26000);
+  assert.equal(resolveAddonCost(catalog, 'tailgate', 'm1', 'b-all').cost, 24000);
+  assert.equal(resolveAddonCost(catalog, 'tailgate', 'm2').cost, 32000);
+  assert.equal(resolveAddonCost(catalog, 'tailgate', null).cost, 24000);
+});
+
+test('requires a matching vehicle cost rather than silently falling back to an old base cost', () => {
+  const catalog = normalizeCostCatalog({ version: 4, models: {}, addons: {
+    tarp: { cost: 10000, supplierCosts: [{ id: 'a-m1', supplier: '甲廠', modelId: 'm1', cost: 18000 }] },
+  } });
+  const quote = { id: 'q-supplier', modelId: 'm2', items: [{ id: 'a', kind: 'addon', catalogId: 'tarp', price: 25000 }] };
+  const record = buildPricingRecord({ quote, costCatalog: catalog });
+  assert.equal(record.lines[0].cost, null);
+  assert.equal(pricingSafetyStatus(record), 'incomplete');
+});
+
+test('keeps a chosen supplier and refreshes its cost, while preserving manual cost edits', () => {
+  const quote = { id: 'q-supplier-edit', modelId: 'm1', items: [{ id: 'a', kind: 'addon', catalogId: 'tarp', price: 30000 }] };
+  const catalog = { version: 4, models: {}, addons: { tarp: { supplierCosts: [
+    { id: 'a1', supplier: '甲廠', modelId: 'm1', cost: 18000 },
+    { id: 'b1', supplier: '乙廠', modelId: 'm1', cost: 21000 },
+  ] } } };
+  const initial = buildPricingRecord({ quote, costCatalog: catalog });
+  assert.equal(initial.lines[0].cost, 21000);
+  assert.equal(initial.lines[0].costSource, 'supplier-max');
+  const chosen = updatePricingCosts({ ...initial, supplierSelections: { a: 'a1' }, lineCostSources: { a: 'supplier' } }, { a: 18000 }, []);
+  const refreshed = buildPricingRecord({ quote, costCatalog: { ...catalog, addons: { tarp: { supplierCosts: [
+    { id: 'a1', supplier: '甲廠', modelId: 'm1', cost: 19000 },
+  ] } } }, existing: chosen });
+  assert.equal(refreshed.lines[0].cost, 19000);
+  assert.equal(refreshed.supplierSelections.a, 'a1');
+  const manual = buildPricingRecord({ quote, costCatalog: catalog, existing: {
+    ...chosen, lineCosts: { a: 17000 }, lineCostSources: { a: 'manual' }, supplierSelections: {},
+  } });
+  assert.equal(manual.lines[0].cost, 17000);
+});
+
 test('recalculates line profit and writes an internal discount back to the quote', () => {
   const quote = {
     id: 'q-discount',
@@ -116,6 +165,25 @@ test('recalculates line profit and writes an internal discount back to the quote
   assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '活動優惠').amount, 2000);
   assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '業務優惠').amount, 5000);
   assert.equal(updatedQuote.total, 13000);
+});
+
+test('does not carry a reused line id cost or supplier to a different accessory', () => {
+  const catalog = { version: 4, models: {}, addons: {
+    tarp: { supplierCosts: [{ id: 't1', supplier: '甲', modelId: 'm1', cost: 18000 }] },
+    tailgate: { supplierCosts: [{ id: 'g1', supplier: '乙', modelId: 'm1', cost: 32000 }] },
+  } };
+  const original = buildPricingRecord({
+    quote: { id: 'q-reuse', modelId: 'm1', items: [{ id: 'slot', kind: 'addon', catalogId: 'tarp', price: 25000 }] },
+    costCatalog: catalog,
+  });
+  const old = { ...original, lineCosts: { slot: 15000 }, lineCostSources: { slot: 'manual' },
+    supplierSelections: { slot: 't1' } };
+  const next = buildPricingRecord({
+    quote: { id: 'q-reuse', modelId: 'm1', items: [{ id: 'slot', kind: 'addon', catalogId: 'tailgate', price: 40000 }] },
+    costCatalog: catalog, existing: old,
+  });
+  assert.equal(next.lines[0].cost, 32000);
+  assert.equal(next.supplierSelections.slot, undefined);
 });
 
 test('keeps vendor-pending items out of current totals and cost checks', () => {
@@ -221,6 +289,22 @@ test('preserves a custom addon category when upgrading saved quote presets', () 
     addons: [{ ...DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === 'qa-floor-rubber'), cat: '工地底板' }],
   });
   assert.equal(resolved.addons.find((item) => item.id === 'qa-floor-rubber').cat, '工地底板');
+});
+
+test('moves default tailgate sizes into the Swift category without overwriting customized names', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v9', models: [], subsidies: [],
+    addonCategories: ['貨斗底板', '升降尾門', '配件'],
+    addons: [
+      { id: 'qa-tailgate-30', cat: '升降尾門', name: '滑特升降尾門（3尺）', price: 40000 },
+      { id: 'qa-tailgate-35', cat: '我的尾門', name: '自訂款（3.5尺）', price: 42000 },
+    ],
+  });
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-30').name, '升降尾門（3尺）');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-30').cat, '滑特(升降尾門)');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').name, '自訂款（3.5尺）');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').cat, '我的尾門');
+  assert.deepEqual(resolved.addonCategories.slice(0, 4), ['貨斗底板', '滑特(升降尾門)', '升降尾門', '配件']);
 });
 
 test('upgrades the old pending deflector price while preserving custom edits', () => {

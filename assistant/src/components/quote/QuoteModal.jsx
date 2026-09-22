@@ -12,7 +12,7 @@ import {
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
-function groupAddonsByCat(addons) {
+function groupAddonsByCat(addons, categoryOrder = QUOTE_ADDON_CATS) {
   const map = new Map();
   for (const a of addons) {
     const cat = a.cat || '其他';
@@ -21,7 +21,7 @@ function groupAddonsByCat(addons) {
   }
   for (const list of map.values()) list.sort((x, y) => (Number(y.price) || 0) - (Number(x.price) || 0));
   const ordered = [];
-  for (const cat of QUOTE_ADDON_CATS) if (map.has(cat)) { ordered.push([cat, map.get(cat)]); map.delete(cat); }
+  for (const cat of categoryOrder) if (map.has(cat)) { ordered.push([cat, map.get(cat)]); map.delete(cat); }
   for (const [cat, list] of map) ordered.push([cat, list]); // 剩下未列在順序中的
   return ordered;
 }
@@ -82,6 +82,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
+  const [expandedAddonCategories, setExpandedAddonCategories] = useState({});
+  const [noOptionCategories, setNoOptionCategories] = useState(() =>
+    Array.isArray(quote?.noOptionCategories) ? quote.noOptionCategories : []);
   const [capturing, setCapturing] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
   const previewRef = useRef(null);
@@ -161,9 +164,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const isCatalogPicked = (catalogId) => items.some((it) => it.catalogId === catalogId);
   const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
+  const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
+  const reviewedAddonCount = addonGroups.filter(([cat, list]) => noOptionCategories.includes(cat)
+    || list.some((addon) => isPicked(addon))).length;
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
-  function toggleLine({ id: catalogId, name, price, group, pendingPrice = false }) {
+  function toggleLine({ id: catalogId, name, price, group, cat, pendingPrice = false }) {
+    if (!isPicked({ id: catalogId, name }) && cat) {
+      setNoOptionCategories((list) => list.filter((category) => category !== cat));
+    }
     setItems((list) => {
       const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
       if (picked) {
@@ -283,6 +292,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       customerPhone: customerPhone.trim(),
       model: model.trim(),
       modelId,
+      noOptionCategories,
       items: selectedItems.map((it) => ({
         id: it.id,
         catalogId: it.catalogId || null,
@@ -316,10 +326,19 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     return buildPricingRecord({ quote: draft, costCatalog, existing });
   }
 
+  function confirmAddonReview() {
+    const unreviewed = addonGroups
+      .filter(([cat, list]) => !noOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
+    return unreviewed.length === 0 || window.confirm(
+      `還有 ${unreviewed.length} 個配備分類未確認（例如：${unreviewed.slice(0, 3).map(([cat]) => cat).join('、')}）。請先問客戶並選配，或勾選「沒有選配」。確定仍要繼續嗎？`,
+    );
+  }
+
   // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
   async function downloadImage() {
     const src = previewRef.current;
     if (!src || capturing) return;
+    if (!confirmAddonReview()) return;
     setCapturing(true);
     // 複製一份到畫面外、完整展開（脫離捲動容器），避免 html2canvas 裁掉底部
     const clone = src.cloneNode(true);
@@ -359,6 +378,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   }
 
   async function handleRecord() {
+    if (!confirmAddonReview()) return;
     const payload = makeQuotePayload();
     await onSaveQuote({ ...payload, _pricingRecord: pricingForCurrentQuote() });
   }
@@ -382,13 +402,6 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-3 text-[10px] text-ink-3 whitespace-nowrap">
-            <span className="rounded-full bg-accent/10 text-accent px-2 py-1">1 客戶需求</span>
-            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">2 車型配件</span>
-            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">3 金額優惠</span>
-            <span>→</span><span className="rounded-full bg-s2 px-2 py-1">4 預覽圖片</span>
-          </div>
-
           {/* 輸入區 */}
           <div className="space-y-2 mb-4">
             {!client?.id && (
@@ -435,29 +448,48 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             {/* 選購配備（依類別分組、組內金額由高到低；可展開看產品介紹） */}
             {quotePresets.addons.length > 0 && (
               <div className="bg-s2 rounded-xl p-2.5 md:p-3 space-y-2.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-ink-2">🚚 選購配備</span>
+                  <span className="text-[10px] text-ink-3">已處理 {reviewedAddonCount}/{addonGroups.length} 類</span>
                   <button type="button" onClick={() => setShowDesc((v) => !v)}
                     className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                       showDesc ? 'bg-accent text-on-accent' : 'text-accent hover:bg-accent/10'}`}>
                     {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
-                <p className="text-[10px] text-ink-3 -mt-1">點選即加入、再點取消；已選會反白。車身改色 / 防刮尾門 / 後照鏡為擇一，換新的自動取代。</p>
-                {groupAddonsByCat(visibleAddons).map(([cat, list]) => {
+                <p className="text-[10px] text-ink-3 -mt-1">逐類打開，選配件或勾「沒有選配」才算已處理；未確認的分類會保留提醒。</p>
+                {addonGroups.map(([cat, list]) => {
                   const color = catColor(cat);
+                  const pickedCount = list.filter((addon) => isPicked(addon)).length;
+                  const noOption = pickedCount === 0 && noOptionCategories.includes(cat);
+                  const expanded = !!expandedAddonCategories[cat];
                   // 整個類別同屬一個擇一群組時才標「擇一」（例如車身改色底色、防刮尾門尺寸）
                   const groupSet = new Set(list.map((a) => a.group || ''));
                   const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
                   return (
-                    <div key={cat}>
+                    <div key={cat} className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
                       {/* 類別標題 */}
-                      <div className="flex items-center gap-1.5 mb-1.5">
+                      <button type="button" onClick={() => setExpandedAddonCategories((current) => ({ ...current, [cat]: !expanded }))}
+                        aria-expanded={expanded} className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left">
                         <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-[11px] font-semibold" style={{ color }}>{cat}</span>
-                        <span className="text-[10px] text-ink-3">{list.length}</span>
+                        <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
+                        <span className="text-[10px] text-ink-3">{list.length} 項</span>
                         {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
-                      </div>
+                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
+                          {pickedCount ? `已選 ${pickedCount}・已處理` : noOption ? '沒有選配・已處理' : '未確認'}
+                        </span>
+                        <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
+                      </button>
+                      {expanded && (
+                        <div className="px-2.5 pb-2.5 space-y-2">
+                          <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
+                            <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
+                              onChange={(event) => setNoOptionCategories((current) => event.target.checked
+                                ? [...new Set([...current, cat])]
+                                : current.filter((category) => category !== cat))} />
+                            沒有選配（已向客戶確認）
+                          </label>
+                          {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
                       {showDesc ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {list.map((a) => {
@@ -505,6 +537,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                               </button>
                             );
                           })}
+                        </div>
+                      )}
                         </div>
                       )}
                     </div>

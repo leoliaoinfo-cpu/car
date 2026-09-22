@@ -102,8 +102,7 @@ function AppInner() {
         <div className="bg-accent/10 border-b border-accent/30 px-4 py-2.5 text-xs text-ink-2 flex items-start gap-3">
           <div className="flex-1 leading-relaxed">
             <strong className="text-accent">✅ 汽車系統已改用獨立儲存空間。</strong>
-            舊的共用資料沒有刪除。若此頁暫時沒有汽車資料，請到「設定 → 備份還原」匯入汽車系統專用備份，
-            或到「雲端同步」重新連線汽車系統專用的私人 repo；不要直接匯入混合救援檔。
+            舊的共用資料沒有刪除。若此頁暫時沒有汽車資料，請到「設定 → 雲端同步」重新連線汽車系統專用的私人 repo。
           </div>
           <button onClick={() => setShowSettings(true)} className="btn-outline text-[11px] shrink-0">開啟設定</button>
           <button onClick={dismissIsolationNotice} className="text-ink-3 text-lg leading-none shrink-0" aria-label="關閉提示">×</button>
@@ -114,7 +113,7 @@ function AppInner() {
 
       <main className="pb-20 md:pb-0">
         <div className="anim-fade-in" key={tab}>
-          {tab === 'today' && <TodayPage onOpenClient={openClient} />}
+          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setShowSettings(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />

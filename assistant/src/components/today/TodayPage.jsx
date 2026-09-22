@@ -1,6 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../../context';
-import { db } from '../../db';
 import { isSyncEnabled } from '../../sync';
 import {
   getClientStatus, STATUS_COLOR, CAT_COLORS, FIELD_COLORS, generateId,
@@ -10,15 +9,12 @@ import { formatDate } from '../../utils/date';
 import { downloadICS, needsIcsExport, snoozeIcsReminder } from '../../utils/ics';
 import dayjs from 'dayjs';
 
-const BACKUP_REMIND_DAYS = 7;
-
-export default function TodayPage({ onOpenClient }) {
+export default function TodayPage({ onOpenClient, onOpenSettings }) {
   const {
     clients, cats, customFields, timers, tasks, events, thresholds,
     updateClient, saveTimer, deleteTimer, saveTask, deleteTask,
   } = useApp();
   const todayStr = dayjs().format('YYYY-MM-DD');
-  const [lastBackupAt, setLastBackupAt] = useState(undefined); // undefined=載入中, null=從未備份
   const [taskInput, setTaskInput] = useState('');
   const [taskDue, setTaskDue] = useState(''); // 新增待辦的處理日期（選填）
   const [expandFuture, setExpandFuture] = useState(false); // 是否展開「未來排程」
@@ -47,10 +43,6 @@ export default function TodayPage({ onOpenClient }) {
     setMentionIdx(0);
   }
 
-  useEffect(() => {
-    db.getLastBackupAt().then(setLastBackupAt).catch(() => setLastBackupAt(null));
-  }, []);
-
   // 久沒匯出提醒：有「上次匯出後才新增/改的」活動或提醒才提示（不會一直吵）
   const icsNeeded = useMemo(() => needsIcsExport(events, timers), [events, timers]);
   const [icsHidden, setIcsHidden] = useState(false);
@@ -64,15 +56,7 @@ export default function TodayPage({ onOpenClient }) {
     setIcsHidden(true);
   }
 
-  const backupDays = lastBackupAt ? dayjs().diff(dayjs(lastBackupAt), 'day') : null;
-  // 雲端同步啟用時資料已自動備份到雲端，不再提醒手動下載
-  const showBackupWarn = !isSyncEnabled() && clients.length > 0 && lastBackupAt !== undefined
-    && (lastBackupAt === null || backupDays >= BACKUP_REMIND_DAYS);
-
-  async function handleQuickBackup() {
-    await db.exportAndDownload();
-    setLastBackupAt(new Date().toISOString());
-  }
+  const showSyncSetup = !isSyncEnabled();
 
   const overdue = useMemo(() =>
     clients
@@ -270,15 +254,12 @@ export default function TodayPage({ onOpenClient }) {
         </div>
       </div>
 
-      {/* 備份提醒：資料只存在此瀏覽器，太久沒備份就提醒 */}
-      {showBackupWarn && (
-        <div className="flex items-center gap-3 bg-danger/10 border border-danger/30 rounded-xl px-4 py-3">
-          <span className="text-lg shrink-0">💾</span>
-          <p className="flex-1 text-xs text-danger">
-            {lastBackupAt === null ? '尚未備份過資料' : `已 ${backupDays} 天未備份`}
-            ——客戶名單只存在這個瀏覽器，建議立即下載備份。
-          </p>
-          <button onClick={handleQuickBackup} className="btn-danger text-xs shrink-0">立即備份</button>
+      {/* 第一次使用先連線私人資料庫；未連線時仍可在此裝置作業。 */}
+      {showSyncSetup && (
+        <div className="flex items-center gap-3 bg-accent/10 border border-accent/30 rounded-xl px-4 py-3">
+          <span className="text-lg shrink-0">☁️</span>
+          <p className="flex-1 text-xs text-ink-2">雲端同步尚未設定。第一次使用請先連線汽車系統專用的私人資料庫，讓文字資料能跨裝置同步。</p>
+          <button onClick={onOpenSettings} className="btn-primary text-xs shrink-0">設定雲端同步</button>
         </div>
       )}
 
