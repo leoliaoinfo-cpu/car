@@ -9,6 +9,7 @@ import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, includedQuoteItems, normalizeDiscount, normalizeQuoteItems,
 } from '../../utils/pricing';
+import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteText';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -72,6 +73,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const normalizedInitial = normalizeQuoteItems(quote?.items || []);
   const [model, setModel] = useState(quote?.model || '');
+  const [modelYear, setModelYear] = useState(() => String(quote?.modelYear || DEFAULT_QUOTE_MODEL_YEAR));
   const [modelId, setModelId] = useState(() => quote?.modelId
     || quotePresets.models?.find((row) => row.name === quote?.model)?.id
     || null);
@@ -109,6 +111,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [exportedImage, setExportedImage] = useState(null);
   const [exportError, setExportError] = useState('');
   const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
+  const [showTextQuote, setShowTextQuote] = useState(false);
+  const [textCopyStatus, setTextCopyStatus] = useState('');
   const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入。
   const [loan, setLoan] = useState({
@@ -149,6 +153,13 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     .filter((row) => row.name.trim() && Number(row.amount) > 0);
   const totals = calculateQuoteTotals(pricedItems, validGeneralDiscounts);
   const total = totals.total;
+  const textQuote = buildQuoteMessage({
+    customerName,
+    model,
+    modelYear,
+    items: selectedItems,
+    generalDiscounts: validGeneralDiscounts,
+  });
 
   // 報價單編號：由日期＋此單 id 推導（同一張單編號固定，看起來更正式）
   const quoteNo = `Q${dayjs(quote?.date || undefined).format('YYMMDD')}-${shortHash(quote?.id || client?.id || quoteId)}`;
@@ -332,6 +343,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
       model: model.trim(),
+      modelYear: Number(modelYear) || null,
       modelId,
       excludeVehiclePrice,
       noOptionCategories: reviewedNoOptionCategories,
@@ -380,6 +392,29 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   function closeExportPreview() {
     setExportedImage(null);
     setExportError('');
+  }
+
+  function openTextQuote() {
+    if (!confirmAddonReview()) return;
+    setTextCopyStatus('');
+    setShowTextQuote(true);
+  }
+
+  async function copyTextQuote() {
+    try {
+      await navigator.clipboard.writeText(textQuote);
+      setTextCopyStatus('已複製，可直接貼到 LINE');
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = textQuote;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      setTextCopyStatus(copied ? '已複製，可直接貼到 LINE' : '無法自動複製，請長按文字全選複製');
+    }
   }
 
   function downloadExportedImage() {
@@ -513,14 +548,17 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 className="w-full text-sm resize-y" />
             </Field>
             <Field label="車型">
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
+                <input type="number" min="2000" max="2100" value={modelYear}
+                  onChange={(e) => setModelYear(e.target.value)} aria-label="車輛年式"
+                  placeholder="年式" className="w-full text-sm" />
                 <input value={model} onChange={(e) => { setModel(e.target.value); setModelId(null); }}
                   placeholder="例：單廂三人座 手排六速" className="flex-1 min-w-0 text-sm" />
                 {quotePresets.models?.length > 0 && (
                   <select
                     value=""
                     onChange={(e) => { const m = quotePresets.models.find((x) => x.id === e.target.value); if (m) pickModel(m); }}
-                    className="text-xs shrink-0 w-28"
+                    className="text-xs col-span-2 w-full"
                   >
                     <option value="">選車型帶入</option>
                     {quotePresets.models.map((m) => (
@@ -913,7 +951,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   borderRadius: '0 8px 8px 0', padding: '9px 14px', marginBottom: 16,
                 }}>
                   <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 2 }}>車型</p>
-                  <p style={{ color: '#5a4632', fontSize: 14, fontWeight: 700 }}>{model}</p>
+                  <p style={{ color: '#5a4632', fontSize: 14, fontWeight: 700 }}>
+                    {modelYear ? `${modelYear}年式 ${model}` : model}
+                  </p>
                   {excludeVehiclePrice && <p style={{ color: '#8b98a1', fontSize: 10, marginTop: 3 }}>本報價不含車輛售價</p>}
                 </div>
               )}
@@ -1079,11 +1119,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             </div>
           </div>
 
-          {/* 產生整張報價單圖片（不論多長都是一張完整 PNG） */}
-          <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
-            className="btn-primary w-full mt-3 disabled:opacity-40">
-            {capturing ? '產生圖片中…' : '🖼️ 產生報價單圖片'}
-          </button>
+          {/* 圖片版與 LINE 純文字版 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+            <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
+              className="btn-primary w-full disabled:opacity-40">
+              {capturing ? '產生圖片中…' : '🖼️ 產生報價單圖片'}
+            </button>
+            <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
+              className="btn-outline w-full disabled:opacity-40">📝 文字版報價（LINE）</button>
+          </div>
           <p className="text-center text-[11px] text-ink-3 mt-1.5">
             先預覽確認，再分享、存到相簿或傳 LINE
           </p>
@@ -1097,6 +1141,27 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
           </div>
         </div>
       </div>
+      {showTextQuote && (
+        <div className="safe-screen fixed inset-0 z-[85] bg-black/80 overflow-y-auto px-3 flex items-start justify-center">
+          <div className="w-full max-w-md my-3 rounded-2xl bg-s1 border border-bdr shadow-panel p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h3 className="font-bold text-ink">📝 文字版報價</h3>
+                <p className="text-[11px] text-ink-3 mt-0.5">會隨車型、配件、優惠與總價自動更新。</p>
+              </div>
+              <button type="button" onClick={() => setShowTextQuote(false)}
+                className="btn-ghost text-2xl leading-none px-2" aria-label="關閉文字報價">✕</button>
+            </div>
+            <textarea readOnly value={textQuote} aria-label="文字版報價內容"
+              className="w-full min-h-[22rem] resize-y text-sm leading-relaxed bg-s2 p-3" />
+            <button type="button" onClick={copyTextQuote} className="btn-primary w-full mt-3 text-base py-2.5">
+              📋 複製文字報價
+            </button>
+            {textCopyStatus && <p role="status" className="text-center text-xs text-ok font-semibold mt-2">{textCopyStatus}</p>}
+            <p className="text-center text-[11px] text-ink-3 mt-2">複製後可直接貼到客人 LINE，也可在 LINE 內再調整。</p>
+          </div>
+        </div>
+      )}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
       {exportedImage && (
         <div className="safe-screen fixed inset-0 z-[80] bg-black/85 overflow-y-auto px-3 flex items-start justify-center">
