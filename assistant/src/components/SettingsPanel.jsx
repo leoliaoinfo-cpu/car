@@ -204,7 +204,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
               />
               <PresetEditor
                 title="優惠&折扣"
-                desc="報價單一鍵帶入的整單優惠，可設定活動折扣、補助或其他折抵；加入報價後會自總價扣除。"
+                desc="報價單一鍵帶入的優惠折扣，可設定活動折扣、補助或其他折抵；加入報價後會自總價扣除。"
                 items={quotePresets.subsidies}
                 newName="新優惠"
                 amountKey="amount"

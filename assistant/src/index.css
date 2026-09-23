@@ -24,14 +24,14 @@
     --c-s1: 31 38 44;
     --c-s2: 41 50 58;
     --c-s3: 51 62 71;
-    --c-bdr: 63 76 87;
+    --c-bdr: 82 96 108;
     --c-accent: 147 180 205;     /* 霧藍 */
     --c-on-accent: 23 28 33;
     --c-danger: 208 140 140;
     --c-ok: 154 184 148;
     --c-ink: 226 233 238;
-    --c-ink2: 168 182 192;
-    --c-ink3: 118 133 145;
+    --c-ink2: 194 205 213;
+    --c-ink3: 154 170 181;
   }
 
   html { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; min-height: 100%; }

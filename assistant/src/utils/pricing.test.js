@@ -54,7 +54,7 @@ test('moves legacy negative rows to whole-quote discounts', () => {
   assert.equal(result.legacyDiscounts[0].amount, 50000);
 });
 
-test('builds a complete cost snapshot and detects below-cost quotes', () => {
+test('uses vehicle commission plus accessory margin and detects an over-discounted quote', () => {
   const record = buildPricingRecord({
     quote: {
       id: 'q1', modelId: 'm1', model: '卡旺',
@@ -64,10 +64,11 @@ test('builds a complete cost snapshot and detects below-cost quotes', () => {
       ],
       generalDiscounts: [{ amount: 50000 }],
     },
-    costCatalog: { models: { m1: { cost: 760000 } }, addons: { a1: { cost: 15000 } } },
+    costCatalog: { models: { m1: { commission: 40000 } }, addons: { a1: { cost: 15000 } } },
   });
   assert.equal(record.costComplete, true);
-  assert.equal(record.costTotal, 775000);
+  assert.equal(record.costTotal, 15000);
+  assert.equal(record.commissionTotal, 40000);
   assert.equal(record.saleTotal, 770000);
   assert.equal(record.profit, -5000);
   assert.equal(record.belowCost, true);
@@ -82,20 +83,21 @@ test('keeps profit unknown until every line has a cost', () => {
         { id: 'manual', kind: 'other', price: 10000 },
       ],
     },
-    costCatalog: { models: { m1: { cost: 700000 } }, addons: {} },
+    costCatalog: { models: { m1: { commission: 100000 } }, addons: {} },
   });
   assert.equal(record.costComplete, false);
-  assert.equal(record.knownCostTotal, 700000);
+  assert.equal(record.knownCostTotal, 0);
+  assert.equal(record.commissionTotal, 100000);
   assert.equal(record.costTotal, null);
   assert.equal(record.profit, null);
 
-  const completed = updatePricingCosts(record, { v: 700000, manual: 5000 });
+  const completed = updatePricingCosts(record, { v: 100000, manual: 5000 });
   assert.equal(completed.costComplete, true);
-  assert.equal(completed.costTotal, 705000);
+  assert.equal(completed.costTotal, 5000);
   assert.equal(completed.profit, 105000);
 });
 
-test('refreshes missing snapshot costs from the current catalog and keeps manual costs', () => {
+test('ignores legacy vehicle cost snapshots and refreshes the current commission', () => {
   const record = buildPricingRecord({
     quote: {
       id: 'q-refresh', modelId: 'm1', model: '卡旺',
@@ -104,13 +106,14 @@ test('refreshes missing snapshot costs from the current catalog and keeps manual
         { id: 'a', kind: 'addon', catalogId: 'a1', price: 20000 },
       ],
     },
-    costCatalog: { models: { m1: { cost: 760000 } }, addons: { a1: { cost: 15000 } } },
+    costCatalog: { models: { m1: { commission: 50000 } }, addons: { a1: { cost: 15000 } } },
     existing: { lineCosts: { v: 755000 }, otherCosts: [] },
   });
-  assert.equal(record.lines.find((line) => line.id === 'v').cost, 755000);
+  assert.equal(record.lines.find((line) => line.id === 'v').cost, 50000);
+  assert.equal(record.lines.find((line) => line.id === 'v').costSource, 'commission-catalog');
   assert.equal(record.lines.find((line) => line.id === 'a').cost, 15000);
-  assert.equal(record.costTotal, 770000);
-  assert.equal(record.profit, 50000);
+  assert.equal(record.costTotal, 15000);
+  assert.equal(record.profit, 55000);
 });
 
 test('selects costs by supplier and vehicle, using the highest applicable cost until a supplier is chosen', () => {
@@ -180,8 +183,23 @@ test('recalculates line profit and writes an internal discount back to the quote
   const updatedQuote = applyPricingDiscountsToQuote(quote, { a: 5000 });
   assert.equal(updatedQuote.items[0].discounts.length, 2);
   assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '活動優惠').amount, 2000);
-  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '業務優惠').amount, 5000);
+  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '優惠').amount, 5000);
   assert.equal(updatedQuote.total, 13000);
+});
+
+test('renames a legacy business discount to the customer-facing discount label', () => {
+  const quote = {
+    id: 'q-legacy-discount-name',
+    items: [{
+      id: 'a', kind: 'addon', catalogId: 'a1', name: '配件', price: 20000,
+      discounts: [{ id: 'pricing-discount:a', name: '業務優惠', amount: 500 }],
+    }],
+    generalDiscounts: [],
+  };
+  const updatedQuote = applyPricingDiscountsToQuote(quote, { a: 500 });
+  assert.equal(updatedQuote.items[0].discounts.length, 1);
+  assert.equal(updatedQuote.items[0].discounts[0].name, '優惠');
+  assert.equal(updatedQuote.items[0].discounts[0].amount, 500);
 });
 
 test('does not carry a reused line id cost or supplier to a different accessory', () => {
@@ -212,7 +230,7 @@ test('keeps vendor-pending items out of current totals and cost checks', () => {
         { id: 'floor', kind: 'addon', catalogId: 'floor1', price: 0, pending: true },
       ],
     },
-    costCatalog: { models: { m1: { cost: 700000 } }, addons: {} },
+    costCatalog: { models: { m1: { commission: 100000 } }, addons: {} },
   });
   assert.equal(record.lines.length, 1);
   assert.equal(record.saleTotal, 800000);
@@ -229,6 +247,12 @@ test('classifies all three quote safety states', () => {
 
 test('seeds supplier sheet costs and converts each 80-percent row to a number', () => {
   const catalog = normalizeCostCatalog(null);
+  assert.equal(catalog.models['qm-1'].commission, 35000);
+  assert.equal(catalog.models['qm-5'].commission, 50000);
+  assert.equal(catalog.models['qm-7'].commission, 45000);
+  assert.equal(catalog.addons['qa-pkg1'].cost, 11000);
+  assert.equal(catalog.addons['qa-h-rack-single'].cost, 4000);
+  assert.equal(catalog.addons['qa-h-rack-pair'].cost, 7000);
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3200);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
   assert.equal(catalog.addons['qa-star-led-fog'].cost, 1440);
@@ -238,6 +262,15 @@ test('seeds supplier sheet costs and converts each 80-percent row to a number', 
   assert.equal(catalog.addons['qa-phone-basic'].cost, 1040);
   assert.equal(catalog.addons['qa-phone-a-pillar'].cost, 1200);
   assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
+});
+
+test('adds priced H-rack options to an existing quote menu', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v12', models: [], subsidies: [],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories], addons: [],
+  });
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-single').price, 5000);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-pair').price, 9000);
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {

@@ -36,14 +36,14 @@ const fourWheel = {
 
 /** Kia K2500 一般販售車型唯一資料來源。 */
 export const VEHICLE_VARIANTS = [
-  { ...twoWheel, id: 'qm-1', cab: '單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 3110, curbWeightKg: 1757, payloadKg: 1483, grossVehicleWeightKg: 3240, fuelEconomyKmL: 10.8, annualFuelL: 1389, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 818000 },
-  { ...twoWheel, id: 'qm-2', cab: '單廂', seats: 3, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 3110, curbWeightKg: 1785, payloadKg: 1455, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.5, annualFuelL: 1579, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 858000 },
-  { ...twoWheel, id: 'qm-3', cab: '大單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 2860, curbWeightKg: 1778, payloadKg: 1462, grossVehicleWeightKg: 3240, fuelEconomyKmL: 10.6, annualFuelL: 1415, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 848000 },
-  { ...twoWheel, id: 'qm-4', cab: '大單廂', seats: 3, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 2860, curbWeightKg: 1799, payloadKg: 1441, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.2, annualFuelL: 1630, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 888000 },
-  { ...twoWheel, id: 'qm-5', cab: '雙廂', seats: 6, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 2185, curbWeightKg: 1871, payloadKg: 1489, grossVehicleWeightKg: 3360, fuelEconomyKmL: 10.4, annualFuelL: 1442, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 988000 },
-  { ...twoWheel, id: 'qm-6', cab: '雙廂', seats: 6, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 2185, curbWeightKg: 1899, payloadKg: 1461, grossVehicleWeightKg: 3360, fuelEconomyKmL: 9.3, annualFuelL: 1613, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 1038000 },
-  { ...fourWheel, id: 'qm-7', cab: '單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', lengthMm: 4825, cargoLengthMm: 2810, curbWeightKg: 1864, payloadKg: 1376, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.4, annualFuelL: 1596, energyEfficiency: 5, topSpeedKmh: 142, msrpTwd: 978000 },
-  { ...fourWheel, id: 'qm-8', cab: '雙廂', seats: 6, transmission: '手排', transmissionLabel: '6速手排', lengthMm: 4810, cargoLengthMm: 1870, curbWeightKg: 1969, payloadKg: 1391, grossVehicleWeightKg: 3360, fuelEconomyKmL: 9.3, annualFuelL: 1613, energyEfficiency: 5, topSpeedKmh: 142, msrpTwd: 1078000 },
+  { ...twoWheel, id: 'qm-1', cab: '單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 3110, curbWeightKg: 1757, payloadKg: 1483, grossVehicleWeightKg: 3240, fuelEconomyKmL: 10.8, annualFuelL: 1389, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 818000, commissionTwd: 35000 },
+  { ...twoWheel, id: 'qm-2', cab: '單廂', seats: 3, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 3110, curbWeightKg: 1785, payloadKg: 1455, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.5, annualFuelL: 1579, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 858000, commissionTwd: 35000 },
+  { ...twoWheel, id: 'qm-3', cab: '大單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 2860, curbWeightKg: 1778, payloadKg: 1462, grossVehicleWeightKg: 3240, fuelEconomyKmL: 10.6, annualFuelL: 1415, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 848000, commissionTwd: 35000 },
+  { ...twoWheel, id: 'qm-4', cab: '大單廂', seats: 3, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 2860, curbWeightKg: 1799, payloadKg: 1441, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.2, annualFuelL: 1630, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 888000, commissionTwd: 35000 },
+  { ...twoWheel, id: 'qm-5', cab: '雙廂', seats: 6, transmission: '手排', transmissionLabel: '6速手排', cargoLengthMm: 2185, curbWeightKg: 1871, payloadKg: 1489, grossVehicleWeightKg: 3360, fuelEconomyKmL: 10.4, annualFuelL: 1442, energyEfficiency: 4, topSpeedKmh: 142, msrpTwd: 988000, commissionTwd: 50000 },
+  { ...twoWheel, id: 'qm-6', cab: '雙廂', seats: 6, transmission: '自排', transmissionLabel: '5速手自排', cargoLengthMm: 2185, curbWeightKg: 1899, payloadKg: 1461, grossVehicleWeightKg: 3360, fuelEconomyKmL: 9.3, annualFuelL: 1613, energyEfficiency: 5, topSpeedKmh: 150, msrpTwd: 1038000, commissionTwd: 50000 },
+  { ...fourWheel, id: 'qm-7', cab: '單廂', seats: 3, transmission: '手排', transmissionLabel: '6速手排', lengthMm: 4825, cargoLengthMm: 2810, curbWeightKg: 1864, payloadKg: 1376, grossVehicleWeightKg: 3240, fuelEconomyKmL: 9.4, annualFuelL: 1596, energyEfficiency: 5, topSpeedKmh: 142, msrpTwd: 978000, commissionTwd: 45000 },
+  { ...fourWheel, id: 'qm-8', cab: '雙廂', seats: 6, transmission: '手排', transmissionLabel: '6速手排', lengthMm: 4810, cargoLengthMm: 1870, curbWeightKg: 1969, payloadKg: 1391, grossVehicleWeightKg: 3360, fuelEconomyKmL: 9.3, annualFuelL: 1613, energyEfficiency: 5, topSpeedKmh: 142, msrpTwd: 1078000, commissionTwd: 45000 },
 ].map((variant) => ({
   ...variant,
   name: `${variant.drive} ${variant.cab} ${variant.transmission}`,
@@ -73,6 +73,7 @@ export function quoteVehicleModels() {
     name: variant.quoteName,
     price: variant.msrpTwd,
     msrpTwd: variant.msrpTwd,
+    commissionTwd: variant.commissionTwd,
   }));
 }
 

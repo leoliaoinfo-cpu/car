@@ -233,7 +233,7 @@ export default function DealsPage({ onOpenClient }) {
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <SummaryMetric label="成交金額" value={totals.amount} tone="accent" />
-              <SummaryMetric label={`已補成本（${profitSummary.complete}/${totals.count}）`}
+              <SummaryMetric label={`配件／其他成本（${profitSummary.complete}/${totals.count}）`}
                 value={profitSummary.complete ? profitSummary.cost : null} />
               <SummaryMetric label="已確認單車利潤合計"
                 value={profitSummary.complete ? profitSummary.profit : null}

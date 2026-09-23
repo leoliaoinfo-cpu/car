@@ -1,6 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
+import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 4;
+const COST_CATALOG_VERSION = 5;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -56,24 +57,38 @@ const V3_ADDON_COSTS = {
   'qa-truck-air-deflector': { cost: 3000 },
 };
 
+const V5_ADDON_COSTS = {
+  'qa-pkg1': { cost: 11000 },
+  'qa-h-rack-single': { cost: 4000 },
+  'qa-h-rack-pair': { cost: 7000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
+  ...V5_ADDON_COSTS,
 };
+
+// 車輛不以「售價－成本」估利潤，而是直接使用公司公告的每台傭金。
+const DEFAULT_MODEL_COMMISSIONS = Object.fromEntries(VEHICLE_VARIANTS.map((variant) => [
+  variant.id,
+  { commission: variant.commissionTwd },
+]));
 
 export const EMPTY_COST_CATALOG = {
   key: 'costCatalog',
   version: COST_CATALOG_VERSION,
-  models: {},
+  models: DEFAULT_MODEL_COMMISSIONS,
   addons: DEFAULT_ADDON_COSTS,
 };
 
 const money = (value) => Math.max(0, Math.round(Number(value) || 0));
 
 export function normalizeDiscount(row, fallbackName = '專案優惠') {
+  const normalizedName = String(row?.name || fallbackName).trim() || fallbackName;
   return {
     id: row?.id || '',
-    name: String(row?.name || fallbackName).trim() || fallbackName,
+    name: normalizedName === '業務優惠' ? '優惠' : normalizedName,
     amount: money(row?.amount ?? Math.abs(Number(row?.price) || 0)),
   };
 }
@@ -139,10 +154,11 @@ export function calculateQuoteTotals(items = [], generalDiscounts = []) {
   };
 }
 
-export const PRICING_DISCOUNT_NAME = '業務優惠';
+export const PRICING_DISCOUNT_NAME = '優惠';
 
 function isPricingDiscount(row) {
-  return row?.name === PRICING_DISCOUNT_NAME || String(row?.id || '').startsWith('pricing-discount:');
+  return row?.name === PRICING_DISCOUNT_NAME || row?.name === '業務優惠'
+    || String(row?.id || '').startsWith('pricing-discount:');
 }
 
 /** 把內部試算輸入的單項優惠寫回客戶報價，保留原有其他優惠名稱與金額。 */
@@ -183,15 +199,25 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
 
 export function normalizeCostCatalog(row) {
   const previousVersion = Number(row?.version) || 0;
+  const savedModels = row?.models || {};
+  const models = { ...DEFAULT_MODEL_COMMISSIONS };
+  for (const [id, entry] of Object.entries(savedModels)) {
+    const normalized = typeof entry === 'object' && entry != null ? { ...entry } : {};
+    if (normalized.commission == null && DEFAULT_MODEL_COMMISSIONS[id]) {
+      normalized.commission = DEFAULT_MODEL_COMMISSIONS[id].commission;
+    }
+    models[id] = normalized;
+  }
   return {
     ...EMPTY_COST_CATALOG,
     ...(row || {}),
     version: COST_CATALOG_VERSION,
-    models: { ...(row?.models || {}) },
+    models,
     addons: {
       ...(!row ? DEFAULT_ADDON_COSTS : {}),
       ...(row && previousVersion < 2 ? SUPPLIER_ADDON_COSTS : {}),
       ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
+      ...(row && previousVersion < 5 ? V5_ADDON_COSTS : {}),
       ...(row?.addons || {}),
     },
   };
@@ -201,6 +227,43 @@ function ownCost(map, key) {
   if (!key || !Object.prototype.hasOwnProperty.call(map || {}, key)) return null;
   const value = Number(map[key]?.cost ?? map[key]);
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+}
+
+function ownCommission(map, key) {
+  if (!key || !Object.prototype.hasOwnProperty.call(map || {}, key)) return null;
+  const value = Number(map[key]?.commission);
+  return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
+}
+
+function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal = null) {
+  const complete = lines.length > 0 && lines.every((line) => line.costKnown);
+  const knownCostTotal = lines.reduce((sum, line) => (
+    line.kind === 'vehicle' ? sum : sum + (line.cost ?? 0)
+  ), 0) + otherCosts.reduce((sum, row) => sum + row.amount, 0);
+  const commissionTotal = lines.reduce((sum, line) => (
+    line.kind === 'vehicle' && line.costKnown ? sum + (line.cost ?? 0) : sum
+  ), 0);
+  const calculatedSaleTotal = Math.max(0,
+    lines.reduce((sum, line) => sum + money(line.netPrice), 0) - money(generalDiscountTotal));
+  const resolvedSaleTotal = saleTotal == null ? calculatedSaleTotal : money(saleTotal);
+  const knownProfit = lines.reduce((sum, line) => {
+    if (!line.costKnown) return sum;
+    if (line.kind === 'vehicle') {
+      const lineDiscount = Math.max(0, money(line.salePrice) - money(line.netPrice));
+      return sum + money(line.cost) - lineDiscount;
+    }
+    return sum + money(line.netPrice) - money(line.cost);
+  }, 0) - money(generalDiscountTotal) - otherCosts.reduce((sum, row) => sum + row.amount, 0);
+  // 成交金額若後續被手動修改，差額同樣會直接增減整台利潤。
+  const saleAdjustment = resolvedSaleTotal - calculatedSaleTotal;
+  return {
+    complete,
+    knownCostTotal,
+    costTotal: complete ? knownCostTotal : null,
+    commissionTotal,
+    saleTotal: resolvedSaleTotal,
+    profit: complete ? knownProfit + saleAdjustment : null,
+  };
 }
 
 /** 同供應商有指定車型成本時，該車型優先於其「全部車型」成本。 */
@@ -258,15 +321,19 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       && previousLine.kind === (item.kind || 'other'));
     const hasExistingCost = sameModel && sameItem
       && Object.prototype.hasOwnProperty.call(existingCosts, item.id);
-    const preservedManual = hasExistingCost
+    const preservedManual = item.kind !== 'vehicle' && hasExistingCost
       && (!existingSources[item.id] || existingSources[item.id] === 'manual');
+    const preservedCommission = item.kind === 'vehicle' && hasExistingCost
+      && String(existingSources[item.id] || '').startsWith('commission');
     let cost = preservedManual ? money(existingCosts[item.id]) : null;
     let costSource = preservedManual ? 'manual' : null;
     let supplierId = null;
     let supplierName = null;
-    if (!preservedManual && item.kind === 'vehicle') {
-      cost = ownCost(catalog.models, quote?.modelId || item.catalogId);
-      costSource = 'catalog';
+    if (item.kind === 'vehicle') {
+      cost = preservedCommission
+        ? money(existingCosts[item.id])
+        : ownCommission(catalog.models, quote?.modelId || item.catalogId);
+      costSource = preservedCommission ? existingSources[item.id] : 'commission-catalog';
     }
     if (!preservedManual && item.kind === 'addon') {
       const resolved = resolveAddonCost(catalog, item.catalogId, quote?.modelId,
@@ -295,6 +362,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       cost,
       costKnown: cost != null,
       costSource,
+      valueType: item.kind === 'vehicle' ? 'commission' : 'cost',
       supplierId,
       supplierName,
     };
@@ -304,11 +372,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     name: String(row.name || '其他成本'),
     amount: money(row.amount),
   }));
-  const complete = lines.length > 0 && lines.every((line) => line.costKnown);
-  const knownCostTotal = lines.reduce((sum, line) => sum + (line.cost ?? 0), 0)
-    + otherCosts.reduce((sum, row) => sum + row.amount, 0);
-  const costTotal = complete ? knownCostTotal : null;
-  const profit = costTotal == null ? null : totals.total - costTotal;
+  const snapshot = calculatePricingSnapshot(lines, otherCosts, totals.generalDiscountTotal, totals.total);
   const id = kind === 'deal' ? `deal:${dealId}` : `quote:${quote?.id}`;
   return {
     id,
@@ -323,16 +387,17 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     lineCostSources: Object.fromEntries(lines.filter((line) => line.costKnown).map((line) => [line.id, line.costSource])),
     supplierSelections: Object.fromEntries(lines.filter((line) => line.supplierId).map((line) => [line.id, line.supplierId])),
     otherCosts,
-    saleTotal: totals.total,
+    saleTotal: snapshot.saleTotal,
     originalTotal: totals.originalTotal,
     itemDiscountTotal: totals.itemDiscountTotal,
     generalDiscountTotal: totals.generalDiscountTotal,
     discountTotal: totals.discountTotal,
-    costComplete: complete,
-    costTotal,
-    knownCostTotal,
-    profit,
-    belowCost: profit != null && profit < 0,
+    costComplete: snapshot.complete,
+    costTotal: snapshot.costTotal,
+    knownCostTotal: snapshot.knownCostTotal,
+    commissionTotal: snapshot.commissionTotal,
+    profit: snapshot.profit,
+    belowCost: snapshot.profit != null && snapshot.profit < 0,
     capturedAt: existing?.capturedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -367,10 +432,6 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     name: String(row.name || '其他成本'),
     amount: money(row.amount),
   }));
-  const complete = lines.length > 0 && lines.every((line) => line.costKnown);
-  const knownCostTotal = lines.reduce((sum, line) => sum + (line.cost ?? 0), 0)
-    + normalizedOther.reduce((sum, row) => sum + row.amount, 0);
-  const costTotal = complete ? knownCostTotal : null;
   const calculatedOriginalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
   const calculatedItemDiscountTotal = lines.reduce((sum, line) => sum + Math.max(0, money(line.salePrice) - money(line.netPrice)), 0);
   const editingQuoteDiscounts = lineDiscounts != null;
@@ -381,7 +442,7 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
   const saleTotal = editingQuoteDiscounts
     ? Math.max(0, originalTotal - discountTotal)
     : money(record?.saleTotal);
-  const profit = costTotal == null ? null : saleTotal - costTotal;
+  const snapshot = calculatePricingSnapshot(lines, normalizedOther, generalDiscountTotal, saleTotal);
   return {
     ...record,
     lines,
@@ -393,11 +454,12 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     itemDiscountTotal,
     discountTotal,
     saleTotal,
-    costComplete: complete,
-    knownCostTotal,
-    costTotal,
-    profit,
-    belowCost: profit != null && profit < 0,
+    costComplete: snapshot.complete,
+    knownCostTotal: snapshot.knownCostTotal,
+    costTotal: snapshot.costTotal,
+    commissionTotal: snapshot.commissionTotal,
+    profit: snapshot.profit,
+    belowCost: snapshot.profit != null && snapshot.profit < 0,
     updatedAt: new Date().toISOString(),
   };
 }

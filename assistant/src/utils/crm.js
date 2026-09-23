@@ -190,7 +190,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v12';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v13';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -220,6 +220,8 @@ const VENDOR_QUOTE_ADDONS = [
     desc: '實際尺寸、施工規格與價格待廠商確認',
   })),
   { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 3500, pendingPrice: false, desc: '依車型、車頭與車體尺寸安裝；售價 3,500 元' },
+  { id: 'qa-h-rack-single', cat: '客製車體', name: 'H架（一支）', price: 5000, pendingPrice: false, desc: '單支 H 架；實際高度與固定方式依載運需求確認' },
+  { id: 'qa-h-rack-pair', cat: '客製車體', name: 'H架（兩支一組）', price: 9000, pendingPrice: false, desc: '兩支 H 架一組；實際高度、間距與固定方式依載運需求確認' },
 ];
 
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。

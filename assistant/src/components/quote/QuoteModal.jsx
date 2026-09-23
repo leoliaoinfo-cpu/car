@@ -19,11 +19,30 @@ function groupAddonsByCat(addons, categoryOrder = QUOTE_ADDON_CATS) {
     if (!map.has(cat)) map.set(cat, []);
     map.get(cat).push(a);
   }
-  for (const list of map.values()) list.sort((x, y) => (Number(y.price) || 0) - (Number(x.price) || 0));
+  for (const list of map.values()) list.sort((x, y) => {
+    if (!!x.pendingPrice !== !!y.pendingPrice) return x.pendingPrice ? -1 : 1;
+    return (Number(y.price) || 0) - (Number(x.price) || 0);
+  });
   const ordered = [];
   for (const cat of categoryOrder) if (map.has(cat)) { ordered.push([cat, map.get(cat)]); map.delete(cat); }
   for (const [cat, list] of map) ordered.push([cat, list]); // 剩下未列在順序中的
   return ordered;
+}
+
+function sortQuoteRows(rows) {
+  return [...rows].sort((a, b) => {
+    if (!!a.pending !== !!b.pending) return a.pending ? -1 : 1;
+    return (Number(b.price) || 0) - (Number(a.price) || 0);
+  });
+}
+
+function splitQuoteItemName(name) {
+  const text = String(name || '').trim();
+  const match = text.match(/^(.+?)\s*([（(].+[）)])$/);
+  if (!match) return { main: text, detail: '' };
+  const detailText = match[2].slice(1, -1);
+  if (detailText.length < 9 && !/[\/／…]/.test(detailText)) return { main: text, detail: '' };
+  return { main: match[1].trim(), detail: match[2] };
 }
 
 // 類別顏色（視覺區分，莫蘭迪色）
@@ -189,7 +208,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     || list.some((addon) => isPicked(addon))).length;
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
-  function toggleLine({ id: catalogId, name, price, group, cat, pendingPrice = false }) {
+  function toggleLine({ id: catalogId, name, price, group, cat, desc = '', pendingPrice = false }) {
     if (!isPicked({ id: catalogId, name }) && cat) {
       setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
         .filter((category) => category !== cat));
@@ -217,6 +236,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         pending: !!pendingPrice,
         kind: 'addon',
         catalogId,
+        description: desc,
         note: '',
         discounts: [],
       };
@@ -290,7 +310,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   }
 
   function addGeneralDiscount(row = null) {
-    const value = row ? normalizeDiscount(row) : { name: '整單優惠', amount: 0 };
+    const value = row ? normalizeDiscount(row) : { name: '優惠折扣', amount: 0 };
     setGeneralDiscounts((list) => [...list, {
       id: generateId('discount'), name: value.name, amount: value.amount ? String(value.amount) : '',
     }]);
@@ -322,6 +342,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         name: it.name.trim(),
         price: it.pending ? 0 : (Number(it.price) || 0),
         pending: !!it.pending,
+        description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
         note: String(it.note || '').trim(),
         discounts: it.pending ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
@@ -449,9 +470,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   }
 
   const previewGroups = [
-    { key: 'vehicle', label: '車輛', rows: selectedItems.filter((item) => item.kind === 'vehicle') },
-    { key: 'addon', label: '專屬改裝', rows: selectedItems.filter((item) => item.kind === 'addon') },
-    { key: 'other', label: '其他費用', rows: selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon') },
+    { key: 'vehicle', label: '車輛', rows: sortQuoteRows(selectedItems.filter((item) => item.kind === 'vehicle')) },
+    { key: 'addon', label: '專屬改裝', rows: sortQuoteRows(selectedItems.filter((item) => item.kind === 'addon')) },
+    { key: 'other', label: '其他費用', rows: sortQuoteRows(selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon')) },
   ].filter((group) => group.rows.length > 0);
 
   return (
@@ -620,7 +641,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 })}
               </div>
             )}
-            {/* 整單優惠範本：加入後才出現可編輯欄位 */}
+            {/* 優惠折扣範本：加入後才出現可編輯欄位 */}
             {quotePresets.subsidies.length > 0 && (
               <div className="flex gap-1.5 flex-wrap items-center">
                 <span className="text-[11px] text-ink-3 shrink-0">🏷 優惠範本：</span>
@@ -725,7 +746,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                             className="text-danger/50 hover:text-danger px-1">✕</button>
                         </div>
                       ))}
-                      <p className="text-[10px] text-ink-3">單項優惠合計不會超過此項目售價；更多折扣請放到下方整單優惠。</p>
+                      <p className="text-[10px] text-ink-3">單項優惠合計不會超過此項目售價；更多折扣請放到下方優惠折扣。</p>
                     </div>
                   )}
                 </div>
@@ -740,7 +761,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   <p className="text-[10px] text-ink-3">放不屬於單一項目的活動、補助或整單折抵。</p>
                 </div>
                 <button type="button" onClick={() => addGeneralDiscount()}
-                  className="btn-outline text-[11px] shrink-0">＋ 新增整單優惠</button>
+                  className="btn-outline text-[11px] shrink-0">＋ 新增優惠折扣</button>
               </div>
               {generalDiscounts.map((discount) => (
                 <div key={discount.id} className="flex gap-2 items-center">
@@ -754,7 +775,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                     className="text-danger/50 hover:text-danger px-1">✕</button>
                 </div>
               ))}
-              {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入整單優惠。</p>}
+              {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入優惠折扣。</p>}
             </div>
 
             {/* 貸款試算：只提供期數、利率與月付概算，不揭露配合公司或總利息。 */}
@@ -909,6 +930,10 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                     {group.rows.map((item) => {
                       const itemTotal = totals.itemTotals[item.id] || { original: 0, discount: 0, net: 0 };
                       const hasDiscount = itemTotal.discount > 0;
+                      const itemName = splitQuoteItemName(item.name);
+                      const itemDescription = item.description
+                        || quotePresets.addons.find((addon) => addon.id === item.catalogId)?.desc
+                        || '';
                       return (
                         <div key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #f0f3f5' }}>
                           <div style={{
@@ -919,7 +944,17 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                               color: '#4a5862', fontSize: 12.5, lineHeight: 1.45,
                               minWidth: 0, overflowWrap: 'anywhere',
                             }}>
-                              {item.name}
+                              {itemName.main}
+                              {itemName.detail && (
+                                <span style={{ display: 'block', color: '#7f8d97', fontSize: 9.5, lineHeight: 1.5, marginTop: 2 }}>
+                                  {itemName.detail}
+                                </span>
+                              )}
+                              {itemDescription && (
+                                <span style={{ display: 'block', color: '#8b98a1', fontSize: 9.2, lineHeight: 1.55, marginTop: 3 }}>
+                                  {itemDescription}
+                                </span>
+                              )}
                               {item.note && (
                                 <span style={{ display: 'block', color: '#8b98a1', fontSize: 10.5, marginTop: 2 }}>
                                   車色備註：{item.note}
@@ -980,7 +1015,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
 
               {validGeneralDiscounts.length > 0 && (
                 <div style={{ background: '#f4f8f5', borderRadius: 9, padding: '9px 12px', marginTop: 8 }}>
-                  <p style={{ color: '#6f957a', fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, marginBottom: 5 }}>整單優惠</p>
+                  <p style={{ color: '#6f957a', fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, marginBottom: 5 }}>優惠折扣</p>
                   {validGeneralDiscounts.map((discount) => (
                     <div key={discount.id} style={{ display: 'flex', justifyContent: 'space-between', color: '#5f7f67', fontSize: 11.5, padding: '2px 0' }}>
                       <span>{discount.name}</span><strong>−{formatMoney(discount.amount)}</strong>

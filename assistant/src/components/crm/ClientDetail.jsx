@@ -340,7 +340,8 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       ? pricingRecords.find((row) => row.id === `quote:${latestQuote.id}`)
       : null;
     if (quotePricing) {
-      const profit = quotePricing.costTotal == null ? null : Number(fullDeal.amount || 0) - quotePricing.costTotal;
+      const profit = quotePricing.profit == null ? null
+        : quotePricing.profit + (Number(fullDeal.amount || 0) - Number(quotePricing.saleTotal || 0));
       await savePricingRecord({
         ...quotePricing,
         id: `deal:${fullDeal.id}`,

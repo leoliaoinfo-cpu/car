@@ -11,6 +11,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState('');
   const [expandedAddon, setExpandedAddon] = useState(null);
+  const [expandedCostCategories, setExpandedCostCategories] = useState(() => new Set());
 
   useEffect(() => { setDraft(normalizeCostCatalog(costCatalog)); }, [costCatalog]);
   useEffect(() => { if (initialSearch) setSearch(initialSearch); }, [initialSearch]);
@@ -19,8 +20,10 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
     setDraft((current) => {
       const next = { ...current, [section]: { ...current[section] } };
       const entry = { ...(next[section][id] || {}) };
-      if (value === '') delete entry.cost;
-      else entry.cost = Math.max(0, Number(value) || 0);
+      const key = section === 'models' ? 'commission' : 'cost';
+      if (value === '') delete entry[key];
+      else entry[key] = Math.max(0, Number(value) || 0);
+      if (section === 'models') delete entry.cost;
       if (Object.keys(entry).length) next[section][id] = entry;
       else delete next[section][id];
       return next;
@@ -96,15 +99,42 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   const needle = search.trim().toLowerCase();
   const allModels = quotePresets.models || [];
   const allAddons = quotePresets.addons || [];
-  const models = allModels.filter((row) => !needle || row.name.toLowerCase().includes(needle));
+  const models = allModels.filter((row) => !needle || row.name.toLowerCase().includes(needle))
+    .sort((a, b) => Number(draft.models?.[a.id]?.commission != null) - Number(draft.models?.[b.id]?.commission != null));
   const addons = allAddons.filter((row) => !needle || row.name.toLowerCase().includes(needle));
-  const missingModelCount = allModels.filter((item) => draft.models?.[item.id]?.cost == null).length;
+  const missingModelCount = allModels.filter((item) => draft.models?.[item.id]?.commission == null).length;
   const missingAddonCount = allAddons.filter((item) => draft.addons?.[item.id]?.cost == null
     && !(draft.addons?.[item.id]?.supplierCosts || []).length).length;
+  const isAddonMissing = (item) => draft.addons?.[item.id]?.cost == null
+    && !(draft.addons?.[item.id]?.supplierCosts || []).length;
+  const categoryOrder = quotePresets.addonCategories || [];
+  const addonGroups = [...addons.reduce((groups, item) => {
+    const category = item.cat || '其他';
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(item);
+    return groups;
+  }, new Map()).entries()].map(([category, list]) => ({
+    category,
+    missing: list.filter(isAddonMissing).length,
+    rows: list.sort((a, b) => Number(isAddonMissing(b)) - Number(isAddonMissing(a))
+      || (Number(b.price) || 0) - (Number(a.price) || 0)),
+  })).sort((a, b) => Number(b.missing > 0) - Number(a.missing > 0)
+    || (categoryOrder.indexOf(a.category) < 0 ? 999 : categoryOrder.indexOf(a.category))
+      - (categoryOrder.indexOf(b.category) < 0 ? 999 : categoryOrder.indexOf(b.category)));
+
+  function toggleCostCategory(category) {
+    setExpandedCostCategories((current) => {
+      const next = new Set(current);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }
 
   const row = (item, section) => {
-    const cost = draft[section]?.[item.id]?.cost;
-    const profit = cost == null ? null : (Number(item.price) || 0) - cost;
+    const isVehicle = section === 'models';
+    const cost = isVehicle ? draft[section]?.[item.id]?.commission : draft[section]?.[item.id]?.cost;
+    const profit = cost == null ? null : isVehicle ? cost : (Number(item.price) || 0) - cost;
     const supplierCosts = section === 'addons' ? (draft.addons?.[item.id]?.supplierCosts || []) : [];
     return (
       <div key={item.id} className="border-b border-bdr/50 last:border-0">
@@ -115,10 +145,10 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
           </div>
           <input type="number" min="0" value={cost ?? ''}
             onChange={(e) => setCost(section, item.id, e.target.value)}
-            placeholder={section === 'addons' ? '基本成本' : '未設定'}
-            className={`text-xs w-full ${cost == null && !supplierCosts.length ? 'border-warn/60' : ''}`} aria-label={`${item.name}成本`} />
+            placeholder={section === 'addons' ? '基本成本' : '每台傭金'}
+            className={`text-xs w-full ${cost == null && !supplierCosts.length ? 'border-warn/60' : ''}`} aria-label={`${item.name}${isVehicle ? '傭金' : '成本'}`} />
           <div className="hidden md:block text-right">
-            <p className="text-[10px] text-ink-3">售價－基本成本</p>
+            <p className="text-[10px] text-ink-3">{isVehicle ? '每台傭金' : '售價－基本成本'}</p>
             <p className={`text-xs font-semibold ${profit == null ? 'text-ink-3' : profit < 0 ? 'text-danger' : 'text-ok'}`}>
               {profit == null ? '待設定' : `NT$ ${formatMoney(profit)}`}
             </p>
@@ -175,30 +205,51 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         <div>
           <h2 className="font-bold text-ink">🔒 成本設定</h2>
           <p className="text-xs text-ink-3 mt-1 leading-relaxed">
-            這些數字只會顯示在已解鎖的內部區域。配件可登錄多家供應商及不同車型的拿貨成本；留空代表尚未取得成本，填 0 代表確定零成本。
+            這些數字只會顯示在已解鎖的內部區域。車輛直接用公司公告的每台傭金計算利潤，不用整台車成本回推；配件則登錄實際拿貨成本。
           </p>
         </div>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
         {(missingModelCount > 0 || missingAddonCount > 0) && (
           <p className="text-xs text-warn bg-warn/10 border border-warn/25 rounded-lg px-3 py-2">
-            ⚠️ 尚有 {missingModelCount} 個車型、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價試算會提醒補填。
+            ⚠️ 尚有 {missingModelCount} 個車型未設定傭金、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價試算會提醒補填。
           </p>
         )}
       </div>
 
       <section className="card overflow-hidden">
         <div className="px-3 py-2.5 bg-s2 border-b border-bdr">
-          <h3 className="font-semibold text-sm text-ink-2">🚙 車型成本</h3>
+          <h3 className="font-semibold text-sm text-ink-2">🚙 車型每台傭金</h3>
         </div>
         {models.map((item) => row(item, 'models'))}
         {models.length === 0 && <p className="text-center text-xs text-ink-3 py-6">沒有符合的車型</p>}
       </section>
 
       <section className="card overflow-hidden">
-        <div className="px-3 py-2.5 bg-s2 border-b border-bdr">
-          <h3 className="font-semibold text-sm text-ink-2">🚚 專屬改裝配件成本</h3>
+        <div className="px-3 py-2.5 bg-s2 border-b border-bdr flex items-center justify-between gap-2">
+          <div>
+            <h3 className="font-semibold text-sm text-ink-2">🚚 專屬改裝配件成本</h3>
+            <p className="text-[10px] text-ink-3 mt-0.5">未填成本的分類與項目優先排列</p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <button type="button" onClick={() => setExpandedCostCategories(new Set(addonGroups.map((group) => group.category)))} className="btn-outline text-[10px] px-2">全部展開</button>
+            <button type="button" onClick={() => setExpandedCostCategories(new Set())} className="btn-outline text-[10px] px-2">全部收合</button>
+          </div>
         </div>
-        {addons.map((item) => row(item, 'addons'))}
+        {addonGroups.map((group) => {
+          const open = !!needle || expandedCostCategories.has(group.category);
+          return (
+            <div key={group.category} className="border-b border-bdr/70 last:border-0">
+              <button type="button" onClick={() => toggleCostCategory(group.category)}
+                className="w-full px-3 py-3 flex items-center justify-between gap-3 bg-s1 hover:bg-s2 text-left">
+                <span className="font-semibold text-sm text-ink">{open ? '▼' : '▶'} {group.category}</span>
+                <span className={`text-[10px] rounded-full px-2 py-0.5 ${group.missing ? 'text-warn bg-warn/10' : 'text-ok bg-ok/10'}`}>
+                  {group.missing ? `待補 ${group.missing}` : '已完成'}・{group.rows.length} 項
+                </span>
+              </button>
+              {open && <div className="border-t border-bdr/50">{group.rows.map((item) => row(item, 'addons'))}</div>}
+            </div>
+          );
+        })}
         {addons.length === 0 && <p className="text-center text-xs text-ink-3 py-6">沒有符合的配件</p>}
       </section>
 
@@ -240,7 +291,7 @@ export function QuotePricingPanel({
     <div className="space-y-3">
       <div className="card p-4">
         <h2 className="font-bold text-ink">🧮 報價試算</h2>
-        <p className="text-xs text-ink-3 mt-1">依車型帶入供應商成本；尚未選供應商時先用適用的最高成本保守估算。手動填過的實際成本會優先保留，缺漏項目會要求補填。</p>
+        <p className="text-xs text-ink-3 mt-1">車輛利潤直接帶入每台傭金；配件依供應商實際成本計算，尚未選供應商時先用適用的最高成本保守估算。</p>
       </div>
       <div className="card overflow-hidden">
         {quotes.length === 0 && <p className="text-center text-sm text-ink-3 py-10">尚無報價紀錄</p>}
@@ -323,20 +374,20 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
     });
   }
 
-  function editLineCost(lineId, value) {
-    setLineCosts((current) => ({ ...current, [lineId]: value }));
-    setLineCostSources((current) => ({ ...current, [lineId]: 'manual' }));
+  function editLineCost(line, value) {
+    setLineCosts((current) => ({ ...current, [line.id]: value }));
+    setLineCostSources((current) => ({ ...current, [line.id]: line.kind === 'vehicle' ? 'commission-manual' : 'manual' }));
     setSupplierSelections((current) => {
       const next = { ...current };
-      delete next[lineId];
+      delete next[line.id];
       return next;
     });
   }
 
   function saveInternalPricing() {
-    if (preview.belowCost && !window.confirm('⚠️ 此報價低於實際成本，確定仍要儲存嗎？')) return;
+    if (preview.belowCost && !window.confirm('⚠️ 此報價的優惠已超過車輛傭金與配件利潤，確定仍要儲存嗎？')) return;
     if (!preview.costComplete && preview.lines.length > 0
-      && !window.confirm('⚠️ 成本尚未填齊，無法完成利潤安全檢查，確定仍要儲存嗎？')) return;
+      && !window.confirm('⚠️ 傭金或成本尚未填齊，無法完成利潤安全檢查，確定仍要儲存嗎？')) return;
     onSave(preview, updatedQuote);
   }
 
@@ -364,7 +415,9 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 ? cleanLineCosts[line.id]
                 : null;
               const previewLine = preview.lines.find((item) => item.id === line.id) || line;
-              const contribution = lineCost == null ? null : previewLine.netPrice - lineCost;
+              const contribution = lineCost == null ? null : line.kind === 'vehicle'
+                ? lineCost - Math.max(0, previewLine.salePrice - previewLine.netPrice)
+                : previewLine.netPrice - lineCost;
               return (
               <div key={line.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
                 <div className="min-w-0">
@@ -399,10 +452,10 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 </div>
                 <div className={`grid ${quote ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
                   <label className="block">
-                    <span className="block text-[9px] text-ink-3 mb-0.5">實際成本</span>
+                    <span className="block text-[9px] text-ink-3 mb-0.5">{line.kind === 'vehicle' ? '每台傭金' : '實際成本'}</span>
                     <input type="number" min="0" value={lineCosts[line.id] ?? ''}
-                      onChange={(e) => editLineCost(line.id, e.target.value)}
-                      placeholder="實際成本" className="text-xs w-full" />
+                      onChange={(e) => editLineCost(line, e.target.value)}
+                      placeholder={line.kind === 'vehicle' ? '每台傭金' : '實際成本'} className="text-xs w-full" />
                   </label>
                   {quote && (
                     <label className="block">
@@ -414,7 +467,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                     </label>
                   )}
                   <p className={`text-[10px] text-right mt-0.5 ${quote ? 'col-span-2' : ''} ${contribution == null ? 'text-warn font-semibold' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
-                    {contribution == null ? '⚠️ 未設定成本' : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
+                    {contribution == null ? `⚠️ 未設定${line.kind === 'vehicle' ? '傭金' : '成本'}` : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
                   </p>
                 </div>
               </div>
@@ -439,14 +492,15 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           <div className="card p-3 mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
             <Metric label="原始售價" value={preview.originalTotal} />
             <Metric label="單項優惠" value={preview.itemDiscountTotal} tone="ok" prefix="−" />
-            <Metric label="整單優惠" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
-            <Metric label={preview.costComplete ? '總成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
+            <Metric label="優惠折扣" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
+            <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
+            <Metric label={preview.costComplete ? '配件／其他成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
             <Metric label={record.kind === 'deal' ? '實際利潤' : '預估利潤'} value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
             <Metric label="距離成本尚有空間" value={preview.profit == null ? null : Math.max(0, preview.profit)} tone="accent" />
           </div>
           {missingLines.length > 0 && (
             <div className="mt-3 rounded-xl border border-warn/35 bg-warn/10 p-3 space-y-2">
-              <p className="text-xs font-semibold text-warn">⚠️ 尚有 {missingLines.length} 個項目沒有成本，總成本與利潤暫不成立。</p>
+              <p className="text-xs font-semibold text-warn">⚠️ 尚有 {missingLines.length} 個項目沒有傭金／成本，總利潤暫不成立。</p>
               <div className="flex flex-wrap gap-1">
                 {missingLines.map((line) => (
                   <span key={line.id} className="text-[10px] text-warn bg-s1 border border-warn/25 rounded-full px-2 py-0.5">{line.name}</span>
@@ -461,7 +515,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
               )}
             </div>
           )}
-          {preview.belowCost && <p className="text-xs text-danger mt-2 font-semibold">⚠️ 此價格低於成本。</p>}
+          {preview.belowCost && <p className="text-xs text-danger mt-2 font-semibold">⚠️ 優惠已超過車輛傭金與配件利潤。</p>}
 
           <div className="flex gap-2 mt-4">
             <button onClick={onClose} className="btn-outline flex-1">取消</button>
@@ -476,10 +530,11 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
 }
 
 export function PricingBadges({ record }) {
-  if (!record?.costComplete) return <span className="inline-block text-[10px] text-warn bg-warn/10 rounded-full px-2 py-0.5 mt-1">成本未完整</span>;
+  if (!record?.costComplete) return <span className="inline-block text-[10px] text-warn bg-warn/10 rounded-full px-2 py-0.5 mt-1">傭金／成本未完整</span>;
   return (
     <div className="flex gap-1.5 flex-wrap mt-1">
-      <span className="text-[10px] text-ink-2 bg-s2 rounded-full px-2 py-0.5">成本 {formatMoney(record.costTotal)}</span>
+      {record.commissionTotal > 0 && <span className="text-[10px] text-accent bg-accent/10 rounded-full px-2 py-0.5">車輛傭金 {formatMoney(record.commissionTotal)}</span>}
+      <span className="text-[10px] text-ink-2 bg-s2 rounded-full px-2 py-0.5">配件／其他成本 {formatMoney(record.costTotal)}</span>
       <span className={`text-[10px] rounded-full px-2 py-0.5 ${record.profit < 0 ? 'text-danger bg-danger/10' : 'text-ok bg-ok/10'}`}>
         利潤 {record.profit < 0 ? '−' : ''}{formatMoney(Math.abs(record.profit))}
       </span>
