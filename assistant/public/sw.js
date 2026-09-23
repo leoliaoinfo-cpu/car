@@ -4,7 +4,7 @@
  *    ＋接收頁面訊息顯示系統通知（頁面開著時所有平台通用）
  */
 const CACHE_PREFIX = 'car-sales-assistant-';
-const CACHE = `${CACHE_PREFIX}v4`;
+const CACHE = `${CACHE_PREFIX}v5`;
 const DB_NAME = 'car_sales_assistant_v1';
 
 self.addEventListener('install', () => { self.skipWaiting(); });

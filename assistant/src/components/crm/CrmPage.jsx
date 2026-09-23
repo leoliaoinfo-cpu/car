@@ -405,7 +405,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       {effectiveView === 'board' && selectedClient && (
         <>
           <div className="overlay" onClick={() => setSelectedId(null)} />
-          <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-s1 border-l border-bdr z-50 overflow-y-auto shadow-panel anim-fade-in">
+          <div className="safe-panel fixed inset-y-0 right-0 w-full max-w-xl bg-s1 border-l border-bdr z-50 overflow-y-auto shadow-panel anim-fade-in">
             <ClientDetail
               key={selectedClient.id}
               client={selectedClient}

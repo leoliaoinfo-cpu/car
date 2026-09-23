@@ -99,7 +99,7 @@ export default function ProductCatalog({ onClose }) {
   return (
     <>
       {onClose ? (
-        <div className="fixed inset-0 z-50 bg-bg overflow-y-auto p-4 pb-20 md:p-6 anim-fade-in">
+        <div className="safe-screen fixed inset-0 z-50 bg-bg overflow-y-auto px-4 pb-20 md:px-6 anim-fade-in">
           {gallery}
         </div>
       ) : (
@@ -108,7 +108,7 @@ export default function ProductCatalog({ onClose }) {
 
       {/* 放大檢視（lightbox） */}
       {lightbox != null && items && items[lightbox] && (
-        <div className="fixed inset-0 z-[60] bg-black flex items-center justify-center anim-fade-in overflow-hidden"
+        <div className="safe-panel fixed inset-0 z-[60] bg-black flex items-center justify-center anim-fade-in overflow-hidden"
           onClick={() => setLightbox(null)}
           onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
           {/* 圖片：滿版全螢幕、置中最大化（完整不裁切，隨螢幕翻轉自動填滿） */}

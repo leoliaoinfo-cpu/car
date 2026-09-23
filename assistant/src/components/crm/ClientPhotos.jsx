@@ -115,7 +115,7 @@ export default function ClientPhotos({ clientId }) {
 
       {/* 放大檢視 */}
       {viewerPhoto && (
-        <div className="fixed inset-0 z-[60] bg-black flex items-center justify-center anim-fade-in" onClick={() => setViewer(null)}>
+        <div className="safe-panel fixed inset-0 z-[60] bg-black flex items-center justify-center anim-fade-in" onClick={() => setViewer(null)}>
           <img src={urlFor(viewerPhoto)} alt="" className="max-w-full max-h-full object-contain" onClick={(e) => e.stopPropagation()} />
           <button onClick={() => setViewer(null)} className="absolute top-3 right-4 text-white/90 text-3xl leading-none">✕</button>
           <button onClick={(e) => { e.stopPropagation(); remove(viewerPhoto.id); }}

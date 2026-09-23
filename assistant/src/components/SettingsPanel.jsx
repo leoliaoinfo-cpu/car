@@ -69,7 +69,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
   return (
     <>
       <div className="overlay" onClick={onClose} />
-      <div className={`fixed inset-y-0 right-0 w-full bg-s1 border-l border-bdr shadow-panel z-50 flex flex-col ${fullscreen ? 'max-w-none' : 'max-w-md anim-slide-right'}`}>
+      <div className={`safe-panel fixed inset-y-0 right-0 w-full bg-s1 border-l border-bdr shadow-panel z-50 flex flex-col ${fullscreen ? 'max-w-none' : 'max-w-md anim-slide-right'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-bdr shrink-0">
           <h2 className="font-bold text-lg text-ink">⚙️ 設定</h2>

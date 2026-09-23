@@ -89,7 +89,7 @@ function AppInner() {
   }
 
   return (
-    <div className="min-h-screen bg-bg font-sans text-ink">
+    <div className="app-shell min-h-screen bg-bg font-sans text-ink">
       {/* DB 不可用提示（隱私模式 / file:// 限制等真正的存取錯誤）*/}
       {dbUnavailable && (
         <div className="bg-danger/10 border-b border-danger/30 px-4 py-1.5 text-xs text-danger">
@@ -171,7 +171,7 @@ function AppInner() {
 
       {/* 業績表：從設定解鎖後全螢幕開啟（不放主導覽，避免給客人看到） */}
       {showDeals && (
-        <div className="fixed inset-0 z-50 bg-bg overflow-y-auto anim-fade-in">
+        <div className="safe-panel fixed inset-0 z-50 bg-bg overflow-y-auto anim-fade-in">
           <div className="sticky top-0 z-10 flex items-center justify-between bg-s1 border-b border-bdr px-4 h-14">
             <span className="font-bold text-accent text-base">📈 內部業績與成本</span>
             <button onClick={() => setShowDeals(false)} className="btn-ghost gap-1.5 text-sm">✕ 關閉</button>

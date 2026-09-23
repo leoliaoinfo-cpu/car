@@ -87,6 +87,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [noOptionCategories, setNoOptionCategories] = useState(() =>
     Array.isArray(quote?.noOptionCategories) ? quote.noOptionCategories : []);
   const [capturing, setCapturing] = useState(false);
+  const [exportedImage, setExportedImage] = useState(null);
+  const [exportError, setExportError] = useState('');
   const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
   const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入。
@@ -110,6 +112,10 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       .then((row) => setLoanTerms(resolveLoanTerms(row?.terms)))
       .catch(() => {});
   }, [quote]);
+
+  useEffect(() => () => {
+    if (exportedImage?.url) URL.revokeObjectURL(exportedImage.url);
+  }, [exportedImage]);
 
   function saveProfile(next) {
     setProfile(next);
@@ -350,43 +356,86 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     );
   }
 
-  // 把整張報價單（不論多長）輸出成一張 PNG；手機優先叫系統分享（可存相簿/傳 LINE）
+  function closeExportPreview() {
+    setExportedImage(null);
+    setExportError('');
+  }
+
+  function downloadExportedImage() {
+    if (!exportedImage) return;
+    const a = document.createElement('a');
+    a.href = exportedImage.url;
+    a.download = exportedImage.fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function openExportedImage() {
+    if (!exportedImage) return;
+    const opened = window.open(exportedImage.url, '_blank', 'noopener');
+    if (!opened) window.location.href = exportedImage.url;
+  }
+
+  async function shareExportedImage() {
+    if (!exportedImage) return;
+    setExportError('');
+    if (navigator.canShare?.({ files: [exportedImage.file] }) && navigator.share) {
+      try {
+        // 由「分享／存到相簿」按鈕直接呼叫，保留手機要求的使用者點擊權限。
+        await navigator.share({ files: [exportedImage.file], title: exportedImage.fileName });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        setExportError('這台手機無法直接分享，請改按「開啟圖片」後長按儲存。');
+        return;
+      }
+    }
+    downloadExportedImage();
+  }
+
+  // 先把整張報價單輸出成 PNG 預覽，再讓使用者以第二次點擊分享／儲存。
   async function downloadImage() {
     const src = previewRef.current;
     if (!src || capturing) return;
     if (!confirmAddonReview()) return;
     setCapturing(true);
-    // 複製一份到畫面外、完整展開（脫離捲動容器），避免 html2canvas 裁掉底部
+    setExportError('');
+    // 複製一份到頁面底層、完整展開（脫離捲動容器），避免 WebKit 不繪製超出畫面很遠的元素。
     const clone = src.cloneNode(true);
-    clone.style.position = 'fixed';
+    clone.style.position = 'absolute';
     clone.style.top = '0';
-    clone.style.left = '-10000px';
+    clone.style.left = '0';
+    clone.style.zIndex = '-1';
+    clone.style.pointerEvents = 'none';
     clone.style.margin = '0';
     clone.style.width = `${src.offsetWidth}px`; // 保持與畫面上相同的斷行
     document.body.appendChild(clone);
     try {
+      const width = Math.max(1, clone.offsetWidth);
+      const height = Math.max(1, clone.offsetHeight);
+      // iOS Safari 的大畫布容易失敗；保留清晰度，同時將總像素控制在安全範圍。
+      const pixelBudgetScale = Math.sqrt(8_000_000 / (width * height));
+      const dimensionScale = Math.min(8192 / width, 8192 / height);
+      const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1, pixelBudgetScale, dimensionScale));
       const canvas = await html2canvas(clone, {
-        scale: Math.min(2, window.devicePixelRatio || 1) * 1.5,
+        scale,
         backgroundColor: '#ffffff', useCORS: true, logging: false,
-        width: clone.offsetWidth, height: clone.offsetHeight,
-        windowWidth: clone.offsetWidth, windowHeight: clone.offsetHeight,
+        width, height,
+        windowWidth: width, windowHeight: height,
       });
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('capture failed');
       const fileName = `報價單-${(customerName || client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
-      // 行動裝置：系統分享（iPhone 可存到照片或直接傳 LINE）
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file] }); }
-        catch { /* 使用者取消分享 */ }
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fileName; a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
-    } catch {
-      alert('圖片產生失敗，請改用截圖。');
+      setExportedImage((previous) => {
+        if (previous?.url) URL.revokeObjectURL(previous.url);
+        return { blob, file, fileName, url: URL.createObjectURL(blob) };
+      });
+    } catch (error) {
+      console.error('quote image export failed', error);
+      setExportError('圖片產生失敗。請先重新開啟這張報價；若仍失敗，請回報手機型號與瀏覽器。');
     } finally {
       if (clone.parentNode) clone.parentNode.removeChild(clone);
       setCapturing(false);
@@ -408,7 +457,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   return (
     <>
       <div className="overlay" onClick={onClose} />
-      <div className="fixed inset-0 z-50 overflow-y-auto p-4 flex items-start justify-center">
+      <div className="safe-screen fixed inset-0 z-50 overflow-y-auto px-4 flex items-start justify-center">
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md md:max-w-2xl p-4 md:p-5 anim-scale-in my-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
@@ -976,14 +1025,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             </div>
           </div>
 
-          {/* 下載整張報價單圖片（不論多長都是一張完整 PNG） */}
+          {/* 產生整張報價單圖片（不論多長都是一張完整 PNG） */}
           <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
             className="btn-primary w-full mt-3 disabled:opacity-40">
-            {capturing ? '產生圖片中…' : '📥 下載報價單圖片（一張完整）'}
+            {capturing ? '產生圖片中…' : '🖼️ 產生報價單圖片'}
           </button>
           <p className="text-center text-[11px] text-ink-3 mt-1.5">
-            手機會跳出分享，可存到相簿或直接傳 LINE 給客人
+            先預覽確認，再分享、存到相簿或傳 LINE
           </p>
+          {exportError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
           <div className="flex gap-2 mt-3">
             <button onClick={onClose} className="btn-outline flex-1">關閉</button>
             <button onClick={handleRecord} disabled={selectedItems.length === 0}
@@ -994,6 +1044,31 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         </div>
       </div>
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
+      {exportedImage && (
+        <div className="safe-screen fixed inset-0 z-[80] bg-black/85 overflow-y-auto px-3 flex items-start justify-center">
+          <div className="w-full max-w-md my-2 rounded-2xl bg-s1 border border-bdr shadow-panel p-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h3 className="font-bold text-ink">報價圖片已產生</h3>
+                <p className="text-[11px] text-ink-3 mt-0.5">請檢查內容，再選擇分享或儲存。</p>
+              </div>
+              <button type="button" onClick={closeExportPreview} className="btn-ghost text-2xl leading-none px-2" aria-label="關閉圖片預覽">✕</button>
+            </div>
+            <img src={exportedImage.url} alt="報價單圖片預覽" className="block w-full h-auto rounded-xl bg-white border border-bdr" />
+            {exportError && <p role="alert" className="mt-3 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
+            <div className="grid grid-cols-1 gap-2 mt-3">
+              <button type="button" onClick={shareExportedImage} className="btn-primary w-full text-base py-2.5">
+                📤 分享／存到相簿／傳 LINE
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={openExportedImage} className="btn-outline">開啟圖片（可長按儲存）</button>
+                <a href={exportedImage.url} download={exportedImage.fileName} className="btn-outline">下載 PNG</a>
+              </div>
+            </div>
+            <p className="text-center text-[11px] text-ink-3 mt-2">若 iPhone 沒有「儲存影像」，請點「開啟圖片」後長按圖片。</p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

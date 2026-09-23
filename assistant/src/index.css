@@ -34,8 +34,9 @@
     --c-ink3: 118 133 145;
   }
 
-  html { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; }
-  body { background-color: rgb(var(--c-bg)); color: rgb(var(--c-ink)); }
+  html { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; min-height: 100%; }
+  body { background-color: rgb(var(--c-bg)); color: rgb(var(--c-ink)); margin: 0; min-height: 100%; }
+  #root { min-height: 100%; }
   * { box-sizing: border-box; }
   input, textarea, select {
     background-color: rgb(var(--c-s2));
@@ -142,6 +143,20 @@
 .anim-scale-in    { animation: scaleIn 0.2s ease; }
 
 /* Mobile safe area */
+/* iPhone 瀏覽器與主畫面 App 都不讓內容被狀態列／Home Indicator 蓋住。 */
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-screen {
+  padding-top: max(1rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+.safe-panel {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .pb-safe { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
 }
