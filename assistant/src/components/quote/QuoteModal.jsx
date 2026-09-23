@@ -910,9 +910,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       const itemTotal = totals.itemTotals[item.id] || { original: 0, discount: 0, net: 0 };
                       const hasDiscount = itemTotal.discount > 0;
                       return (
-                        <div key={item.id} style={{ padding: '9px 0', borderBottom: '1px solid #f0f3f5' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
-                            <span style={{ color: '#4a5862', fontSize: 12.5, lineHeight: 1.45 }}>
+                        <div key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #f0f3f5' }}>
+                          <div style={{
+                            display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 92px',
+                            columnGap: 12, alignItems: 'start',
+                          }}>
+                            <span style={{
+                              color: '#4a5862', fontSize: 12.5, lineHeight: 1.45,
+                              minWidth: 0, overflowWrap: 'anywhere',
+                            }}>
                               {item.name}
                               {item.note && (
                                 <span style={{ display: 'block', color: '#8b98a1', fontSize: 10.5, marginTop: 2 }}>
@@ -920,18 +926,31 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                                 </span>
                               )}
                             </span>
-                            <span style={{ textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{
+                              width: 92, minWidth: 92, textAlign: 'right', whiteSpace: 'nowrap',
+                              fontVariantNumeric: 'tabular-nums', lineHeight: 1.2,
+                            }}>
                               {item.pending ? (
                                 <span style={{ color: '#a9793f', background: '#fff7e8', border: '1px solid #ecd8b7', borderRadius: 999, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 }}>
                                   待廠商報價
                                 </span>
-                              ) : hasDiscount && (
-                                <span style={{ color: '#aab4bc', fontSize: 10.5, textDecoration: 'line-through', marginRight: 6 }}>
-                                  {formatMoney(itemTotal.original)}
-                                </span>
-                              )}
-                              {!item.pending && (
-                                <span style={{ color: hasDiscount ? '#3f7652' : '#2e3a42', fontSize: hasDiscount ? 15 : 13.5, fontWeight: 800 }}>
+                              ) : hasDiscount ? (
+                                <>
+                                  <span style={{ display: 'block', color: '#aab4bc', fontSize: 10.5, marginBottom: 3 }}>
+                                    <span style={{ display: 'inline-block', position: 'relative', padding: '0 1px' }}>
+                                      {formatMoney(itemTotal.original)}
+                                      <span aria-hidden style={{
+                                        position: 'absolute', left: 0, right: 0, top: '50%',
+                                        borderTop: '1px solid #9ba8b0', transform: 'translateY(-50%)',
+                                      }} />
+                                    </span>
+                                  </span>
+                                  <span style={{ display: 'block', color: '#3f7652', fontSize: 15, fontWeight: 800 }}>
+                                    {formatMoney(itemTotal.net)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span style={{ display: 'block', color: '#2e3a42', fontSize: 13.5, fontWeight: 800 }}>
                                   {formatMoney(itemTotal.net)}
                                 </span>
                               )}

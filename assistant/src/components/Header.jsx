@@ -1,6 +1,7 @@
 export default function Header({ tab, setTab, onSettings }) {
   const tabs = [
     { key: 'today', icon: '☀️', label: '今日工作' },
+    { key: 'reception', icon: '🤝', label: '展間接待' },
     { key: 'calendar', icon: '📅', label: '行事曆' },
     { key: 'crm', icon: '👥', label: '客戶追蹤' },
     { key: 'quotes', icon: '🧾', label: '報價單' },

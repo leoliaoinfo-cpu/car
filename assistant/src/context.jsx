@@ -49,6 +49,7 @@ const initialState = {
   dealFields: DEFAULT_DEAL_FIELDS,
   pricingRecords: [],
   quoteDrafts: [],
+  receptionSessions: [],
   tasks: [],
   events: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
@@ -124,6 +125,14 @@ function reducer(state, action) {
     }
     case 'DELETE_QUOTE_DRAFT':
       return { ...state, quoteDrafts: state.quoteDrafts.filter((row) => row.id !== action.id) };
+    case 'UPSERT_RECEPTION_SESSION': {
+      const idx = state.receptionSessions.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.receptionSessions];
+      if (idx === -1) next.push(action.payload); else next[idx] = action.payload;
+      return { ...state, receptionSessions: next };
+    }
+    case 'DELETE_RECEPTION_SESSION':
+      return { ...state, receptionSessions: state.receptionSessions.filter((row) => row.id !== action.id) };
 
     // Tasks（中央待辦）
     case 'UPSERT_TASK': {
@@ -204,7 +213,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -213,6 +222,7 @@ export function AppProvider({ children }) {
           db.getAll('dealFields'),
           db.getAll('pricingRecords'),
           db.getAll('quoteDrafts'),
+          db.getAll('receptionSessions'),
           db.getAll('tasks'),
           db.getAll('events'),
           db.getAll('timers'),
@@ -235,7 +245,7 @@ export function AppProvider({ children }) {
           type: 'LOAD_INIT',
           payload: {
             clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts, tasks, events, timers,
+            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: resolveQuotePresets(presetsRow),
@@ -410,6 +420,20 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_PRICING_RECORD', id: `quote:${id}` });
   }, []);
 
+  // ── 展間接待（匿名開始、每次操作自動儲存）──────────────────────────────
+  const saveReceptionSession = useCallback(async (session) => {
+    const now = new Date().toISOString();
+    const full = { ...session, createdAt: session.createdAt || now, updatedAt: now };
+    dispatch({ type: 'UPSERT_RECEPTION_SESSION', payload: full });
+    await db.put('receptionSessions', full);
+    return full;
+  }, []);
+
+  const deleteReceptionSession = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_RECEPTION_SESSION', id });
+    await db.delete('receptionSessions', id);
+  }, []);
+
   // ── Tasks（中央待辦）──────────────────────────────────────────────────────
   const saveTask = useCallback(async (task) => {
     const full = { createdAt: new Date().toISOString(), ...task };
@@ -481,7 +505,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -490,6 +514,7 @@ export function AppProvider({ children }) {
       db.getAll('dealFields'),
       db.getAll('pricingRecords'),
       db.getAll('quoteDrafts'),
+      db.getAll('receptionSessions'),
       db.getAll('tasks'),
       db.getAll('events'),
       db.getAll('timers'),
@@ -510,6 +535,7 @@ export function AppProvider({ children }) {
         dealFields: dealFields.length > 0 ? dealFields : DEFAULT_DEAL_FIELDS,
         pricingRecords,
         quoteDrafts,
+        receptionSessions,
         tasks,
         events,
         timers,
@@ -540,6 +566,8 @@ export function AppProvider({ children }) {
     deletePricingRecord,
     saveQuoteDraft,
     deleteQuoteDraft,
+    saveReceptionSession,
+    deleteReceptionSession,
     saveTask,
     deleteTask,
     saveEvent,

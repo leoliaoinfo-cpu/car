@@ -2,8 +2,8 @@ import { openDB } from 'idb';
 import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
 
 const DB_NAME = CAR_DB_NAME;
-// v8 曾隨照片雲端版本發布；v9 新增獨立報價草稿。
-const DB_VERSION = 9;
+// v10：展間匿名接待與需求紀錄；正式建檔後仍沿用 clients。
+const DB_VERSION = 10;
 
 let dbPromise = null;
 
@@ -93,6 +93,12 @@ function openRaw() {
           qd.createIndex('clientId', 'clientId');
           qd.createIndex('date', 'date');
         }
+        if (!database.objectStoreNames.contains('receptionSessions')) {
+          const rs = database.createObjectStore('receptionSessions', { keyPath: 'id' });
+          rs.createIndex('status', 'status');
+          rs.createIndex('clientId', 'clientId');
+          rs.createIndex('updatedAt', 'updatedAt');
+        }
       },
   });
 }
@@ -108,7 +114,7 @@ function getDB() {
 
 const ALL_STORES = [
   'clients', 'cats', 'stages', 'customFields',
-  'deals', 'dealFields', 'pricingRecords', 'quoteDrafts', 'tasks', 'events',
+  'deals', 'dealFields', 'pricingRecords', 'quoteDrafts', 'receptionSessions', 'tasks', 'events',
   'journalEntries', 'archivedJournal',
   'salaryMonths', 'timers', 'timerHistory', 'settings',
 ];
@@ -116,7 +122,7 @@ const ALL_STORES = [
 // 各 store 的主鍵欄位（同步合併時逐筆比對用）
 export const STORE_KEYS = {
   clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
-  deals: 'id', dealFields: 'id', pricingRecords: 'id', quoteDrafts: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
+  deals: 'id', dealFields: 'id', pricingRecords: 'id', quoteDrafts: 'id', receptionSessions: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
   settings: 'key', salaryMonths: 'key',
   journalEntries: 'date', archivedJournal: 'date',
 };

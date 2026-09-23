@@ -10,6 +10,7 @@ import QuoteModal from '../quote/QuoteModal';
 import { Field, ClientPicker } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
+import { requirementSummary, requirementPendingItems } from '../../utils/reception';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -876,6 +877,23 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             </div>
           )}
         </section>
+
+        {client.demandProfile && (
+          <section className="card p-4 space-y-3">
+            <div className="flex items-center justify-between"><h3 className="font-semibold text-sm text-ink-2">🤝 需求摘要</h3><span className="text-[10px] text-ok">由展間接待帶入</span></div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+              {[
+                ['做什麼', client.demandProfile.industry], ['現在開什麼', client.demandProfile.currentVehicle],
+                ['載什麼', (client.demandProfile.cargo || []).join('＋')], ['載多重', client.demandProfile.loadKg ? `${client.demandProfile.loadKg}kg` : client.demandProfile.loadRange],
+                ['誰開', client.demandProfile.driver], ['跑哪裡', (client.demandProfile.environments || []).join('＋')],
+                ['地下室／限高', client.demandProfile.parking === '會' ? `${client.demandProfile.clearanceCm || '待確認'}cm` : client.demandProfile.parking],
+                ['客戶屬性', client.demandProfile.customerMode],
+              ].map(([label, value]) => value && <div key={label} className="border-b border-bdr/40 py-1.5"><span className="block text-ink-3">{label}</span><strong className="text-ink-2">{value}</strong></div>)}
+            </div>
+            <div className="flex flex-wrap gap-1.5">{requirementSummary(client.demandProfile).map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div>
+            {requirementPendingItems(client.demandProfile).length > 0 && <p className="text-xs text-warn">待確認：{requirementPendingItems(client.demandProfile).join('、')}</p>}
+          </section>
+        )}
 
         {/* 報價單（可回頭編輯） */}
         <section className="card p-4 space-y-2">

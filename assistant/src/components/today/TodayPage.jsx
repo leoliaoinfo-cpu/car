@@ -9,7 +9,7 @@ import { formatDate } from '../../utils/date';
 import { downloadICS, needsIcsExport, snoozeIcsReminder } from '../../utils/ics';
 import dayjs from 'dayjs';
 
-export default function TodayPage({ onOpenClient, onOpenSettings }) {
+export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReception }) {
   const {
     clients, cats, customFields, timers, tasks, events, thresholds,
     updateClient, saveTimer, deleteTimer, saveTask, deleteTask,
@@ -252,6 +252,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings }) {
           <h1 className="text-xl font-bold text-ink">☀️ 今日工作</h1>
           <p className="text-sm text-ink-3 mt-0.5">{dayjs().format('YYYY年M月D日 dddd')}</p>
         </div>
+        <button onClick={onOpenReception} className="btn-primary min-h-11">＋ 新增接待</button>
       </div>
 
       {/* 第一次使用先連線私人資料庫；未連線時仍可在此裝置作業。 */}

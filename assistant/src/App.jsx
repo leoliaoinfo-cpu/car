@@ -8,6 +8,7 @@ import DealsPage from './components/deals/DealsPage';
 import SettingsPanel from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
+import ReceptionPage from './components/reception/ReceptionPage';
 import TimerModal from './components/TimerModal';
 import { STORAGE_KEYS } from './storageKeys';
 
@@ -54,6 +55,7 @@ function AppInner() {
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [showDeals, setShowDeals] = useState(false); // 業績表（從設定經密碼解鎖後開啟）
   const [crmFocusId, setCrmFocusId] = useState(null);
+  const [receptionStartToken, setReceptionStartToken] = useState(null);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.isolationNoticeDismissed) !== '1'; } catch { return true; }
   });
@@ -113,7 +115,8 @@ function AppInner() {
 
       <main className="pb-20 md:pb-0">
         <div className="anim-fade-in" key={tab}>
-          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setShowSettings(true)} />}
+          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setShowSettings(true)} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
+          {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />
@@ -137,9 +140,10 @@ function AppInner() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
           { key: 'today', icon: '☀️', label: '今日' },
-          { key: 'calendar', icon: '📅', label: '行事曆' },
+          { key: 'reception', icon: '🤝', label: '接待' },
           { key: 'crm', icon: '👥', label: '客戶' },
           { key: 'quotes', icon: '🧾', label: '報價單' },
+          { key: 'calendar', icon: '📅', label: '行事曆' },
         ].map((item) => (
           <button
             key={item.key}

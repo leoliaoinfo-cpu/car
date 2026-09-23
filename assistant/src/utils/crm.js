@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { quoteVehicleModels } from './vehicles.js';
 
 // 莫蘭迪色調（低彩度，深淺主題皆可讀）
 export const STATUS_COLOR = {
@@ -189,7 +190,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v11';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v12';
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -261,16 +262,7 @@ export const DEFAULT_QUOTE_PRESETS = {
   _catalog: QUOTE_CATALOG_VERSION,
   addonCategories: QUOTE_ADDON_CATS,
   // 車型與售價（報價單「選車型」下拉帶入車輛售價）
-  models: [
-    { id: 'qm-1', name: '單廂三人座 手排六速', price: 798000 },
-    { id: 'qm-2', name: '單廂三人座 自排五速', price: 838000 },
-    { id: 'qm-3', name: '大單廂三人座 手排六速', price: 828000 },
-    { id: 'qm-4', name: '大單廂三人座 自排五速', price: 868000 },
-    { id: 'qm-5', name: '雙廂六人座 手排六速', price: 968000 },
-    { id: 'qm-6', name: '雙廂六人座 自排五速', price: 1018000 },
-    { id: 'qm-7', name: '4WD四輪傳動 單廂', price: 958000 },
-    { id: 'qm-8', name: '4WD四輪傳動 雙廂', price: 1058000 },
-  ],
+  models: quoteVehicleModels(),
   // 選購配備（一鍵帶入報價項目；cat 分類、desc 產品介紹皆依原廠型錄圖片文字）
   addons: [
     ...REQUIRED_QUOTE_ADDONS,
@@ -408,7 +400,9 @@ export function canonicalAddonCategories(names = [], aliases = {}) {
  */
 export function resolveQuotePresets(row) {
   if (!row || !Array.isArray(row.addons)) return DEFAULT_QUOTE_PRESETS;
-  if (row._catalog === QUOTE_CATALOG_VERSION && Array.isArray(row.addonCategories)) return row;
+  if (row._catalog === QUOTE_CATALOG_VERSION && Array.isArray(row.addonCategories)) {
+    return { ...row, models: quoteVehicleModels() };
+  }
   const names = row.addons.map((a) => a.name);
   const untouched = !row.models
     && names.length === LEGACY_ADDON_NAMES.length
@@ -470,7 +464,8 @@ export function resolveQuotePresets(row) {
   return {
     ...row,
     _catalog: QUOTE_CATALOG_VERSION,
-    models: row.models || DEFAULT_QUOTE_PRESETS.models,
+    // 車價只有 VehicleVariant 一份來源；升級時不保留舊版或手動殘留的舊車價。
+    models: quoteVehicleModels(),
     addons,
     addonCategories,
   };
