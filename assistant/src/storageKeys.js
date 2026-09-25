@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   syncLastAt: `${STORAGE_PREFIX}sync.lastSyncAt`,
   icsExportedAt: `${STORAGE_PREFIX}ics.exportedAt`,
   icsSnoozeAt: `${STORAGE_PREFIX}ics.remindSnoozeAt`,
+  truckComparison: `${STORAGE_PREFIX}truckComparison`,
 };
 
 export const CAR_DB_NAME = 'car_sales_assistant_v1';

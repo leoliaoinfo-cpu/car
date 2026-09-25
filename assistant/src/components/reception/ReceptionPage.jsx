@@ -12,6 +12,7 @@ import {
 import {
   VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatTwd, formatVehiclePrice, getVehicleVariant,
 } from '../../utils/vehicles';
+import TruckComparison from './TruckComparison';
 
 const CHIP = 'min-h-11 rounded-xl border px-3 py-2 text-sm transition-colors text-left';
 const selectedChip = (selected) => `${CHIP} ${selected ? 'bg-accent text-on-accent border-accent font-semibold' : 'bg-s1 text-ink-2 border-bdr hover:border-accent/60'}`;
@@ -54,6 +55,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   const [showFormalize, setShowFormalize] = useState(false);
   const [formal, setFormal] = useState({ name: '', phone: '', lineId: '', company: '', address: '', budget: '', purchaseTime: '', payment: '', loanNeed: '', nextDate: '' });
   const [notice, setNotice] = useState('');
+  const [showSessionComparison, setShowSessionComparison] = useState(false);
 
   const sorted = useMemo(() => [...receptionSessions].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')), [receptionSessions]);
   const session = receptionSessions.find((row) => row.id === selectedId) || null;
@@ -92,6 +94,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       receptionSessionId: session.id, demandProfile: session,
       requirementSummary: requirementSummary(session), pendingRequirements: requirementPendingItems(session),
       notes: session.quickNote || '', createdAt: new Date().toISOString(),
+      truckComparison: session.truckComparison || null,
     };
     await saveClient(client);
     await saveReceptionSession({ ...session, status: 'formalized', clientId: client.id, displayName: client.name });
@@ -149,9 +152,13 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement}
       onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote}
       onOpenCatalog={onOpenCatalog}
+      onOpenComparison={() => setShowSessionComparison(true)}
       onHold={async () => { await update({ status: 'hold' }); setSelectedId(null); }}
       onNoFollow={async () => { await update({ status: 'closed' }); setSelectedId(null); }}
       notice={notice} onNotice={() => setNotice('')} />
+    {showSessionComparison && (
+      <><div className="overlay" onClick={() => setShowSessionComparison(false)} /><div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3"><div className="max-w-4xl mx-auto"><TruckComparison selection={session.truckComparison || { competitorId: '', k2500Id: 'k2500-01' }} onSelectionChange={(truckComparison) => update({ truckComparison })} onClose={() => setShowSessionComparison(false)} /></div></div></>
+    )}
     {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
   </>;
 
@@ -165,10 +172,11 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         <div className="flex gap-2 mt-5">
           <Chip active={view === 'sessions'} onClick={() => setView('sessions')}>接待紀錄</Chip>
           <Chip active={view === 'quick'} onClick={() => setView('quick')}>K2500 速查</Chip>
+          <Chip active={view === 'compare'} onClick={() => setView('compare')}>貨車比較</Chip>
         </div>
       </section>
 
-      {view === 'quick' ? <VehicleQuickReference /> : (
+      {view === 'quick' ? <VehicleQuickReference /> : view === 'compare' ? <TruckComparison /> : (
         sorted.length === 0 ? <section className="card p-10 text-center"><h2 className="font-bold text-lg">還沒有接待紀錄</h2><p className="text-sm text-ink-3 mt-2">客人進來先按「新增接待」，不用姓名電話也能開始。</p><button onClick={createSession} className="btn-primary mt-5">＋ 新增接待</button></section> :
           <div className="grid md:grid-cols-2 gap-3">{sorted.map((row) => (
             <article key={row.id} className="card p-4">
@@ -184,7 +192,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   );
 }
 
-function ReceptionEditor({ session, update, updateRequirement, onBack, onFormalize, onAddQuote, onOpenCatalog, onHold, onNoFollow, notice, onNotice }) {
+function ReceptionEditor({ session, update, updateRequirement, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
   const promptStatus = receptionPromptStatus(session);
   const pending = requirementPendingItems(session);
   const reminders = dependencyReminders(session);
@@ -196,7 +204,7 @@ function ReceptionEditor({ session, update, updateRequirement, onBack, onFormali
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
       <header className="safe-panel sticky top-0 z-30 bg-s1/95 backdrop-blur border-b border-bdr">
-        <div className="max-w-4xl mx-auto px-3 py-3 flex items-center gap-3"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-0"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><button onClick={onFormalize} className="btn-primary text-xs">正式建檔</button></div>
+        <div className="max-w-4xl mx-auto px-3 py-3 flex items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-0"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div>
         <div className="max-w-4xl mx-auto px-3 pb-2 overflow-x-auto"><div className="flex gap-1.5 min-w-max">{promptStatus.map(([label, done], idx) => <span key={label} className={`text-[11px] ${done ? 'text-ok' : 'text-ink-3'}`}>{idx > 0 && <span className="mr-1.5 text-bdr">→</span>}{label} {done ? '✓' : '○'}</span>)}</div></div>
       </header>
       <main className="max-w-4xl mx-auto p-3 md:p-5 space-y-4">

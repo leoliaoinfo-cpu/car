@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
-import { formatMoney } from '../../utils/crm';
+import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
+import { addDays, today } from '../../utils/date';
 import QuoteModal from './QuoteModal';
 
 function pendingCount(quote) {
@@ -11,11 +12,12 @@ function pendingCount(quote) {
 export default function QuoteWorkspace({ onOpenClient }) {
   const {
     clients, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
-    savePricingRecord,
+    savePricingRecord, saveClient, updateClient, cats, stages,
   } = useApp();
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [saveNotice, setSaveNotice] = useState(null);
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const rows = useMemo(() => {
@@ -31,8 +33,71 @@ export default function QuoteWorkspace({ onOpenClient }) {
   }, [quoteDrafts, query, clientMap]);
 
   async function handleSave(payload) {
-    const { _pricingRecord, ...quote } = payload;
+    const { _pricingRecord, _customerMode, ...quotePayload } = payload;
+    const previousQuote = quoteDrafts.find((row) => row.id === quotePayload.id);
+    let clientId = quotePayload.clientId || null;
+    let createdClient = null;
+
+    if (_customerMode === 'new' && !clientId) {
+      const duplicate = findDuplicateClient(clients, {
+        name: quotePayload.customerName,
+        phone: quotePayload.customerPhone,
+      });
+      if (duplicate?.reason === 'phone') {
+        clientId = duplicate.client.id;
+      } else {
+        createdClient = await saveClient({
+          id: generateId('client'),
+          name: quotePayload.customerName.trim(),
+          phone: quotePayload.customerPhone.trim(),
+          source: '獨立報價',
+          catId: cats[0]?.id || '',
+          stageId: stages.find((stage) => stage.name === '報價')?.id || stages[0]?.id || '',
+          clientType: 'personal',
+          intentLevel: 0,
+          nextDate: addDays(today(), 7),
+          notes: quotePayload.requirements || '',
+          log: [],
+          quotes: [],
+          missedCalls: 0,
+        });
+        clientId = createdClient.id;
+      }
+    }
+
+    const quote = { ...quotePayload, clientId };
     await saveQuoteDraft(quote);
+
+    if (previousQuote?.clientId && previousQuote.clientId !== clientId) {
+      await updateClient(previousQuote.clientId, (current) => ({
+        ...current,
+        quotes: (current.quotes || []).filter((row) => row.id !== quote.id),
+        log: (current.log || []).filter((row) => row.quoteId !== quote.id),
+      }));
+    }
+
+    if (clientId) {
+      await updateClient(clientId, (current) => {
+        const quotes = [...(current.quotes || [])];
+        const quoteIndex = quotes.findIndex((row) => row.id === quote.id);
+        if (quoteIndex === -1) quotes.push(quote);
+        else quotes[quoteIndex] = quote;
+        const log = [...(current.log || [])];
+        const logIndex = log.findIndex((row) => row.quoteId === quote.id);
+        const logEntry = {
+          id: logIndex >= 0 ? log[logIndex].id : generateId('log'),
+          date: quote.date || today(),
+          type: 'quote',
+          quoteId: quote.id,
+          text: quote.text,
+          amount: quote.total,
+        };
+        if (logIndex === -1) log.push(logEntry);
+        else log[logIndex] = { ...log[logIndex], ...logEntry };
+        return { ...current, quotes, log, lastContact: quote.date || today(), missedCalls: 0 };
+      });
+    }
+
     if (_pricingRecord) {
       await savePricingRecord({
         ..._pricingRecord,
@@ -40,6 +105,12 @@ export default function QuoteWorkspace({ onOpenClient }) {
         quoteId: quote.id,
       });
     }
+    setSaveNotice(clientId ? {
+      clientId,
+      text: createdClient
+        ? `已建立「${createdClient.name}」並把報價連結到客戶追蹤。`
+        : '報價已儲存並連結到客戶追蹤。',
+    } : { clientId: null, text: '報價已儲存；未建立客戶資料。' });
     setEditing(null);
   }
 
@@ -56,7 +127,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
             <p className="text-[11px] font-semibold tracking-widest text-accent">QUOTATION WORKSPACE</p>
             <h1 className="text-xl md:text-2xl font-bold text-ink mt-1">🧾 獨立報價單</h1>
             <p className="text-sm text-ink-2 mt-2 leading-relaxed max-w-2xl">
-              先記客戶需求，再勾車型與配件；還要問廠商的項目標成「待報價」，價格確認後回來補上，最後輸出一張完整圖片傳 LINE。
+              可直接建立客戶並開始報價，不必先走接待流程；也能連結既有客戶或只做匿名報價。完成後可輸出圖片或 LINE 文字版。
             </p>
           </div>
           <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary shrink-0">
@@ -70,6 +141,16 @@ export default function QuoteWorkspace({ onOpenClient }) {
           placeholder="搜尋客戶、電話、車型或需求…" className="flex-1 text-sm" />
         <span className="text-xs text-ink-3 shrink-0">{rows.length} 張</span>
       </div>
+
+      {saveNotice && (
+        <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 flex items-center gap-2 text-sm text-ink-2">
+          <span className="flex-1">✓ {saveNotice.text}</span>
+          {saveNotice.clientId && onOpenClient && (
+            <button type="button" onClick={() => onOpenClient(saveNotice.clientId)} className="btn-outline text-xs shrink-0">開啟客戶</button>
+          )}
+          <button type="button" onClick={() => setSaveNotice(null)} className="btn-ghost px-2">×</button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <section className="card p-8 text-center">
@@ -90,6 +171,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
+                      {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
                       {pending > 0
                         ? <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">待廠商報價 {pending} 項</span>
                         : <span className="text-[10px] rounded-full bg-ok/10 text-ok border border-ok/30 px-2 py-0.5">價格已齊</span>}

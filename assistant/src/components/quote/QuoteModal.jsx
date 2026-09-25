@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment, canonicalAddonCategories, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
@@ -100,6 +100,11 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
   const [customerName, setCustomerName] = useState(quote?.customerName || client?.name || '');
   const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
+  const [customerMode, setCustomerMode] = useState(() => {
+    if (quote?.clientId || client?.id) return 'existing';
+    return quote ? 'quote-only' : 'new';
+  });
+  const [customerError, setCustomerError] = useState('');
   const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false });
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
@@ -202,11 +207,22 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
 
   function pickClient(clientId) {
     setLinkedClientId(clientId);
+    setCustomerError('');
     const picked = clients.find((row) => row.id === clientId);
     if (picked) {
       setCustomerName(picked.name || '');
       setCustomerPhone(picked.phone || '');
     }
+  }
+
+  const duplicateClient = customerMode === 'new'
+    ? findDuplicateClient(clients, { name: customerName, phone: customerPhone })
+    : null;
+
+  function switchCustomerMode(nextMode) {
+    setCustomerMode(nextMode);
+    setCustomerError('');
+    if (nextMode !== 'existing') setLinkedClientId('');
   }
 
   // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
@@ -500,8 +516,21 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
 
   async function handleRecord() {
     if (!confirmAddonReview()) return;
+    if (!client?.id && customerMode === 'new' && !customerName.trim()) {
+      setCustomerError('請先填客戶姓名／公司名，才能建立客戶追蹤。');
+      return;
+    }
+    if (!client?.id && customerMode === 'existing' && !linkedClientId) {
+      setCustomerError('請先選擇要連結的既有客戶。');
+      return;
+    }
     const payload = makeQuotePayload();
-    await onSaveQuote({ ...payload, _pricingRecord: pricingForCurrentQuote() });
+    await onSaveQuote({
+      ...payload,
+      clientId: client?.id || (customerMode === 'existing' ? linkedClientId : null),
+      _customerMode: client?.id ? 'existing' : customerMode,
+      _pricingRecord: pricingForCurrentQuote(),
+    });
   }
 
   const previewGroups = [
@@ -526,20 +555,51 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
           {/* 輸入區 */}
           <div className="space-y-2 mb-4">
             {!client?.id && (
-              <div className="bg-s2 rounded-xl p-3 space-y-2">
-                <p className="text-xs font-semibold text-ink-2">👤 客戶資料</p>
-                {clients.length > 0 && (
+              <div className="bg-s2 rounded-xl p-3 space-y-3">
+                <div>
+                  <p className="text-xs font-semibold text-ink-2">👤 客戶資料</p>
+                  <p className="text-[11px] text-ink-3 mt-0.5">不用先走接待流程；可在儲存報價時直接建立客戶追蹤。</p>
+                </div>
+                <div className="grid grid-cols-3 gap-1 rounded-xl bg-s1 p-1 border border-bdr">
+                  <button type="button" onClick={() => switchCustomerMode('new')}
+                    className={`min-h-10 rounded-lg px-2 text-xs font-semibold ${customerMode === 'new' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                    建立新客戶
+                  </button>
+                  <button type="button" onClick={() => switchCustomerMode('existing')}
+                    className={`min-h-10 rounded-lg px-2 text-xs font-semibold ${customerMode === 'existing' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                    連結既有
+                  </button>
+                  <button type="button" onClick={() => switchCustomerMode('quote-only')}
+                    className={`min-h-10 rounded-lg px-2 text-xs font-semibold ${customerMode === 'quote-only' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                    只做報價
+                  </button>
+                </div>
+                {customerMode === 'existing' ? (
                   <select value={linkedClientId} onChange={(e) => pickClient(e.target.value)} className="w-full text-sm">
-                    <option value="">不連結客戶檔，直接輸入</option>
+                    <option value="">選擇既有客戶…</option>
                     {clients.map((row) => <option key={row.id} value={row.id}>{row.name || '未命名客戶'}{row.phone ? `・${row.phone}` : ''}</option>)}
                   </select>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input value={customerName} onChange={(e) => { setCustomerName(e.target.value); setCustomerError(''); }}
+                      placeholder={customerMode === 'new' ? '客戶姓名／公司 *' : '報價抬頭（選填）'} className="w-full text-sm" />
+                    <input value={customerPhone} onChange={(e) => { setCustomerPhone(e.target.value); setCustomerError(''); }}
+                      placeholder="聯絡電話（選填）" className="w-full text-sm" />
+                  </div>
                 )}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="客戶姓名／公司" className="w-full text-sm" />
-                  <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="聯絡電話（選填）" className="w-full text-sm" />
-                </div>
+                {customerMode === 'new' && (
+                  <p className="text-[11px] text-ok">儲存後會自動進入「客戶追蹤」，業務進度設為「報價」，並連結這張報價。</p>
+                )}
+                {duplicateClient && (
+                  <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 flex items-center gap-2">
+                    <p className="text-[11px] text-warn flex-1">已有{duplicateClient.reason === 'phone' ? '相同電話' : '同名'}客戶「{duplicateClient.client.name}」。</p>
+                    <button type="button" className="btn-outline text-[10px] px-2 py-1 shrink-0"
+                      onClick={() => { setCustomerMode('existing'); pickClient(duplicateClient.client.id); }}>
+                      改為連結
+                    </button>
+                  </div>
+                )}
+                {customerError && <p role="alert" className="text-xs text-danger">{customerError}</p>}
               </div>
             )}
             <Field label="客戶需求／用途（內部備忘，不會出現在報價圖片）">
@@ -1136,7 +1196,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             <button onClick={onClose} className="btn-outline flex-1">關閉</button>
             <button onClick={handleRecord} disabled={selectedItems.length === 0}
               className="btn-outline flex-1 disabled:opacity-40">
-              💾 {isEdit ? '儲存修改' : (client?.id ? '記錄報價' : '儲存報價草稿')}
+              💾 {isEdit ? '儲存修改' : (client?.id ? '記錄報價' : customerMode === 'new' ? '建立客戶並儲存報價' : '儲存報價')}
             </button>
           </div>
         </div>

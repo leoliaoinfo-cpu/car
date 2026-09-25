@@ -7,6 +7,7 @@ import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
+import TruckComparison from '../reception/TruckComparison';
 import { Field, ClientPicker } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
@@ -64,6 +65,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const [form, setForm] = useState(() => pickEditable(client));
   const [logInput, setLogInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showTruckComparison, setShowTruckComparison] = useState(false);
   const [showAddTimer, setShowAddTimer] = useState(false);
   const [timerNote, setTimerNote] = useState('');
   const [timerTime, setTimerTime] = useState('');
@@ -456,6 +458,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             <p className="text-[10px] text-ink-3">未接次數</p>
           </div>
         </div>
+
+        <button type="button" onClick={() => setShowTruckComparison(true)} className="btn-outline w-full min-h-11">
+          🚚 貨車規格比較{client.truckComparison?.competitorId ? '・繼續上次比較' : ''}
+        </button>
 
         {client.missedCalls >= 5 && (
           <div className="bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 text-xs text-danger">
@@ -1172,6 +1178,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             onClose={() => setQuoteModal(null)}
             onSaveQuote={handleSaveQuote}
           />
+        )}
+
+        {showTruckComparison && (
+          <><div className="overlay" onClick={() => setShowTruckComparison(false)} /><div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3"><div className="max-w-4xl mx-auto"><TruckComparison selection={client.truckComparison || { competitorId: '', k2500Id: 'k2500-01' }} onSelectionChange={(truckComparison) => updateClient(client.id, (current) => ({ ...current, truckComparison }))} onClose={() => setShowTruckComparison(false)} /></div></div></>
         )}
 
         {showDealModal && (
