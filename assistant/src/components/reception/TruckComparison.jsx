@@ -3,7 +3,8 @@ import truckData from '../../data/truckVariants.json';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
   CORE_TRUCK_METRICS, DETAIL_TRUCK_METRICS, buildTruckComparisonSummary,
-  fieldConflict, isConfirmedUnder3500, truckMetricDifference, truckMetricDisplay,
+  fieldConflict, isConfirmedUnder3500, truckBrandLabel, truckCompetitorVariants,
+  truckMetricDifference, truckMetricDisplay, TRUCK_BRAND_MODELS,
 } from '../../utils/truckComparison';
 
 const STATUS = {
@@ -12,11 +13,6 @@ const STATUS = {
   conflicted: { text: '資料有衝突', className: 'bg-danger/10 text-danger border-danger/30' },
   model_max_only: { text: '車系資料', className: 'bg-warn/10 text-warn border-warn/30' },
   pending: { text: '待確認', className: 'bg-s2 text-ink-3 border-bdr' },
-};
-
-const COMMON_NAMES = {
-  Toyota: 'Town Ace／小發財', Suzuki: 'Carry', Mitsubishi: '得利卡／Zinger',
-  Hyundai: 'Porter II', Hino: '200', CMC: '小霸王／菱利', Ford: 'Ranger',
 };
 
 function readLastSelection() {
@@ -77,7 +73,7 @@ export default function TruckComparison({ selection = null, onSelectionChange = 
   const selectionMounted = useRef(false);
 
   const k2500Rows = useMemo(() => truckData.variants.filter((row) => row.brand === 'Kia' && row.model === 'K2500'), []);
-  const competitors = useMemo(() => truckData.variants.filter((row) => row.brand !== 'Kia' && row.body === 'open_bed'), []);
+  const competitors = useMemo(() => truckCompetitorVariants(truckData.variants), []);
   const brands = useMemo(() => [...new Set(competitors.map((row) => row.brand))], [competitors]);
   const models = useMemo(() => [...new Set(competitors.filter((row) => row.brand === brand).map((row) => row.model))], [competitors, brand]);
   const choices = competitors.filter((row) => row.brand === brand && (!model || row.model === model));
@@ -114,7 +110,7 @@ export default function TruckComparison({ selection = null, onSelectionChange = 
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-bold">1. 客戶正在看的車</h3>{competitor && <button type="button" className="btn-ghost text-xs" onClick={() => { setCompetitorId(''); setBrand(''); setModel(''); }}>重新選擇</button>}</div>
-        {!brand && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">{brands.map((item) => <button type="button" key={item} onClick={() => chooseBrand(item)} className="min-h-12 rounded-xl border border-bdr bg-s1 px-3 py-2 text-left"><strong className="block text-sm">{item}</strong><span className="text-[10px] text-ink-3">{COMMON_NAMES[item] || item}</span></button>)}</div>}
+        {!brand && <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{brands.map((item) => <button type="button" key={item} onClick={() => chooseBrand(item)} className="min-h-14 rounded-xl border border-bdr bg-s1 px-3 py-2 text-left"><strong className="block text-sm">{truckBrandLabel(item)}</strong><span className="mt-0.5 block text-[10px] text-ink-3">{TRUCK_BRAND_MODELS[item] || item}</span></button>)}</div>}
         {brand && !model && models.length > 1 && <div className="grid sm:grid-cols-2 gap-2">{models.map((item) => <button type="button" key={item} onClick={() => { setModel(item); setCompetitorId(''); }} className="min-h-11 rounded-xl border border-bdr bg-s1 px-3 text-left text-sm font-semibold">{item}</button>)}</div>}
         {brand && (model || models.length === 1) && <><div className="grid sm:grid-cols-2 gap-2">{choices.map((row) => <VariantButton key={row.id} row={row} active={row.id === competitorId} onClick={() => { setCompetitorId(row.id); setShowIdentification(false); }} />)}</div><button type="button" onClick={() => { setCompetitorId(''); setShowIdentification((value) => !value); }} className="btn-outline w-full text-xs">不確定是哪個版本・看辨識線索</button></>}
         {showIdentification && choices.length > 0 && <div className="rounded-xl border border-warn/30 bg-warn/10 p-3 text-xs text-ink-2"><strong className="text-warn">先不要用單一版本數字回答</strong><p className="mt-1">請確認貨床材質、手排／自排、單廂／雙廂或型號。這個車系可選版本：</p><ul className="mt-2 space-y-1 list-disc pl-5">{choices.map((row) => <li key={row.id}>{row.variant}</li>)}</ul></div>}
@@ -131,8 +127,8 @@ export default function TruckComparison({ selection = null, onSelectionChange = 
           <div className="sticky top-0 z-10 rounded-2xl border border-accent/30 bg-s1/95 backdrop-blur p-3 shadow-card">
             <div className="grid grid-cols-[5.2rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 items-start">
               <span className="text-[10px] text-ink-3 pt-1">比較車款</span>
-              <div><strong className="text-sm block">{competitor.brand} {competitor.model}</strong><span className="text-[10px] text-ink-3">{competitor.variant}</span><div className="mt-1"><StatusBadge status={competitor.status} /></div></div>
-              <div><strong className="text-sm block">Kia K2500</strong><span className="text-[10px] text-ink-3">{k2500.variant}</span><div className="mt-1"><StatusBadge status={k2500.status} /></div></div>
+              <div><strong className="text-sm block">{truckBrandLabel(competitor.brand)} {competitor.model}</strong><span className="text-[10px] text-ink-3">{competitor.variant}</span><div className="mt-1"><StatusBadge status={competitor.status} /></div></div>
+              <div><strong className="text-sm block">{truckBrandLabel('Kia')} K2500</strong><span className="text-[10px] text-ink-3">{k2500.variant}</span><div className="mt-1"><StatusBadge status={k2500.status} /></div></div>
             </div>
           </div>
 

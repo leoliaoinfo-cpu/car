@@ -17,6 +17,38 @@ export const DETAIL_TRUCK_METRICS = [
   { key: 'displacement_cc', label: '排氣量', unit: 'c.c.' },
 ];
 
+export const TRUCK_BRAND_LABELS = {
+  Toyota: '豐田 Toyota',
+  Suzuki: '鈴木 Suzuki',
+  Mitsubishi: '中華三菱 Mitsubishi',
+  Hyundai: '現代 Hyundai',
+  Hino: '日野 Hino',
+  CMC: '中華汽車 CMC',
+  Kia: '起亞 Kia',
+};
+
+export const TRUCK_BRAND_MODELS = {
+  Toyota: 'Town Ace 貨卡／小發財',
+  Suzuki: 'Carry 貨卡',
+  Mitsubishi: '得利卡貨車',
+  Hyundai: 'Porter II 貨車',
+  Hino: '200 系列貨車',
+  CMC: 'J Space 貨卡／菱利 E300 貨車',
+};
+
+const EXCLUDED_PICKUP_MODELS = new Set(['Hilux', 'Ranger', 'Zinger Pickup']);
+
+/** 比較區只收一般商用貨斗車，皮卡不列入。 */
+export function truckCompetitorVariants(variants = []) {
+  return variants.filter((row) => row.brand !== 'Kia'
+    && row.body === 'open_bed'
+    && !EXCLUDED_PICKUP_MODELS.has(row.model));
+}
+
+export function truckBrandLabel(brand) {
+  return TRUCK_BRAND_LABELS[brand] || brand;
+}
+
 export function fieldConflict(variant, key) {
   return (variant?.field_conflicts || []).find((row) => row.field === key) || null;
 }

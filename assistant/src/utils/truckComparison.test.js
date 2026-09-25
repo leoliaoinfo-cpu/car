@@ -2,15 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import data from '../data/truckVariants.json' with { type: 'json' };
 import {
-  comparableTruckValue, isConfirmedUnder3500, truckMetricDifference, truckMetricDisplay,
+  comparableTruckValue, isConfirmedUnder3500, truckBrandLabel, truckCompetitorVariants,
+  truckMetricDifference, truckMetricDisplay,
 } from './truckComparison.js';
 
 const byId = (id) => data.variants.find((row) => row.id === id);
 
-test('imports all 32 stable variant ids and eight K2500 choices', () => {
-  assert.equal(data.variants.length, 32);
-  assert.equal(new Set(data.variants.map((row) => row.id)).size, 32);
+test('imports all 29 non-pickup variant ids and eight K2500 choices', () => {
+  assert.equal(data.variants.length, 29);
+  assert.equal(new Set(data.variants.map((row) => row.id)).size, 29);
   assert.equal(data.variants.filter((row) => row.brand === 'Kia' && row.model === 'K2500').length, 8);
+  assert.deepEqual(data.variants.filter((row) => ['Hilux', 'Ranger', 'Zinger Pickup'].includes(row.model)), []);
+});
+
+test('pickup models stay excluded and brands have Chinese names', () => {
+  const rows = truckCompetitorVariants([
+    ...data.variants,
+    { id: 'pickup-guard', brand: 'Ford', model: 'Ranger', body: 'open_bed' },
+  ]);
+  assert.equal(rows.some((row) => ['Hilux', 'Ranger', 'Zinger Pickup'].includes(row.model)), false);
+  assert.equal(truckBrandLabel('Mitsubishi'), '中華三菱 Mitsubishi');
+  assert.equal(truckBrandLabel('CMC'), '中華汽車 CMC');
 });
 
 test('Porter II conflicted payload is displayed but never compared', () => {
