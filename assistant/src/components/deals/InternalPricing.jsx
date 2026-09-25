@@ -267,17 +267,14 @@ export function QuotePricingPanel({
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
   const quotes = useMemo(() => {
     const clientMap = new Map(clients.map((client) => [client.id, client]));
-    const clientQuotes = clients.flatMap((client) => (client.quotes || []).map((quote) => ({ client, quote, source: 'client' })));
-    const standaloneQuotes = quoteDrafts.map((quote) => ({
+    return quoteDrafts.map((quote) => ({
       client: clientMap.get(quote.clientId) || {
         id: quote.clientId || null,
         name: quote.customerName || '未填客戶',
       },
       quote,
       source: 'draft',
-    }));
-    return [...clientQuotes, ...standaloneQuotes]
-      .sort((a, b) => (b.quote.date || '').localeCompare(a.quote.date || ''));
+    })).sort((a, b) => (b.quote.updatedAt || b.quote.date || '').localeCompare(a.quote.updatedAt || a.quote.date || ''));
   }, [clients, quoteDrafts]);
 
   function refreshedRecord(client, quote) {

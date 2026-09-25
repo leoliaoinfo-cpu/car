@@ -32,10 +32,11 @@ const HELP_CARDS = [
   { icon: '☁️', title: '雲端同步', desc: '第一次使用先到設定連線汽車系統專用的私人 GitHub repo；完成後可跨裝置同步文字資料。照片仍以 LINE 相簿分享。' },
 ];
 
-const SECTION_KEYS = ['sync', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['sync', 'backup', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
 const SECTION_LABELS = {
   deals: '📈 內部業績與成本',
   sync: '☁️ 雲端同步',
+  backup: '💾 備份還原',
   notify: '🔔 通知',
   cats: '🏷 客戶分類',
   stages: '📶 業務進度',
@@ -106,6 +107,8 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
 
           {/* ── Cloud sync ── */}
           {activeSection === 'sync' && <SyncSection reloadAll={reloadAll} />}
+
+          {activeSection === 'backup' && <BackupSection reloadAll={reloadAll} />}
 
           {/* ── Notifications ── */}
           {activeSection === 'notify' && <NotifySection />}
@@ -905,6 +908,114 @@ function CustomFieldEditor({ fields, onChange }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function BackupSection({ reloadAll }) {
+  const [lastBackupAt, setLastBackupAt] = useState(null);
+  const [restoreData, setRestoreData] = useState(null);
+  const [fileName, setFileName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => { db.getLastBackupAt().then(setLastBackupAt).catch(() => {}); }, []);
+
+  async function downloadBackup() {
+    setBusy(true);
+    setMessage('');
+    try {
+      await db.exportAndDownload();
+      const now = new Date().toISOString();
+      setLastBackupAt(now);
+      setMessage('✅ 備份檔已下載，請保留在電腦、雲端硬碟或手機檔案中。');
+    } catch (error) {
+      setMessage(`❌ 備份失敗：${error?.message || '請稍後再試'}`);
+    } finally { setBusy(false); }
+  }
+
+  async function readBackupFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setMessage('');
+    setConfirmReplace(false);
+    try {
+      const data = JSON.parse(await file.text());
+      const valid = data?._v === 1 || ['clients', 'quoteDrafts', 'settings'].some((key) => Array.isArray(data?.[key]));
+      if (!valid) throw new Error('不是本系統的備份格式');
+      setRestoreData(data);
+      setFileName(file.name);
+    } catch (error) {
+      setRestoreData(null);
+      setFileName('');
+      setMessage(`❌ 無法讀取：${error?.message || '檔案格式錯誤'}`);
+    }
+  }
+
+  async function restore(mode) {
+    if (!restoreData) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      if (restoreData._v === 1) await db.importLegacy(restoreData);
+      else if (mode === 'replace') await db.importAll(restoreData);
+      else await db.mergeImport(restoreData);
+      await reloadAll?.();
+      setRestoreData(null);
+      setFileName('');
+      setConfirmReplace(false);
+      setMessage(mode === 'replace' ? '✅ 已用備份檔完整還原。' : '✅ 已合併備份；現有資料未清除。');
+    } catch (error) {
+      setMessage(`❌ 還原失敗：${error?.message || '請確認檔案後再試'}`);
+    } finally { setBusy(false); }
+  }
+
+  const backupAge = lastBackupAt ? Math.floor((Date.now() - Date.parse(lastBackupAt)) / 86400000) : null;
+  return (
+    <section className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <div>
+          <h3 className="font-semibold text-ink">💾 下載完整文字資料備份</h3>
+          <p className="text-xs text-ink-3 mt-1">包含客戶、報價、成本、成交、待辦與設定；照片仍只存在原裝置。</p>
+        </div>
+        <div className={`rounded-lg px-3 py-2 text-xs ${backupAge == null || backupAge >= 7 ? 'bg-warn/10 text-warn' : 'bg-ok/10 text-ok'}`}>
+          {backupAge == null ? '尚未下載過備份，建議現在先備份。' : `上次備份：${lastBackupAt.slice(0, 16).replace('T', ' ')}（${backupAge} 天前）`}
+        </div>
+        <button type="button" onClick={downloadBackup} disabled={busy} className="btn-primary w-full disabled:opacity-40">
+          {busy ? '處理中…' : '⬇️ 下載備份 JSON'}
+        </button>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <div>
+          <h3 className="font-semibold text-ink">📥 從備份檔還原</h3>
+          <p className="text-xs text-ink-3 mt-1">先選檔案，再選擇安全合併或完整覆蓋。</p>
+        </div>
+        <label className="btn-outline w-full text-center cursor-pointer">
+          選擇備份 JSON
+          <input type="file" accept="application/json,.json" onChange={readBackupFile} className="hidden" />
+        </label>
+        {restoreData && (
+          <div className="rounded-lg border border-bdr bg-s2 p-3 space-y-3">
+            <p className="text-xs text-ink-2 break-all">已讀取：{fileName}</p>
+            <button type="button" onClick={() => restore('merge')} disabled={busy} className="btn-primary w-full">安全合併（建議）</button>
+            {!confirmReplace ? (
+              <button type="button" onClick={() => setConfirmReplace(true)} className="btn-outline w-full text-danger">完整覆蓋目前資料</button>
+            ) : (
+              <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 space-y-2">
+                <p className="text-xs text-danger">完整覆蓋會以備份檔取代目前文字資料。請先確認已下載現在的備份。</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setConfirmReplace(false)} className="btn-outline">取消</button>
+                  <button type="button" onClick={() => restore('replace')} disabled={busy} className="btn-danger">確認覆蓋</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {message && <p className="text-sm text-ink-2 bg-s2 rounded-lg px-3 py-2">{message}</p>}
+      </div>
+    </section>
   );
 }
 

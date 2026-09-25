@@ -4,10 +4,17 @@
  *    ＋接收頁面訊息顯示系統通知（頁面開著時所有平台通用）
  */
 const CACHE_PREFIX = 'car-sales-assistant-';
-const CACHE = `${CACHE_PREFIX}v5`;
+const CACHE = `${CACHE_PREFIX}v6`;
 const DB_NAME = 'car_sales_assistant_v1';
+const APP_SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
-self.addEventListener('install', () => { self.skipWaiting(); });
+self.addEventListener('install', (e) => {
+  e.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    await cache.addAll(APP_SHELL);
+    await self.skipWaiting();
+  })());
+});
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     // 清掉舊版快取（更名、換圖示後不留殘影）

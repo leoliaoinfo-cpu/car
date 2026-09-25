@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { calculateQuoteTotals } from '../../utils/pricing';
-import { generateId } from '../../utils/crm';
+import { findDuplicateClient, generateId } from '../../utils/crm';
 import {
   CARGO_OPTIONS, CURRENT_VEHICLES, DRIVER_OPTIONS, ENVIRONMENT_OPTIONS, LOAD_OPTIONS,
   REASON_OPTIONS, RECEPTION_INDUSTRIES, REQUIREMENT_TYPES, RIDER_OPTIONS,
@@ -48,7 +48,7 @@ function FieldBlock({ label, children, note }) {
 export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenClient, onOpenQuotes, onOpenCatalog }) {
   const {
     receptionSessions, saveReceptionSession, deleteReceptionSession,
-    quotePresets, saveQuoteDraft, saveClient, cats, stages,
+    clients, quotePresets, saveQuoteDraft, saveClient, updateClient, cats, stages,
   } = useApp();
   const [view, setView] = useState('sessions');
   const [selectedId, setSelectedId] = useState(null);
@@ -84,6 +84,37 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
 
   async function formalize() {
     if (!session || !formal.name.trim()) return;
+    const duplicate = findDuplicateClient(clients, {
+      name: formal.name.trim(), phone: formal.phone,
+    });
+    if (duplicate?.reason === 'phone') {
+      const client = await updateClient(duplicate.client.id, (current) => ({
+        ...current,
+        name: formal.name.trim() || current.name,
+        phone: formal.phone || current.phone,
+        lineId: formal.lineId || current.lineId,
+        company: formal.company || current.company,
+        address: formal.address || current.address,
+        budget: formal.budget || current.budget,
+        purchaseTime: formal.purchaseTime || current.purchaseTime,
+        paymentMethod: formal.payment || current.paymentMethod,
+        loanNeed: formal.loanNeed || current.loanNeed,
+        nextDate: formal.nextDate || current.nextDate || null,
+        industry: session.industry || current.industry,
+        source: session.source || current.source,
+        customerMode: session.customerMode,
+        receptionSessionId: session.id,
+        demandProfile: session,
+        requirementSummary: requirementSummary(session),
+        pendingRequirements: requirementPendingItems(session),
+        notes: [current.notes, session.quickNote].filter(Boolean).join('\n'),
+        truckComparison: session.truckComparison || current.truckComparison || null,
+      }));
+      await saveReceptionSession({ ...session, status: 'formalized', clientId: client.id, displayName: client.name });
+      setShowFormalize(false);
+      onOpenClient?.(client.id);
+      return;
+    }
     const client = {
       id: generateId('client'), name: formal.name.trim(), phone: formal.phone, lineId: formal.lineId,
       company: formal.company, address: formal.address, budget: formal.budget, purchaseTime: formal.purchaseTime,
@@ -126,7 +157,11 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       if (!detail?.selected || detail.status !== '已確認') continue;
       const catalog = findCatalogItem(name, detail);
       if (!catalog) continue;
-      items.push({ id: generateId('qi'), kind: 'addon', catalogId: catalog.id, name: catalog.name, price: catalog.price || 0, pending: !!catalog.pendingPrice, note: detail.note || catalog.desc || '', discounts: [] });
+      items.push({
+        id: generateId('qi'), kind: 'addon', catalogId: catalog.id, name: catalog.name,
+        price: catalog.price || 0, pending: !!catalog.pendingPrice,
+        description: catalog.desc || '', note: detail.note || '', discounts: [],
+      });
     }
     if (!items.some((item) => item.kind === 'addon')) {
       setNotice('目前沒有「已確認」且能對應現有型錄的配件。需求不會自動變成報價。');

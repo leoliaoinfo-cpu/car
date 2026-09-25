@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context';
+import { db } from '../../db';
 import { isSyncEnabled } from '../../sync';
 import {
   getClientStatus, STATUS_COLOR, CAT_COLORS, FIELD_COLORS, generateId,
@@ -21,6 +22,13 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
   const [taskClient, setTaskClient] = useState(null); // @提及連結的客戶 {id, name}
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
+  const [backupDue, setBackupDue] = useState(false);
+
+  useEffect(() => {
+    db.getLastBackupAt()
+      .then((value) => setBackupDue(!value || Date.now() - Date.parse(value) >= 7 * 86400000))
+      .catch(() => setBackupDue(true));
+  }, []);
 
   // 輸入中的 @查詢字串（游標尾端的 @xxx）；null = 沒在打提及
   const mentionQuery = useMemo(() => {
@@ -261,6 +269,14 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
           <span className="text-lg shrink-0">☁️</span>
           <p className="flex-1 text-xs text-ink-2">雲端同步尚未設定。第一次使用請先連線汽車系統專用的私人資料庫，讓文字資料能跨裝置同步。</p>
           <button onClick={onOpenSettings} className="btn-primary text-xs shrink-0">設定雲端同步</button>
+        </div>
+      )}
+
+      {backupDue && (
+        <div className="flex items-center gap-3 bg-warn/10 border border-warn/30 rounded-xl px-4 py-3">
+          <span className="text-lg shrink-0">💾</span>
+          <p className="flex-1 text-xs text-ink-2">已超過 7 天沒有下載文字資料備份。請到設定的「備份還原」保存一份。</p>
+          <button onClick={onOpenSettings} className="btn-outline text-xs shrink-0">開啟設定</button>
         </div>
       )}
 

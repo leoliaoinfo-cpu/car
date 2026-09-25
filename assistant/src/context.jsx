@@ -11,8 +11,17 @@ import { today } from './utils/date';
 import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
 import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
+import { canonicalizeQuotes } from './utils/quotes';
 
 const AppContext = createContext(null);
+
+async function migrateLegacyQuotes(clients, quoteDrafts) {
+  const canonical = canonicalizeQuotes(clients, quoteDrafts);
+  if (!canonical.migrated) return canonical;
+  for (const quote of canonical.quoteDrafts) await db.put('quoteDrafts', quote);
+  for (const client of canonical.clients) await db.put('clients', client);
+  return canonical;
+}
 
 const DEFAULT_CATS = [
   { id: 'cat-1', name: '一般客戶', colorIdx: 0, order: 0 },
@@ -241,11 +250,12 @@ export function AppProvider({ children }) {
         if (stages.length === 0) for (const s of DEFAULT_STAGES) await db.put('stages', s).catch(() => {});
         if (dealFields.length === 0) for (const f of DEFAULT_DEAL_FIELDS) await db.put('dealFields', f).catch(() => {});
 
+        const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
         dispatch({
           type: 'LOAD_INIT',
           payload: {
-            clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers,
+            clients: canonical.clients, cats: resolvedCats, stages: resolvedStages, customFields,
+            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: resolveQuotePresets(presetsRow),
@@ -418,7 +428,18 @@ export function AppProvider({ children }) {
     await db.delete('quoteDrafts', id);
     await db.delete('pricingRecords', `quote:${id}`).catch(() => {});
     dispatch({ type: 'DELETE_PRICING_RECORD', id: `quote:${id}` });
-  }, []);
+    const linkedClients = clientsRef.current.filter((client) =>
+      (client.quotes || []).some((quote) => quote.id === id)
+      || (client.log || []).some((entry) => entry.quoteId === id));
+    for (const client of linkedClients) {
+      const next = {
+        ...client,
+        log: (client.log || []).filter((entry) => entry.quoteId !== id),
+      };
+      delete next.quotes;
+      await saveClient(next);
+    }
+  }, [saveClient]);
 
   // ── 展間接待（匿名開始、每次操作自動儲存）──────────────────────────────
   const saveReceptionSession = useCallback(async (session) => {
@@ -524,17 +545,18 @@ export function AppProvider({ children }) {
       db.get('settings', 'costCatalog').catch(() => null),
       db.get('settings', 'industries').catch(() => null),
     ]);
+    const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
     dispatch({
       type: 'RELOAD_ALL',
       payload: {
-        clients,
+        clients: canonical.clients,
         cats: cats.length > 0 ? cats : DEFAULT_CATS,
         stages: stages.length > 0 ? stages : DEFAULT_STAGES,
         customFields,
         deals,
         dealFields: dealFields.length > 0 ? dealFields : DEFAULT_DEAL_FIELDS,
         pricingRecords,
-        quoteDrafts,
+        quoteDrafts: canonical.quoteDrafts,
         receptionSessions,
         tasks,
         events,

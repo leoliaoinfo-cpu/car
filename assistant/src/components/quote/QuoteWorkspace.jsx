@@ -65,23 +65,17 @@ export default function QuoteWorkspace({ onOpenClient }) {
       }
     }
 
-    const quote = { ...quotePayload, clientId };
-    await saveQuoteDraft(quote);
+    const quote = await saveQuoteDraft({ ...quotePayload, clientId });
 
     if (previousQuote?.clientId && previousQuote.clientId !== clientId) {
       await updateClient(previousQuote.clientId, (current) => ({
         ...current,
-        quotes: (current.quotes || []).filter((row) => row.id !== quote.id),
         log: (current.log || []).filter((row) => row.quoteId !== quote.id),
       }));
     }
 
     if (clientId) {
       await updateClient(clientId, (current) => {
-        const quotes = [...(current.quotes || [])];
-        const quoteIndex = quotes.findIndex((row) => row.id === quote.id);
-        if (quoteIndex === -1) quotes.push(quote);
-        else quotes[quoteIndex] = quote;
         const log = [...(current.log || [])];
         const logIndex = log.findIndex((row) => row.quoteId === quote.id);
         const logEntry = {
@@ -94,7 +88,9 @@ export default function QuoteWorkspace({ onOpenClient }) {
         };
         if (logIndex === -1) log.push(logEntry);
         else log[logIndex] = { ...log[logIndex], ...logEntry };
-        return { ...current, quotes, log, lastContact: quote.date || today(), missedCalls: 0 };
+        const next = { ...current, log, lastContact: quote.date || today(), missedCalls: 0 };
+        delete next.quotes;
+        return next;
       });
     }
 

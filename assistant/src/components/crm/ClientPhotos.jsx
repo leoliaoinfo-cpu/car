@@ -10,6 +10,7 @@ import { generateId } from '../../utils/crm';
 export default function ClientPhotos({ clientId }) {
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
   const [viewer, setViewer] = useState(null); // 放大檢視的 photo id
   const urlsRef = useRef(new Map());
   const cardInput = useRef(null);
@@ -37,19 +38,29 @@ export default function ClientPhotos({ clientId }) {
     const files = [...(fileList || [])].filter((f) => f.type.startsWith('image/'));
     if (!files.length) return;
     setBusy(true);
+    setMessage('');
     try {
       const added = [];
+      let usedOriginal = false;
       for (const file of files) {
         let blob = file, w = 0, h = 0;
         try {
           const r = await compressImage(file, kind === 'card' ? { maxDim: 1800, quality: 0.78 } : { maxDim: 1600, quality: 0.72 });
           blob = r.blob; w = r.w; h = r.h;
-        } catch { /* 壓縮失敗就存原檔 */ }
+        } catch { usedOriginal = true; }
         const photo = { id: generateId('photo'), clientId, kind, blob, size: blob.size, w, h, name: file.name || '', createdAt: new Date().toISOString() };
         await db.putPhoto(photo);
         added.push(photo);
       }
       setPhotos((prev) => [...prev, ...added]);
+      setMessage(usedOriginal
+        ? `已儲存 ${added.length} 張；其中有照片無法壓縮，會占用較多本機空間。`
+        : `已儲存 ${added.length} 張照片。`);
+    } catch (error) {
+      const quota = error?.name === 'QuotaExceededError';
+      setMessage(quota
+        ? '❌ 本機儲存空間不足，照片沒有全部存入。請先刪除不需要的照片或改存 LINE 相簿。'
+        : `❌ 照片儲存失敗：${error?.message || '請稍後再試'}`);
     } finally {
       setBusy(false);
     }
@@ -111,6 +122,7 @@ export default function ClientPhotos({ clientId }) {
       </div>
 
       {busy && <p className="text-xs text-accent">處理中…</p>}
+      {message && <p className="text-xs text-ink-2 bg-s2 rounded-lg px-3 py-2">{message}</p>}
       <p className="text-[10px] text-ink-3">照片只存在這台裝置（不上傳雲端、不佔同步空間），上傳時自動壓縮省空間；跨裝置照片請使用客戶 LINE 相簿，刪除客戶會一併刪除本機照片。</p>
 
       {/* 放大檢視 */}

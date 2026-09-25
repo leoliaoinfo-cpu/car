@@ -36,7 +36,6 @@ export default function DealsPage({ onOpenClient }) {
     saveCostCatalog,
     savePricingRecord,
     saveQuoteDraft,
-    updateClient,
   } = useApp();
   const [section, setSection] = useState('performance');
   const [view, setView] = useState('month');
@@ -150,16 +149,8 @@ export default function DealsPage({ onOpenClient }) {
     setSection('costs');
   }
 
-  async function saveQuoteFromPricing({ quote, client, source }) {
-    if (source === 'draft') {
-      await saveQuoteDraft(quote);
-      return;
-    }
-    if (!client?.id) return;
-    await updateClient(client.id, (current) => ({
-      ...current,
-      quotes: (current.quotes || []).map((item) => (item.id === quote.id ? quote : item)),
-    }));
+  async function saveQuoteFromPricing({ quote, client }) {
+    await saveQuoteDraft({ ...quote, clientId: quote.clientId || client?.id || null });
   }
 
   const tabs = [

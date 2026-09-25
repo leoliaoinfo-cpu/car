@@ -12,6 +12,7 @@ import { Field, ClientPicker } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
 import { requirementSummary, requirementPendingItems } from '../../utils/reception';
+import { quotesForClient } from '../../utils/quotes';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -34,9 +35,11 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
     deals, dealFields, saveDeal, todoTemplate, industries,
-    pricingRecords, savePricingRecord, deletePricingRecord,
+    pricingRecords, savePricingRecord,
+    quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     events, saveEvent, deleteEvent,
   } = useApp();
+  const clientQuotes = quotesForClient(quoteDrafts, client.id);
 
   // 此客戶的生日 / 重要日子（行事曆活動）
   const clientEvents = events
@@ -160,6 +163,19 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     if (def.hasAmount && amount > 0) entry.amount = amount;
 
     const annual = annualReminders;
+    const isDelivery = type === 'delivery';
+    const isSaleEvent = type === 'order' || isDelivery;
+    const activeDeal = clientDeals[0] || null;
+    if (isDelivery) {
+      const openTodos = (client.todos || []).filter((todo) => !todo.done).length;
+      const requiredSteps = ['contract', 'supplier', 'orders', 'tailgate', 'paint', 'plate', 'install'];
+      const unfinishedSop = activeDeal
+        ? requiredSteps.filter((step) => !['done', 'na'].includes(activeDeal.deliverySop?.[step]?.status)).length
+        : requiredSteps.length;
+      if ((openTodos > 0 || unfinishedSop > 0) && !window.confirm(
+        `交車前仍有 ${openTodos} 項客戶待辦、${unfinishedSop} 項交車 SOP 尚未完成。確定仍要記錄交車嗎？`,
+      )) return;
+    }
 
     // 先關閉表單再儲存：避免連點重複記錄、避免儲存期間的輸入被清掉
     setEventType(null);
@@ -167,7 +183,6 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     setEventAmount('');
 
     // 交車：自動建立 3 / 7 / 30 天售後回訪提醒，並把下次追蹤設為 3 天後
-    const isDelivery = type === 'delivery';
     if (isDelivery) {
       for (const n of DELIVERY_FOLLOWUP_DAYS) {
         await saveTimer({
@@ -199,11 +214,48 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
       }
     }
 
+    let deal = activeDeal;
+    if (isSaleEvent && !deal) {
+      const latestQuote = clientQuotes[0] || null;
+      deal = await saveDeal({
+        id: generateId('deal'), clientId: client.id, clientName: client.name,
+        date: t, amount: amount > 0 ? amount : Number(latestQuote?.total) || 0,
+        note: latestQuote?.model || eventNote.trim() || def.label,
+        fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '',
+        deliverySop: {
+          contract: { status: 'done', note: type === 'order' ? '下訂時自動完成' : '交車時補建', updatedAt: new Date().toISOString() },
+          ...(isDelivery ? { delivery: { status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() } } : {}),
+        },
+      });
+      const quotePricing = latestQuote
+        ? pricingRecords.find((row) => row.id === `quote:${latestQuote.id}`)
+        : null;
+      if (quotePricing) {
+        const saleTotal = amount > 0 ? amount : Number(latestQuote.total) || 0;
+        const profit = quotePricing.profit == null ? null
+          : quotePricing.profit + (saleTotal - Number(quotePricing.saleTotal || 0));
+        await savePricingRecord({
+          ...quotePricing, id: `deal:${deal.id}`, kind: 'deal', dealId: deal.id,
+          saleTotal, profit, belowCost: profit != null && profit < 0,
+          capturedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        });
+      }
+    } else if (isDelivery && deal) {
+      deal = await saveDeal({
+        ...deal,
+        deliverySop: {
+          ...(deal.deliverySop || {}),
+          delivery: { status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() },
+        },
+      });
+    }
+
+    const nextStageName = isDelivery ? '售後' : type === 'order' ? '成交' : null;
+    const nextStage = nextStageName ? stages.find((item) => item.name === nextStageName) : null;
     await updateClient(client.id, (c) => ({
-      ...c,
-      lastContact: t,
-      missedCalls: 0,
+      ...c, lastContact: t, missedCalls: 0,
       log: [...(c.log || []), entry],
+      ...(nextStage ? { stageId: nextStage.id } : {}),
       // 交車完成：下次追蹤設 3 天後，並清除「預計交車日」（已交車就不再提醒）
       ...(isDelivery ? { nextDate: addDays(t, DELIVERY_FOLLOWUP_DAYS[0]), deliveryDate: '' } : {}),
     }));
@@ -253,54 +305,41 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     }));
   }
 
-  /** 報價單：新增寫入 quotes + 時間軸事件；編輯同步更新對應事件的金額與說明 */
+  /** 報價單以 quoteDrafts 為唯一存檔；客戶時間軸只保存 quoteId 關聯。 */
   async function handleSaveQuote(q) {
     const { _pricingRecord, ...quoteData } = q;
     const isEdit = quoteModal && quoteModal !== 'new';
     setQuoteModal(null);
     const t = today();
+    const quote = await saveQuoteDraft({
+      ...quoteData,
+      clientId: client.id,
+      customerName: quoteData.customerName || client.name || '',
+      customerPhone: quoteData.customerPhone || client.phone || '',
+    });
     await updateClient(client.id, (c) => {
-      const quotes = [...(c.quotes || [])];
-      const idx = quotes.findIndex((x) => x.id === q.id);
-      const record = {
-        id: q.id, date: q.date, model: q.model, modelId: q.modelId, items: q.items,
-        clientId: client.id, customerName: q.customerName, customerPhone: q.customerPhone,
-        requirements: q.requirements,
-        generalDiscounts: q.generalDiscounts,
-        originalTotal: q.originalTotal,
-        itemDiscountTotal: q.itemDiscountTotal,
-        generalDiscountTotal: q.generalDiscountTotal,
-        discountTotal: q.discountTotal,
-        note: q.note, total: q.total, loan: q.loan,
-      };
-      if (idx === -1) quotes.push(record);
-      else quotes[idx] = record;
       let log = c.log || [];
       if (isEdit) {
-        log = log.map((e) => (e.quoteId === q.id ? { ...e, text: q.text, amount: q.total } : e));
+        log = log.map((e) => (e.quoteId === quote.id ? { ...e, text: quote.text, amount: quote.total } : e));
       } else {
         log = [...log, {
-          id: generateId('log'), date: t, type: 'quote', quoteId: q.id, text: q.text, amount: q.total,
+          id: generateId('log'), date: t, type: 'quote', quoteId: quote.id, text: quote.text, amount: quote.total,
         }];
       }
-      return {
+      const next = {
         ...c,
-        quotes,
         log,
         ...(isEdit ? {} : { lastContact: t, missedCalls: 0 }),
       };
+      delete next.quotes;
+      return next;
     });
-    if (_pricingRecord) await savePricingRecord({ ..._pricingRecord, clientId: client.id, quoteId: quoteData.id });
+    if (_pricingRecord) await savePricingRecord({ ..._pricingRecord, clientId: client.id, quoteId: quote.id });
   }
 
   async function removeQuote(id) {
     setConfirmDeleteQuoteId(null);
-    // 只刪報價單存檔，時間軸的報價事件保留為歷史
-    await updateClient(client.id, (c) => ({
-      ...c,
-      quotes: (c.quotes || []).filter((q) => q.id !== id),
-    }));
-    await deletePricingRecord(`quote:${id}`).catch(() => {});
+    await deleteQuoteDraft(id);
   }
 
   /** 時間軸事件：編輯 / 刪除 */
@@ -330,8 +369,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   /** 成交歸檔：寫入業績表 + 客戶時間軸 */
   async function handleArchiveDeal(deal) {
     setShowDealModal(false);
-    const latestQuote = [...(client.quotes || [])]
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0] || null;
+    const latestQuote = clientQuotes[0] || null;
     const fullDeal = {
       ...deal,
       quoteId: latestQuote?.id || null,
@@ -910,10 +948,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               ＋ 建立報價單
             </button>
           </div>
-          {(client.quotes || []).length === 0 && (
+          {clientQuotes.length === 0 && (
             <p className="text-xs text-ink-3">填車型與項目價格，產生可截圖的報價單；建立後可隨時回來編輯。</p>
           )}
-          {[...(client.quotes || [])].reverse().map((q) => (
+          {clientQuotes.map((q) => (
             <div key={q.id} className="flex items-center gap-2 text-xs bg-s2 rounded-lg px-3 py-2">
               <span className="text-ink-3 font-mono shrink-0">{dayjs(q.date).format('MM/DD')}</span>
               <span className="flex-1 truncate text-ink-2">{q.model || '未填車型'}</span>

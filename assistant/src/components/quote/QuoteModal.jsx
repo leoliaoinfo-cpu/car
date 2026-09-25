@@ -476,27 +476,36 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     setExportError('');
     // 複製一份到頁面底層、完整展開（脫離捲動容器），避免 WebKit 不繪製超出畫面很遠的元素。
     const clone = src.cloneNode(true);
-    clone.style.position = 'absolute';
+    clone.style.position = 'fixed';
     clone.style.top = '0';
-    clone.style.left = '0';
-    clone.style.zIndex = '-1';
+    clone.style.left = '-10000px';
+    clone.style.zIndex = '1';
     clone.style.pointerEvents = 'none';
     clone.style.margin = '0';
+    clone.style.transform = 'none';
+    clone.style.maxHeight = 'none';
+    clone.style.overflow = 'visible';
     clone.style.width = `${src.offsetWidth}px`; // 保持與畫面上相同的斷行
     document.body.appendChild(clone);
     try {
+      if (document.fonts?.ready) {
+        await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 1500))]);
+      }
       const width = Math.max(1, clone.offsetWidth);
       const height = Math.max(1, clone.offsetHeight);
       // iOS Safari 的大畫布容易失敗；保留清晰度，同時將總像素控制在安全範圍。
       const pixelBudgetScale = Math.sqrt(8_000_000 / (width * height));
       const dimensionScale = Math.min(8192 / width, 8192 / height);
       const scale = Math.max(1, Math.min(2, window.devicePixelRatio || 1, pixelBudgetScale, dimensionScale));
-      const canvas = await html2canvas(clone, {
-        scale,
-        backgroundColor: '#ffffff', useCORS: true, logging: false,
-        width, height,
-        windowWidth: width, windowHeight: height,
+      const capture = html2canvas(clone, {
+        scale, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        imageTimeout: 4000, removeContainer: true,
+        width, height, windowWidth: width, windowHeight: height,
       });
+      const canvas = await Promise.race([
+        capture,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('capture timeout')), 20000)),
+      ]);
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('capture failed');
       const fileName = `報價單-${(customerName || client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
@@ -507,7 +516,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       });
     } catch (error) {
       console.error('quote image export failed', error);
-      setExportError('圖片產生失敗。請先重新開啟這張報價；若仍失敗，請回報手機型號與瀏覽器。');
+      setExportError(error?.message === 'capture timeout'
+        ? '圖片產生超過 20 秒，已自動停止。請先關閉其他 App 後重試，或改用 LINE 文字版。'
+        : '圖片產生失敗。請先重新開啟這張報價；若仍失敗，請回報手機型號與瀏覽器。');
     } finally {
       if (clone.parentNode) clone.parentNode.removeChild(clone);
       setCapturing(false);
@@ -1057,7 +1068,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                               )}
                               {item.note && (
                                 <span style={{ display: 'block', color: '#8b98a1', fontSize: 10.5, marginTop: 2 }}>
-                                  車色備註：{item.note}
+                                  備註：{item.note}
                                 </span>
                               )}
                             </span>
