@@ -10,6 +10,15 @@ test('eight K2500 variants use the current single-source prices', () => {
   assert.equal(formatVehiclePrice(858000), '85.8 萬');
 });
 
+test('K2500 variants include fuel, urea and practical range notes', () => {
+  for (const variant of VEHICLE_VARIANTS) {
+    assert.equal(variant.fuelTankL, 65);
+    assert.equal(variant.ureaTankL, 14);
+    assert.equal(variant.ureaPricePerL, 20);
+    assert.equal(variant.estimatedRangeKm, variant.transmission === '自排' ? 580 : 620);
+  }
+});
+
 test('Taiwanese chi conversion is derived from millimetres', () => {
   assert.equal(convertMmToTaiwaneseChi(3110), '10.26');
   assert.equal(convertMmToTaiwaneseChi(2860), '9.44');

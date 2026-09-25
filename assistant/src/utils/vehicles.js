@@ -6,6 +6,8 @@ const COMMON_POWERTRAIN = {
   maxPower: '130 ps / 3,600 rpm',
   maxTorque: '26.0 kg-m / 1,250～3,500 rpm',
   fuelTankL: 65,
+  ureaTankL: 14,
+  ureaPricePerL: 20,
   battery: '12V-100AH',
   alternator: '12V-90A',
   widthMm: 1740,
@@ -46,6 +48,7 @@ export const VEHICLE_VARIANTS = [
   { ...fourWheel, id: 'qm-8', cab: '雙廂', seats: 6, transmission: '手排', transmissionLabel: '6速手排', lengthMm: 4810, cargoLengthMm: 1870, curbWeightKg: 1969, payloadKg: 1391, grossVehicleWeightKg: 3360, fuelEconomyKmL: 9.3, annualFuelL: 1613, energyEfficiency: 5, topSpeedKmh: 142, msrpTwd: 1078000, commissionTwd: 45000 },
 ].map((variant) => ({
   ...variant,
+  estimatedRangeKm: variant.transmission === '自排' ? 580 : 620,
   name: `${variant.drive} ${variant.cab} ${variant.transmission}`,
   quoteName: `${variant.drive === '4WD' ? '4WD四輪傳動 ' : ''}${variant.cab}${variant.seats}人座 ${variant.transmissionLabel}`,
 }));
