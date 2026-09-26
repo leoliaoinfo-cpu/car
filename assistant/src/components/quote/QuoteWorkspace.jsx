@@ -9,6 +9,10 @@ function pendingCount(quote) {
   return (quote?.items || []).filter((item) => item.pending).length;
 }
 
+function requirementPendingCount(quote) {
+  return Array.isArray(quote?.pendingRequirements) ? quote.pendingRequirements.length : 0;
+}
+
 export default function QuoteWorkspace({ onOpenClient }) {
   const {
     clients, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
@@ -161,6 +165,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
             const linked = clientMap.get(quote.clientId);
             const customer = quote.customerName || linked?.name || '未填客戶';
             const pending = pendingCount(quote);
+            const pendingRequirements = requirementPendingCount(quote);
             return (
               <article key={quote.id} className="card p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -171,6 +176,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
                       {pending > 0
                         ? <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">待廠商報價 {pending} 項</span>
                         : <span className="text-[10px] rounded-full bg-ok/10 text-ok border border-ok/30 px-2 py-0.5">價格已齊</span>}
+                      {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
                   </div>

@@ -158,20 +158,22 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     const items = [];
     const variant = getVehicleVariant(session.vehicleVariantId);
     const plan = heightPlanning(session, variant, heightConfig);
+    const pendingRequirements = requirementPendingItems(session, variant, heightConfig);
     if (variant && session.customerMode === '新車＋改裝') items.push({ id: generateId('qi'), kind: 'vehicle', catalogId: variant.id, name: '車輛售價', price: variant.msrpTwd, pending: false, discounts: [] });
     for (const [name, detail] of Object.entries(session.requirements || {})) {
-      if (!detail?.selected || detail.status !== '已確認') continue;
-      if (plan.itemStatus[name] && !plan.itemStatus[name].canConfirm) continue;
+      if (!detail?.selected) continue;
       const catalog = findCatalogItem(name, detail);
       if (!catalog) continue;
+      const heightStatus = plan.itemStatus[name];
       items.push({
         id: generateId('qi'), kind: 'addon', catalogId: catalog.id, name: catalog.name,
         price: catalog.price || 0, pending: !!catalog.pendingPrice,
         description: catalog.desc || '', note: detail.note || '', discounts: [],
+        requirementStatus: detail.status === '已確認' && (!heightStatus || heightStatus.canConfirm) ? '已確認' : '待確認',
       });
     }
-    if (!items.some((item) => item.kind === 'addon')) {
-      setNotice('目前沒有「已確認」且能對應現有型錄的配件。需求不會自動變成報價。');
+    if (items.length === 0) {
+      setNotice('目前沒有可帶入報價的車型或配件；請先選車型或選配需求。');
       return;
     }
     const totals = calculateQuoteTotals(items.filter((item) => !item.pending), []);
@@ -184,11 +186,14 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       requirements: requirementSummary(session).join('、'),
       note: session.quickNote || '',
       internalHeightPlanSummary: heightPlanSummary(session, variant, heightConfig),
+      pendingRequirements,
       originalTotal: totals.originalTotal, itemDiscountTotal: 0, generalDiscountTotal: 0, discountTotal: 0, total: totals.total,
       sourceReceptionId: session.id, createdAt: new Date().toISOString(),
     };
     await saveQuoteDraft(quote);
-    setNotice('已把確認完成的需求加入原本報價系統。');
+    setNotice(pendingRequirements.length
+      ? `已建立初步報價；還有 ${pendingRequirements.length} 項內部資料待確認，報價編輯時會持續提醒。`
+      : '已把需求加入原本報價系統。');
     onOpenQuotes?.();
   }
 
@@ -310,7 +315,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
         <Section title="6. 需求摘要"><div className="grid sm:grid-cols-2 gap-x-5 gap-y-2 text-sm">{[['行業', session.industry], ['目前車', session.currentVehicle], ['載運', (session.cargo || []).join('＋')], ['載重', session.loadKg ? `約 ${session.loadKg}kg` : session.loadRange], ['駕駛', session.driver], ['路線', (session.environments || []).join('＋')], ['限高', ['會', '會下地下室', '有其他限高場所'].includes(session.parking) ? `${session.clearanceCm || '待確認'}cm` : session.parking], ['考慮車型', variant?.name]].map(([label, value]) => value && <div key={label} className="flex justify-between gap-3 border-b border-bdr/40 py-2"><span className="text-ink-3">{label}</span><strong className="text-right">{value}</strong></div>)}</div>{summary.length > 0 && <div><p className="text-xs text-ink-3 mb-2">車體／配備</p><div className="flex flex-wrap gap-2">{summary.map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div></div>}{generatedHeightSummary && <div className="space-y-2"><div className="flex items-center justify-between gap-2"><p className="text-xs text-ink-3">自動施工交接</p><button type="button" onClick={copyHandoff} className="btn-outline text-xs">📋 複製施工交接</button></div><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{generatedHeightSummary}</pre>{handoffCopyStatus && <p className="text-xs text-ok">{handoffCopyStatus}</p>}</div>}<textarea value={session.quickNote} onChange={(e) => update({ quickNote: e.target.value })} placeholder="快速備註（手機可使用鍵盤語音輸入）" rows={4} className="w-full" /><textarea value={session.handoffNote} onChange={(e) => update({ handoffNote: e.target.value })} placeholder="補充交接備註（自動施工交接之外的提醒）" rows={3} className="w-full" /></Section>
 
         {notice && <div className="rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm flex gap-3"><span className="flex-1">{notice}</span><button onClick={onNotice}>×</button></div>}
-        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將已確認需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">正式建檔</button><button onClick={onHold} className="btn-outline min-h-12">先保留</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">無後續</button></div>
+        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將選定需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">正式建檔</button><button onClick={onHold} className="btn-outline min-h-12">先保留</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">無後續</button></div>
       </main>
     </div>
   );

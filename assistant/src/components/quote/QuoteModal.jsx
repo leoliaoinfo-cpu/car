@@ -353,6 +353,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
 
   function makeQuotePayload() {
     return {
+      ...(quote || {}),
       id: quoteId,
       clientId: client?.id || linkedClientId || null,
       date: quote?.date || dayjs().format('YYYY-MM-DD'),
@@ -372,6 +373,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         pending: !!it.pending,
         description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
         note: String(it.note || '').trim(),
+        requirementStatus: it.requirementStatus || null,
         discounts: it.pending ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
@@ -612,6 +614,18 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 )}
                 {customerError && <p role="alert" className="text-xs text-danger">{customerError}</p>}
               </div>
+            )}
+            {(quote?.internalHeightPlanSummary || quote?.pendingRequirements?.length > 0) && (
+              <details className="rounded-xl border border-warn/35 bg-warn/10 p-3" defaultOpen={quote?.pendingRequirements?.length > 0}>
+                <summary className="cursor-pointer text-sm font-semibold text-warn">⚠️ 接待需求與施工檢查（僅內部顯示）</summary>
+                <div className="mt-3 space-y-3">
+                  {quote?.pendingRequirements?.length > 0
+                    ? <div><p className="text-xs font-semibold text-warn mb-2">這是初步報價，仍待確認：</p><div className="flex flex-wrap gap-1.5">{quote.pendingRequirements.map((item) => <span key={item} className="badge bg-s1 text-ink-2">○ {item}</span>)}</div></div>
+                    : <p className="text-xs text-ok">高度與改裝需求目前沒有缺漏項目。</p>}
+                  {quote?.internalHeightPlanSummary && <pre className="whitespace-pre-wrap rounded-lg bg-s1 border border-bdr p-3 text-xs leading-relaxed font-sans">{quote.internalHeightPlanSummary}</pre>}
+                  <p className="text-[11px] text-ink-3">此區不會出現在客戶報價圖片；未確認項目仍可先報初步價格，但不能視為施工規格已確認。</p>
+                </div>
+              </details>
             )}
             <Field label="客戶需求／用途（內部備忘，不會出現在報價圖片）">
               <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3}
