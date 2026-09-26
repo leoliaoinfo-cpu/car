@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatVehiclePrice } from './vehicles.js';
-import { dependencyReminders, heightAssessment, requirementPendingItems, requirementSummary } from './reception.js';
+import {
+  dependencyReminders, heightAssessment, heightPlanning, heightPlanSummary,
+  requirementPendingItems, requirementSummary,
+} from './reception.js';
 
 test('eight K2500 variants use the current single-source prices', () => {
   assert.equal(VEHICLE_VARIANTS.length, 8);
@@ -41,7 +44,7 @@ test('requirements stay separate and expose pending details', () => {
     貨斗底板: { selected: true, status: '已確認', material: '白鐵', surface: '花紋／止滑' },
     升降尾門: { selected: true, status: '考慮中', size: '3.5' }, 帆布: { selected: true },
   } };
-  assert.deepEqual(requirementSummary(session), ['白鐵／花紋板', '3.5尺升降尾門', '帆布']);
+  assert.deepEqual(requirementSummary(session), ['白鐵／花紋板', '3.5尺升降尾門', '帆布（規格待確認）']);
   assert.ok(requirementPendingItems(session).includes('尾門實際承重規格'));
   assert.ok(requirementPendingItems(session).includes('後方帆布與尾門配置'));
 });
@@ -51,4 +54,60 @@ test('height comparison avoids promises when height-changing accessories exist',
   const result = heightAssessment({ parking: '會', clearanceCm: '220', requirements: { 帆布: { selected: true } } }, variant);
   assert.equal(result.differenceCm, 20.5);
   assert.equal(result.status, '完成車高度待確認');
+});
+
+test('height planning adds suspension lift before calculating usable body height', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = {
+    parking: '不會', suspensionPlan: '改避震', requirements: {
+      帆布: { selected: true, canvasSpec: '自訂／其他', customHeightCm: '180' },
+    },
+  };
+  const result = heightPlanning(session, variant);
+  assert.equal(result.baseBedCm, 77);
+  assert.equal(result.adjustedBedCm, 82);
+  assert.equal(result.controlTotalCm, 270);
+  assert.equal(result.availableCm, 188);
+  assert.equal(result.itemStatus['帆布'].estimatedTotalCm, 262);
+  assert.equal(result.itemStatus['帆布'].canConfirm, true);
+});
+
+test('basement clearance reserves safety margin and blocks an over-height canvas', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '4WD');
+  const session = {
+    parking: '會下地下室', clearanceCm: '210', safetyReserveCm: '10', suspensionPlan: '加葉片', requirements: {
+      帆布: { selected: true, canvasSpec: '自訂／其他', customHeightCm: '120' },
+    },
+  };
+  const result = heightPlanning(session, variant);
+  assert.equal(result.adjustedBedCm, 87.5);
+  assert.equal(result.controlTotalCm, 200);
+  assert.equal(result.availableCm, 112.5);
+  assert.equal(result.itemStatus['帆布'].kind, 'danger');
+  assert.equal(result.itemStatus['帆布'].canConfirm, false);
+  assert.ok(requirementPendingItems(session, variant).includes('帆布預估超過高度限制'));
+});
+
+test('height-sensitive work stays pending until suspension and canvas height are confirmed', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = { parking: '不會', requirements: { 帆布: { selected: true, canvasSpec: '標準高' } } };
+  const result = heightPlanning(session, variant);
+  assert.ok(result.missing.includes('避震／葉片升高方案'));
+  assert.ok(result.missing.includes('標準高後台高度'));
+  assert.equal(result.itemStatus['帆布'].canConfirm, false);
+  assert.match(dependencyReminders(session, variant).join('\n'), /必須先確認是否改避震/);
+  assert.match(heightPlanSummary(session, variant), /狀態：⚠️ 待確認/);
+});
+
+test('tailgate-only planning does not display a false zero-margin warning', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = {
+    parking: '不會', suspensionPlan: '原廠高度', requirements: {
+      升降尾門: { selected: true, size: '3.5', maxWeight: '300～500kg' },
+    },
+  };
+  const result = heightPlanning(session, variant);
+  assert.equal(result.itemStatus['升降尾門'].kind, 'ok');
+  assert.equal(result.itemStatus['升降尾門'].marginCm, null);
+  assert.match(heightPlanSummary(session, variant), /尾門：3.5尺／300～500kg/);
 });

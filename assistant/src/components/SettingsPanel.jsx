@@ -32,7 +32,7 @@ const HELP_CARDS = [
   { icon: '☁️', title: '雲端同步', desc: '第一次使用先到設定連線汽車系統專用的私人 GitHub repo；完成後可跨裝置同步文字資料。照片仍以 LINE 相簿分享。' },
 ];
 
-const SECTION_KEYS = ['sync', 'backup', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'rules', 'help'];
+const SECTION_KEYS = ['sync', 'backup', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'height', 'rules', 'help'];
 const SECTION_LABELS = {
   deals: '📈 內部業績與成本',
   sync: '☁️ 雲端同步',
@@ -45,15 +45,16 @@ const SECTION_LABELS = {
   dealFields: '🏆 業績欄位',
   template: '📋 待辦範本',
   quoteMenu: '🚚 報價選單',
+  height: '📐 車高參數',
   rules: '⏱ 追蹤規則',
   help: '📖 使用說明',
 };
 
 export default function SettingsPanel({ onClose, onOpenDeals }) {
   const {
-    cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets, industries,
+    cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets, industries, heightConfig,
     saveCats, saveStages, saveCustomFields, saveDealFields, saveThresholds,
-    saveTodoTemplate, saveQuotePresets, saveIndustries, reloadAll,
+    saveTodoTemplate, saveQuotePresets, saveIndustries, saveHeightConfig, reloadAll,
   } = useApp();
   const [activeSection, setActiveSection] = useState('sync');
   const [fullscreen, setFullscreen] = useState(false);
@@ -214,6 +215,10 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
                 onChange={(subsidies) => saveQuotePresets({ ...quotePresets, subsidies })}
               />
             </div>
+          )}
+
+          {activeSection === 'height' && (
+            <HeightConfigEditor value={heightConfig} onSave={saveHeightConfig} />
           )}
 
           {/* ── Rules ── */}
@@ -683,6 +688,47 @@ function StringListEditor({ title, desc, items, newItemText, onChange }) {
       ))}
     </div>
   );
+}
+
+function HeightConfigEditor({ value, onSave }) {
+  const [draft, setDraft] = useState(value);
+  const [saved, setSaved] = useState('');
+  useEffect(() => setDraft(value), [value]);
+  const fields = [
+    ['bedHeight2wdCm', 'K2500 2WD 貨斗離地', '77'],
+    ['bedHeight4wdCm', 'K2500 4WD 貨斗離地', '85.5'],
+    ['shockLiftCm', '改避震升高量', '5'],
+    ['leafLiftCm', '加葉片升高量', '2'],
+    ['generalControlCm', '一般規劃控制總高', '270'],
+    ['basementReserveCm', '地下室預設安全預留', '10'],
+    ['nearLimitCm', '接近限制警示範圍', '5'],
+  ];
+  const canvasFields = [
+    ['canvasRaisedCm', '標準加高（斗上高度）'],
+    ['canvasStandardCm', '標準高（斗上高度）'],
+    ['canvasLoweredCm', '標準降低（斗上高度）'],
+  ];
+  const set = (key, next) => { setDraft((current) => ({ ...current, [key]: next })); setSaved(''); };
+  async function commit() {
+    const clean = await onSave(draft);
+    setDraft(clean);
+    setSaved('✅ 車高參數已儲存，接待中的計算會立即套用。');
+  }
+  return <div className="space-y-4">
+    <div className="rounded-2xl border border-warn/30 bg-warn/10 p-4 text-sm text-ink-2 space-y-2">
+      <h3 className="font-bold text-ink">📐 車高／帆布參數</h3>
+      <p>270 cm 是目前業務規劃控制值，不直接等同每台車的合法保證值。小型車全高仍須依行照車寬、實車最高點、合法車身廠與監理檢驗確認。</p>
+    </div>
+    <div className="card p-4 grid sm:grid-cols-2 gap-3">
+      {fields.map(([key, label, placeholder]) => <label key={key} className="space-y-1"><span className="text-xs text-ink-3">{label}（cm）</span><input type="number" inputMode="decimal" min="0" value={draft?.[key] ?? ''} placeholder={placeholder} onChange={(e) => set(key, e.target.value)} className="w-full" /></label>)}
+    </div>
+    <div className="card p-4 space-y-3">
+      <div><h3 className="font-semibold">帆布常用規格</h3><p className="text-xs text-ink-3 mt-1">尚未取得公司固定尺寸可留空；留空時案件會保持「待確認」，不會誤判可施工。</p></div>
+      <div className="grid sm:grid-cols-3 gap-3">{canvasFields.map(([key, label]) => <label key={key} className="space-y-1"><span className="text-xs text-ink-3">{label}</span><input type="number" inputMode="decimal" min="0" value={draft?.[key] ?? ''} placeholder="待設定" onChange={(e) => set(key, e.target.value)} className="w-full" /></label>)}</div>
+    </div>
+    {saved && <p className="text-sm text-ok">{saved}</p>}
+    <button type="button" onClick={commit} className="btn-primary w-full min-h-11">儲存車高參數</button>
+  </div>;
 }
 
 // ── ThresholdEditor（追蹤規則天數）────────────────────────────────────────────

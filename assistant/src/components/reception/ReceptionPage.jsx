@@ -6,8 +6,8 @@ import { findDuplicateClient, generateId } from '../../utils/crm';
 import {
   CARGO_OPTIONS, CURRENT_VEHICLES, DRIVER_OPTIONS, ENVIRONMENT_OPTIONS, LOAD_OPTIONS,
   REASON_OPTIONS, RECEPTION_INDUSTRIES, REQUIREMENT_TYPES, RIDER_OPTIONS,
-  dependencyReminders, heightAssessment, newReceptionSession, receptionPromptStatus,
-  requirementPendingItems, requirementSummary, toggleListValue,
+  dependencyReminders, heightPlanning, heightPlanSummary, newReceptionSession, receptionPromptStatus,
+  requirementPendingItems, requirementSummary, requiresHeightPlanning, toggleListValue,
 } from '../../utils/reception';
 import {
   VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatTwd, formatVehiclePrice, getVehicleVariant,
@@ -48,7 +48,7 @@ function FieldBlock({ label, children, note }) {
 export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenClient, onOpenQuotes, onOpenCatalog }) {
   const {
     receptionSessions, saveReceptionSession, deleteReceptionSession,
-    clients, quotePresets, saveQuoteDraft, saveClient, updateClient, cats, stages,
+    clients, quotePresets, saveQuoteDraft, saveClient, updateClient, cats, stages, heightConfig,
   } = useApp();
   const [view, setView] = useState('sessions');
   const [selectedId, setSelectedId] = useState(null);
@@ -84,6 +84,8 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
 
   async function formalize() {
     if (!session || !formal.name.trim()) return;
+    const selectedVariant = getVehicleVariant(session.vehicleVariantId);
+    const generatedHeightSummary = heightPlanSummary(session, selectedVariant, heightConfig);
     const duplicate = findDuplicateClient(clients, {
       name: formal.name.trim(), phone: formal.phone,
     });
@@ -106,7 +108,8 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         receptionSessionId: session.id,
         demandProfile: session,
         requirementSummary: requirementSummary(session),
-        pendingRequirements: requirementPendingItems(session),
+        pendingRequirements: requirementPendingItems(session, selectedVariant, heightConfig),
+        heightPlanSummary: generatedHeightSummary || current.heightPlanSummary || '',
         notes: [current.notes, session.quickNote].filter(Boolean).join('\n'),
         truckComparison: session.truckComparison || current.truckComparison || null,
       }));
@@ -123,7 +126,8 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
       clientType: formal.company ? 'company' : 'personal', log: [], missedCalls: 0,
       receptionSessionId: session.id, demandProfile: session,
-      requirementSummary: requirementSummary(session), pendingRequirements: requirementPendingItems(session),
+      requirementSummary: requirementSummary(session), pendingRequirements: requirementPendingItems(session, selectedVariant, heightConfig),
+      heightPlanSummary: generatedHeightSummary,
       notes: session.quickNote || '', createdAt: new Date().toISOString(),
       truckComparison: session.truckComparison || null,
     };
@@ -152,9 +156,11 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     if (!session) return;
     const items = [];
     const variant = getVehicleVariant(session.vehicleVariantId);
+    const plan = heightPlanning(session, variant, heightConfig);
     if (variant && session.customerMode === '新車＋改裝') items.push({ id: generateId('qi'), kind: 'vehicle', catalogId: variant.id, name: '車輛售價', price: variant.msrpTwd, pending: false, discounts: [] });
     for (const [name, detail] of Object.entries(session.requirements || {})) {
       if (!detail?.selected || detail.status !== '已確認') continue;
+      if (plan.itemStatus[name] && !plan.itemStatus[name].canConfirm) continue;
       const catalog = findCatalogItem(name, detail);
       if (!catalog) continue;
       items.push({
@@ -174,7 +180,9 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       customerName: linkedClientId ? session.displayName : '', customerPhone: '',
       modelId: variant?.id || null, model: variant?.quoteName || '',
       excludeVehiclePrice: session.customerMode === '只做改裝', items, generalDiscounts: [],
-      requirements: requirementSummary(session).join('、'), note: session.quickNote || '',
+      requirements: requirementSummary(session).join('、'),
+      note: session.quickNote || '',
+      internalHeightPlanSummary: heightPlanSummary(session, variant, heightConfig),
       originalTotal: totals.originalTotal, itemDiscountTotal: 0, generalDiscountTotal: 0, discountTotal: 0, total: totals.total,
       sourceReceptionId: session.id, createdAt: new Date().toISOString(),
     };
@@ -184,7 +192,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   }
 
   if (session) return <>
-    <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement}
+    <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement} heightConfig={heightConfig}
       onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote}
       onOpenCatalog={onOpenCatalog}
       onOpenComparison={() => setShowSessionComparison(true)}
@@ -227,14 +235,23 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   );
 }
 
-function ReceptionEditor({ session, update, updateRequirement, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
+function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
   const promptStatus = receptionPromptStatus(session);
-  const pending = requirementPendingItems(session);
-  const reminders = dependencyReminders(session);
   const summary = requirementSummary(session);
   const variant = getVehicleVariant(session.vehicleVariantId);
-  const assessment = heightAssessment(session, variant);
-  const setRequirementSelected = (name) => updateRequirement(name, { selected: !session.requirements?.[name]?.selected, status: session.requirements?.[name]?.status || '考慮中' });
+  const heightPlan = heightPlanning(session, variant, heightConfig);
+  const generatedHeightSummary = heightPlanSummary(session, variant, heightConfig);
+  const pending = requirementPendingItems(session, variant, heightConfig);
+  const reminders = dependencyReminders(session, variant, heightConfig);
+  const heightTriggered = requiresHeightPlanning(session);
+  const setRequirementSelected = (name) => {
+    const selected = !!session.requirements?.[name]?.selected;
+    const currentStatus = session.requirements?.[name]?.status;
+    updateRequirement(name, {
+      selected: !selected,
+      status: !selected && ['帆布', '箱體', '伸縮箱體', '升降尾門'].includes(name) ? '待確認' : currentStatus || '考慮中',
+    });
+  };
 
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
@@ -260,7 +277,7 @@ function ReceptionEditor({ session, update, updateRequirement, onBack, onFormali
         </Section>
 
         <Section title="2. 使用環境與限制">
-          <FieldBlock label="會進地下室／室內停車場嗎？"><ChipGroup options={['會', '不會', '不確定']} value={session.parking} onChange={(parking) => update({ parking })} />{session.parking === '會' && <div className="rounded-2xl bg-s2 p-3 space-y-3"><div className="flex items-center gap-2"><input type="number" inputMode="decimal" value={session.clearanceCm} onChange={(e) => update({ clearanceCm: e.target.value })} placeholder="入口限高" className="w-40 min-h-11" /><span>cm</span></div><ChipGroup options={['入口標示', '實際量過', '客戶口述']} value={session.clearanceBasis} onChange={(clearanceBasis) => update({ clearanceBasis })} /></div>}{assessment && <div className="rounded-2xl border border-bdr p-3 grid grid-cols-3 gap-2 text-center"><div><p className="text-[10px] text-ink-3">客戶限高</p><strong>{assessment.clearanceCm} cm</strong></div><div><p className="text-[10px] text-ink-3">原車高度</p><strong>{assessment.vehicleCm} cm</strong></div><div><p className="text-[10px] text-ink-3">高度差</p><strong className={assessment.differenceCm <= 0 ? 'text-danger' : 'text-accent'}>{assessment.differenceCm} cm</strong></div><p className="col-span-3 text-xs text-warn">{assessment.status}</p></div>}</FieldBlock>
+          {!heightTriggered && <FieldBlock label="會進地下室／有限高場所嗎？"><ChipGroup options={['不會', '會下地下室', '有其他限高場所', '還不確定']} value={session.parking === '會' ? '會下地下室' : session.parking} onChange={(parking) => update({ parking, clearanceUnknown: false })} /><p className="text-xs text-ink-3">選到帆布、箱體、伸縮箱體或升降尾門時，系統會立即展開完整車高計算。</p></FieldBlock>}
           <FieldBlock label="會載長料嗎？"><ChipGroup options={['不會', '偶爾', '會']} value={session.longMaterial} onChange={(longMaterial) => update({ longMaterial })} />{session.longMaterial !== '不會' && <div className="rounded-2xl bg-s2 p-3 space-y-3"><ChipGroup options={['梯子', '管材', '木料', '鐵料', '其他']} value={session.longMaterialTypes} multi onChange={(longMaterialTypes) => update({ longMaterialTypes })} /><ChipGroup options={['3m內', '3～4m', '4～5m', '5m以上', '不知道']} value={session.longMaterialLength} onChange={(longMaterialLength) => update({ longMaterialLength })} /></div>}</FieldBlock>
         </Section>
 
@@ -273,12 +290,13 @@ function ReceptionEditor({ session, update, updateRequirement, onBack, onFormali
 
         <Section title="4. 車體／配備需求" hint="需求不等於報價；選了才展開，確認後才能加入報價">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">{REQUIREMENT_TYPES.map((name) => <Chip key={name} active={!!session.requirements?.[name]?.selected} onClick={() => setRequirementSelected(name)}>{name}</Chip>)}</div>
-          {REQUIREMENT_TYPES.filter((name) => session.requirements?.[name]?.selected).map((name) => <RequirementCard key={name} name={name} value={session.requirements[name]} session={session} update={(patch) => updateRequirement(name, patch)} onOpenCatalog={onOpenCatalog} />)}
+          {heightTriggered && <HeightPlanningPanel session={session} update={update} plan={heightPlan} config={heightConfig} />}
+          {REQUIREMENT_TYPES.filter((name) => session.requirements?.[name]?.selected).map((name) => <RequirementCard key={name} name={name} value={session.requirements[name]} session={session} heightPlan={heightPlan} update={(patch) => updateRequirement(name, patch)} onOpenCatalog={onOpenCatalog} />)}
         </Section>
 
         {(reminders.length > 0 || pending.length > 0) && <Section title="5. 待確認與施工提醒" hint="這些是業務提醒，不是正式施工指示">{reminders.map((text) => <p key={text} className="rounded-xl bg-warn/10 border border-warn/25 p-3 text-sm text-ink-2">{text}</p>)}{pending.length > 0 && <div><p className="text-xs font-semibold text-warn mb-2">待確認</p><div className="flex flex-wrap gap-2">{pending.map((item) => <span key={item} className="badge bg-s2 text-ink-2">○ {item}</span>)}</div></div>}</Section>}
 
-        <Section title="6. 需求摘要"><div className="grid sm:grid-cols-2 gap-x-5 gap-y-2 text-sm">{[['行業', session.industry], ['目前車', session.currentVehicle], ['載運', (session.cargo || []).join('＋')], ['載重', session.loadKg ? `約 ${session.loadKg}kg` : session.loadRange], ['駕駛', session.driver], ['路線', (session.environments || []).join('＋')], ['限高', session.parking === '會' ? `${session.clearanceCm || '待確認'}cm` : session.parking], ['考慮車型', variant?.name]].map(([label, value]) => value && <div key={label} className="flex justify-between gap-3 border-b border-bdr/40 py-2"><span className="text-ink-3">{label}</span><strong className="text-right">{value}</strong></div>)}</div>{summary.length > 0 && <div><p className="text-xs text-ink-3 mb-2">車體／配備</p><div className="flex flex-wrap gap-2">{summary.map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div></div>}<textarea value={session.quickNote} onChange={(e) => update({ quickNote: e.target.value })} placeholder="快速備註（手機可使用鍵盤語音輸入）" rows={4} className="w-full" /><textarea value={session.handoffNote} onChange={(e) => update({ handoffNote: e.target.value })} placeholder="交接備註（業務提醒，非正式施工指示）" rows={3} className="w-full" /></Section>
+        <Section title="6. 需求摘要"><div className="grid sm:grid-cols-2 gap-x-5 gap-y-2 text-sm">{[['行業', session.industry], ['目前車', session.currentVehicle], ['載運', (session.cargo || []).join('＋')], ['載重', session.loadKg ? `約 ${session.loadKg}kg` : session.loadRange], ['駕駛', session.driver], ['路線', (session.environments || []).join('＋')], ['限高', ['會', '會下地下室', '有其他限高場所'].includes(session.parking) ? `${session.clearanceCm || '待確認'}cm` : session.parking], ['考慮車型', variant?.name]].map(([label, value]) => value && <div key={label} className="flex justify-between gap-3 border-b border-bdr/40 py-2"><span className="text-ink-3">{label}</span><strong className="text-right">{value}</strong></div>)}</div>{summary.length > 0 && <div><p className="text-xs text-ink-3 mb-2">車體／配備</p><div className="flex flex-wrap gap-2">{summary.map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div></div>}{generatedHeightSummary && <div><p className="text-xs text-ink-3 mb-2">自動施工交接</p><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{generatedHeightSummary}</pre></div>}<textarea value={session.quickNote} onChange={(e) => update({ quickNote: e.target.value })} placeholder="快速備註（手機可使用鍵盤語音輸入）" rows={4} className="w-full" /><textarea value={session.handoffNote} onChange={(e) => update({ handoffNote: e.target.value })} placeholder="補充交接備註（自動施工交接之外的提醒）" rows={3} className="w-full" /></Section>
 
         {notice && <div className="rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm flex gap-3"><span className="flex-1">{notice}</span><button onClick={onNotice}>×</button></div>}
         <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將已確認需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">正式建檔</button><button onClick={onHold} className="btn-outline min-h-12">先保留</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">無後續</button></div>
@@ -287,15 +305,58 @@ function ReceptionEditor({ session, update, updateRequirement, onBack, onFormali
   );
 }
 
-function RequirementCard({ name, value, session, update, onOpenCatalog }) {
-  const hasCases = ['貨斗底板', '帆布', '箱體', '升降尾門', 'H架'].includes(name);
-  return <div className="rounded-2xl border border-accent/25 bg-accent/5 p-3 space-y-3"><div className="flex items-center justify-between gap-2"><h3 className="font-bold">{name}</h3><div className="flex gap-2 items-center">{hasCases && <button type="button" onClick={onOpenCatalog} className="btn-ghost text-xs">案例</button>}<select value={value.status || '考慮中'} onChange={(e) => update({ status: e.target.value })} className="text-xs"><option>考慮中</option><option>待確認</option><option>已確認</option></select></div></div>{hasCases && <p className="text-[10px] text-ink-3">案例示意，實際尺寸與施工內容依訂單確認。</p>}
+function HeightPlanningPanel({ session, update, plan, config }) {
+  const limited = ['會', '會下地下室', '有其他限高場所'].includes(session.parking);
+  const parkingValue = session.parking === '會' ? '會下地下室' : session.parking;
+  const quickClearances = ['180', '190', '200', '210', '220', '230'];
+  const statusLabel = (item) => item?.kind === 'danger' ? `⛔ 預估超高 ${Math.abs(item.marginCm)} cm` : item?.kind === 'warning' ? `⚠️ 只剩 ${item.marginCm} cm，接近限制` : item?.kind === 'ok' ? '✅ 目前高度條件可規劃' : '⚠️ 暫定，資料尚未確認';
+  return <div className="rounded-2xl border-2 border-warn/35 bg-warn/5 p-4 space-y-4">
+    <div><h3 className="font-bold text-lg">⚠️ 車高與限高確認</h3><p className="text-xs text-ink-2 mt-1">先問限高 → 確認避震／葉片 → 算貨斗離地 → 再決定帆布或箱體高度。</p></div>
+    <FieldBlock label="老闆，平常會不會下地下室，或進有限高的地方？">
+      <ChipGroup options={['不會', '會下地下室', '有其他限高場所', '還不確定']} value={parkingValue} onChange={(parking) => update({ parking, clearanceUnknown: false })} />
+      {session.parking === '不會' && <p className="rounded-xl bg-ok/10 border border-ok/25 p-3 text-xs text-ok">✅ 無特殊限高需求；目前以 {config.generalControlCm} cm 作為業務規劃控制值。</p>}
+      {['還不確定', ''].includes(session.parking || '') && <p className="text-xs text-warn">⚠️ 地下室／限高需求待確認。</p>}
+    </FieldBlock>
+    {limited && <div className="rounded-2xl bg-s2 p-3 space-y-3">
+      <FieldBlock label="入口限高">
+        <div className="flex flex-wrap gap-2">{quickClearances.map((cm) => <Chip key={cm} active={String(session.clearanceCm) === cm && !session.clearanceUnknown} onClick={() => update({ clearanceCm: cm, clearanceUnknown: false })}>{cm} cm</Chip>)}<Chip active={!!session.clearanceUnknown} onClick={() => update({ clearanceCm: '', clearanceUnknown: true })}>還不知道</Chip></div>
+        <div className="flex items-center gap-2"><input type="number" inputMode="decimal" min="0" value={session.clearanceUnknown ? '' : session.clearanceCm || ''} onChange={(e) => update({ clearanceCm: e.target.value, clearanceUnknown: false })} placeholder="自訂高度" className="w-40 min-h-11" /><span>cm</span></div>
+        <ChipGroup options={['入口標示', '實際量過', '客戶口述']} value={session.clearanceBasis} onChange={(clearanceBasis) => update({ clearanceBasis })} />
+      </FieldBlock>
+      <FieldBlock label="安全預留（業務規劃值，不是法律標準）"><ChipGroup options={['5', '10', '15']} value={String(session.safetyReserveCm || config.basementReserveCm)} onChange={(safetyReserveCm) => update({ safetyReserveCm })} /><div className="flex items-center gap-2"><input type="number" inputMode="decimal" min="0" value={session.safetyReserveCm ?? config.basementReserveCm} onChange={(e) => update({ safetyReserveCm: e.target.value })} className="w-28" /><span>cm</span></div></FieldBlock>
+      <p className="rounded-xl bg-warn/10 p-3 text-xs text-warn">地下室標示限高不代表做到同高度就一定能進；仍須確認入口坡度、坡頂角度、地面高低差、空車／載貨狀態及車輛最高點。</p>
+    </div>}
+    <FieldBlock label="底盤有沒有要做升高？"><ChipGroup options={['原廠高度', '改避震', '加葉片', '避震＋葉片', '還沒決定']} value={session.suspensionPlan} onChange={(suspensionPlan) => update({ suspensionPlan })} /><p className="text-xs text-ink-3">目前參數：避震 +{config.shockLiftCm} cm、葉片 +{config.leafLiftCm} cm；可在設定 → 車高參數修改。</p></FieldBlock>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+      <HeightMetric label="原始貨斗離地" value={plan.baseBedCm} />
+      <HeightMetric label="升高後貨斗離地" value={plan.adjustedBedCm} />
+      <HeightMetric label="目前控制總高" value={plan.controlTotalCm} />
+      <HeightMetric label="理論剩餘高度" value={plan.availableCm} />
+    </div>
+    <p className="text-xs text-ink-3">理論剩餘高度不等於帆布／箱體實際施工尺寸；實際尺寸仍以實車測量為準。</p>
+    {Object.entries(plan.itemStatus).map(([name, item]) => <div key={name} className={`rounded-xl border p-3 text-sm ${item.kind === 'danger' ? 'border-danger/40 bg-danger/10 text-danger' : item.kind === 'warning' ? 'border-warn/40 bg-warn/10 text-warn' : item.kind === 'ok' ? 'border-ok/30 bg-ok/10 text-ok' : 'border-bdr bg-s2 text-ink-2'}`}><strong>{name}：{statusLabel(item)}</strong>{item.estimatedTotalCm != null && <p className="text-xs mt-1">預估完工總高約 {item.estimatedTotalCm} cm</p>}{item.missing.length > 0 && <p className="text-xs mt-1">待確認：{item.missing.join('、')}</p>}</div>)}
+    <p className="rounded-xl border border-bdr p-3 text-[11px] text-ink-3 leading-relaxed">法規提醒：小型車全高原則為不得超過全寬 1.5 倍，且最高不得超過 2.85 公尺；目前 {config.generalControlCm} cm 是系統規劃控制值，最終仍須依行照車寬、實車最高點、合法車身廠及監理檢驗確認。</p>
+  </div>;
+}
+
+function HeightMetric({ label, value }) {
+  return <div className="rounded-xl bg-s2 p-3"><p className="text-[10px] text-ink-3">{label}</p><strong className="text-base">{value == null ? '待確認' : `約 ${value} cm`}</strong></div>;
+}
+
+function RequirementCard({ name, value, session, heightPlan, update, onOpenCatalog }) {
+  const hasCases = ['貨斗底板', '帆布', '箱體', '伸縮箱體', '升降尾門', 'H架'].includes(name);
+  const [showNote, setShowNote] = useState(!!value.note);
+  const heightStatus = heightPlan.itemStatus[name];
+  const canConfirm = !heightStatus || heightStatus.canConfirm;
+  const displayedStatus = !canConfirm && value.status === '已確認' ? '待確認' : value.status || '考慮中';
+  return <div className="rounded-2xl border border-accent/25 bg-accent/5 p-3 space-y-3"><div className="flex items-center justify-between gap-2"><h3 className="font-bold">{name}</h3><div className="flex gap-2 items-center">{hasCases && <button type="button" onClick={onOpenCatalog} className="btn-ghost text-xs">案例</button>}<select value={displayedStatus} onChange={(e) => update({ status: e.target.value === '已確認' && !canConfirm ? '待確認' : e.target.value })} className="text-xs"><option>考慮中</option><option>待確認</option><option disabled={!canConfirm}>已確認</option></select></div></div>{hasCases && <p className="text-[10px] text-ink-3">案例示意，實際尺寸與施工內容依訂單確認。</p>}
     {name === '貨斗底板' && <><FieldBlock label="材質"><ChipGroup options={['橡膠', '白鐵', '鍍鋅鐵板', '其他']} value={value.material} onChange={(material) => update({ material })} /></FieldBlock><FieldBlock label="表面形式"><ChipGroup options={['平板', '花紋／止滑', '其他']} value={value.surface} onChange={(surface) => update({ surface })} /></FieldBlock></>}
     {name === '升降尾門' && <><FieldBlock label="尾門尺寸"><ChipGroup options={['2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '特殊']} value={value.size} onChange={(size) => update({ size })} /></FieldBlock>{(parseFloat(value.size) > 4 || value.size === '特殊') && <p className="text-xs text-warn bg-warn/10 rounded-xl p-3">請確認是否需要雙折尾門及實際施工規格；不會自動判定一定要雙折。</p>}<FieldBlock label="主要搬什麼"><ChipGroup options={['一般重物', '機具', '桶裝物', '推車', '棧板', '其他']} value={value.cargoUse} onChange={(cargoUse) => update({ cargoUse })} /></FieldBlock><FieldBlock label="單件最大重量"><ChipGroup options={['100kg內', '100～300kg', '300～500kg', '500kg以上', '不知道']} value={value.maxWeight} onChange={(maxWeight) => update({ maxWeight })} /></FieldBlock><FieldBlock label="使用頻率"><ChipGroup options={['偶爾', '每天', '每天多次', '不確定']} value={value.frequency} onChange={(frequency) => update({ frequency })} /></FieldBlock></>}
-    {name === '帆布' && <><FieldBlock label="用途"><ChipGroup options={['遮雨', '防曬', '貨物防護', '工具／材料', '其他']} value={value.use} onChange={(use) => update({ use })} /></FieldBlock><FieldBlock label="開啟方式"><ChipGroup options={['後開', '側開', '多面', '待確認']} value={value.opening} onChange={(opening) => update({ opening })} /></FieldBlock><FieldBlock label="骨架高度"><ChipGroup options={['一般', '越低越好', '配合限高', '指定高度', '待確認']} value={value.frameHeight} onChange={(frameHeight) => update({ frameHeight })} /></FieldBlock>{session.parking === '會' && <p className="text-xs text-warn">沿用前面限高：{session.clearanceCm || '待確認'} cm</p>}{session.requirements?.['升降尾門']?.selected && <p className="text-xs text-warn">此車有 {session.requirements['升降尾門'].size || '尺寸待確認'} 尺升降尾門，後方施工需配合尾門。</p>}</>}
-    {name === '箱體' && <><FieldBlock label="用途"><ChipGroup options={['工具', '設備', '機具', '一般貨物', '怕雨貨物', '其他']} value={value.use} onChange={(use) => update({ use })} /></FieldBlock><FieldBlock label="開門方式"><ChipGroup options={['後開', '側開', '後＋側', '待確認']} value={value.opening} onChange={(opening) => update({ opening })} /></FieldBlock><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!value.dimensionsConfirmed} onChange={(e) => update({ dimensionsConfirmed: e.target.checked })} />尺寸已確認</label></>}
+    {name === '帆布' && <><FieldBlock label="帆布規格"><div className="grid grid-cols-2 gap-2"><ChipGroup options={['標準加高', '標準高', '標準降低', '自訂／其他']} value={value.canvasSpec} onChange={(canvasSpec) => update({ canvasSpec })} /></div></FieldBlock>{value.canvasSpec === '自訂／其他' && <FieldBlock label="自訂斗上高度"><div className="flex items-center gap-2"><input type="number" inputMode="decimal" min="0" value={value.customHeightCm || ''} onChange={(e) => update({ customHeightCm: e.target.value })} className="w-36" /><span>cm</span></div></FieldBlock>}<FieldBlock label="用途"><ChipGroup options={['遮雨', '防曬', '貨物防護', '工具／材料', '其他']} value={value.use} onChange={(use) => update({ use })} /></FieldBlock><FieldBlock label="開啟方式"><ChipGroup options={['後開', '側開', '多面', '待確認']} value={value.opening} onChange={(opening) => update({ opening })} /></FieldBlock>{session.requirements?.['升降尾門']?.selected && <p className="text-xs text-warn bg-warn/10 rounded-xl p-3">⚠️ 帆布＋尾門連動：後方尺寸、開口方式、尾門尺寸與最終車高都要一起確認，並告知帆布廠此車有尾門。</p>}<button type="button" onClick={() => setShowNote((current) => !current)} className="btn-outline text-xs">{showNote ? '收起備註' : '＋ 新增備註'}</button>{showNote && <textarea value={value.note || ''} onChange={(e) => update({ note: e.target.value })} placeholder="輸入帆布特殊需求，例如後方有尾門、側面掀帆布、地下室入口很斜…" rows={4} className="w-full" />}</>}
+    {['箱體', '伸縮箱體'].includes(name) && <><FieldBlock label="用途"><ChipGroup options={['工具', '設備', '機具', '一般貨物', '怕雨貨物', '其他']} value={value.use} onChange={(use) => update({ use })} /></FieldBlock><FieldBlock label="開門方式"><ChipGroup options={['後開', '側開', '後＋側', '待確認']} value={value.opening} onChange={(opening) => update({ opening })} /></FieldBlock><FieldBlock label="斗上高度"><div className="flex items-center gap-2"><input type="number" inputMode="decimal" min="0" value={value.bodyHeightCm || ''} onChange={(e) => update({ bodyHeightCm: e.target.value, dimensionsConfirmed: false })} className="w-36" /><span>cm</span></div></FieldBlock><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!value.dimensionsConfirmed} disabled={!canConfirm} onChange={(e) => update({ dimensionsConfirmed: e.target.checked })} />尺寸與高度已確認</label></>}
     {name === 'H架' && <><FieldBlock label="用途"><ChipGroup options={['梯子', '管材', '木料', '鐵料', '其他']} value={value.use} onChange={(use) => update({ use })} /></FieldBlock><FieldBlock label="最大長度"><ChipGroup options={['3m內', '3～4m', '4～5m', '5m以上', '不知道']} value={value.maxLength} onChange={(maxLength) => update({ maxLength })} /></FieldBlock></>}
-    {!['貨斗底板', '升降尾門', '帆布', '箱體', 'H架'].includes(name) && <textarea value={value.note || ''} onChange={(e) => update({ note: e.target.value })} placeholder={`${name}需求／規格`} rows={2} className="w-full" />}
+    {!canConfirm && heightStatus && <p className="rounded-xl bg-warn/10 border border-warn/25 p-3 text-xs text-warn">高度資料尚未完成或可能超高，此項目暫時不能標示「已確認」。</p>}
+    {!['貨斗底板', '升降尾門', '帆布', '箱體', '伸縮箱體', 'H架'].includes(name) && <textarea value={value.note || ''} onChange={(e) => update({ note: e.target.value })} placeholder={`${name}需求／規格`} rows={2} className="w-full" />}
   </div>;
 }
 

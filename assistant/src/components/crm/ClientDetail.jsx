@@ -11,7 +11,8 @@ import TruckComparison from '../reception/TruckComparison';
 import { Field, ClientPicker } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
-import { requirementSummary, requirementPendingItems } from '../../utils/reception';
+import { heightPlanSummary, requirementSummary, requirementPendingItems } from '../../utils/reception';
+import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
@@ -37,9 +38,16 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     deals, dealFields, saveDeal, todoTemplate, industries,
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
-    events, saveEvent, deleteEvent,
+    events, saveEvent, deleteEvent, heightConfig,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
+  const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
+  const demandPending = client.demandProfile
+    ? requirementPendingItems(client.demandProfile, demandVariant, heightConfig)
+    : [];
+  const demandHeightSummary = client.demandProfile
+    ? (client.heightPlanSummary || heightPlanSummary(client.demandProfile, demandVariant, heightConfig))
+    : '';
 
   // 此客戶的生日 / 重要日子（行事曆活動）
   const clientEvents = events
@@ -931,12 +939,13 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
                 ['做什麼', client.demandProfile.industry], ['現在開什麼', client.demandProfile.currentVehicle],
                 ['載什麼', (client.demandProfile.cargo || []).join('＋')], ['載多重', client.demandProfile.loadKg ? `${client.demandProfile.loadKg}kg` : client.demandProfile.loadRange],
                 ['誰開', client.demandProfile.driver], ['跑哪裡', (client.demandProfile.environments || []).join('＋')],
-                ['地下室／限高', client.demandProfile.parking === '會' ? `${client.demandProfile.clearanceCm || '待確認'}cm` : client.demandProfile.parking],
+                ['地下室／限高', ['會', '會下地下室', '有其他限高場所'].includes(client.demandProfile.parking) ? `${client.demandProfile.clearanceCm || '待確認'}cm` : client.demandProfile.parking],
                 ['客戶屬性', client.demandProfile.customerMode],
               ].map(([label, value]) => value && <div key={label} className="border-b border-bdr/40 py-1.5"><span className="block text-ink-3">{label}</span><strong className="text-ink-2">{value}</strong></div>)}
             </div>
             <div className="flex flex-wrap gap-1.5">{requirementSummary(client.demandProfile).map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div>
-            {requirementPendingItems(client.demandProfile).length > 0 && <p className="text-xs text-warn">待確認：{requirementPendingItems(client.demandProfile).join('、')}</p>}
+            {demandHeightSummary && <div><p className="text-[11px] text-ink-3 mb-1">車高／施工交接</p><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{demandHeightSummary}</pre></div>}
+            {demandPending.length > 0 && <p className="text-xs text-warn">待確認：{demandPending.join('、')}</p>}
           </section>
         )}
 

@@ -12,6 +12,7 @@ import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
 import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
 import { canonicalizeQuotes } from './utils/quotes';
+import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 
 const AppContext = createContext(null);
 
@@ -67,6 +68,7 @@ const initialState = {
   industries: INDUSTRY_SUGGESTIONS,
   timers: [],
   thresholds: DEFAULT_THRESHOLDS,
+  heightConfig: DEFAULT_HEIGHT_CONFIG,
   dbBlocked: false,
 };
 
@@ -101,6 +103,8 @@ function reducer(state, action) {
       return { ...state, customFields: action.payload };
     case 'SET_THRESHOLDS':
       return { ...state, thresholds: action.payload };
+    case 'SET_HEIGHT_CONFIG':
+      return { ...state, heightConfig: action.payload };
     case 'SET_DB_BLOCKED':
       return { ...state, dbBlocked: action.payload };
 
@@ -222,7 +226,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -240,6 +244,7 @@ export function AppProvider({ children }) {
           db.get('settings', 'quotePresets').catch(() => null),
           db.get('settings', 'costCatalog').catch(() => null),
           db.get('settings', 'industries').catch(() => null),
+          db.get('settings', 'heightConfig').catch(() => null),
         ]);
 
         const resolvedCats = cats.length > 0 ? cats : DEFAULT_CATS;
@@ -257,6 +262,7 @@ export function AppProvider({ children }) {
             clients: canonical.clients, cats: resolvedCats, stages: resolvedStages, customFields,
             deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
+            heightConfig: normalizeHeightConfig(heightConfigRow),
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: resolveQuotePresets(presetsRow),
             costCatalog: normalizeCostCatalog(costCatalogRow),
@@ -513,6 +519,13 @@ export function AppProvider({ children }) {
     return clean;
   }, []);
 
+  const saveHeightConfig = useCallback(async (value) => {
+    const normalized = normalizeHeightConfig(value);
+    await db.put('settings', normalized).catch(() => {});
+    dispatch({ type: 'SET_HEIGHT_CONFIG', payload: normalized });
+    return normalized;
+  }, []);
+
   // ── Timers ────────────────────────────────────────────────────────────────
   const saveTimer = useCallback(async (timer) => {
     await db.put('timers', timer);
@@ -526,7 +539,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -544,6 +557,7 @@ export function AppProvider({ children }) {
       db.get('settings', 'quotePresets').catch(() => null),
       db.get('settings', 'costCatalog').catch(() => null),
       db.get('settings', 'industries').catch(() => null),
+      db.get('settings', 'heightConfig').catch(() => null),
     ]);
     const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
     dispatch({
@@ -562,6 +576,7 @@ export function AppProvider({ children }) {
         events,
         timers,
         thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
+        heightConfig: normalizeHeightConfig(heightConfigRow),
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
         quotePresets: resolveQuotePresets(presetsRow),
         costCatalog: normalizeCostCatalog(costCatalogRow),
@@ -599,6 +614,7 @@ export function AppProvider({ children }) {
     saveCostCatalog,
     saveIndustries,
     saveThresholds,
+    saveHeightConfig,
     saveTimer,
     deleteTimer,
     reloadAll,
