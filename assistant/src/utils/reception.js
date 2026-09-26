@@ -44,6 +44,13 @@ export function normalizeHeightConfig(row = {}) {
 }
 
 export const HEIGHT_TRIGGER_REQUIREMENTS = ['帆布', '箱體', '伸縮箱體', '升降尾門'];
+export const TAILGATE_CANVAS_CHECKS = [
+  ['tailgateSize', '尾門尺寸'],
+  ['rearHeight', '帆布後方高度'],
+  ['rearOpening', '後方開口方式'],
+  ['vendorAware', '帆布廠知道有尾門'],
+  ['finalHeight', '最終車高'],
+];
 
 export function requiresHeightPlanning(session) {
   const req = session?.requirements || {};
@@ -62,6 +69,12 @@ function selectedCanvasHeight(detail = {}, config) {
   return '';
 }
 
+function tailgateCanvasMissing(req = {}) {
+  if (!req['帆布']?.selected || !req['升降尾門']?.selected) return [];
+  const checked = req['帆布']?.tailgateCoordination || {};
+  return TAILGATE_CANVAS_CHECKS.filter(([key]) => !checked[key]).map(([, label]) => label);
+}
+
 export function heightPlanning(session, variant, rawConfig = DEFAULT_HEIGHT_CONFIG) {
   const config = normalizeHeightConfig(rawConfig);
   const req = session?.requirements || {};
@@ -77,14 +90,16 @@ export function heightPlanning(session, variant, rawConfig = DEFAULT_HEIGHT_CONF
   const parkingKnown = !!parking && !['不確定', '還不確定'].includes(parking);
   const limited = hasHeightLimit(parking);
   const clearanceCm = Number(session?.clearanceCm) || null;
-  const reserveCm = Number(session?.safetyReserveCm || config.basementReserveCm);
-  const controlTotalCm = limited ? (clearanceCm ? clearanceCm - reserveCm : null) : parkingKnown ? config.generalControlCm : null;
+  const reserveIsCustomAndBlank = session?.safetyReserveMode === 'custom' && (session?.safetyReserveCm === '' || session?.safetyReserveCm == null);
+  const reserveCm = reserveIsCustomAndBlank ? null : Number(session?.safetyReserveCm ?? config.basementReserveCm);
+  const controlTotalCm = limited ? (clearanceCm && reserveCm != null ? clearanceCm - reserveCm : null) : parkingKnown ? config.generalControlCm : null;
   const availableCm = controlTotalCm != null && adjustedBedCm != null
     ? Math.round((controlTotalCm - adjustedBedCm) * 10) / 10 : null;
   const missingBase = [];
   if (!drive) missingBase.push('K2500 2WD／4WD 車型');
   if (!parkingKnown) missingBase.push('地下室／限高需求');
   if (limited && !clearanceCm) missingBase.push('實際限高高度');
+  if (limited && reserveCm == null) missingBase.push('安全預留高度');
   if (!suspensionKnown) missingBase.push('避震／葉片升高方案');
 
   const itemStatus = {};
@@ -98,6 +113,7 @@ export function heightPlanning(session, variant, rawConfig = DEFAULT_HEIGHT_CONF
       const value = selectedCanvasHeight(detail, config);
       bodyHeightCm = Number(value) || null;
       if (detail.canvasSpec && !bodyHeightCm) missing.push(detail.canvasSpec === '自訂／其他' ? '自訂帆布高度' : `${detail.canvasSpec}後台高度`);
+      missing.push(...tailgateCanvasMissing(req).map((label) => `尾門連動：${label}`));
     }
     if (['箱體', '伸縮箱體'].includes(name)) {
       bodyHeightCm = Number(detail.bodyHeightCm) || null;
@@ -133,6 +149,7 @@ export function heightPlanSummary(session, variant, config) {
     return `${name}：${label}／斗上 ${item?.bodyHeightCm || '高度待確認'} cm／預估完工總高 ${item?.estimatedTotalCm || '待確認'} cm`;
   });
   const tailgate = req['升降尾門'] || {};
+  const tailgateMissing = tailgateCanvasMissing(req);
   const selectedItems = HEIGHT_TRIGGER_REQUIREMENTS.filter((name) => req[name]?.selected).join('、');
   const statusKinds = Object.values(plan.itemStatus).map((item) => item.kind);
   const status = statusKinds.includes('danger') ? '⛔ 可能超高' : plan.missing.length ? '⚠️ 待確認' : '✅ 可規劃';
@@ -140,13 +157,19 @@ export function heightPlanSummary(session, variant, config) {
     '【車高／施工交接】',
     `項目：${selectedItems || '—'}`,
     `車型：${plan.drive || '待確認'}`,
-    `地下室／限高：${plan.limited ? `${plan.clearanceCm || '待確認'} cm（預留 ${plan.reserveCm} cm）` : session?.parking || '待確認'}`,
-    `底盤：${session?.suspensionPlan || '待確認'}（避震 +${plan.shockLiftCm} cm／葉片 +${plan.leafLiftCm} cm）`,
+    `地下室：${plan.limited ? '有' : session?.parking === '不會' ? '無' : '待確認'}`,
+    `地下室／場所限高：${plan.limited ? `${plan.clearanceCm || '待確認'} cm（安全預留 ${plan.reserveCm ?? '待確認'} cm）` : '無特殊限高'}`,
+    `避震：${plan.shockLiftCm ? `有（+${plan.shockLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
+    `葉片：${plan.leafLiftCm ? `有（+${plan.leafLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
+    `底盤方案：${session?.suspensionPlan || '待確認'}`,
+    `原始貨斗離地：約 ${plan.baseBedCm ?? '待確認'} cm`,
     `貨斗離地：約 ${plan.adjustedBedCm ?? '待確認'} cm`,
     `控制總高：約 ${plan.controlTotalCm ?? '待確認'} cm`,
     `理論剩餘高度：約 ${plan.availableCm ?? '待確認'} cm`,
     ...bodyLines,
     tailgate.selected ? `尾門：${tailgate.size || '尺寸待確認'}尺／${tailgate.maxWeight || '承重待確認'}` : '',
+    req['帆布']?.selected && tailgate.selected ? `帆布＋尾門核對：${tailgateMissing.length ? `待確認 ${tailgateMissing.join('、')}` : '五項已確認'}` : '',
+    req['帆布']?.selected && tailgate.selected ? '自動備註：此車有升降尾門，帆布後方尺寸及開口方式須配合尾門設計。' : '',
     canvas.note ? `帆布備註：${canvas.note}` : '',
     `狀態：${status}`,
     '實際尺寸仍以實車、合法車身廠及監理檢驗確認為準。',
@@ -182,7 +205,7 @@ export function requirementPendingItems(session, variant = null, config = DEFAUL
   if (req['升降尾門']?.selected && !req['升降尾門']?.maxWeight) pending.push('尾門實際承重規格');
   if (req['升降尾門']?.selected && (parseFloat(req['升降尾門']?.size) > 4 || req['升降尾門']?.size === '特殊')) pending.push('是否需雙折尾門');
   if (req['帆布']?.selected && !req['帆布']?.canvasSpec) pending.push('帆布規格');
-  if (req['升降尾門']?.selected && req['帆布']?.selected) pending.push('後方帆布與尾門配置');
+  if (req['升降尾門']?.selected && req['帆布']?.selected) pending.push(...tailgateCanvasMissing(req).map((label) => `尾門連動：${label}`));
   if (req['H架']?.selected && !req['H架']?.maxLength) pending.push('H架最終高度／長料配置');
   if (req['箱體']?.selected && !req['箱體']?.dimensionsConfirmed) pending.push('箱體完成尺寸與高度');
   if (req['伸縮箱體']?.selected && !req['伸縮箱體']?.dimensionsConfirmed) pending.push('伸縮箱體完成尺寸與高度');
@@ -213,7 +236,7 @@ export function dependencyReminders(session, variant = null, config = DEFAULT_HE
   if (requiresHeightPlanning(session)) {
     reminders.unshift('加裝帆布、箱體或尾門前，必須先確認是否改避震（預設 +5 cm）或加葉片（預設 +2 cm），再計算完成車高度。');
     const plan = heightPlanning(session, variant, config);
-    if (plan.limited) reminders.push('地下室標示限高不代表做到同高度就一定能進，仍須考慮入口坡度、坡頂角度、載重狀態及車輛最高點。');
+    if (plan.limited) reminders.push('地下室標示限高不代表做到同高度就一定能進；仍須考慮入口坡度、坡頂角度、地面高低差、空車／載貨狀態、後懸、尾門、帆布／箱體最高點、避震及葉片升高。');
     for (const [name, status] of Object.entries(plan.itemStatus)) {
       if (status.kind === 'danger') reminders.push(`${name}目前預估超高 ${Math.abs(status.marginCm)} cm，不能標示為已確認。`);
     }

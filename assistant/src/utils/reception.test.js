@@ -46,7 +46,7 @@ test('requirements stay separate and expose pending details', () => {
   } };
   assert.deepEqual(requirementSummary(session), ['白鐵／花紋板', '3.5尺升降尾門', '帆布（規格待確認）']);
   assert.ok(requirementPendingItems(session).includes('尾門實際承重規格'));
-  assert.ok(requirementPendingItems(session).includes('後方帆布與尾門配置'));
+  assert.ok(requirementPendingItems(session).includes('尾門連動：尾門尺寸'));
 });
 
 test('height comparison avoids promises when height-changing accessories exist', () => {
@@ -110,4 +110,39 @@ test('tailgate-only planning does not display a false zero-margin warning', () =
   assert.equal(result.itemStatus['升降尾門'].kind, 'ok');
   assert.equal(result.itemStatus['升降尾門'].marginCm, null);
   assert.match(heightPlanSummary(session, variant), /尾門：3.5尺／300～500kg/);
+});
+
+test('canvas and tailgate stay pending until all five coordination checks are complete', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = {
+    parking: '不會', suspensionPlan: '原廠高度', requirements: {
+      帆布: { selected: true, canvasSpec: '自訂／其他', customHeightCm: '150', tailgateCoordination: {} },
+      升降尾門: { selected: true, size: '3.5', maxWeight: '300～500kg' },
+    },
+  };
+  let result = heightPlanning(session, variant);
+  assert.equal(result.itemStatus['帆布'].canConfirm, false);
+  assert.ok(result.itemStatus['帆布'].missing.includes('尾門連動：尾門尺寸'));
+
+  session.requirements['帆布'].tailgateCoordination = {
+    tailgateSize: true, rearHeight: true, rearOpening: true, vendorAware: true, finalHeight: true,
+  };
+  result = heightPlanning(session, variant);
+  assert.equal(result.itemStatus['帆布'].canConfirm, true);
+  assert.equal(requirementPendingItems(session, variant).some((item) => item.startsWith('尾門連動：')), false);
+  assert.match(heightPlanSummary(session, variant), /帆布＋尾門核對：五項已確認/);
+});
+
+test('blank custom basement reserve blocks the safety calculation', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = {
+    parking: '會下地下室', clearanceCm: '210', safetyReserveMode: 'custom', safetyReserveCm: '',
+    suspensionPlan: '原廠高度', requirements: {
+      帆布: { selected: true, canvasSpec: '自訂／其他', customHeightCm: '100' },
+    },
+  };
+  const result = heightPlanning(session, variant);
+  assert.equal(result.controlTotalCm, null);
+  assert.ok(result.missing.includes('安全預留高度'));
+  assert.equal(result.itemStatus['帆布'].canConfirm, false);
 });

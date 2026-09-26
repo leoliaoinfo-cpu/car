@@ -74,6 +74,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const industryOptions = [...new Set([...(industries || []), client.industry].filter(Boolean))];
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => pickEditable(client));
+  const [heightCopyStatus, setHeightCopyStatus] = useState('');
   const [logInput, setLogInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showTruckComparison, setShowTruckComparison] = useState(false);
@@ -89,6 +90,16 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     inspection: { on: true, date: '' },
     replace: { on: true, date: '' },
   });
+
+  async function copyHeightHandoff() {
+    if (!demandHeightSummary) return;
+    try {
+      await navigator.clipboard.writeText(demandHeightSummary);
+      setHeightCopyStatus('已複製');
+    } catch {
+      setHeightCopyStatus('複製失敗，請長按下方內容複製');
+    }
+  }
   const [signingNote, setSigningNote] = useState(client.signingNote || '');
   const [todoInput, setTodoInput] = useState('');
   const [todoDue, setTodoDue] = useState(''); // 新增待辦的處理日期（選填）
@@ -944,7 +955,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               ].map(([label, value]) => value && <div key={label} className="border-b border-bdr/40 py-1.5"><span className="block text-ink-3">{label}</span><strong className="text-ink-2">{value}</strong></div>)}
             </div>
             <div className="flex flex-wrap gap-1.5">{requirementSummary(client.demandProfile).map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div>
-            {demandHeightSummary && <div><p className="text-[11px] text-ink-3 mb-1">車高／施工交接</p><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{demandHeightSummary}</pre></div>}
+            {demandHeightSummary && <div><div className="flex items-center justify-between gap-2 mb-1"><p className="text-[11px] text-ink-3">車高／施工交接</p><button type="button" onClick={copyHeightHandoff} className="btn-outline text-xs">📋 複製施工交接</button></div>{heightCopyStatus && <p className={`text-[11px] mb-1 ${heightCopyStatus === '已複製' ? 'text-ok' : 'text-warn'}`}>{heightCopyStatus}</p>}<pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{demandHeightSummary}</pre></div>}
             {demandPending.length > 0 && <p className="text-xs text-warn">待確認：{demandPending.join('、')}</p>}
           </section>
         )}
