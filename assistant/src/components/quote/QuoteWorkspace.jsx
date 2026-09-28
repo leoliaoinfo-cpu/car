@@ -121,10 +121,10 @@ export default function QuoteWorkspace({ onOpenClient }) {
 
   return (
     <div className="max-w-5xl mx-auto px-3 md:px-5 py-4 md:py-6 space-y-4">
-      <section className="rounded-2xl border border-accent/25 bg-gradient-to-br from-accent/15 to-s1 p-4 md:p-5 shadow-card">
+      <section className="rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/16 via-s1 to-copper/8 p-4 md:p-5 shadow-card">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold tracking-widest text-accent">QUOTATION WORKSPACE</p>
+            <p className="text-[11px] font-semibold tracking-widest text-gold">QUOTATION WORKSPACE</p>
             <h1 className="text-xl md:text-2xl font-bold text-ink mt-1">🧾 報價管理</h1>
             <p className="text-sm text-ink-2 mt-2 leading-relaxed max-w-2xl">
               可直接建立客戶並開始報價，不必先走接待流程；也能連結既有客戶或只做匿名報價。完成後可輸出圖片或 LINE 文字版。

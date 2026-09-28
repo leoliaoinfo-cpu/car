@@ -232,9 +232,9 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
 
   return (
     <div className="max-w-6xl mx-auto px-3 md:px-5 py-4 md:py-6 space-y-4">
-      <section className="rounded-3xl bg-s1 border border-bdr p-5 md:p-7 shadow-card">
+      <section className="rounded-3xl border border-teal/30 bg-gradient-to-br from-teal/16 via-s1 to-copper/8 p-5 md:p-7 shadow-card">
         <div className="flex items-start justify-between gap-4">
-          <div><p className="text-[11px] tracking-[0.2em] text-accent font-semibold">CUSTOMER RECEPTION</p><h1 className="text-2xl font-bold mt-1">客戶接待</h1><p className="text-sm text-ink-2 mt-2">現場、電話或網路來客都能先快速記需求；有後續再建立客戶追蹤。</p></div>
+          <div><p className="text-[11px] tracking-[0.2em] text-teal font-semibold">CUSTOMER RECEPTION</p><h1 className="text-2xl font-bold mt-1">客戶接待</h1><p className="text-sm text-ink-2 mt-2">現場、電話或網路來客都能先快速記需求；有後續再建立客戶追蹤。</p></div>
           <button onClick={createSession} className="btn-primary min-h-11 shrink-0">＋ 新增接待</button>
         </div>
         <div className="flex gap-2 mt-5">

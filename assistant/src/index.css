@@ -14,6 +14,11 @@
     --c-on-accent: 255 255 255;
     --c-danger: 178 94 94;       /* 灰玫紅 */
     --c-ok: 125 155 118;         /* 鼠尾草綠 */
+    --c-copper: 181 123 79;      /* 暖銅：今日工作／行動 */
+    --c-sage: 105 143 112;       /* 鼠尾草：客戶追蹤 */
+    --c-violet: 137 121 157;     /* 灰紫：行事曆 */
+    --c-teal: 84 139 143;        /* 霧青：接待 */
+    --c-gold: 166 139 80;        /* 暖金：報價 */
     --c-ink: 46 58 66;
     --c-ink2: 90 107 119;
     --c-ink3: 143 160 172;
@@ -29,13 +34,27 @@
     --c-on-accent: 23 28 33;
     --c-danger: 208 140 140;
     --c-ok: 154 184 148;
+    --c-copper: 211 159 115;
+    --c-sage: 145 177 145;
+    --c-violet: 180 161 198;
+    --c-teal: 124 177 180;
+    --c-gold: 205 178 118;
     --c-ink: 226 233 238;
     --c-ink2: 194 205 213;
     --c-ink3: 154 170 181;
   }
 
   html { font-family: -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Microsoft JhengHei', 'Noto Sans TC', system-ui, sans-serif; min-height: 100%; }
-  body { background-color: rgb(var(--c-bg)); color: rgb(var(--c-ink)); margin: 0; min-height: 100%; }
+  body {
+    background-color: rgb(var(--c-bg));
+    background-image:
+      radial-gradient(circle at 8% 0%, rgb(var(--c-teal) / 0.08), transparent 26rem),
+      radial-gradient(circle at 92% 8%, rgb(var(--c-copper) / 0.07), transparent 24rem);
+    background-attachment: fixed;
+    color: rgb(var(--c-ink));
+    margin: 0;
+    min-height: 100%;
+  }
   #root { min-height: 100%; }
   * { box-sizing: border-box; }
   input, textarea, select {

@@ -190,7 +190,7 @@ export default function CalendarPage({ onOpenClient }) {
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
       {/* 標題 + 月份導覽 */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-violet/25 bg-gradient-to-r from-violet/14 via-s1 to-s1 px-4 py-3 shadow-card">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-bold text-ink">📅 行事曆</h1>
           <button

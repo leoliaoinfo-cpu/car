@@ -139,17 +139,17 @@ function AppInner() {
       {/* Mobile bottom navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
-          { key: 'today', icon: '☀️', label: '今日' },
-          { key: 'reception', icon: '🤝', label: '接待' },
-          { key: 'crm', icon: '👥', label: '客戶' },
-          { key: 'quotes', icon: '🧾', label: '報價單' },
-          { key: 'calendar', icon: '📅', label: '行事曆' },
+          { key: 'today', icon: '☀️', label: '今日', active: 'text-copper bg-copper/10' },
+          { key: 'reception', icon: '🤝', label: '接待', active: 'text-teal bg-teal/10' },
+          { key: 'crm', icon: '👥', label: '客戶', active: 'text-sage bg-sage/10' },
+          { key: 'quotes', icon: '🧾', label: '報價單', active: 'text-gold bg-gold/10' },
+          { key: 'calendar', icon: '📅', label: '行事曆', active: 'text-violet bg-violet/10' },
         ].map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
-              tab === item.key ? 'text-accent' : 'text-ink-3'
+              tab === item.key ? item.active : 'text-ink-3'
             }`}
           >
             <span className="text-lg leading-none">{item.icon}</span>

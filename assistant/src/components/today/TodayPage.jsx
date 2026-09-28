@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../../context';
-import { db } from '../../db';
 import { isSyncEnabled } from '../../sync';
 import {
   getClientStatus, STATUS_COLOR, CAT_COLORS, FIELD_COLORS, generateId,
@@ -22,14 +21,6 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
   const [taskClient, setTaskClient] = useState(null); // @提及連結的客戶 {id, name}
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
-  const [backupDue, setBackupDue] = useState(false);
-
-  useEffect(() => {
-    db.getLastBackupAt()
-      .then((value) => setBackupDue(!value || Date.now() - Date.parse(value) >= 7 * 86400000))
-      .catch(() => setBackupDue(true));
-  }, []);
-
   // 輸入中的 @查詢字串（游標尾端的 @xxx）；null = 沒在打提及
   const mentionQuery = useMemo(() => {
     const m = taskInput.match(/@([^\s@]*)$/);
@@ -255,9 +246,10 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
     <div className="max-w-5xl mx-auto p-4">
       <div className="space-y-4 mb-4">
       {/* 日期標題 */}
-      <div className="flex items-end justify-between flex-wrap gap-2">
+      <div className="flex items-end justify-between flex-wrap gap-3 rounded-2xl border border-copper/25 bg-gradient-to-r from-copper/15 via-s1 to-s1 px-4 py-4 shadow-card">
         <div>
-          <h1 className="text-xl font-bold text-ink">☀️ 今日工作</h1>
+          <p className="text-[10px] font-semibold tracking-[0.18em] text-copper">TODAY OVERVIEW</p>
+          <h1 className="text-xl font-bold text-ink mt-1">☀️ 今日工作</h1>
           <p className="text-sm text-ink-3 mt-0.5">{dayjs().format('YYYY年M月D日 dddd')}</p>
         </div>
         <button onClick={onOpenReception} className="btn-primary min-h-11">＋ 新增接待</button>
@@ -269,14 +261,6 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
           <span className="text-lg shrink-0">☁️</span>
           <p className="flex-1 text-xs text-ink-2">雲端同步尚未設定。第一次使用請先連線汽車系統專用的私人資料庫，讓文字資料能跨裝置同步。</p>
           <button onClick={onOpenSettings} className="btn-primary text-xs shrink-0">設定雲端同步</button>
-        </div>
-      )}
-
-      {backupDue && (
-        <div className="flex items-center gap-3 bg-warn/10 border border-warn/30 rounded-xl px-4 py-3">
-          <span className="text-lg shrink-0">💾</span>
-          <p className="flex-1 text-xs text-ink-2">已超過 7 天沒有下載文字資料備份。請到設定的「備份還原」保存一份。</p>
-          <button onClick={onOpenSettings} className="btn-outline text-xs shrink-0">開啟設定</button>
         </div>
       )}
 
@@ -866,7 +850,7 @@ function ClientTodosSection({ clients, onOpenClient, toggleClientTodo }) {
 // iOS 小工具風統計方塊：淡色底、大數字、下方標籤
 function StatTile({ label, value, color }) {
   return (
-    <div className="rounded-2xl px-3.5 py-3 border border-bdr" style={{ background: color + '14' }}>
+    <div className="rounded-2xl px-3.5 py-3 border shadow-sm" style={{ background: color + '14', borderColor: color + '38' }}>
       <p className="text-[26px] font-bold leading-none tabular-nums" style={{ color }}>{value}</p>
       <p className="text-[11px] text-ink-2 mt-1.5 font-medium">{label}</p>
     </div>

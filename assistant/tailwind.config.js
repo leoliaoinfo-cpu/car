@@ -21,6 +21,11 @@ export default {
         ok: {
           DEFAULT: 'rgb(var(--c-ok) / <alpha-value>)',
         },
+        copper: 'rgb(var(--c-copper) / <alpha-value>)',
+        sage: 'rgb(var(--c-sage) / <alpha-value>)',
+        violet: 'rgb(var(--c-violet) / <alpha-value>)',
+        teal: 'rgb(var(--c-teal) / <alpha-value>)',
+        gold: 'rgb(var(--c-gold) / <alpha-value>)',
         ink: {
           DEFAULT: 'rgb(var(--c-ink) / <alpha-value>)',
           2: 'rgb(var(--c-ink2) / <alpha-value>)',

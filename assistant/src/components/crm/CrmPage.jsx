@@ -281,7 +281,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-bdr bg-s1 flex-wrap">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-sage/25 bg-gradient-to-r from-sage/12 via-s1 to-s1 flex-wrap">
           <button onClick={() => setShowSidebar(true)} className={`btn-ghost text-sm ${focusDetail ? '' : 'lg:hidden'}`}>☰</button>
           {selectMode ? (
             <>
