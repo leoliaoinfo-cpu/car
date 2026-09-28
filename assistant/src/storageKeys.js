@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   icsExportedAt: `${STORAGE_PREFIX}ics.exportedAt`,
   icsSnoozeAt: `${STORAGE_PREFIX}ics.remindSnoozeAt`,
   truckComparison: `${STORAGE_PREFIX}truckComparison`,
+  presentationPinHash: `${STORAGE_PREFIX}presentation.pinHash`,
 };
 
 export const CAR_DB_NAME = 'car_sales_assistant_v1';

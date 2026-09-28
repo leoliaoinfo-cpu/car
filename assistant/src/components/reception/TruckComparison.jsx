@@ -62,7 +62,7 @@ function MetricRow({ metric, competitor, k2500 }) {
   );
 }
 
-export default function TruckComparison({ selection = null, onSelectionChange = null, onClose = null }) {
+export default function TruckComparison({ selection = null, onSelectionChange = null, onClose = null, customerMode = false }) {
   const initial = selection || readLastSelection();
   const [competitorId, setCompetitorId] = useState(initial.competitorId);
   const [k2500Id, setK2500Id] = useState(initial.k2500Id);
@@ -153,12 +153,12 @@ export default function TruckComparison({ selection = null, onSelectionChange = 
           )}
 
           {(competitor.notes || competitor.field_conflicts?.length > 0) && <div className="rounded-xl bg-warn/10 border border-warn/25 p-3 text-xs text-ink-2 leading-relaxed"><strong className="text-warn">資料提醒：</strong>{competitor.notes || competitor.field_conflicts[0]?.display}</div>}
-          <div className="grid grid-cols-2 gap-2">
+          {!customerMode && <><div className="grid grid-cols-2 gap-2">
             <a href={competitor.source_url} target="_blank" rel="noreferrer" className="btn-outline text-center text-xs">客戶車款原廠規格 ↗</a>
             <a href={k2500.source_url} target="_blank" rel="noreferrer" className="btn-outline text-center text-xs">K2500 原廠規格 ↗</a>
           </div>
           {competitor.dimension_source_url && <a href={competitor.dimension_source_url} target="_blank" rel="noreferrer" className="btn-ghost block text-center text-xs">車身尺寸補充來源 ↗</a>}
-          {(competitor.field_conflicts || []).map((conflict) => conflict.news_url && <a key={conflict.news_url} href={conflict.news_url} target="_blank" rel="noreferrer" className="btn-ghost block text-center text-xs">衝突資料的另一份原廠來源 ↗</a>)}
+          {(competitor.field_conflicts || []).map((conflict) => conflict.news_url && <a key={conflict.news_url} href={conflict.news_url} target="_blank" rel="noreferrer" className="btn-ghost block text-center text-xs">衝突資料的另一份原廠來源 ↗</a>)}</>}
           <p className="text-[10px] text-ink-3 text-center">規格快照：{truckData.as_of}。價格未納入競品比較；K2500 報價仍使用系統既有統一車價。</p>
         </div>
       )}

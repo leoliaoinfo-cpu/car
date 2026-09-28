@@ -13,6 +13,9 @@ import {
 import {
   VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatTwd, formatVehiclePrice, getVehicleVariant,
 } from '../../utils/vehicles';
+import { DEFAULT_PRESENTATION_PIN_HASH, verifyPresentationPin } from '../../utils/presentationLock';
+import { STORAGE_KEYS } from '../../storageKeys';
+import ProductCatalog from '../catalog/ProductCatalog';
 import TruckComparison from './TruckComparison';
 
 const CHIP = 'min-h-11 rounded-xl border px-3 py-2 text-sm transition-colors text-left';
@@ -58,6 +61,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   const [notice, setNotice] = useState('');
   const [showSessionComparison, setShowSessionComparison] = useState(false);
   const [showSessionSpecs, setShowSessionSpecs] = useState(false);
+  const [showCustomerShowcase, setShowCustomerShowcase] = useState(false);
 
   const sorted = useMemo(() => [...receptionSessions].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')), [receptionSessions]);
   const session = receptionSessions.find((row) => row.id === selectedId) || null;
@@ -202,6 +206,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement} heightConfig={heightConfig}
       onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote}
       onOpenCatalog={onOpenCatalog}
+      onOpenShowcase={() => setShowCustomerShowcase(true)}
       onOpenSpecs={() => setShowSessionSpecs(true)}
       onOpenComparison={() => setShowSessionComparison(true)}
       onHold={async () => { await update({ status: 'hold' }); setSelectedId(null); }}
@@ -221,6 +226,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         </div>
       </div>
     )}
+    {showCustomerShowcase && <CustomerShowcase quotePresets={quotePresets} onExit={() => setShowCustomerShowcase(false)} />}
     {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
   </>;
 
@@ -254,7 +260,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   );
 }
 
-function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenSpecs, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
+function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenShowcase, onOpenSpecs, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
   const [handoffCopyStatus, setHandoffCopyStatus] = useState('');
   const promptStatus = receptionPromptStatus(session);
   const summary = requirementSummary(session);
@@ -285,7 +291,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
       <header className="safe-panel sticky top-0 z-30 bg-s1/95 backdrop-blur border-b border-bdr">
-        <div className="max-w-4xl mx-auto px-3 py-3 flex flex-wrap items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-[10rem]"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><div className="flex flex-wrap justify-end gap-2"><button onClick={onOpenSpecs} className="btn-outline text-xs shrink-0">貨車規格</button><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div></div>
+        <div className="max-w-4xl mx-auto px-3 py-3 flex flex-wrap items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-[10rem]"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><div className="flex flex-wrap justify-end gap-2"><button onClick={onOpenShowcase} className="btn-primary text-xs shrink-0">客戶展示</button><button onClick={onOpenSpecs} className="btn-outline text-xs shrink-0">貨車規格</button><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div></div>
         <div className="max-w-4xl mx-auto px-3 pb-2 overflow-x-auto"><div className="flex gap-1.5 min-w-max">{promptStatus.map(([label, done], idx) => <span key={label} className={`text-[11px] ${done ? 'text-ok' : 'text-ink-3'}`}>{idx > 0 && <span className="mr-1.5 text-bdr">→</span>}{label} {done ? '✓' : '○'}</span>)}</div></div>
       </header>
       <main className="max-w-4xl mx-auto p-3 md:p-5 space-y-4">
@@ -413,7 +419,7 @@ function RequirementCard({ name, value, session, heightPlan, update, onOpenCatal
   </div>;
 }
 
-function VehicleQuickReference() {
+function VehicleQuickReference({ customerMode = false }) {
   const [drive, setDrive] = useState('2WD');
   const [transmission, setTransmission] = useState('自排');
   const [presentation, setPresentation] = useState(false);
@@ -422,7 +428,7 @@ function VehicleQuickReference() {
   const comparedVariants = VEHICLE_VARIANTS.filter((v) => compare.includes(v.id));
   const toggleCompare = (id) => setCompare((current) => current.includes(id) ? current.filter((x) => x !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
   if (presentation) return <CustomerPresentation variants={comparedVariants.length ? comparedVariants : variants} onClose={() => setPresentation(false)} />;
-  return <section className="card p-4 md:p-6 space-y-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Kia K2500</h2><p className="text-xs text-ink-3 mt-1">3～5 秒找到售價與尺寸；勾選兩台後可並排給客戶比較。</p></div><button onClick={() => setPresentation(true)} className="btn-primary">給客戶看</button></div><div className="flex gap-2 flex-wrap"><Chip active={drive === '2WD'} onClick={() => { setDrive('2WD'); setCompare([]); }}>2WD</Chip><Chip active={drive === '4WD'} onClick={() => { setDrive('4WD'); setCompare([]); }}>4WD</Chip>{drive === '2WD' && <><Chip active={transmission === '自排'} onClick={() => { setTransmission('自排'); setCompare([]); }}>自排</Chip><Chip active={transmission === '手排'} onClick={() => { setTransmission('手排'); setCompare([]); }}>手排</Chip></>}</div><div className="grid md:grid-cols-3 gap-3">{variants.map((v) => <VehicleCard key={v.id} variant={v} checked={compare.includes(v.id)} onCompare={() => toggleCompare(v.id)} />)}</div>{compare.length > 0 && <p className="text-xs text-ink-2 font-medium">已選 {compare.length}/2 台比較；{compare.length === 1 ? '請再勾選另一台。' : '按「給客戶看」只顯示這兩台。'}</p>}</section>;
+  return <section className="card p-4 md:p-6 space-y-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Kia K2500</h2><p className="text-xs text-ink-3 mt-1">3～5 秒找到售價與尺寸；勾選兩台後可並排比較。</p></div><button onClick={() => setPresentation(true)} className="btn-primary">{customerMode ? '並排展示' : '給客戶看'}</button></div><div className="flex gap-2 flex-wrap"><Chip active={drive === '2WD'} onClick={() => { setDrive('2WD'); setCompare([]); }}>2WD</Chip><Chip active={drive === '4WD'} onClick={() => { setDrive('4WD'); setCompare([]); }}>4WD</Chip>{drive === '2WD' && <><Chip active={transmission === '自排'} onClick={() => { setTransmission('自排'); setCompare([]); }}>自排</Chip><Chip active={transmission === '手排'} onClick={() => { setTransmission('手排'); setCompare([]); }}>手排</Chip></>}</div><div className="grid md:grid-cols-3 gap-3">{variants.map((v) => <VehicleCard key={v.id} variant={v} checked={compare.includes(v.id)} onCompare={() => toggleCompare(v.id)} />)}</div>{compare.length > 0 && <p className="text-xs text-ink-2 font-medium">已選 {compare.length}/2 台比較；{compare.length === 1 ? '請再勾選另一台。' : '按「並排展示」只顯示這兩台。'}</p>}</section>;
 }
 
 function VehicleCard({ variant: v, checked, onCompare, presentation = false }) {
@@ -436,6 +442,125 @@ function Metric({ label, big, small, presentation = false }) { return <div><p cl
 
 function CustomerPresentation({ variants, onClose }) {
   return <div className="safe-screen fixed inset-0 z-[80] bg-white overflow-y-auto text-slate-900"><div className="max-w-5xl mx-auto p-4 md:p-8"><div className="flex items-center justify-between mb-6"><h1 className="text-3xl font-black">Kia K2500</h1><button onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-sm">關閉展示</button></div><div className={`grid gap-4 ${variants.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>{variants.map((v) => <VehicleCard key={v.id} variant={v} presentation />)}</div><p className="text-xs text-slate-400 mt-6">平均油耗為測試值；滿油續航與尿素價格為目前使用估算，不是保證值。實際結果會受載重、路況、駕駛方式、速度、改裝、環境及購買地點影響。</p></div></div>;
+}
+
+const SHOWCASE_TABS = [
+  ['home', '首頁'], ['specs', 'K2500 車型'], ['compare', '貨車比較'], ['addons', '改裝配件'], ['catalog', '圖片型錄'],
+];
+
+function readPresentationPinHash() {
+  try { return localStorage.getItem(STORAGE_KEYS.presentationPinHash) || DEFAULT_PRESENTATION_PIN_HASH; } catch { return DEFAULT_PRESENTATION_PIN_HASH; }
+}
+
+function CustomerShowcase({ quotePresets, onExit }) {
+  const [tab, setTab] = useState('home');
+  const [storedHash, setStoredHash] = useState(readPresentationPinHash);
+  const [gate, setGate] = useState(null);
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryAnswer, setRecoveryAnswer] = useState('');
+
+  function openExitGate() {
+    setPin('');
+    setError('');
+    setRecovering(false);
+    setGate('unlock');
+  }
+
+  async function submitPin() {
+    if (pin.length !== 4 || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (await verifyPresentationPin(pin, storedHash)) {
+        onExit();
+      } else {
+        setError('PIN 錯誤，請再試一次');
+        setPin('');
+      }
+    } catch {
+      setError('無法儲存或驗證 PIN，請確認瀏覽器允許本機儲存');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function recoverPin() {
+    if (recoveryAnswer.trim() !== '東平') {
+      setError('安全問題答案不正確');
+      return;
+    }
+    try { localStorage.setItem(STORAGE_KEYS.presentationPinHash, DEFAULT_PRESENTATION_PIN_HASH); } catch { /* noop */ }
+    setStoredHash(DEFAULT_PRESENTATION_PIN_HASH);
+    onExit();
+  }
+
+  return (
+    <div className="safe-screen fixed inset-0 z-[100] overflow-y-auto bg-bg text-ink">
+      <header className="sticky top-0 z-30 border-b border-bdr bg-s1/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-3 py-3 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setTab('home')} className="text-left mr-auto"><span className="block text-[10px] tracking-[0.2em] text-accent font-semibold">CUSTOMER SHOWROOM</span><strong className="text-lg">Kia K2500 客戶展示</strong></button>
+          <div className="flex gap-1.5 overflow-x-auto max-w-full">{SHOWCASE_TABS.slice(1).map(([key, label]) => <button type="button" key={key} onClick={() => setTab(key)} className={`min-h-10 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold ${tab === key ? 'bg-accent text-on-accent border-accent' : 'bg-s1 text-ink-2 border-bdr'}`}>{label}</button>)}</div>
+          <button type="button" onClick={openExitGate} className="min-h-10 rounded-xl border border-bdr px-3 text-xs text-ink-3 shrink-0">🔒 業務離開</button>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto p-3 md:p-6 pb-24">
+        {tab === 'home' && <ShowcaseHome onSelect={setTab} />}
+        {tab === 'specs' && <VehicleQuickReference customerMode />}
+        {tab === 'compare' && <TruckComparison customerMode />}
+        {tab === 'addons' && <CustomerAddonShowcase quotePresets={quotePresets} />}
+        {tab === 'catalog' && <ProductCatalog />}
+      </main>
+
+      {gate && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-sm rounded-3xl bg-s1 border border-bdr p-5 shadow-panel">
+          <div className="text-center"><div className="text-3xl">🔒</div><h2 className="font-bold text-lg mt-2">業務驗證</h2><p className="text-xs text-ink-3 mt-1">輸入 4 位數 PIN，才能回到業務系統</p></div>
+          {!recovering ? <>
+            <PinPad pin={pin} onChange={setPin} />
+            {error && <p className="text-xs text-danger text-center mt-2">{error}</p>}
+            <button type="button" disabled={pin.length !== 4 || busy} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '離開客戶展示'}</button>
+            <button type="button" onClick={() => { setRecovering(true); setError(''); }} className="btn-ghost w-full mt-2 text-xs">忘記 PIN</button>
+            <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續展示</button>
+          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">安全問題：就讀的國小</span><input type="text" inputMode="text" lang="zh-Hant" value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value)} autoComplete="off" className="w-full mt-1" placeholder="輸入答案" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並離開展示</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
+          <p className="text-[10px] text-ink-3 text-center mt-3">離開 PIN 只用來防止客人隨手開啟內部系統；忘記時可用安全問題復原。</p>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+function PinPad({ pin, onChange }) {
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '清除', '0', '⌫'];
+  function press(key) {
+    if (key === '清除') onChange('');
+    else if (key === '⌫') onChange(pin.slice(0, -1));
+    else if (pin.length < 4) onChange(`${pin}${key}`);
+  }
+  return <div className="mt-5"><div className="flex justify-center gap-3 mb-4">{[0, 1, 2, 3].map((index) => <span key={index} className={`w-4 h-4 rounded-full border ${pin.length > index ? 'bg-accent border-accent' : 'bg-s2 border-bdr'}`} />)}</div><div className="grid grid-cols-3 gap-2">{keys.map((key) => <button type="button" key={key} onClick={() => press(key)} className="min-h-12 rounded-xl border border-bdr bg-s2 text-base font-semibold active:bg-accent active:text-on-accent">{key}</button>)}</div></div>;
+}
+
+function ShowcaseHome({ onSelect }) {
+  const cards = [
+    ['specs', '🚚', 'K2500 車型', '查看各車型售價、貨斗尺寸、載重、油耗與完整規格'],
+    ['compare', '⚖️', '貨車比較', '用相同單位比較 K2500 與其他商用貨車的已查證資料'],
+    ['addons', '🧰', '改裝配件', '查看尾門、底板、帆布、燈具與工作配件介紹'],
+    ['catalog', '📖', '圖片型錄', '用大圖瀏覽車款與實際改裝內容'],
+  ];
+  return <div className="space-y-6"><section className="rounded-3xl bg-gradient-to-br from-slate-800 to-slate-950 p-7 md:p-10 text-white"><p className="text-xs tracking-[0.25em] text-orange-300">KIA K2500</p><h1 className="text-3xl md:text-5xl font-black mt-3">選對工作車，工作更順手</h1><p className="mt-4 max-w-2xl text-sm md:text-base text-slate-200 leading-relaxed">從平常載運內容、路線、乘坐人數與改裝需求出發，查看適合自己的車型與工作配備。實際售價、載重與改裝內容仍由業務依正式資料確認。</p></section><div className="grid sm:grid-cols-2 gap-4">{cards.map(([key, icon, title, desc]) => <button type="button" key={key} onClick={() => onSelect(key)} className="card min-h-40 p-5 text-left hover:border-accent/60 transition-colors"><span className="text-3xl">{icon}</span><strong className="block text-xl mt-3">{title}</strong><span className="block text-sm text-ink-3 mt-2 leading-relaxed">{desc}</span><span className="block text-sm text-accent font-semibold mt-4">開始查看 →</span></button>)}</div></div>;
+}
+
+function CustomerAddonShowcase({ quotePresets }) {
+  const [category, setCategory] = useState('全部');
+  const [query, setQuery] = useState('');
+  const categories = ['全部', ...(quotePresets.addonCategories || [])];
+  const items = useMemo(() => (quotePresets.addons || [])
+    .filter((item) => category === '全部' || item.cat === category)
+    .filter((item) => !query.trim() || `${item.name} ${item.desc || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => Number(b.pendingPrice) - Number(a.pendingPrice) || (Number(b.price) || 0) - (Number(a.price) || 0)), [quotePresets, category, query]);
+  return <section className="space-y-4"><div className="card p-4 md:p-6"><p className="text-[11px] tracking-widest text-accent font-semibold">WORK EQUIPMENT</p><h2 className="text-2xl font-bold mt-1">改裝配件介紹</h2><p className="text-xs text-ink-3 mt-1">價格與施工內容依車型、尺寸和廠商正式確認；標示待報價的項目不納入目前總價。</p><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋配件名稱或用途" className="w-full mt-4" /><div className="flex gap-2 overflow-x-auto mt-3 pb-1">{categories.map((item) => <button type="button" key={item} onClick={() => setCategory(item)} className={`min-h-10 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold ${category === item ? 'bg-accent text-on-accent border-accent' : 'bg-s1 text-ink-2 border-bdr'}`}>{item}</button>)}</div></div><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{items.map((item) => <article key={item.id} className="card p-4"><div className="flex items-start justify-between gap-3"><div><span className="text-[10px] text-ink-3">{item.cat || '其他'}</span><h3 className="font-bold mt-1 leading-snug">{item.name}</h3></div><strong className={`text-sm shrink-0 ${item.pendingPrice ? 'text-warn' : 'text-accent'}`}>{item.pendingPrice ? '待廠商報價' : formatTwd(item.price)}</strong></div>{item.desc && <p className="text-xs text-ink-3 leading-relaxed mt-3">{item.desc}</p>}</article>)}</div>{items.length === 0 && <p className="card p-8 text-center text-sm text-ink-3">找不到符合的配件</p>}</section>;
 }
 
 function FormalizeModal({ form, setForm, onClose, onSave }) {
