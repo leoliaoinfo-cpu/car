@@ -61,7 +61,7 @@ export default function ProductCatalog({ onClose }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-bold text-lg text-ink flex items-center gap-2">📖 產品型錄</h2>
-          <p className="text-xs text-ink-3 mt-0.5">KIA 卡旺 2026 車型與配件 · 點圖片可放大展示給客戶</p>
+          <p className="text-xs text-ink-3 mt-0.5">KIA 卡旺產品圖片型錄 · 年式與售價以最新報價為準</p>
         </div>
         {onClose && (
           <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1" title="關閉">✕</button>

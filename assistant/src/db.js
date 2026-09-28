@@ -2,7 +2,7 @@ import { openDB } from 'idb';
 import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
 
 const DB_NAME = CAR_DB_NAME;
-// v10：展間匿名接待與需求紀錄；正式建檔後仍沿用 clients。
+// v10：匿名客戶接待與需求紀錄；建立客戶後仍沿用 clients。
 const DB_VERSION = 10;
 
 let dbPromise = null;
@@ -87,7 +87,7 @@ function openRaw() {
           pr.createIndex('quoteId', 'quoteId');
           pr.createIndex('dealId', 'dealId');
         }
-        // v9：主導覽的獨立報價工作區。可在尚未建立客戶檔時先逐步完成報價。
+        // v9：主導覽的報價管理工作區。可在尚未建立客戶檔時先逐步完成報價。
         if (!database.objectStoreNames.contains('quoteDrafts')) {
           const qd = database.createObjectStore('quoteDrafts', { keyPath: 'id' });
           qd.createIndex('clientId', 'clientId');

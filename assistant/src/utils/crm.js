@@ -13,10 +13,10 @@ export const STATUS_LABEL = {
   ok: '追蹤中',
   warn: '待聯繫',
   hot: '久未聯繫',
-  cold: '冷掉了',
+  cold: '長期未聯繫',
 };
 
-/** 追蹤規則預設值：超過 coldDays 天未聯繫 → 🟠久未聯繫；超過 deadDays 天 → 🔴冷掉了 */
+/** 追蹤規則預設值：超過 coldDays 天未聯繫 → 🟠久未聯繫；超過 deadDays 天 → 🔴長期未聯繫 */
 export const DEFAULT_THRESHOLDS = { coldDays: 180, deadDays: 365 };
 
 /** 清理使用者輸入的門檻：至少 1 天，且 deadDays 不小於 coldDays */
@@ -36,7 +36,8 @@ export function getClientStatus(client, thresholds) {
   const daysSinceCreated = now.diff(created, 'day');
   const daysSinceContact = lastContact ? now.diff(lastContact, 'day') : null;
 
-  if (!lastContact && daysSinceCreated >= coldDays) return 'cold';
+  if (!lastContact && daysSinceCreated >= deadDays) return 'cold';
+  if (!lastContact && daysSinceCreated >= coldDays) return 'hot';
   if (daysSinceContact !== null && daysSinceContact >= deadDays) return 'cold';
   if (daysSinceContact !== null && daysSinceContact >= coldDays) return 'hot';
   if (nextDate && !nextDate.isAfter(now, 'day')) return 'warn';
@@ -147,7 +148,7 @@ export const EVENT_TYPES = {
   order:     { icon: '📝', label: '下訂',     color: '#c0764f', hasAmount: true },
   delivery:  { icon: '🔑', label: '交車',     color: '#7d9b76' },
   aftercare: { icon: '🤝', label: '售後回訪', color: '#9a9a6f' },
-  deal:      { icon: '🏆', label: '成交歸檔', color: '#a99760' },
+  deal:      { icon: '🏆', label: '建立成交案', color: '#a99760' },
   occasion:  { icon: '🎉', label: '紀念日',   color: '#b58a96' },
 };
 
@@ -188,7 +189,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
   return out;
 }
 
-// ── 商用車報價：Kia 彰化卡旺 2026 原廠車型 / 配備 / 補助折抵型錄（設定可編輯）────
+// ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
 export const QUOTE_CATALOG_VERSION = 'kavan-2026-v13';
 

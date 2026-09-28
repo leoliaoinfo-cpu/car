@@ -64,8 +64,8 @@ function shortHash(str) {
 }
 
 /**
- * 報價單產生器：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
- * 可由客戶頁寫入時間軸，也可由主導覽的獨立報價工作區儲存草稿。
+ * 建立報價單：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
+ * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
 export default function QuoteModal({ client, clients = [], quote, onSaveQuote, onClose }) {
   const { quotePresets, costCatalog, pricingRecords } = useApp();
@@ -558,7 +558,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       <div className="safe-screen fixed inset-0 z-50 overflow-y-auto px-4 flex items-start justify-center">
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md md:max-w-2xl p-4 md:p-5 anim-scale-in my-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '報價單產生器'}</h3>
+            <h3 className="font-bold text-lg text-ink">🧾 {isEdit ? '編輯報價單' : '建立報價單'}</h3>
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => setShowCatalog(true)}
                 className="btn-outline text-xs gap-1 py-1">📖 看型錄</button>
@@ -601,7 +601,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   </div>
                 )}
                 {customerMode === 'new' && (
-                  <p className="text-[11px] text-ok">儲存後會自動進入「客戶追蹤」，業務進度設為「報價」，並連結這張報價。</p>
+                  <p className="text-[11px] text-ok">儲存後會自動進入「客戶追蹤」，客戶階段設為「報價」，並連結這張報價。</p>
                 )}
                 {duplicateClient && (
                   <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 flex items-center gap-2">
@@ -722,7 +722,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                                     {picked && <span style={{ color }}>✓ </span>}{a.name}
                                   </p>
                                   <span className="text-xs font-bold shrink-0" style={{ color }}>
-                                    {a.pendingPrice ? '待報價' : formatMoney(a.price)}
+                                    {a.pendingPrice ? '待廠商報價' : formatMoney(a.price)}
                                   </span>
                                 </div>
                                 {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
@@ -750,7 +750,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                                 {a.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
                                 <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{a.name}</span>
                                 <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
-                                  {a.pendingPrice ? '待報價' : formatMoney(a.price)}
+                                  {a.pendingPrice ? '待廠商報價' : formatMoney(a.price)}
                                 </span>
                               </button>
                             );
@@ -779,7 +779,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             <div className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-ink-2">➕ 額外配件／未列配件</p>
-                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入；價格還不知道時，直接勾選「待確認金額」。</p>
+                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入；尚未取得廠商價格時，直接勾選「待廠商報價」。</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_7rem] gap-2">
                 <input value={extraAddon.name}
@@ -795,7 +795,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer">
                   <input type="checkbox" checked={extraAddon.pending}
                     onChange={(e) => setExtraAddon((value) => ({ ...value, pending: e.target.checked, price: e.target.checked ? '' : value.price }))} />
-                  待確認金額（暫不計入總額）
+                  待廠商報價（暫不計入總額）
                 </label>
                 <button type="button" onClick={addExtraAddon}
                   disabled={!extraAddon.name.trim() || (!extraAddon.pending && !(Number(extraAddon.price) > 0))}
@@ -804,7 +804,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
             </div>
             <div className="flex gap-2 text-[11px] font-medium text-ink-3">
               <span className="flex-1">項目名稱</span>
-              <span className="w-28">金額／待報價</span>
+              <span className="w-28">金額／待廠商報價</span>
               <span className="w-4" />
             </div>
             {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
@@ -818,7 +818,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
                     <input type="number" min="0" value={it.price}
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
-                      disabled={it.pending} placeholder={it.pending ? '待報價' : '0'}
+                      disabled={it.pending} placeholder={it.pending ? '待廠商報價' : '0'}
                       className="w-28 text-sm disabled:opacity-40" />
                     <button onClick={() => removeItem(it.id)}
                       className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
@@ -839,12 +839,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                           ? '此項待向廠商確認價格，暫不列入總額'
                           : (it.discounts || []).length > 0
                           ? `已優惠 ${formatMoney(discountSum)}・折後 ${formatMoney(Math.max(0, Number(it.price) - discountSum))}`
-                          : selected ? '此項目目前沒有優惠' : '請輸入金額或標記待報價'}
+                          : selected ? '此項目目前沒有優惠' : '請輸入金額或標記待廠商報價'}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         <button type="button" onClick={() => setItem(it.id, { pending: !it.pending, discounts: it.pending ? it.discounts : [] })}
                           className={`text-[11px] rounded-lg border px-2 py-1 ${it.pending ? 'border-warn bg-warn/10 text-warn' : 'border-bdr text-ink-3'}`}>
-                          {it.pending ? '✓ 待報價' : '設為待報價'}
+                          {it.pending ? '✓ 待廠商報價' : '設為待廠商報價'}
                         </button>
                         {selected && !it.pending && (
                           <button type="button" onClick={() => addItemDiscount(it.id)}
@@ -917,7 +917,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                         onClick={() => setLoan((v) => ({ ...v, downPct: sel ? null : p, down: '' }))}
                         className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
                           sel ? 'bg-accent text-on-accent border-accent' : 'border-bdr text-ink-2 hover:bg-s3'}`}>
-                        {p === 0 ? '免頭款' : `${p}%`}
+                        {p === 0 ? '頭款 0 元試算' : `${p}%`}
                       </button>
                     );
                   })}
@@ -1175,7 +1175,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
               </div>
               {pendingItems.length > 0 && (
                 <p style={{ color: '#9a6d3e', background: '#fff8ec', borderRadius: 8, padding: '7px 10px', fontSize: 9.5, lineHeight: 1.5, marginTop: 8 }}>
-                  尚有 {pendingItems.length} 項待廠商報價，以上金額不包含待報價項目，完整總價確認後更新。
+                  尚有 {pendingItems.length} 項待廠商報價，以上金額不包含待廠商報價項目，完整總價確認後更新。
                 </p>
               )}
 

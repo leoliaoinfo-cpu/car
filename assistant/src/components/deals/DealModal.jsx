@@ -4,7 +4,7 @@ import { today } from '../../utils/date';
 import { Field } from '../ui';
 
 /**
- * 成交歸檔表單（新增 / 編輯共用）。
+ * 成交案表單（新增 / 編輯共用）。
  * deal 為 null 時是新增模式，需給 client；編輯模式傳入既有 deal。
  */
 export default function DealModal({ deal, client, dealFields, onSave, onClose }) {
@@ -55,7 +55,7 @@ export default function DealModal({ deal, client, dealFields, onSave, onClose })
       <div className="modal">
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-sm p-5 anim-scale-in z-50">
           <h3 className="font-bold text-lg text-ink mb-1">
-            🏆 {isEdit ? '編輯業績' : '成交歸檔'}
+            🏆 {isEdit ? '編輯成交案' : '建立成交案'}
           </h3>
           <p className="text-xs text-ink-3 mb-4">
             {isEdit ? deal.clientName : client?.name}｜歸入 {date?.slice(0, 7).replace('-', ' 年 ')} 月業績
@@ -86,7 +86,7 @@ export default function DealModal({ deal, client, dealFields, onSave, onClose })
             </Field>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">{isEdit ? '儲存' : '歸檔'}</button>
+              <button type="submit" className="btn-primary flex-1">{isEdit ? '儲存' : '建立成交案'}</button>
             </div>
           </form>
         </div>

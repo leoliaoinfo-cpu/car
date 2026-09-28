@@ -420,7 +420,7 @@ export function AppProvider({ children }) {
     await db.delete('pricingRecords', id);
   }, []);
 
-  // ── 獨立報價工作區 ───────────────────────────────────────────────────────
+  // ── 報價管理工作區 ───────────────────────────────────────────────────────
   const saveQuoteDraft = useCallback(async (quote) => {
     const now = new Date().toISOString();
     const full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
@@ -447,7 +447,7 @@ export function AppProvider({ children }) {
     }
   }, [saveClient]);
 
-  // ── 展間接待（匿名開始、每次操作自動儲存）──────────────────────────────
+  // ── 客戶接待（匿名開始、每次操作自動儲存）──────────────────────────────
   const saveReceptionSession = useCallback(async (session) => {
     const now = new Date().toISOString();
     const full = { ...session, createdAt: session.createdAt || now, updatedAt: now };

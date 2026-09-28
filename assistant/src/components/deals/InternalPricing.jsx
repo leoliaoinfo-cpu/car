@@ -93,7 +93,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
       })),
     }]));
     await onSave({ ...draft, addons, key: 'costCatalog', updatedAt: new Date().toISOString() });
-    setMessage('✅ 成本設定已儲存；之後建立或重新編輯的報價會凍結新成本快照。');
+    setMessage('✅ 傭金與成本設定已儲存；之後建立或重新編輯的報價會凍結新的試算快照。');
   }
 
   const needle = search.trim().toLowerCase();
@@ -203,7 +203,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
     <div className="space-y-4">
       <div className="card p-4 space-y-3">
         <div>
-          <h2 className="font-bold text-ink">🔒 成本設定</h2>
+          <h2 className="font-bold text-ink">🔒 傭金與成本設定</h2>
           <p className="text-xs text-ink-3 mt-1 leading-relaxed">
             這些數字只會顯示在已解鎖的內部區域。車輛直接用公司公告的每台傭金計算利潤，不用整台車成本回推；配件則登錄實際拿貨成本。
           </p>
@@ -211,7 +211,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
         {(missingModelCount > 0 || missingAddonCount > 0) && (
           <p className="text-xs text-warn bg-warn/10 border border-warn/25 rounded-lg px-3 py-2">
-            ⚠️ 尚有 {missingModelCount} 個車型未設定傭金、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價試算會提醒補填。
+            ⚠️ 尚有 {missingModelCount} 個車型未設定傭金、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價利潤試算會提醒補填。
           </p>
         )}
       </div>
@@ -254,7 +254,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
       </section>
 
       {message && <p className="text-xs text-ok bg-ok/10 rounded-lg px-3 py-2">{message}</p>}
-      <button onClick={save} className="btn-primary w-full">儲存全部成本</button>
+      <button onClick={save} className="btn-primary w-full">儲存傭金與成本</button>
     </div>
   );
 }
@@ -287,7 +287,7 @@ export function QuotePricingPanel({
   return (
     <div className="space-y-3">
       <div className="card p-4">
-        <h2 className="font-bold text-ink">🧮 報價試算</h2>
+        <h2 className="font-bold text-ink">🧮 報價利潤試算</h2>
         <p className="text-xs text-ink-3 mt-1">車輛利潤直接帶入每台傭金；配件依供應商實際成本計算，尚未選供應商時先用適用的最高成本保守估算。</p>
       </div>
       <div className="card overflow-hidden">
@@ -395,7 +395,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-lg p-5 anim-scale-in z-50 max-h-[88vh] overflow-y-auto">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
-              <h3 className="font-bold text-lg text-ink">🔒 單車成本與利潤</h3>
+              <h3 className="font-bold text-lg text-ink">🔒 單車利潤試算</h3>
               <p className="text-xs text-ink-3">{record.model || '未填車型'}・折後售價 NT$ {formatMoney(preview.saleTotal)}</p>
             </div>
             <button onClick={onClose} className="btn-ghost text-xl">✕</button>
@@ -440,7 +440,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                           </option>
                         ))}
                       </select>
-                      {supplierOptions.length === 0 && <p className="text-[10px] text-warn">⚠️ 此車型沒有適用的供應商成本，請到成本設定補上。</p>}
+                      {supplierOptions.length === 0 && <p className="text-[10px] text-warn">⚠️ 此車型沒有適用的供應商成本，請到傭金與成本設定補上。</p>}
                       {!supplierSelections[line.id] && supplierOptions.length > 0 && lineCostSources[line.id] !== 'manual' && (
                         <p className="text-[10px] text-warn">未指派廠商，暫以最高成本 NT$ {formatMoney(Math.max(...supplierOptions.map((option) => option.cost)))} 試算；簽約後可在此指派。</p>
                       )}
@@ -449,10 +449,10 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 </div>
                 <div className={`grid ${quote ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
                   <label className="block">
-                    <span className="block text-[9px] text-ink-3 mb-0.5">{line.kind === 'vehicle' ? '每台傭金' : '實際成本'}</span>
+                    <span className="block text-[9px] text-ink-3 mb-0.5">{line.kind === 'vehicle' ? '每台傭金' : '配件成本'}</span>
                     <input type="number" min="0" value={lineCosts[line.id] ?? ''}
                       onChange={(e) => editLineCost(line, e.target.value)}
-                      placeholder={line.kind === 'vehicle' ? '每台傭金' : '實際成本'} className="text-xs w-full" />
+                      placeholder={line.kind === 'vehicle' ? '每台傭金' : '配件成本'} className="text-xs w-full" />
                   </label>
                   {quote && (
                     <label className="block">
@@ -492,8 +492,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
             <Metric label="優惠折扣" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
             <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
             <Metric label={preview.costComplete ? '配件／其他成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
-            <Metric label={record.kind === 'deal' ? '實際利潤' : '預估利潤'} value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
-            <Metric label="距離成本尚有空間" value={preview.profit == null ? null : Math.max(0, preview.profit)} tone="accent" />
+            <Metric label="目前試算利潤" value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
+            <Metric label="折扣後剩餘利潤" value={preview.profit == null ? null : Math.max(0, preview.profit)} tone="accent" />
           </div>
           {missingLines.length > 0 && (
             <div className="mt-3 rounded-xl border border-warn/35 bg-warn/10 p-3 space-y-2">
@@ -505,10 +505,10 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
               </div>
               {missingCatalogLines.length > 0 && onOpenCostSettings && (
                 <button type="button" onClick={() => onOpenCostSettings(missingCatalogLines[0].name)}
-                  className="btn-outline text-xs border-warn/50 text-warn">前往成本設定調整</button>
+                  className="btn-outline text-xs border-warn/50 text-warn">前往傭金與成本設定</button>
               )}
               {missingLines.length > missingCatalogLines.length && (
-                <p className="text-[10px] text-ink-3">自行新增的項目請直接在上方「實際成本」欄填寫。</p>
+                <p className="text-[10px] text-ink-3">自行新增的項目請直接在上方「配件成本」欄填寫。</p>
               )}
             </div>
           )}
@@ -517,7 +517,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           <div className="flex gap-2 mt-4">
             <button onClick={onClose} className="btn-outline flex-1">取消</button>
             <button onClick={saveInternalPricing} className="btn-primary flex-1">
-              {quote ? '儲存成本與折扣' : '儲存成本'}
+              {quote ? '儲存試算與折扣' : '儲存利潤試算'}
             </button>
           </div>
         </div>

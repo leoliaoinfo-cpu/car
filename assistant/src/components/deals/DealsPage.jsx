@@ -155,8 +155,8 @@ export default function DealsPage({ onOpenClient }) {
 
   const tabs = [
     ['performance', '業績與利潤'],
-    ['quotes', '報價試算'],
-    ['costs', '成本設定'],
+    ['quotes', '報價利潤試算'],
+    ['costs', '傭金與成本設定'],
     ['fulfillment', '簽約→交車 SOP'],
   ];
 
@@ -318,7 +318,7 @@ function DeliverySopPanel({ deals, clients, pricingById, onSaveDeal, onOpenPrici
         <h2 className="font-bold text-ink">📋 簽約後交車 SOP</h2>
         <p className="text-xs text-ink-3 mt-1">逐車核對廠商、改裝、領牌與交車進度；不適用的尾門或噴漆可標為「不適用」。此流程只在內部業績區顯示。</p>
       </div>
-      {sortedDeals.length === 0 && <p className="card p-6 text-center text-sm text-ink-3">尚無成交歸檔；簽約後即可在這裡追蹤交車流程。</p>}
+      {sortedDeals.length === 0 && <p className="card p-6 text-center text-sm text-ink-3">尚無成交案件；簽約後建立成交案，即可在這裡追蹤交車流程。</p>}
       {sortedDeals.map((deal) => {
         const steps = deal.deliverySop || {};
         const done = DELIVERY_SOP_STEPS.filter((step) => ['done', 'na'].includes(steps[step.id]?.status)).length;
@@ -337,7 +337,7 @@ function DeliverySopPanel({ deals, clients, pricingById, onSaveDeal, onOpenPrici
             </button>
             {isOpen && (
               <div className="border-t border-bdr p-3 space-y-2">
-                <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline text-xs">查看成本並指派供應商</button>
+                <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline text-xs">查看利潤與指派供應商</button>
                 {DELIVERY_SOP_STEPS.map((step, index) => {
                   const current = steps[step.id] || {};
                   return (
@@ -371,7 +371,7 @@ function DeliverySopPanel({ deals, clients, pricingById, onSaveDeal, onOpenPrici
 }
 
 function EmptyDeals() {
-  return <p className="text-center text-ink-3 text-sm py-10">尚無成交資料；成交歸檔後會自動帶入當下的成本快照。</p>;
+  return <p className="text-center text-ink-3 text-sm py-10">尚無成交資料；建立成交案後會自動帶入當下的成本快照。</p>;
 }
 
 function SummaryMetric({ label, value, tone = 'ink' }) {

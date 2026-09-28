@@ -421,7 +421,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         id: generateId('log'),
         date: fullDeal.date,
         type: 'deal',
-        text: `成交歸檔至 ${monthLabel}業績表${fullDeal.note ? `：${fullDeal.note}` : ''}`,
+        text: `建立成交案並加入 ${monthLabel}業績表${fullDeal.note ? `：${fullDeal.note}` : ''}`,
         ...(fullDeal.amount > 0 ? { amount: fullDeal.amount } : {}),
       }],
     }));
@@ -517,7 +517,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         </div>
 
         <button type="button" onClick={() => setShowTruckComparison(true)} className="btn-outline w-full min-h-11">
-          🚚 貨車規格比較{client.truckComparison?.competitorId ? '・繼續上次比較' : ''}
+          🚚 K2500 與競品比較{client.truckComparison?.competitorId ? '・繼續上次比較' : ''}
         </button>
 
         {client.missedCalls >= 5 && (
@@ -622,7 +622,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
                     {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </Field>
-                <Field label="業務進度">
+                <Field label="客戶階段">
                   <select value={form.stageId || ''} onChange={(e) => setField('stageId', e.target.value)} className="w-full">
                     {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -787,7 +787,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               <button onClick={() => setDeliveryDate('')} className="text-danger/60 hover:text-danger text-xs px-1">清除</button>
             )}
           </div>
-          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「今日工作」最上方提醒你。實際交車時到下方「業務流程」按「🚚 交車」即可自動歸檔並建立售後回訪。</p>
+          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「今日工作」最上方提醒你。實際交車時到下方「互動與成交紀錄」按「🚚 交車」，系統會記錄交車並建立售後回訪。</p>
         </section>
 
         {/* 生日 / 重要日子（行事曆活動，可每年重複提醒） */}
@@ -847,7 +847,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
         {/* 業務流程事件 */}
         <section className="card p-4 space-y-3">
-          <h3 className="font-semibold text-sm text-ink-2">🚛 業務進度記錄</h3>
+          <h3 className="font-semibold text-sm text-ink-2">🚛 互動與成交紀錄</h3>
           <div className="flex gap-1.5 flex-wrap">
             {QUICK_EVENT_KEYS.map((key) => {
               const def = EVENT_TYPES[key];
@@ -944,7 +944,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
 
         {client.demandProfile && (
           <section className="card p-4 space-y-3">
-            <div className="flex items-center justify-between"><h3 className="font-semibold text-sm text-ink-2">🤝 需求摘要</h3><span className="text-[10px] text-ok">由展間接待帶入</span></div>
+            <div className="flex items-center justify-between"><h3 className="font-semibold text-sm text-ink-2">🤝 需求摘要</h3><span className="text-[10px] text-ok">由客戶接待帶入</span></div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
               {[
                 ['做什麼', client.demandProfile.industry], ['現在開什麼', client.demandProfile.currentVehicle],
@@ -992,16 +992,16 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         {/* 成交歸檔 */}
         <section className="card p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm text-ink-2">🏆 成交歸檔</h3>
+            <h3 className="font-semibold text-sm text-ink-2">🏆 建立成交案</h3>
             <button onClick={() => setShowDealModal(true)} className="btn-primary text-xs">
-              ＋ 歸檔到業績表
+              ＋ 建立成交案並加入業績
             </button>
           </div>
           {needsArchive && (
             <div className="bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 flex items-center gap-2">
               <span className="text-sm shrink-0">🏆</span>
-              <span className="flex-1 text-xs text-accent">已記錄下訂 / 交車，別忘了歸檔才會計入業績表。</span>
-              <button onClick={() => setShowDealModal(true)} className="btn-primary text-[10px] px-2 py-1 shrink-0">立即歸檔</button>
+              <span className="flex-1 text-xs text-accent">已記錄下訂 / 交車，建立成交案後才會計入業績表並進入交車 SOP。</span>
+              <button onClick={() => setShowDealModal(true)} className="btn-primary text-[10px] px-2 py-1 shrink-0">建立成交案</button>
             </div>
           )}
           <p className="text-xs text-ink-3">

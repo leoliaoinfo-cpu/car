@@ -219,7 +219,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       <div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3 md:p-5">
         <div className="max-w-5xl mx-auto space-y-3">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-2xl border border-bdr bg-s1/95 backdrop-blur p-3 shadow-card">
-            <div><h2 className="font-bold">貨車規格</h2><p className="text-xs text-ink-3">K2500 車型、售價、尺寸、載重與油耗速查</p></div>
+            <div><h2 className="font-bold">K2500 車型規格</h2><p className="text-xs text-ink-3">K2500 車型、售價、尺寸、載重與油耗速查</p></div>
             <button type="button" onClick={() => setShowSessionSpecs(false)} className="btn-outline shrink-0">關閉</button>
           </div>
           <VehicleQuickReference />
@@ -234,13 +234,13 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     <div className="max-w-6xl mx-auto px-3 md:px-5 py-4 md:py-6 space-y-4">
       <section className="rounded-3xl bg-s1 border border-bdr p-5 md:p-7 shadow-card">
         <div className="flex items-start justify-between gap-4">
-          <div><p className="text-[11px] tracking-[0.2em] text-accent font-semibold">SHOWROOM RECEPTION</p><h1 className="text-2xl font-bold mt-1">展間接待</h1><p className="text-sm text-ink-2 mt-2">先自然聊天、快速記需求；有後續再正式建檔。</p></div>
+          <div><p className="text-[11px] tracking-[0.2em] text-accent font-semibold">CUSTOMER RECEPTION</p><h1 className="text-2xl font-bold mt-1">客戶接待</h1><p className="text-sm text-ink-2 mt-2">現場、電話或網路來客都能先快速記需求；有後續再建立客戶追蹤。</p></div>
           <button onClick={createSession} className="btn-primary min-h-11 shrink-0">＋ 新增接待</button>
         </div>
         <div className="flex gap-2 mt-5">
           <Chip active={view === 'sessions'} onClick={() => setView('sessions')}>接待紀錄</Chip>
           <Chip active={view === 'quick'} onClick={() => setView('quick')}>K2500 速查</Chip>
-          <Chip active={view === 'compare'} onClick={() => setView('compare')}>貨車比較</Chip>
+          <Chip active={view === 'compare'} onClick={() => setView('compare')}>K2500 與競品比較</Chip>
         </div>
       </section>
 
@@ -248,7 +248,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         sorted.length === 0 ? <section className="card p-10 text-center"><h2 className="font-bold text-lg">還沒有接待紀錄</h2><p className="text-sm text-ink-3 mt-2">客人進來先按「新增接待」，不用姓名電話也能開始。</p><button onClick={createSession} className="btn-primary mt-5">＋ 新增接待</button></section> :
           <div className="grid md:grid-cols-2 gap-3">{sorted.map((row) => (
             <article key={row.id} className="card p-4">
-              <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold">{row.displayName}</h2><p className="text-xs text-ink-3 mt-1">{row.source || '接待'}・{row.customerMode}・{dayjs(row.updatedAt).format('M/D HH:mm')}</p></div><span className={`badge ${row.status === 'formalized' ? 'bg-ok/10 text-ok' : 'bg-accent/10 text-accent'}`}>{{ formalized: '已建檔', hold: '先保留', closed: '無後續', active: '接待中' }[row.status] || '接待中'}</span></div>
+              <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold">{row.displayName}</h2><p className="text-xs text-ink-3 mt-1">{row.source || '接待'}・{row.customerMode}・{dayjs(row.updatedAt).format('M/D HH:mm')}</p></div><span className={`badge ${row.status === 'formalized' ? 'bg-ok/10 text-ok' : 'bg-accent/10 text-accent'}`}>{{ formalized: '已建立客戶', hold: '已保留', closed: '不追蹤', active: '接待中' }[row.status] || '接待中'}</span></div>
               <p className="text-sm text-ink-2 mt-3 line-clamp-2">{[row.industry, row.currentVehicle, ...(row.cargo || [])].filter(Boolean).join('・') || '尚未開始記錄需求'}</p>
               <div className="flex gap-2 mt-4"><button onClick={() => setSelectedId(row.id)} className="btn-primary flex-1">開啟</button><button onClick={() => deleteReceptionSession(row.id)} className="btn-ghost text-danger">刪除</button></div>
             </article>
@@ -291,7 +291,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
       <header className="safe-panel sticky top-0 z-30 bg-s1/95 backdrop-blur border-b border-bdr">
-        <div className="max-w-4xl mx-auto px-3 py-3 flex flex-wrap items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-[10rem]"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><div className="flex flex-wrap justify-end gap-2"><button onClick={onOpenShowcase} className="btn-primary text-xs shrink-0">客戶展示</button><button onClick={onOpenSpecs} className="btn-outline text-xs shrink-0">貨車規格</button><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div></div>
+        <div className="max-w-4xl mx-auto px-3 py-3 flex flex-wrap items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-[10rem]"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><div className="flex flex-wrap justify-end gap-2"><button onClick={onOpenShowcase} className="btn-primary text-xs shrink-0">客戶看車模式</button><button onClick={onOpenSpecs} className="btn-outline text-xs shrink-0">K2500 車型規格</button><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">K2500 與競品比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">建立客戶並追蹤</button></div></div>
         <div className="max-w-4xl mx-auto px-3 pb-2 overflow-x-auto"><div className="flex gap-1.5 min-w-max">{promptStatus.map(([label, done], idx) => <span key={label} className={`text-[11px] ${done ? 'text-ok' : 'text-ink-3'}`}>{idx > 0 && <span className="mr-1.5 text-bdr">→</span>}{label} {done ? '✓' : '○'}</span>)}</div></div>
       </header>
       <main className="max-w-4xl mx-auto p-3 md:p-5 space-y-4">
@@ -316,7 +316,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
           <FieldBlock label="會載長料嗎？"><ChipGroup options={['不會', '偶爾', '會']} value={session.longMaterial} onChange={(longMaterial) => update({ longMaterial })} />{session.longMaterial !== '不會' && <div className="rounded-2xl bg-s2 p-3 space-y-3"><ChipGroup options={['梯子', '管材', '木料', '鐵料', '其他']} value={session.longMaterialTypes} multi onChange={(longMaterialTypes) => update({ longMaterialTypes })} /><ChipGroup options={['3m內', '3～4m', '4～5m', '5m以上', '不知道']} value={session.longMaterialLength} onChange={(longMaterialLength) => update({ longMaterialLength })} /></div>}</FieldBlock>
         </Section>
 
-        <Section title="3. 車型需求" hint="非必填；售價與規格統一從八個 Vehicle Variant 讀取">
+        <Section title="3. 車型需求" hint="非必填；售價與規格統一從系統內建 8 款 K2500 車型帶入">
           <FieldBlock label="車室"><ChipGroup options={['單廂', '大單廂', '雙廂', '還不確定']} value={session.cabNeed} onChange={(cabNeed) => update({ cabNeed })} /></FieldBlock>
           <FieldBlock label="驅動"><ChipGroup options={['2WD', '4WD', '還不確定']} value={session.driveNeed} onChange={(driveNeed) => update({ driveNeed })} /></FieldBlock>
           <FieldBlock label="變速箱"><ChipGroup options={['自排', '手排', '都可以', '還不確定']} value={session.transmissionNeed} onChange={(transmissionNeed) => update({ transmissionNeed })} /></FieldBlock>
@@ -334,7 +334,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
         <Section title="6. 需求摘要"><div className="grid sm:grid-cols-2 gap-x-5 gap-y-2 text-sm">{[['行業', session.industry], ['目前車', session.currentVehicle], ['載運', (session.cargo || []).join('＋')], ['載重', session.loadKg ? `約 ${session.loadKg}kg` : session.loadRange], ['駕駛', session.driver], ['路線', (session.environments || []).join('＋')], ['限高', ['會', '會下地下室', '有其他限高場所'].includes(session.parking) ? `${session.clearanceCm || '待確認'}cm` : session.parking], ['考慮車型', variant?.name]].map(([label, value]) => value && <div key={label} className="flex justify-between gap-3 border-b border-bdr/40 py-2"><span className="text-ink-3">{label}</span><strong className="text-right">{value}</strong></div>)}</div>{summary.length > 0 && <div><p className="text-xs text-ink-3 mb-2">車體／配備</p><div className="flex flex-wrap gap-2">{summary.map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div></div>}{generatedHeightSummary && <div className="space-y-2"><div className="flex items-center justify-between gap-2"><p className="text-xs text-ink-3">自動施工交接</p><button type="button" onClick={copyHandoff} className="btn-outline text-xs">📋 複製施工交接</button></div><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{generatedHeightSummary}</pre>{handoffCopyStatus && <p className="text-xs text-ok">{handoffCopyStatus}</p>}</div>}<textarea value={session.quickNote} onChange={(e) => update({ quickNote: e.target.value })} placeholder="快速備註（手機可使用鍵盤語音輸入）" rows={4} className="w-full" /><textarea value={session.handoffNote} onChange={(e) => update({ handoffNote: e.target.value })} placeholder="補充交接備註（自動施工交接之外的提醒）" rows={3} className="w-full" /></Section>
 
         {notice && <div className="rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm flex gap-3"><span className="flex-1">{notice}</span><button onClick={onNotice}>×</button></div>}
-        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將選定需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">正式建檔</button><button onClick={onHold} className="btn-outline min-h-12">先保留</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">無後續</button></div>
+        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將選定需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">建立客戶並追蹤</button><button onClick={onHold} className="btn-outline min-h-12">保留接待紀錄</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">結束接待（不追蹤）</button></div>
       </main>
     </div>
   );
@@ -518,9 +518,9 @@ function CustomerShowcase({ onExit }) {
     <div className="safe-screen fixed inset-0 z-[100] overflow-y-auto bg-bg text-ink">
       <header className="sticky top-0 z-30 border-b border-bdr bg-s1/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-3 py-3 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => setTab('home')} className="text-left mr-auto"><span className="block text-[10px] tracking-[0.2em] text-accent font-semibold">CUSTOMER SHOWROOM</span><strong className="text-lg">Kia K2500 客戶展示</strong></button>
+          <button type="button" onClick={() => setTab('home')} className="text-left mr-auto"><span className="block text-[10px] tracking-[0.2em] text-accent font-semibold">CUSTOMER SHOWROOM</span><strong className="text-lg">Kia K2500 客戶看車模式</strong></button>
           <div className="flex gap-1.5 overflow-x-auto max-w-full">{SHOWCASE_TABS.slice(1).map(([key, label]) => <button type="button" key={key} onClick={() => setTab(key)} className={`min-h-10 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold ${tab === key ? 'bg-accent text-on-accent border-accent' : 'bg-s1 text-ink-2 border-bdr'}`}>{label}</button>)}</div>
-          <button type="button" onClick={openExitGate} className="min-h-10 rounded-xl border border-bdr px-3 text-xs text-ink-3 shrink-0">🔒 業務離開</button>
+          <button type="button" onClick={openExitGate} className="min-h-10 rounded-xl border border-bdr px-3 text-xs text-ink-3 shrink-0">🔒 返回業務系統</button>
         </div>
       </header>
 
@@ -536,10 +536,10 @@ function CustomerShowcase({ onExit }) {
           {!recovering ? <>
             <PinPad pin={pin} onChange={setPin} />
             {error && <p className="text-xs text-danger text-center mt-2">{error}</p>}
-            <button type="button" disabled={pin.length !== 4 || busy} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '離開客戶展示'}</button>
+            <button type="button" disabled={pin.length !== 4 || busy} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '返回業務系統'}</button>
             <button type="button" onClick={() => { setRecovering(true); setError(''); }} className="btn-ghost w-full mt-2 text-xs">忘記 PIN</button>
-            <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續展示</button>
-          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">安全問題：就讀的國小</span><input type="text" inputMode="text" lang="zh-Hant" value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value)} autoComplete="off" className="w-full mt-1" placeholder="輸入答案" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並離開展示</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
+            <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續看車</button>
+          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">安全問題：就讀的國小</span><input type="text" inputMode="text" lang="zh-Hant" value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value)} autoComplete="off" className="w-full mt-1" placeholder="輸入答案" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並返回業務系統</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
           <p className="text-[10px] text-ink-3 text-center mt-3">離開 PIN 只用來防止客人隨手開啟內部系統；忘記時可用安全問題復原。</p>
         </div>
       </div>}
@@ -567,5 +567,5 @@ function ShowcaseHome({ onSelect }) {
 
 function FormalizeModal({ form, setForm, onClose, onSave }) {
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
-  return <><div className="overlay" onClick={onClose} /><div className="modal"><div className="safe-screen bg-s1 rounded-2xl border border-bdr shadow-panel w-full max-w-lg max-h-[92dvh] overflow-y-auto p-5 z-50"><h2 className="text-lg font-bold">正式建檔</h2><p className="text-xs text-ink-3 mt-1">接待紀錄會全部帶入，不必重新問一次。</p><div className="grid grid-cols-2 gap-3 mt-5">{[['name', '姓名／公司名 *'], ['phone', '電話'], ['lineId', 'LINE'], ['company', '公司名稱'], ['address', '地址'], ['budget', '預算'], ['purchaseTime', '購車時間'], ['payment', '付款方式'], ['loanNeed', '貸款需求'], ['nextDate', '下次追蹤日期']].map(([key, label]) => <label key={key} className={key === 'address' ? 'col-span-2' : ''}><span className="text-xs text-ink-3">{label}</span><input type={key === 'nextDate' ? 'date' : 'text'} value={form[key]} onChange={(e) => set(key, e.target.value)} className="w-full min-h-11 mt-1" /></label>)}</div><div className="flex gap-2 mt-5"><button onClick={onClose} className="btn-outline flex-1">取消</button><button onClick={onSave} disabled={!form.name.trim()} className="btn-primary flex-1 disabled:opacity-40">建立客戶並追蹤</button></div></div></div></>;
+  return <><div className="overlay" onClick={onClose} /><div className="modal"><div className="safe-screen bg-s1 rounded-2xl border border-bdr shadow-panel w-full max-w-lg max-h-[92dvh] overflow-y-auto p-5 z-50"><h2 className="text-lg font-bold">建立客戶並追蹤</h2><p className="text-xs text-ink-3 mt-1">接待紀錄會全部帶入，不必重新問一次。</p><div className="grid grid-cols-2 gap-3 mt-5">{[['name', '姓名／公司名 *'], ['phone', '電話'], ['lineId', 'LINE'], ['company', '公司名稱'], ['address', '地址'], ['budget', '預算'], ['purchaseTime', '購車時間'], ['payment', '付款方式'], ['loanNeed', '貸款需求'], ['nextDate', '下次追蹤日期']].map(([key, label]) => <label key={key} className={key === 'address' ? 'col-span-2' : ''}><span className="text-xs text-ink-3">{label}</span><input type={key === 'nextDate' ? 'date' : 'text'} value={form[key]} onChange={(e) => set(key, e.target.value)} className="w-full min-h-11 mt-1" /></label>)}</div><div className="flex gap-2 mt-5"><button onClick={onClose} className="btn-outline flex-1">取消</button><button onClick={onSave} disabled={!form.name.trim()} className="btn-primary flex-1 disabled:opacity-40">建立客戶並追蹤</button></div></div></div></>;
 }

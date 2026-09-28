@@ -180,7 +180,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
     setShowSidebar(false);
   }
 
-  // 全選＝目前篩選＋搜尋結果的全部（先篩「冷掉了」再全選，最適合清理老名單）
+  // 全選＝目前篩選＋搜尋結果的全部（先篩「久未聯繫」再全選，最適合清理老名單）
   const allChecked = filteredSorted.length > 0 && filteredSorted.every((c) => checkedIds.has(c.id));
   function toggleCheckAll() {
     if (allChecked) setCheckedIds(new Set());
@@ -229,7 +229,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
             {[
               { key: 'all', label: '全部', count: clients.length, color: '#8f7a68' },
               { key: 'pending', label: '待聯繫', count: pendingCount, color: STATUS_COLOR.warn },
-              { key: 'cold', label: '冷掉了', count: coldCount, color: STATUS_COLOR.cold },
+              { key: 'cold', label: '久未聯繫', count: coldCount, color: STATUS_COLOR.cold },
             ].map((f) => (
               <SidebarItem key={f.key} active={filter === f.key} color={f.color}
                 label={f.label} count={f.count} onClick={() => { setFilter(f.key); setShowSidebar(false); }} />
@@ -249,7 +249,7 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
 
           {/* Stages */}
           <div>
-            <p className="section-title">業務進度</p>
+            <p className="section-title">客戶階段</p>
             {[...stages].sort((a, b) => a.order - b.order).map((stage) => (
               <SidebarItem key={stage.id} active={filter === `stage:${stage.id}`}
                 color={CAT_COLORS[stage.colorIdx % CAT_COLORS.length]}
@@ -753,7 +753,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
                   {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
-              <Field label="業務進度">
+              <Field label="客戶階段">
                 <select value={form.stageId} onChange={(e) => set('stageId', e.target.value)} className="w-full">
                   {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>

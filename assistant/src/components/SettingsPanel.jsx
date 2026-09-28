@@ -19,15 +19,15 @@ const HELP_CARDS = [
   { icon: '🗓', title: '行事曆活動', desc: '點日曆任一天的「＋新增活動」記生日、紀念日或重要日子，可設每年重複、關聯客戶；到期當天會出現在今日工作與行事曆。客戶詳情也有「生日/重要日子」可直接記錄。' },
   { icon: '🌙', title: '莫蘭迪主題', desc: '低彩度藍灰色調，預設深色，可在設定右上角切換深/淺色，選擇會記在此裝置。' },
   { icon: '🎉', title: '紀念日提醒', desc: '日期型自訂欄位可設每年/一次性/連續N年提醒，到期出現在今日工作（依欄位分組）與行事曆。' },
-  { icon: '🧾', title: '商用車報價器', desc: '一鍵帶入車體配備與補助折抵（選單可自訂），貸款試算月付金並對比每月營收算出淨賺；存檔後可隨時編輯。' },
+  { icon: '🧾', title: '報價管理', desc: '可直接建立客戶與報價，帶入車型、配件與優惠折扣，試算貸款月付並輸出圖片或文字；存檔後可隨時編輯。' },
   { icon: '🏢', title: '公司戶/轉介紹', desc: '客戶分個人/公司戶（統編）、產業標籤、多聯絡人；轉介紹記錄誰介紹誰與介紹金。' },
   { icon: '📋', title: '中央待辦', desc: '今日工作頁直接新增/勾銷雜事待辦；各客戶簽約前待辦也集中在「客戶待辦」區逐一處理。範本可在「待辦範本」編輯。' },
   { icon: '📊', title: '本日成果', desc: '自動統計今天記錄的聯繫、報價、試乘、下訂、交車數量與金額，不需手動填寫日報。' },
   { icon: '👥', title: '客戶追蹤 CRM', desc: '管理所有客戶聯繫狀態、分類、意願度與追蹤日期。' },
-  { icon: '🚛', title: '業務進度記錄', desc: '在客戶詳情記錄 LINE 摘要、報價、看車試乘、貸款補件、下訂、交車、售後回訪；記錄交車會自動建立 3/7/30 天回訪提醒。' },
+  { icon: '🚛', title: '互動與成交紀錄', desc: '在客戶詳情記錄 LINE 摘要、報價、看車試乘、貸款補件、下訂、交車、售後回訪；記錄交車會自動建立 3/7/30 天回訪提醒。' },
   { icon: '📌', title: '即將簽約', desc: '置頂重點客戶，可寫重點備註並管理簽約前待辦清單。' },
-  { icon: '📈', title: '業績表', desc: '客戶成交後按「成交歸檔」帶入當月業績，單月細項與成交總表自動加總成交金額、保險金額、收入等（欄位可自訂）。' },
-  { icon: '💡', title: '客戶狀態', desc: '🟢追蹤中 / 🟡待聯繫（到期）/ 🟠久未聯繫 / 🔴冷掉了。天數門檻可在「追蹤規則」調整（預設 180 / 365 天）。' },
+  { icon: '📈', title: '業績表', desc: '客戶成交後按「建立成交案」帶入當月業績，單月細項與成交總表自動加總成交金額、保險金額、收入等（欄位可自訂）。' },
+  { icon: '💡', title: '客戶狀態', desc: '🟢追蹤中 / 🟡待聯繫（到期）/ 🟠久未聯繫 / 🔴長期未聯繫。天數門檻可在「追蹤規則」調整（預設 180 / 365 天）。' },
   { icon: '⏰', title: '計時提醒', desc: '可在客戶詳情頁設定提醒，到期後強制彈出 Modal 確認。' },
   { icon: '☁️', title: '雲端同步', desc: '第一次使用先到設定連線汽車系統專用的私人 GitHub repo；完成後可跨裝置同步文字資料。照片仍以 LINE 相簿分享。' },
 ];
@@ -39,7 +39,7 @@ const SECTION_LABELS = {
   backup: '💾 備份還原',
   notify: '🔔 通知',
   cats: '🏷 客戶分類',
-  stages: '📶 業務進度',
+  stages: '📶 客戶階段',
   industries: '🏭 產業選項',
   fields: '✏️ 自訂欄位',
   dealFields: '🏆 業績欄位',
@@ -128,7 +128,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
           {/* ── Stages ── */}
           {activeSection === 'stages' && (
             <ListEditor
-              title="業務進度"
+              title="客戶階段"
               items={stages}
               colors={CAT_COLORS}
               colorCount={7}
@@ -159,7 +159,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
           {activeSection === 'dealFields' && (
             <div className="space-y-3">
               <p className="text-xs text-ink-3 px-1">
-                成交歸檔時可填的金額欄位（例如保險金額、收入），業績表會逐欄自動加總。「成交金額」為內建欄位不需新增。
+                建立成交案時可填的金額欄位（例如保險金額、收入），業績表會逐欄自動加總。「成交金額」為內建欄位不需新增。
               </p>
               <ListEditor
                 title="業績欄位"
@@ -318,7 +318,7 @@ function WatermarkEditor() {
   );
 }
 
-// ── LoadCatalogButton（一鍵載入卡旺 2026 原廠車型與配備型錄）─────────────────
+// ── LoadCatalogButton（一鍵載入系統內建車型與配備選單）─────────────────────
 function LoadCatalogButton({ onLoad }) {
   const [confirm, setConfirm] = useState(false);
   if (!confirm) {
@@ -326,16 +326,16 @@ function LoadCatalogButton({ onLoad }) {
       <div className="card p-3 flex items-center gap-3">
         <span className="text-lg shrink-0">🚚</span>
         <p className="flex-1 text-xs text-ink-2">
-          載入 <strong>Kia 彰化卡旺 2026</strong> 原廠車型與配備價格（8 車型 + 19 配備）。
+          載入系統內建的 <strong>Kia 卡旺車型與配備選單</strong>（{DEFAULT_QUOTE_PRESETS.models.length} 車型 + {DEFAULT_QUOTE_PRESETS.addons.length} 配備）；載入後請確認最新年式與售價。
         </p>
-        <button onClick={() => setConfirm(true)} className="btn-primary text-xs shrink-0">載入原廠型錄</button>
+        <button onClick={() => setConfirm(true)} className="btn-primary text-xs shrink-0">載入內建選單</button>
       </div>
     );
   }
   return (
     <div className="card p-3 border-warn/40 space-y-2" style={{ borderColor: '#bf8a5e66' }}>
       <p className="text-xs text-ink-2">
-        會以原廠型錄<strong>覆蓋</strong>目前的車型與配備選單（你自己新增的項目會被取代）。確定嗎？
+        會以系統內建選單<strong>覆蓋</strong>目前的車型與配備選單（你自己新增的項目會被取代）。確定嗎？
       </p>
       <div className="flex gap-2">
         <button onClick={() => { onLoad(); setConfirm(false); }} className="btn-primary text-xs flex-1">確定載入</button>
@@ -438,7 +438,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
     <section id="settings-addon-editor" className="space-y-3">
       <div>
         <h3 className="font-semibold text-ink text-sm">🚚 選購配備選單</h3>
-        <p className="text-xs text-ink-3 mt-0.5">按分類管理配備；調整分類會同步到客戶與獨立報價。尚未取得廠商價格時可標記待報價。</p>
+        <p className="text-xs text-ink-3 mt-0.5">按分類管理配備；調整分類會同步到客戶報價與報價管理。尚未取得廠商價格時可標記待廠商報價。</p>
       </div>
 
       <div className="card p-3 space-y-3 bg-s2/60">
@@ -477,7 +477,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
               <button type="button" onClick={createCategory} disabled={!newCategoryName.trim() || categories.includes(newCategoryName.trim()) || reservedCategoryNames.includes(newCategoryName.trim())}
                 className="btn-primary text-xs shrink-0">新增分類</button>
             </div>
-            <p className="text-[10px] text-ink-3">分類名稱與順序會同步到客戶及獨立報價；改名會連同分類內配件一起更新，舊報價的確認紀錄仍保留。</p>
+            <p className="text-[10px] text-ink-3">分類名稱與順序會同步到客戶報價及報價管理；改名會連同分類內配件一起更新，舊報價的確認紀錄仍保留。</p>
             {reservedCategoryNames.includes(newCategoryName.trim()) && <p className="text-[10px] text-warn">這是曾用過的分類名稱，請換個名字，避免舊報價混淆。</p>}
             <div className={`grid gap-1.5 ${fullscreen ? 'sm:grid-cols-2 lg:grid-cols-3' : ''}`}>
               {categories.map((category, index) => (
@@ -557,7 +557,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
                       <button type="button" onClick={() => update(item.id, { pendingPrice: !item.pendingPrice })}
                         aria-label={`${item.name}價格狀態`}
                         className={`text-[10px] rounded-full border px-2 py-1 shrink-0 ${item.pendingPrice ? 'border-warn text-warn bg-warn/10' : 'border-bdr text-ink-3'}`}>
-                        {item.pendingPrice ? '待報價' : '固定價'}
+                        {item.pendingPrice ? '待廠商報價' : '固定價'}
                       </button>
                       <button type="button" onClick={() => onChange(items.filter((entry) => entry.id !== item.id))}
                         aria-label={`刪除${item.name}`} className="text-danger/60 hover:text-danger text-sm shrink-0">✕</button>
@@ -629,7 +629,7 @@ function PresetEditor({ title, desc, items, newName, amountKey = 'price', allowP
           {allowPending && (
             <button type="button" onClick={() => update(it.id, { pendingPrice: !it.pendingPrice })}
               className={`text-[10px] rounded-full border px-2 py-1 shrink-0 ${it.pendingPrice ? 'border-warn text-warn bg-warn/10' : 'border-bdr text-ink-3'}`}>
-              {it.pendingPrice ? '待報價' : '固定價'}
+              {it.pendingPrice ? '待廠商報價' : '固定價'}
             </button>
           )}
           <button onClick={() => remove(it.id)} className="text-danger/50 hover:text-danger text-sm shrink-0">✕</button>
@@ -739,10 +739,10 @@ function ThresholdEditor({ thresholds, onSave }) {
 
   async function commit() {
     const clean = await onSave({ coldDays, deadDays });
-    // 回填清理後的值（例如冷掉天數被自動抬高到不低於久未聯繫天數）
+    // 回填清理後的值（例如長期未聯繫天數被自動抬高到不低於久未聯繫天數）
     setColdDays(String(clean.coldDays));
     setDeadDays(String(clean.deadDays));
-    setSaved(`✅ 已儲存：${clean.coldDays} 天未聯繫 → 久未聯繫；${clean.deadDays} 天 → 冷掉了`);
+    setSaved(`✅ 已儲存：${clean.coldDays} 天未聯繫 → 久未聯繫；${clean.deadDays} 天 → 長期未聯繫`);
   }
 
   return (
@@ -750,7 +750,7 @@ function ThresholdEditor({ thresholds, onSave }) {
       <div>
         <h3 className="font-semibold text-ink">追蹤規則</h3>
         <p className="text-xs text-ink-3 mt-1 leading-relaxed">
-          超過天數未聯繫的客戶會標示警示色，並列入「冷掉了」篩選與今日工作的「久未聯繫」統計。
+          超過天數未聯繫的客戶會標示警示色，並列入「久未聯繫」篩選與今日工作的同名統計。
           從未聯繫過的客戶，以建檔日起算。
         </p>
       </div>
@@ -765,7 +765,7 @@ function ThresholdEditor({ thresholds, onSave }) {
       </label>
 
       <label className="flex items-center gap-3 text-sm text-ink-2">
-        <span className="w-32 shrink-0">🔴 冷掉了（天）</span>
+        <span className="w-32 shrink-0">🔴 長期未聯繫（天）</span>
         <input
           type="number" min="1" value={deadDays}
           onChange={(e) => setDeadDays(e.target.value)}
@@ -773,7 +773,7 @@ function ThresholdEditor({ thresholds, onSave }) {
         />
       </label>
 
-      <p className="text-xs text-ink-3">「冷掉了」天數不會低於「久未聯繫」天數，儲存時會自動修正。</p>
+      <p className="text-xs text-ink-3">「長期未聯繫」天數不會低於「久未聯繫」天數，儲存時會自動修正。</p>
 
       <button onClick={commit} className="btn-primary text-sm">儲存規則</button>
       {saved && <p className="text-sm text-ink-2 bg-s2 rounded-lg px-3 py-2">{saved}</p>}
@@ -1081,7 +1081,7 @@ function DealsSection({ onOpenDeals }) {
     <section>
       <div className="card p-4 space-y-3 border border-warn/30">
         <h3 className="font-semibold text-ink">📈 開啟內部業績與成本</h3>
-        <p className="text-xs text-ink-3">業績、成本設定、報價試算與單車利潤都只從這裡進入；報價畫面不提供成本入口。</p>
+        <p className="text-xs text-ink-3">業績、傭金與成本設定、報價利潤試算都只從這裡進入；報價畫面不提供內部數字入口。</p>
         <div className="space-y-2">
           <Field label="輸入密碼解鎖">
             <input type="text" inputMode="text" lang="zh-Hant" value={unlock}

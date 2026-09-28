@@ -54,7 +54,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
           id: generateId('client'),
           name: quotePayload.customerName.trim(),
           phone: quotePayload.customerPhone.trim(),
-          source: '獨立報價',
+          source: '直接報價',
           catId: cats[0]?.id || '',
           stageId: stages.find((stage) => stage.name === '報價')?.id || stages[0]?.id || '',
           clientType: 'personal',
@@ -125,7 +125,7 @@ export default function QuoteWorkspace({ onOpenClient }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold tracking-widest text-accent">QUOTATION WORKSPACE</p>
-            <h1 className="text-xl md:text-2xl font-bold text-ink mt-1">🧾 獨立報價單</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-ink mt-1">🧾 報價管理</h1>
             <p className="text-sm text-ink-2 mt-2 leading-relaxed max-w-2xl">
               可直接建立客戶並開始報價，不必先走接待流程；也能連結既有客戶或只做匿名報價。完成後可輸出圖片或 LINE 文字版。
             </p>
@@ -155,8 +155,8 @@ export default function QuoteWorkspace({ onOpenClient }) {
       {rows.length === 0 ? (
         <section className="card p-8 text-center">
           <div className="text-4xl">🧾</div>
-          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : '還沒有獨立報價'}</h2>
-          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : '按「新報價」開始記錄第一張需求單。'}</p>
+          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : '還沒有報價'}</h2>
+          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : '按「新報價」建立第一張報價單。'}</p>
           {!query && <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary mt-4">＋ 建立報價</button>}
         </section>
       ) : (

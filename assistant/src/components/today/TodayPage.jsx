@@ -294,7 +294,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
 
       {/* 統計方塊 */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <StatTile label="今日交車" value={deliveries.length} color={deliveries.length > 0 ? '#c0764f' : '#7d9b76'} />
+        <StatTile label="交車提醒" value={deliveries.length} color={deliveries.length > 0 ? '#c0764f' : '#7d9b76'} />
         <StatTile label="逾期追蹤" value={overdue.length} color={overdue.length > 0 ? '#b26b6b' : '#7d9b76'} />
         <StatTile label="今日追蹤" value={dueToday.length} color="#bf8a5e" />
         <StatTile label="即將簽約" value={pinnedClients.length} color="#7291a8" />
@@ -314,7 +314,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
       <div className="md:columns-2 md:gap-4">
       {/* 今日交車（含逾期未交車）— 最優先，放最上方 */}
       {deliveries.length > 0 && (
-        <Section icon="🚚" title="今日交車" count={deliveries.length} color="#c0764f">
+        <Section icon="🚚" title="交車提醒" count={deliveries.length} color="#c0764f">
           {deliveries.map((c) => {
             const late = c.deliveryDate < todayStr;
             const lateDays = late ? dayjs(todayStr).diff(dayjs(c.deliveryDate), 'day') : 0;
@@ -338,7 +338,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
                 {c.phone && (
                   <a href={`tel:${c.phone}`} className="btn-outline text-xs shrink-0" onClick={(e) => e.stopPropagation()}>📞</a>
                 )}
-                <button onClick={() => onOpenClient(c.id)} className="btn-primary text-xs shrink-0">交車</button>
+                <button onClick={() => onOpenClient(c.id)} className="btn-primary text-xs shrink-0">處理交車</button>
               </div>
             );
           })}

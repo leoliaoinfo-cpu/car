@@ -102,7 +102,7 @@ export default function TruckComparison({ selection = null, onSelectionChange = 
       <div className="flex items-start gap-3">
         <div className="flex-1">
           <p className="text-[11px] tracking-widest text-accent font-semibold">TRUCK COMPARISON</p>
-          <h2 className="text-xl font-bold mt-1">貨車規格比較</h2>
+          <h2 className="text-xl font-bold mt-1">K2500 與競品規格比較</h2>
           <p className="text-xs text-ink-3 mt-1">品牌 → 車系 → 版本，全程點選；缺值與衝突不會當成 0，也不會算勝負。</p>
         </div>
         {onClose && <button type="button" onClick={onClose} className="btn-outline text-xs shrink-0">關閉</button>}
