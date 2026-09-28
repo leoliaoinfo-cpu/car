@@ -340,7 +340,7 @@ function HeightPlanningPanel({ session, update, plan, config }) {
   const quickClearances = ['180', '190', '200', '210', '220', '230'];
   const clearanceMode = session.clearanceMode || (session.clearanceUnknown ? 'unknown' : quickClearances.includes(String(session.clearanceCm)) ? String(session.clearanceCm) : session.clearanceCm ? 'custom' : '');
   const reserveMode = session.safetyReserveMode || (['5', '10', '15'].includes(String(session.safetyReserveCm)) ? String(session.safetyReserveCm) : session.safetyReserveCm !== '' && session.safetyReserveCm != null ? 'custom' : '10');
-  const statusLabel = (item) => item?.kind === 'danger' ? `⛔ 預估超高 ${Math.abs(item.marginCm)} cm` : item?.kind === 'warning' ? `⚠️ 只剩 ${item.marginCm} cm，接近限制` : item?.kind === 'ok' ? '✅ 目前高度條件可規劃' : '⚠️ 暫定，資料尚未確認';
+  const statusLabel = (item) => item?.kind === 'danger' ? `⛔ 預估超高 ${Math.abs(item.marginCm)} cm` : item?.kind === 'warning' ? `⚠️ 只剩 ${item.marginCm} cm，接近限制` : item?.kind === 'ok' ? '✅ 目前高度條件可規劃' : '⚠️ 尚未完成高度判斷';
   return <div className="rounded-2xl border-2 border-warn/35 bg-warn/5 p-4 space-y-4">
     <div><h3 className="font-bold text-lg">⚠️ 車高與限高確認</h3><div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mt-2 text-xs text-ink-2"><span>1. 先問地下室／限高</span><span>2. 確認避震</span><span>3. 確認葉片</span><span>4. 算貨斗離地</span><span>5. 算剩餘高度</span><span>6. 再選帆布／箱體</span></div></div>
     <FieldBlock label="老闆，平常會不會下地下室，或進有限高的地方？">
@@ -359,20 +359,21 @@ function HeightPlanningPanel({ session, update, plan, config }) {
     </div>}
     <FieldBlock label="底盤有沒有要做升高？"><ChipGroup options={['原廠高度', '改避震', '加葉片', '避震＋葉片', '還沒決定']} value={session.suspensionPlan} onChange={(suspensionPlan) => update({ suspensionPlan })} /><p className="text-xs text-ink-3">目前參數：避震 +{config.shockLiftCm} cm、葉片 +{config.leafLiftCm} cm；可在設定 → 車高參數修改。</p></FieldBlock>
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-      <HeightMetric label="原始貨斗離地" value={plan.baseBedCm} />
-      <HeightMetric label="升高後貨斗離地" value={plan.adjustedBedCm} />
-      {!limited && <HeightMetric label="目前控制總高" value={plan.controlTotalCm} />}
-      {!limited && <HeightMetric label="理論剩餘高度" value={plan.availableCm} />}
+      <HeightMetric label="原始貨斗離地" value={plan.baseBedCm} note="地面 → 貨斗" />
+      <HeightMetric label="改裝後貨斗離地" value={plan.adjustedBedCm} note="地面 → 貨斗" />
+      {!limited && <HeightMetric label="公司規劃整車總高上限" value={plan.controlTotalCm} note="地面 → 車輛最高點" />}
+      {!limited && <HeightMetric label="斗上可用高度上限" value={plan.availableCm} note="貨斗 → 車輛最高點" />}
     </div>
-    {limited && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center"><HeightMetric label="地下室／場所限高" value={plan.clearanceCm} /><HeightMetric label="安全預留" value={plan.reserveCm} /><HeightMetric label="建議控制總高" value={plan.controlTotalCm} /><HeightMetric label="完成後剩餘" value={plan.availableCm} /></div>}
-    <p className="text-xs text-ink-3">理論剩餘高度不等於帆布／箱體實際施工尺寸；實際尺寸仍以實車測量為準。</p>
-    {Object.entries(plan.itemStatus).map(([name, item]) => <div key={name} className={`rounded-xl border p-3 text-sm ${item.kind === 'danger' ? 'border-danger/40 bg-danger/10 text-danger' : item.kind === 'warning' ? 'border-warn/40 bg-warn/10 text-warn' : item.kind === 'ok' ? 'border-ok/30 bg-ok/10 text-ok' : 'border-bdr bg-s2 text-ink-2'}`}><strong>{name}：{statusLabel(item)}</strong>{item.estimatedTotalCm != null && <p className="text-xs mt-1">預估完工總高約 {item.estimatedTotalCm} cm</p>}{item.missing.length > 0 && <p className="text-xs mt-1">待確認：{item.missing.join('、')}</p>}</div>)}
+    {limited && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center"><HeightMetric label="地下室入口限高" value={plan.clearanceCm} note="地面 → 入口最低點" /><HeightMetric label="安全預留" value={plan.reserveCm} note="從限高先扣除" /><HeightMetric label="建議完工整車總高上限" value={plan.controlTotalCm} note="地面 → 車輛最高點" /><HeightMetric label="帆布／箱體斗上可用高度上限" value={plan.availableCm} note="貨斗 → 車輛最高點" /></div>}
+    {plan.controlTotalCm != null && plan.adjustedBedCm != null && plan.availableCm != null && <div className="rounded-2xl border border-accent/25 bg-accent/5 p-3 space-y-1.5 text-sm"><p className="font-bold text-ink">高度怎麼算</p>{limited && plan.clearanceCm != null && plan.reserveCm != null && <p><strong>{plan.clearanceCm}</strong> 入口限高 − <strong>{plan.reserveCm}</strong> 安全預留 ＝ <strong>{plan.controlTotalCm} cm</strong> 建議完工整車總高上限</p>}<p><strong>{plan.controlTotalCm}</strong> 整車總高上限 − <strong>{plan.adjustedBedCm}</strong> 改裝後貨斗離地 ＝ <strong>{plan.availableCm} cm</strong> 斗上可用高度上限</p></div>}
+    <p className="rounded-xl bg-warn/10 p-3 text-xs text-warn">斗上可用高度只是規劃上限，不是建議帆布／箱體直接做到這個高度；選定實際斗上高度後，系統才會算出預估完工整車總高。</p>
+    {Object.entries(plan.itemStatus).map(([name, item]) => <div key={name} className={`rounded-xl border p-3 text-sm ${item.kind === 'danger' ? 'border-danger/40 bg-danger/10 text-danger' : item.kind === 'warning' ? 'border-warn/40 bg-warn/10 text-warn' : item.kind === 'ok' ? 'border-ok/30 bg-ok/10 text-ok' : 'border-bdr bg-s2 text-ink-2'}`}><strong>{name}：{statusLabel(item)}</strong>{item.estimatedTotalCm != null ? <p className="text-xs mt-1">預估完工整車總高：約 {item.estimatedTotalCm} cm（貨斗離地＋斗上高度）</p> : ['帆布', '箱體', '伸縮箱體'].includes(name) && <p className="text-xs mt-1 font-semibold">尚未填寫斗上高度，目前還不能計算完工整車總高。</p>}{item.missing.length > 0 && <p className="text-xs mt-1">還缺：{item.missing.join('、')}</p>}</div>)}
     <p className="rounded-xl border border-bdr p-3 text-[11px] text-ink-3 leading-relaxed">法規提醒：小型車全高原則為不得超過全寬 1.5 倍，且最高不得超過 2.85 公尺；目前 {config.generalControlCm} cm 是系統規劃控制值，最終仍須依行照車寬、實車最高點、合法車身廠及監理檢驗確認。</p>
   </div>;
 }
 
-function HeightMetric({ label, value }) {
-  return <div className="rounded-xl bg-s2 p-3"><p className="text-[10px] text-ink-3">{label}</p><strong className="text-base">{value == null ? '待確認' : `約 ${value} cm`}</strong></div>;
+function HeightMetric({ label, value, note }) {
+  return <div className="rounded-xl bg-s2 p-3"><p className="text-[10px] text-ink-3 leading-tight min-h-6">{label}</p><strong className="text-base block mt-1">{value == null ? '待確認' : `約 ${value} cm`}</strong>{note && <span className="text-[10px] text-ink-3 block mt-1">{note}</span>}</div>;
 }
 
 function RequirementCard({ name, value, session, heightPlan, update, onOpenCatalog }) {

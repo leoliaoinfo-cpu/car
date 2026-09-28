@@ -146,34 +146,57 @@ export function heightPlanSummary(session, variant, config) {
     const detail = req[name] || {};
     const item = plan.itemStatus[name];
     const label = name === '帆布' ? (detail.canvasSpec || '規格待確認') : name;
-    return `${name}：${label}／斗上 ${item?.bodyHeightCm || '高度待確認'} cm／預估完工總高 ${item?.estimatedTotalCm || '待確認'} cm`;
+    const bodyHeight = item?.bodyHeightCm != null ? `${item.bodyHeightCm} cm` : '待確認';
+    const completedHeight = item?.estimatedTotalCm != null ? `${item.estimatedTotalCm} cm` : '目前無法計算';
+    return `${name}：${label}／斗上高度 ${bodyHeight}／預估完工整車總高 ${completedHeight}`;
   });
   const tailgate = req['升降尾門'] || {};
   const tailgateMissing = tailgateCanvasMissing(req);
   const selectedItems = HEIGHT_TRIGGER_REQUIREMENTS.filter((name) => req[name]?.selected).join('、');
   const statusKinds = Object.values(plan.itemStatus).map((item) => item.kind);
   const status = statusKinds.includes('danger') ? '⛔ 可能超高' : plan.missing.length ? '⚠️ 待確認' : '✅ 可規劃';
+  const formatCm = (value, approximate = false) => value != null ? `${approximate ? '約 ' : ''}${value} cm` : '待確認';
+  const limitedCalculation = plan.limited && plan.clearanceCm != null && plan.reserveCm != null && plan.controlTotalCm != null
+    ? `限高算式：${plan.clearanceCm} − ${plan.reserveCm} = ${plan.controlTotalCm} cm（建議完工整車總高上限）`
+    : null;
+  const availableCalculation = plan.controlTotalCm != null && plan.adjustedBedCm != null && plan.availableCm != null
+    ? `斗上算式：${plan.controlTotalCm} − ${plan.adjustedBedCm} = ${plan.availableCm} cm（帆布／箱體斗上可用高度上限）`
+    : null;
   return [
     '【車高／施工交接】',
     `項目：${selectedItems || '—'}`,
     `車型：${plan.drive || '待確認'}`,
+    '',
+    '【限高條件】',
     `地下室：${plan.limited ? '有' : session?.parking === '不會' ? '無' : '待確認'}`,
-    `地下室／場所限高：${plan.limited ? `${plan.clearanceCm || '待確認'} cm（安全預留 ${plan.reserveCm ?? '待確認'} cm）` : '無特殊限高'}`,
+    `入口／場所限高：${plan.limited ? formatCm(plan.clearanceCm) : '無特殊限高'}`,
+    `限高資料來源：${plan.limited ? session?.clearanceBasis || '待確認' : '不適用'}`,
+    `安全預留：${plan.limited ? formatCm(plan.reserveCm) : '不適用'}`,
+    `建議完工整車總高上限：${formatCm(plan.controlTotalCm)}（地面 → 車輛最高點）`,
+    limitedCalculation,
+    '',
+    '【底盤與斗上可用高度】',
     `避震：${plan.shockLiftCm ? `有（+${plan.shockLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
     `葉片：${plan.leafLiftCm ? `有（+${plan.leafLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
     `底盤方案：${session?.suspensionPlan || '待確認'}`,
-    `原始貨斗離地：約 ${plan.baseBedCm ?? '待確認'} cm`,
-    `貨斗離地：約 ${plan.adjustedBedCm ?? '待確認'} cm`,
-    `控制總高：約 ${plan.controlTotalCm ?? '待確認'} cm`,
-    `理論剩餘高度：約 ${plan.availableCm ?? '待確認'} cm`,
+    `原始貨斗離地：${formatCm(plan.baseBedCm, true)}（地面 → 貨斗）`,
+    `改裝後貨斗離地：${formatCm(plan.adjustedBedCm, true)}（地面 → 貨斗）`,
+    `帆布／箱體斗上可用高度上限：${formatCm(plan.availableCm, true)}（貨斗 → 車輛最高點）`,
+    availableCalculation,
+    '注意：斗上可用高度是規劃上限，不是建議直接做到此高度。',
+    '',
+    '【施工項目】',
     ...bodyLines,
-    tailgate.selected ? `尾門：${tailgate.size || '尺寸待確認'}尺／${tailgate.maxWeight || '承重待確認'}` : '',
-    req['帆布']?.selected && tailgate.selected ? `帆布＋尾門核對：${tailgateMissing.length ? `待確認 ${tailgateMissing.join('、')}` : '五項已確認'}` : '',
-    req['帆布']?.selected && tailgate.selected ? '自動備註：此車有升降尾門，帆布後方尺寸及開口方式須配合尾門設計。' : '',
-    canvas.note ? `帆布備註：${canvas.note}` : '',
+    tailgate.selected ? `尾門：${tailgate.size || '尺寸待確認'}尺／${tailgate.maxWeight || '承重待確認'}` : null,
+    req['帆布']?.selected && tailgate.selected ? `帆布＋尾門核對：${tailgateMissing.length ? `待確認 ${tailgateMissing.join('、')}` : '五項已確認'}` : null,
+    req['帆布']?.selected && tailgate.selected ? '自動備註：此車有升降尾門，帆布後方尺寸及開口方式須配合尾門設計。' : null,
+    canvas.note ? `帆布備註：${canvas.note}` : null,
+    '',
+    '【目前判斷】',
     `狀態：${status}`,
+    plan.missing.length ? `尚未完成：${plan.missing.join('、')}` : '必要高度資料已填寫。',
     '實際尺寸仍以實車、合法車身廠及監理檢驗確認為準。',
-  ].filter(Boolean).join('\n');
+  ].filter((line) => line != null).join('\n');
 }
 
 export function newReceptionSession(sequence = 1) {

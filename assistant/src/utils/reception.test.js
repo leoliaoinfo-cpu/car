@@ -146,3 +146,21 @@ test('blank custom basement reserve blocks the safety calculation', () => {
   assert.ok(result.missing.includes('安全預留高度'));
   assert.equal(result.itemStatus['帆布'].canConfirm, false);
 });
+
+test('height handoff explains the underground calculation and names each measurement clearly', () => {
+  const variant = VEHICLE_VARIANTS.find((v) => v.drive === '2WD');
+  const session = {
+    parking: '會下地下室', clearanceCm: '200', clearanceBasis: '實際量過',
+    safetyReserveCm: '15', suspensionPlan: '避震＋葉片', requirements: {
+      帆布: { selected: true },
+    },
+  };
+  const summary = heightPlanSummary(session, variant);
+  assert.match(summary, /入口／場所限高：200 cm/);
+  assert.match(summary, /建議完工整車總高上限：185 cm（地面 → 車輛最高點）/);
+  assert.match(summary, /帆布／箱體斗上可用高度上限：約 101 cm（貨斗 → 車輛最高點）/);
+  assert.match(summary, /限高算式：200 − 15 = 185 cm/);
+  assert.match(summary, /斗上算式：185 − 84 = 101 cm/);
+  assert.match(summary, /帆布：規格待確認／斗上高度 待確認／預估完工整車總高 目前無法計算/);
+  assert.doesNotMatch(summary, /完成後剩餘|控制總高：約/);
+});
