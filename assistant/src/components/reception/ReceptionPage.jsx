@@ -57,6 +57,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   const [formal, setFormal] = useState({ name: '', phone: '', lineId: '', company: '', address: '', budget: '', purchaseTime: '', payment: '', loanNeed: '', nextDate: '' });
   const [notice, setNotice] = useState('');
   const [showSessionComparison, setShowSessionComparison] = useState(false);
+  const [showSessionSpecs, setShowSessionSpecs] = useState(false);
 
   const sorted = useMemo(() => [...receptionSessions].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')), [receptionSessions]);
   const session = receptionSessions.find((row) => row.id === selectedId) || null;
@@ -201,12 +202,24 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement} heightConfig={heightConfig}
       onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote}
       onOpenCatalog={onOpenCatalog}
+      onOpenSpecs={() => setShowSessionSpecs(true)}
       onOpenComparison={() => setShowSessionComparison(true)}
       onHold={async () => { await update({ status: 'hold' }); setSelectedId(null); }}
       onNoFollow={async () => { await update({ status: 'closed' }); setSelectedId(null); }}
       notice={notice} onNotice={() => setNotice('')} />
     {showSessionComparison && (
       <><div className="overlay" onClick={() => setShowSessionComparison(false)} /><div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3"><div className="max-w-4xl mx-auto"><TruckComparison selection={session.truckComparison || { competitorId: '', k2500Id: 'k2500-01' }} onSelectionChange={(truckComparison) => update({ truckComparison })} onClose={() => setShowSessionComparison(false)} /></div></div></>
+    )}
+    {showSessionSpecs && (
+      <div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3 md:p-5">
+        <div className="max-w-5xl mx-auto space-y-3">
+          <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-2xl border border-bdr bg-s1/95 backdrop-blur p-3 shadow-card">
+            <div><h2 className="font-bold">貨車規格</h2><p className="text-xs text-ink-3">K2500 車型、售價、尺寸、載重與油耗速查</p></div>
+            <button type="button" onClick={() => setShowSessionSpecs(false)} className="btn-outline shrink-0">關閉</button>
+          </div>
+          <VehicleQuickReference />
+        </div>
+      </div>
     )}
     {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
   </>;
@@ -241,7 +254,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   );
 }
 
-function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
+function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenSpecs, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
   const [handoffCopyStatus, setHandoffCopyStatus] = useState('');
   const promptStatus = receptionPromptStatus(session);
   const summary = requirementSummary(session);
@@ -272,7 +285,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
   return (
     <div className="min-h-[100dvh] bg-bg pb-24">
       <header className="safe-panel sticky top-0 z-30 bg-s1/95 backdrop-blur border-b border-bdr">
-        <div className="max-w-4xl mx-auto px-3 py-3 flex items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-0"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div>
+        <div className="max-w-4xl mx-auto px-3 py-3 flex flex-wrap items-center gap-2"><button onClick={onBack} className="btn-ghost text-sm">← 接待列表</button><div className="flex-1 min-w-[10rem]"><h1 className="font-bold truncate">{session.displayName}</h1><p className="text-[11px] text-ink-3">自動儲存・{session.customerMode}</p></div><div className="flex flex-wrap justify-end gap-2"><button onClick={onOpenSpecs} className="btn-outline text-xs shrink-0">貨車規格</button><button onClick={onOpenComparison} className="btn-outline text-xs shrink-0">貨車比較</button><button onClick={onFormalize} className="btn-primary text-xs shrink-0">正式建檔</button></div></div>
         <div className="max-w-4xl mx-auto px-3 pb-2 overflow-x-auto"><div className="flex gap-1.5 min-w-max">{promptStatus.map(([label, done], idx) => <span key={label} className={`text-[11px] ${done ? 'text-ok' : 'text-ink-3'}`}>{idx > 0 && <span className="mr-1.5 text-bdr">→</span>}{label} {done ? '✓' : '○'}</span>)}</div></div>
       </header>
       <main className="max-w-4xl mx-auto p-3 md:p-5 space-y-4">
