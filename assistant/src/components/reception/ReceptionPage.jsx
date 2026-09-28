@@ -226,7 +226,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         </div>
       </div>
     )}
-    {showCustomerShowcase && <CustomerShowcase quotePresets={quotePresets} onExit={() => setShowCustomerShowcase(false)} />}
+    {showCustomerShowcase && <CustomerShowcase onExit={() => setShowCustomerShowcase(false)} />}
     {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
   </>;
 
@@ -426,9 +426,10 @@ function VehicleQuickReference({ customerMode = false }) {
   const [compare, setCompare] = useState([]);
   const variants = VEHICLE_VARIANTS.filter((v) => v.drive === drive && (drive === '4WD' || v.transmission === transmission));
   const comparedVariants = VEHICLE_VARIANTS.filter((v) => compare.includes(v.id));
+  const comparedNames = comparedVariants.map((v) => v.shortName || v.name).join('、');
   const toggleCompare = (id) => setCompare((current) => current.includes(id) ? current.filter((x) => x !== id) : current.length < 2 ? [...current, id] : [current[1], id]);
   if (presentation) return <CustomerPresentation variants={comparedVariants.length ? comparedVariants : variants} onClose={() => setPresentation(false)} />;
-  return <section className="card p-4 md:p-6 space-y-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Kia K2500</h2><p className="text-xs text-ink-3 mt-1">3～5 秒找到售價與尺寸；勾選兩台後可並排比較。</p></div><button onClick={() => setPresentation(true)} className="btn-primary">{customerMode ? '並排展示' : '給客戶看'}</button></div><div className="flex gap-2 flex-wrap"><Chip active={drive === '2WD'} onClick={() => { setDrive('2WD'); setCompare([]); }}>2WD</Chip><Chip active={drive === '4WD'} onClick={() => { setDrive('4WD'); setCompare([]); }}>4WD</Chip>{drive === '2WD' && <><Chip active={transmission === '自排'} onClick={() => { setTransmission('自排'); setCompare([]); }}>自排</Chip><Chip active={transmission === '手排'} onClick={() => { setTransmission('手排'); setCompare([]); }}>手排</Chip></>}</div><div className="grid md:grid-cols-3 gap-3">{variants.map((v) => <VehicleCard key={v.id} variant={v} checked={compare.includes(v.id)} onCompare={() => toggleCompare(v.id)} />)}</div>{compare.length > 0 && <p className="text-xs text-ink-2 font-medium">已選 {compare.length}/2 台比較；{compare.length === 1 ? '請再勾選另一台。' : '按「並排展示」只顯示這兩台。'}</p>}</section>;
+  return <section className="card p-4 md:p-6 space-y-4"><div className="flex items-center justify-between gap-3"><div><h2 className="text-xl font-bold">Kia K2500</h2><p className="text-xs text-ink-3 mt-1">3～5 秒找到售價與尺寸；可跨 2WD、4WD 勾選兩台比較。</p></div><button onClick={() => setPresentation(true)} className="btn-primary">{customerMode ? '並排展示' : '給客戶看'}</button></div><div className="flex gap-2 flex-wrap"><Chip active={drive === '2WD'} onClick={() => setDrive('2WD')}>2WD</Chip><Chip active={drive === '4WD'} onClick={() => setDrive('4WD')}>4WD</Chip>{drive === '2WD' && <><Chip active={transmission === '自排'} onClick={() => setTransmission('自排')}>自排</Chip><Chip active={transmission === '手排'} onClick={() => setTransmission('手排')}>手排</Chip></>}</div><div className="grid md:grid-cols-3 gap-3">{variants.map((v) => <VehicleCard key={v.id} variant={v} checked={compare.includes(v.id)} onCompare={() => toggleCompare(v.id)} />)}</div>{compare.length > 0 && <div className="rounded-xl border border-accent/25 bg-accent/5 px-3 py-2 text-xs text-ink-2"><strong>已選 {compare.length}/2 台：</strong>{comparedNames}<span className="block mt-1 text-ink-3">{compare.length === 1 ? '切換 2WD／4WD 或自排／手排，再勾選另一台。' : '按「並排展示」查看這兩台。'}</span></div>}</section>;
 }
 
 function VehicleCard({ variant: v, checked, onCompare, presentation = false }) {
@@ -445,14 +446,14 @@ function CustomerPresentation({ variants, onClose }) {
 }
 
 const SHOWCASE_TABS = [
-  ['home', '首頁'], ['specs', 'K2500 車型'], ['compare', '貨車比較'], ['addons', '改裝配件'], ['catalog', '圖片型錄'],
+  ['home', '首頁'], ['specs', 'K2500 車型'], ['catalog', '圖片型錄'],
 ];
 
 function readPresentationPinHash() {
   try { return localStorage.getItem(STORAGE_KEYS.presentationPinHash) || DEFAULT_PRESENTATION_PIN_HASH; } catch { return DEFAULT_PRESENTATION_PIN_HASH; }
 }
 
-function CustomerShowcase({ quotePresets, onExit }) {
+function CustomerShowcase({ onExit }) {
   const [tab, setTab] = useState('home');
   const [storedHash, setStoredHash] = useState(readPresentationPinHash);
   const [gate, setGate] = useState(null);
@@ -510,8 +511,6 @@ function CustomerShowcase({ quotePresets, onExit }) {
       <main className="max-w-6xl mx-auto p-3 md:p-6 pb-24">
         {tab === 'home' && <ShowcaseHome onSelect={setTab} />}
         {tab === 'specs' && <VehicleQuickReference customerMode />}
-        {tab === 'compare' && <TruckComparison customerMode />}
-        {tab === 'addons' && <CustomerAddonShowcase quotePresets={quotePresets} />}
         {tab === 'catalog' && <ProductCatalog />}
       </main>
 
@@ -545,22 +544,9 @@ function PinPad({ pin, onChange }) {
 function ShowcaseHome({ onSelect }) {
   const cards = [
     ['specs', '🚚', 'K2500 車型', '查看各車型售價、貨斗尺寸、載重、油耗與完整規格'],
-    ['compare', '⚖️', '貨車比較', '用相同單位比較 K2500 與其他商用貨車的已查證資料'],
-    ['addons', '🧰', '改裝配件', '查看尾門、底板、帆布、燈具與工作配件介紹'],
     ['catalog', '📖', '圖片型錄', '用大圖瀏覽車款與實際改裝內容'],
   ];
   return <div className="space-y-6"><section className="rounded-3xl bg-gradient-to-br from-slate-800 to-slate-950 p-7 md:p-10 text-white"><p className="text-xs tracking-[0.25em] text-orange-300">KIA K2500</p><h1 className="text-3xl md:text-5xl font-black mt-3">選對工作車，工作更順手</h1><p className="mt-4 max-w-2xl text-sm md:text-base text-slate-200 leading-relaxed">從平常載運內容、路線、乘坐人數與改裝需求出發，查看適合自己的車型與工作配備。實際售價、載重與改裝內容仍由業務依正式資料確認。</p></section><div className="grid sm:grid-cols-2 gap-4">{cards.map(([key, icon, title, desc]) => <button type="button" key={key} onClick={() => onSelect(key)} className="card min-h-40 p-5 text-left hover:border-accent/60 transition-colors"><span className="text-3xl">{icon}</span><strong className="block text-xl mt-3">{title}</strong><span className="block text-sm text-ink-3 mt-2 leading-relaxed">{desc}</span><span className="block text-sm text-accent font-semibold mt-4">開始查看 →</span></button>)}</div></div>;
-}
-
-function CustomerAddonShowcase({ quotePresets }) {
-  const [category, setCategory] = useState('全部');
-  const [query, setQuery] = useState('');
-  const categories = ['全部', ...(quotePresets.addonCategories || [])];
-  const items = useMemo(() => (quotePresets.addons || [])
-    .filter((item) => category === '全部' || item.cat === category)
-    .filter((item) => !query.trim() || `${item.name} ${item.desc || ''}`.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => Number(b.pendingPrice) - Number(a.pendingPrice) || (Number(b.price) || 0) - (Number(a.price) || 0)), [quotePresets, category, query]);
-  return <section className="space-y-4"><div className="card p-4 md:p-6"><p className="text-[11px] tracking-widest text-accent font-semibold">WORK EQUIPMENT</p><h2 className="text-2xl font-bold mt-1">改裝配件介紹</h2><p className="text-xs text-ink-3 mt-1">價格與施工內容依車型、尺寸和廠商正式確認；標示待報價的項目不納入目前總價。</p><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋配件名稱或用途" className="w-full mt-4" /><div className="flex gap-2 overflow-x-auto mt-3 pb-1">{categories.map((item) => <button type="button" key={item} onClick={() => setCategory(item)} className={`min-h-10 whitespace-nowrap rounded-xl border px-3 text-xs font-semibold ${category === item ? 'bg-accent text-on-accent border-accent' : 'bg-s1 text-ink-2 border-bdr'}`}>{item}</button>)}</div></div><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">{items.map((item) => <article key={item.id} className="card p-4"><div className="flex items-start justify-between gap-3"><div><span className="text-[10px] text-ink-3">{item.cat || '其他'}</span><h3 className="font-bold mt-1 leading-snug">{item.name}</h3></div><strong className={`text-sm shrink-0 ${item.pendingPrice ? 'text-warn' : 'text-accent'}`}>{item.pendingPrice ? '待廠商報價' : formatTwd(item.price)}</strong></div>{item.desc && <p className="text-xs text-ink-3 leading-relaxed mt-3">{item.desc}</p>}</article>)}</div>{items.length === 0 && <p className="card p-8 text-center text-sm text-ink-3">找不到符合的配件</p>}</section>;
 }
 
 function FormalizeModal({ form, setForm, onClose, onSave }) {
