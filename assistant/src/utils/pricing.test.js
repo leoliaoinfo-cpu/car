@@ -301,6 +301,16 @@ test('adds supplier sheet options to existing quote menus without exposing costs
   assert.ok(resolved.addons.find((item) => item.id === 'qa-brake-kit'));
 });
 
+test('groups window film into front glass and three cab types', () => {
+  const filmItems = DEFAULT_QUOTE_PRESETS.addons.filter((item) => item.id.startsWith('qa-film-'));
+  const groups = Object.groupBy(filmItems, (item) => item.cat);
+  assert.deepEqual(Object.keys(groups), [
+    '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
+  ]);
+  assert.ok(Object.values(groups).every((items) => items.length === 3));
+  assert.equal(filmItems.some((item) => item.cat === '隔熱紙'), false);
+});
+
 test('uses 4.5 percent as the default customer loan estimate', () => {
   assert.ok(DEFAULT_QUOTE_PRESETS.addons.length > 0);
   assert.ok(resolveLoanTerms(null).every((term) => term.rate === 4.5));
@@ -327,12 +337,21 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-55').price, 48000);
   assert.equal(addons.some((item) => item.id === 'qa-tailgate-30-35'), false);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').price, 8000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').cat, '升降尾門的油壓缸');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-double-cylinder').name, '雙缸油壓缸（800～1,000kg）');
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-60-special').pendingPrice, true);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '升降尾門的油壓缸');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').name, '四缸油壓缸（約1,200kg 特製規格）');
+  assert.deepEqual(
+    addons.filter((item) => item.cat === '升降尾門的油壓缸').map((item) => item.id).sort(),
+    ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'],
+  );
+  assert.equal(addons.some((item) => (item.desc || '').includes('單缸油壓')), false);
   for (const [id, size] of [['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6']]) {
     const doubleFold = addons.find((item) => item.id === `qa-tailgate-double-fold-${id}`);
     assert.equal(doubleFold.name, `雙折尾門（${size}尺）`);
-    assert.equal(doubleFold.cat, '升降尾門');
+    assert.equal(doubleFold.cat, '滑特(升降尾門)');
     assert.equal(doubleFold.group, 'g-tailgate-size');
     assert.equal(doubleFold.pendingPrice, true);
     assert.equal(doubleFold.price, 0);
@@ -342,18 +361,34 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').pendingPrice, false);
 });
 
-test('adds pending double-fold tailgates to saved menus without restoring renamed categories', () => {
-  const old = renameAddonCategory({ ...DEFAULT_QUOTE_PRESETS, _catalog: 'kavan-2026-v10',
-    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
-    addons: DEFAULT_QUOTE_PRESETS.addons.filter((item) => !item.id.startsWith('qa-tailgate-double-fold-')),
-  }, '升降尾門', '尾門其他配備');
+test('moves saved tailgates into size and cylinder categories without restoring the old category', () => {
+  const old = {
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v13',
+    addonCategories: DEFAULT_QUOTE_PRESETS.addonCategories
+      .map((category) => category === '升降尾門的油壓缸' ? '升降尾門' : category)
+      .filter((category) => !category.startsWith('隔熱紙（'))
+      .concat('隔熱紙'),
+    addons: DEFAULT_QUOTE_PRESETS.addons.map((item) => {
+      if (item.id === 'qa-tailgate-double-cylinder') return { ...item, cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' };
+      if (item.id === 'qa-tailgate-four-cylinder') return { ...item, cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）' };
+      if (item.id.startsWith('qa-tailgate-double-fold-')) return { ...item, cat: '升降尾門' };
+      if (/^qa-tailgate-(?:25|30|35|40|45|50|55)$/.test(item.id)) return { ...item, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' };
+      if (item.id.startsWith('qa-film-')) return { ...item, cat: '隔熱紙' };
+      return item;
+    }),
+  };
   const upgraded = resolveQuotePresets(old);
   assert.equal(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-')).length, 6);
   assert.ok(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-'))
-    .every((item) => item.cat === '尾門其他配備' && item.pendingPrice && item.price === 0));
+    .every((item) => item.cat === '滑特(升降尾門)' && item.pendingPrice && item.price === 0));
   assert.equal(upgraded.addonCategories.includes('升降尾門'), false);
-  assert.equal(upgraded.addonCategories.includes('尾門其他配備'), true);
-  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '尾門其他配備');
+  assert.equal(upgraded.addonCategories.includes('尾門其他配備'), false);
+  assert.equal(upgraded.addonCategories.includes('升降尾門的油壓缸'), true);
+  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '升降尾門的油壓缸');
+  assert.equal(upgraded.addons.some((item) => (item.desc || '').includes('單缸油壓')), false);
+  assert.equal(upgraded.addonCategories.includes('隔熱紙'), false);
+  assert.ok(upgraded.addons.filter((item) => item.id.startsWith('qa-film-')).every((item) => item.cat.startsWith('隔熱紙（')));
 });
 
 test('preserves a custom addon category when upgrading saved quote presets', () => {
@@ -397,7 +432,7 @@ test('moves default tailgate sizes into the Swift category without overwriting c
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-30').cat, '滑特(升降尾門)');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').name, '自訂款（3.5尺）');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').cat, '我的尾門');
-  assert.deepEqual(resolved.addonCategories.slice(0, 4), ['貨斗底板', '滑特(升降尾門)', '升降尾門', '配件']);
+  assert.deepEqual(resolved.addonCategories.slice(0, 4), ['貨斗底板', '滑特(升降尾門)', '升降尾門的油壓缸', '配件']);
 });
 
 test('upgrades the old pending deflector price while preserving custom edits', () => {
@@ -416,7 +451,7 @@ test('upgrades the old pending deflector price while preserving custom edits', (
   assert.equal(customized.addons.find((item) => item.id === 'qa-truck-air-deflector').price, 4000);
 });
 
-test('moves an existing four-cylinder liftgate out of the custom-body category', () => {
+test('moves an existing four-cylinder liftgate into the cylinder-only category', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v6', models: [], subsidies: [],
     addons: [{
@@ -425,7 +460,8 @@ test('moves an existing four-cylinder liftgate out of the custom-body category',
     }],
   });
   const fourCylinder = resolved.addons.find((item) => item.id === 'qa-tailgate-four-cylinder');
-  assert.equal(fourCylinder.cat, '升降尾門');
+  assert.equal(fourCylinder.cat, '升降尾門的油壓缸');
+  assert.equal(fourCylinder.name, '四缸油壓缸（約1,200kg 特製規格）');
   assert.equal(fourCylinder.pendingPrice, true);
 });
 

@@ -191,11 +191,17 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v13';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v14';
+
+const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
+const TAILGATE_CYLINDER_CATEGORY = '升降尾門的油壓缸';
+const WINDOW_FILM_CATEGORIES = [
+  '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
+];
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', '滑特(升降尾門)', '升降尾門', '客製車體', '外觀空力', '燈組', '音響', '配件', '隔熱紙', '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -203,20 +209,20 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '依花紋板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '依平板板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-tailgate-25', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（2.5尺）', price: 37000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-30', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（3尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-35', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（3.5尺）', price: 40000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-40', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（4尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-45', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（4.5尺）', price: 43000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-50', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-55', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（5.5尺）', price: 48000, desc: '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認' },
-  { id: 'qa-tailgate-60-special', cat: '滑特(升降尾門)', group: 'g-tailgate-size', name: '升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
-  { id: 'qa-tailgate-double-cylinder', cat: '升降尾門', name: '雙缸油壓升級（800～1,000kg）', price: 8000, desc: '搭配尾門尺寸選用；由單缸基本配置升級為雙缸油壓' },
-  { id: 'qa-tailgate-four-cylinder', cat: '升降尾門', name: '四缸升降尾門（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+  { id: 'qa-tailgate-25', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（2.5尺）', price: 37000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-30', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（3尺）', price: 40000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-35', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（3.5尺）', price: 40000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-40', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（4尺）', price: 43000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-45', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（4.5尺）', price: 43000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-50', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（5尺）', price: 48000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-55', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（5.5尺）', price: 48000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
+  { id: 'qa-tailgate-60-special', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
+  { id: 'qa-tailgate-double-cylinder', cat: TAILGATE_CYLINDER_CATEGORY, name: '雙缸油壓缸（800～1,000kg）', price: 8000, desc: '搭配升降尾門尺寸選用；實際承重仍依車型、平台與施工內容確認' },
+  { id: 'qa-tailgate-four-cylinder', cat: TAILGATE_CYLINDER_CATEGORY, name: '四缸油壓缸（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
   ...[
     ['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6'],
   ].map(([id, size]) => ({
-    id: `qa-tailgate-double-fold-${id}`, cat: '升降尾門', group: 'g-tailgate-size',
+    id: `qa-tailgate-double-fold-${id}`, cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size',
     name: `雙折尾門（${size}尺）`, price: 0, pendingPrice: true,
     desc: '實際尺寸、施工規格與價格待廠商確認',
   })),
@@ -245,18 +251,18 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
 
-  { id: 'qa-film-fsk-front', cat: '隔熱紙', group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
-  { id: 'qa-film-fsk-body-s', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
-  { id: 'qa-film-fsk-body-l', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・大單廂）', price: 7000, desc: '料號 99PVYPUFSKB120L' },
-  { id: 'qa-film-fsk-body-d', cat: '隔熱紙', group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・雙廂）', price: 11000, desc: '料號 99PVYPUFSKB120D' },
-  { id: 'qa-film-smith-front', cat: '隔熱紙', group: 'g-film-front', name: 'Smith 隔熱紙－前擋（BELLA-70）', price: 5500, desc: '料號 99PVYPUT122；單廂／大單廂／雙廂' },
-  { id: 'qa-film-smith-body-s', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・單廂）', price: 4500, desc: '料號 99PVYPUT120S' },
-  { id: 'qa-film-smith-body-l', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・大單廂）', price: 5500, desc: '料號 99PVYPUT120L' },
-  { id: 'qa-film-smith-body-d', cat: '隔熱紙', group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・雙廂）', price: 8500, desc: '料號 99PVYPUT120D' },
-  { id: 'qa-film-3m-front', cat: '隔熱紙', group: 'g-film-front', name: '3M 隔熱紙－前擋（P70）', price: 7000, desc: '料號 99PVY3M35C；單廂／大單廂／雙廂' },
-  { id: 'qa-film-3m-body-s', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・單廂）', price: 5000, desc: '料號 99PVY3M20CS' },
-  { id: 'qa-film-3m-body-l', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・大單廂）', price: 6000, desc: '料號 99PVY3M20CL' },
-  { id: 'qa-film-3m-body-d', cat: '隔熱紙', group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・雙廂）', price: 10000, desc: '料號 99PVY3M20CD' },
+  { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
+  { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
+  { id: 'qa-film-fsk-body-l', cat: WINDOW_FILM_CATEGORIES[2], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・大單廂）', price: 7000, desc: '料號 99PVYPUFSKB120L' },
+  { id: 'qa-film-fsk-body-d', cat: WINDOW_FILM_CATEGORIES[3], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・雙廂）', price: 11000, desc: '料號 99PVYPUFSKB120D' },
+  { id: 'qa-film-smith-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'Smith 隔熱紙－前擋（BELLA-70）', price: 5500, desc: '料號 99PVYPUT122；單廂／大單廂／雙廂' },
+  { id: 'qa-film-smith-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・單廂）', price: 4500, desc: '料號 99PVYPUT120S' },
+  { id: 'qa-film-smith-body-l', cat: WINDOW_FILM_CATEGORIES[2], group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・大單廂）', price: 5500, desc: '料號 99PVYPUT120L' },
+  { id: 'qa-film-smith-body-d', cat: WINDOW_FILM_CATEGORIES[3], group: 'g-film-body', name: 'Smith 隔熱紙－車身（BELLA-05／15／30／40／70・雙廂）', price: 8500, desc: '料號 99PVYPUT120D' },
+  { id: 'qa-film-3m-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: '3M 隔熱紙－前擋（P70）', price: 7000, desc: '料號 99PVY3M35C；單廂／大單廂／雙廂' },
+  { id: 'qa-film-3m-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・單廂）', price: 5000, desc: '料號 99PVY3M20CS' },
+  { id: 'qa-film-3m-body-l', cat: WINDOW_FILM_CATEGORIES[2], group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・大單廂）', price: 6000, desc: '料號 99PVY3M20CL' },
+  { id: 'qa-film-3m-body-d', cat: WINDOW_FILM_CATEGORIES[3], group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・雙廂）', price: 10000, desc: '料號 99PVY3M20CD' },
 ];
 
 const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS];
@@ -441,13 +447,32 @@ export function resolveQuotePresets(row) {
       migrated = { ...migrated, desc: androidSurround.desc };
     }
     const tailgateDefault = REQUIRED_QUOTE_ADDONS.find((addon) => addon.id === migrated.id);
+    const previousTailgateCategory = (row.addonCategoryAliases || {})['升降尾門'] || '升降尾門';
     if (tailgateDefault?.cat === '滑特(升降尾門)'
       && migrated.cat === '升降尾門'
       && migrated.name === `滑特${tailgateDefault.name}`) {
       migrated = { ...migrated, cat: tailgateDefault.cat, name: tailgateDefault.name };
     }
-    if (migrated.id === 'qa-tailgate-four-cylinder' && migrated.cat === '客製車體') {
-      return { ...migrated, cat: '升降尾門' };
+    if (tailgateDefault && /^qa-tailgate-(?:25|30|35|40|45|50|55)$/.test(migrated.id)
+      && migrated.desc === '單缸油壓基本配置；實際配置仍依車型、載重與施工內容確認') {
+      migrated = { ...migrated, desc: tailgateDefault.desc };
+    }
+    if (tailgateDefault && migrated.id.startsWith('qa-tailgate-double-fold-')
+      && ['升降尾門', previousTailgateCategory].includes(migrated.cat)) {
+      migrated = { ...migrated, cat: tailgateDefault.cat };
+    }
+    if (tailgateDefault && ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'].includes(migrated.id)
+      && ['升降尾門', previousTailgateCategory, '客製車體'].includes(migrated.cat)) {
+      migrated = {
+        ...migrated,
+        cat: tailgateDefault.cat,
+        name: tailgateDefault.name,
+        desc: tailgateDefault.desc,
+      };
+    }
+    if (tailgateDefault?.cat?.startsWith('隔熱紙（')
+      && ['隔熱紙', (row.addonCategoryAliases || {}).隔熱紙].filter(Boolean).includes(migrated.cat)) {
+      migrated = { ...migrated, cat: tailgateDefault.cat };
     }
     return migrated;
   });
@@ -457,11 +482,23 @@ export function resolveQuotePresets(row) {
   const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name))
     .map((item) => ({ ...item, cat: categoryAliases[item.cat] || item.cat }));
   const addons = [...migratedAddons, ...newAddons];
-  const storedCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];
+  const previousTailgateCategory = categoryAliases['升降尾門'] || '升降尾門';
+  const previousFilmCategory = categoryAliases.隔熱紙 || '隔熱紙';
+  const originalCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];
+  const storedCategories = originalCategories
+    .filter((category) => !['升降尾門', previousTailgateCategory, '隔熱紙', previousFilmCategory].includes(category));
   const swiftCategory = categoryAliases['滑特(升降尾門)'] || '滑特(升降尾門)';
   if (!storedCategories.includes(swiftCategory)) {
-    const tailgateIndex = storedCategories.indexOf(categoryAliases['升降尾門'] || '升降尾門');
-    storedCategories.splice(tailgateIndex < 0 ? storedCategories.length : tailgateIndex, 0, swiftCategory);
+    const floorIndex = storedCategories.indexOf(categoryAliases['貨斗底板'] || '貨斗底板');
+    storedCategories.splice(floorIndex < 0 ? storedCategories.length : floorIndex + 1, 0, swiftCategory);
+  }
+  if (!storedCategories.includes(TAILGATE_CYLINDER_CATEGORY)) {
+    storedCategories.splice(storedCategories.indexOf(swiftCategory) + 1, 0, TAILGATE_CYLINDER_CATEGORY);
+  }
+  const missingFilmCategories = WINDOW_FILM_CATEGORIES.filter((category) => !storedCategories.includes(category));
+  if (missingFilmCategories.length > 0) {
+    const insertAt = storedCategories.indexOf('底盤強化');
+    storedCategories.splice(insertAt < 0 ? storedCategories.length : insertAt, 0, ...missingFilmCategories);
   }
   const addonCategories = [...new Set([...storedCategories, ...addons.map((item) => item.cat || '其他')])];
   return {
@@ -471,6 +508,7 @@ export function resolveQuotePresets(row) {
     models: quoteVehicleModels(),
     addons,
     addonCategories,
+    addonCategoryAliases: { ...categoryAliases, 升降尾門: TAILGATE_CYLINDER_CATEGORY },
   };
 }
 
