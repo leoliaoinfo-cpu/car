@@ -4,7 +4,14 @@ import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
 } from './pricing.js';
-import { canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
+import { canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
+
+test('formats quotation totals as formal Traditional Chinese currency', () => {
+  assert.equal(formatChineseTwd(0), '新臺幣零元整');
+  assert.equal(formatChineseTwd(902000), '新臺幣玖拾萬貳仟元整');
+  assert.equal(formatChineseTwd(1000100), '新臺幣壹佰萬零壹佰元整');
+  assert.equal(formatChineseTwd(100000001), '新臺幣壹億零壹元整');
+});
 
 test('calculates item and whole-quote discounts', () => {
   const items = [

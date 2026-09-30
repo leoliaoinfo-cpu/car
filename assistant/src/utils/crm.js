@@ -543,6 +543,55 @@ export function formatMoney(n) {
   return (Number(n) || 0).toLocaleString('zh-TW');
 }
 
+/** 將整數金額轉成報價單用的繁體中文大寫金額。 */
+export function formatChineseTwd(value) {
+  const numericValue = Number(value);
+  const negative = Number.isFinite(numericValue) && numericValue < 0;
+  let amount = Math.round(Math.abs(Number.isFinite(numericValue) ? numericValue : 0));
+  if (amount === 0) return '新臺幣零元整';
+
+  const digits = ['零', '壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖'];
+  const smallUnits = ['', '拾', '佰', '仟'];
+  const largeUnits = ['', '萬', '億', '兆', '京'];
+  const groups = [];
+
+  while (amount > 0) {
+    groups.push(amount % 10000);
+    amount = Math.floor(amount / 10000);
+  }
+
+  const formatGroup = (group) => {
+    let result = '';
+    let needsZero = false;
+    for (let position = 3; position >= 0; position -= 1) {
+      const digit = Math.floor(group / (10 ** position)) % 10;
+      if (digit === 0) {
+        if (result) needsZero = true;
+        continue;
+      }
+      if (needsZero) result += digits[0];
+      result += `${digits[digit]}${smallUnits[position]}`;
+      needsZero = false;
+    }
+    return result;
+  };
+
+  let result = '';
+  let skippedEmptyGroup = false;
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const group = groups[index];
+    if (group === 0) {
+      if (result) skippedEmptyGroup = true;
+      continue;
+    }
+    if (result && (skippedEmptyGroup || group < 1000)) result += digits[0];
+    result += `${formatGroup(group)}${largeUnits[index] || ''}`;
+    skippedEmptyGroup = false;
+  }
+
+  return `新臺幣${negative ? '負' : ''}${result}元整`;
+}
+
 /** 簽約～交車常見待辦範本預設值（可在設定編輯，存於 settings.todoTemplate） */
 export const DEFAULT_TODO_TEMPLATE = [
   '保險規劃確認',

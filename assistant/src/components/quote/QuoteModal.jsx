@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
@@ -1168,10 +1168,15 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>
                   {pendingItems.length > 0 ? '目前已確認金額' : '最終專案價'}
                 </span>
-                <span style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
-                  {formatMoney(total)}
-                </span>
+                <div style={{ maxWidth: '68%', textAlign: 'right' }}>
+                  <div style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
+                    {formatMoney(total)}
+                  </div>
+                  <div style={{ color: '#c9d6e0', fontSize: 9.5, fontWeight: 500, lineHeight: 1.4, letterSpacing: 0.5, marginTop: 3 }}>
+                    {formatChineseTwd(total)}
+                  </div>
+                </div>
               </div>
               {pendingItems.length > 0 && (
                 <p style={{ color: '#9a6d3e', background: '#fff8ec', borderRadius: 8, padding: '7px 10px', fontSize: 9.5, lineHeight: 1.5, marginTop: 8 }}>
