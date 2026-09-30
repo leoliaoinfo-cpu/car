@@ -1161,21 +1161,24 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 ))}
               </div>
               <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                 background: 'linear-gradient(135deg,#3f4d5a,#2b343d)', borderRadius: 10,
                 padding: '13px 18px', marginTop: 10,
               }}>
-                <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2 }}>
-                  {pendingItems.length > 0 ? '目前已確認金額' : '最終專案價'}
-                </span>
-                <div style={{ maxWidth: '68%', textAlign: 'right' }}>
-                  <div style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+                  <span style={{ color: '#c9d6e0', fontSize: 12, fontWeight: 600, letterSpacing: 2, flexShrink: 0 }}>
+                    {pendingItems.length > 0 ? '目前已確認金額' : '最終專案價'}
+                  </span>
+                  <div style={{ color: '#fff', fontSize: 23, fontWeight: 800, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#bf8a5e', marginRight: 4 }}>NT$</span>
                     {formatMoney(total)}
                   </div>
-                  <div style={{ color: '#c9d6e0', fontSize: 9.5, fontWeight: 500, lineHeight: 1.4, letterSpacing: 0.5, marginTop: 3 }}>
-                    {formatChineseTwd(total)}
-                  </div>
+                </div>
+                <div style={{
+                  color: '#c9d6e0', borderTop: '1px solid rgba(201,214,224,0.22)',
+                  fontSize: 10.5, fontWeight: 600, lineHeight: 1.4, letterSpacing: 0.7,
+                  marginTop: 7, paddingTop: 6, textAlign: 'right', whiteSpace: 'nowrap',
+                }}>
+                  {formatChineseTwd(total)}
                 </div>
               </div>
               {pendingItems.length > 0 && (
