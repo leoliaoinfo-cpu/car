@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
@@ -30,6 +30,32 @@ function groupAddonsByCat(addons, categoryOrder = QUOTE_ADDON_CATS) {
   return ordered;
 }
 
+function groupAddonSections(groups, aliases = {}) {
+  const categoryToSection = new Map();
+  for (const section of QUOTE_ADDON_SECTIONS) {
+    for (const category of section.categories) categoryToSection.set(aliases[category] || category, section);
+  }
+  const emitted = new Set();
+  const result = [];
+  for (const group of groups) {
+    const section = categoryToSection.get(group[0]);
+    if (!section) {
+      result.push({ key: group[0], label: group[0], nested: false, groups: [group] });
+      continue;
+    }
+    if (emitted.has(section.key)) continue;
+    emitted.add(section.key);
+    const categories = new Set(section.categories.map((category) => aliases[category] || category));
+    result.push({
+      key: section.key,
+      label: section.label,
+      nested: true,
+      groups: groups.filter(([category]) => categories.has(category)),
+    });
+  }
+  return result;
+}
+
 function sortQuoteRows(rows) {
   return [...rows].sort((a, b) => {
     if (!!a.pending !== !!b.pending) return a.pending ? -1 : 1;
@@ -52,6 +78,97 @@ function catColor(cat) {
   let h = 0;
   for (let i = 0; i < cat.length; i++) h = (h * 31 + cat.charCodeAt(i)) >>> 0;
   return CAT_COLORS_Q[h % CAT_COLORS_Q.length];
+}
+
+function AddonCategoryCard({
+  cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
+  setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine,
+}) {
+  const color = catColor(cat);
+  const pickedCount = list.filter((addon) => isPicked(addon)).length;
+  const noOption = pickedCount === 0 && reviewedNoOptionCategories.includes(cat);
+  const groupSet = new Set(list.map((addon) => addon.group || ''));
+  const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
+  return (
+    <div className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
+      <button type="button"
+        onClick={() => setExpandedAddonCategories((current) => ({ ...current, [cat]: !expanded }))}
+        aria-expanded={expanded} className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left">
+        <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
+        <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
+        <span className="text-[10px] text-ink-3">{list.length} 項</span>
+        {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
+        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
+          {pickedCount ? `已選 ${pickedCount}・已處理` : noOption ? '沒有選配・已處理' : '未確認'}
+        </span>
+        <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div className="px-2.5 pb-2.5 space-y-2">
+          <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
+            <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
+              onChange={(event) => setNoOptionCategories((current) => {
+                const canonical = canonicalAddonCategories(current, aliases);
+                return event.target.checked
+                  ? [...new Set([...canonical, cat])]
+                  : canonical.filter((category) => category !== cat);
+              })} />
+            沒有選配（已向客戶確認）
+          </label>
+          {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
+          {showDesc ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {list.map((addon) => {
+                const picked = isPicked(addon);
+                return (
+                  <div key={addon.id}
+                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'}`}
+                    style={picked ? { background: color + '18', borderColor: color } : undefined}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-xs text-ink font-medium leading-snug">
+                        {addon.parentId && <span className="text-ink-3">↳ </span>}
+                        {picked && <span style={{ color }}>✓ </span>}{addon.name}
+                      </p>
+                      <span className="text-xs font-bold shrink-0" style={{ color }}>
+                        {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
+                      </span>
+                    </div>
+                    {addon.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{addon.desc}</p>}
+                    <button type="button" onClick={() => toggleLine(addon)}
+                      className="text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors"
+                      style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
+                      {picked ? '✓ 已加入' : '＋ 加入報價'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex gap-1.5 flex-wrap">
+              {list.map((addon) => {
+                const picked = isPicked(addon);
+                return (
+                  <button key={addon.id} type="button" title={addon.desc || ''}
+                    onClick={() => toggleLine(addon)}
+                    className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors"
+                    style={picked
+                      ? { background: color, borderColor: color, color: '#fff' }
+                      : { borderColor: color + '55' }}>
+                    {picked && <span>✓</span>}
+                    {addon.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
+                    <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{addon.name}</span>
+                    <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
+                      {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const PAINT_COLOR_CATALOG_IDS = new Set(['qa-paint1', 'qa-paint2', 'qa-paint3']);
@@ -110,6 +227,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   const [expandedAddonCategories, setExpandedAddonCategories] = useState({});
+  const [expandedAddonSections, setExpandedAddonSections] = useState({});
   const [noOptionCategories, setNoOptionCategories] = useState(() =>
     Array.isArray(quote?.noOptionCategories) ? quote.noOptionCategories : []);
   const [capturing, setCapturing] = useState(false);
@@ -230,6 +348,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
   const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
+  const addonSections = groupAddonSections(addonGroups, quotePresets.addonCategoryAliases);
   const reviewedNoOptionCategories = canonicalAddonCategories(noOptionCategories, quotePresets.addonCategoryAliases);
   const reviewedAddonCount = addonGroups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
     || list.some((addon) => isPicked(addon))).length;
@@ -673,90 +792,45 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                   </button>
                 </div>
                 <p className="text-[10px] text-ink-3 -mt-1">逐類打開，選配件或勾「沒有選配」才算已處理；未確認的分類會保留提醒。</p>
-                {addonGroups.map(([cat, list]) => {
-                  const color = catColor(cat);
-                  const pickedCount = list.filter((addon) => isPicked(addon)).length;
-                  const noOption = pickedCount === 0 && reviewedNoOptionCategories.includes(cat);
-                  const expanded = !!expandedAddonCategories[cat];
-                  // 整個類別同屬一個擇一群組時才標「擇一」（例如車身改色底色、防刮尾門尺寸）
-                  const groupSet = new Set(list.map((a) => a.group || ''));
-                  const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
+                {addonSections.map((section) => {
+                  if (!section.nested) {
+                    const [cat, list] = section.groups[0];
+                    return <AddonCategoryCard key={section.key} cat={cat} list={list}
+                      aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
+                      isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
+                      setExpandedAddonCategories={setExpandedAddonCategories}
+                      setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine} />;
+                  }
+                  const expanded = !!expandedAddonSections[section.key];
+                  const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
+                  const pickedCount = section.groups.reduce((total, [, list]) =>
+                    total + list.filter((addon) => isPicked(addon)).length, 0);
+                  const reviewedCount = section.groups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
+                    || list.some((addon) => isPicked(addon))).length;
+                  const complete = reviewedCount === section.groups.length;
+                  const color = catColor(section.label);
                   return (
-                    <div key={cat} className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
-                      {/* 類別標題 */}
-                      <button type="button" onClick={() => setExpandedAddonCategories((current) => ({ ...current, [cat]: !expanded }))}
-                        aria-expanded={expanded} className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left">
-                        <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
-                        <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
-                        <span className="text-[10px] text-ink-3">{list.length} 項</span>
-                        {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
-                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
-                          {pickedCount ? `已選 ${pickedCount}・已處理` : noOption ? '沒有選配・已處理' : '未確認'}
+                    <div key={section.key} className="rounded-xl border-2 border-bdr/70 bg-s1/45 overflow-hidden">
+                      <button type="button"
+                        onClick={() => setExpandedAddonSections((current) => ({ ...current, [section.key]: !expanded }))}
+                        aria-expanded={expanded} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+                        <span className="w-1.5 h-5 rounded-full shrink-0" style={{ background: color }} />
+                        <span className="text-xs font-bold text-ink flex-1">{section.label}</span>
+                        <span className="text-[10px] text-ink-3">{section.groups.length} 類・{itemCount} 項</span>
+                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${complete || pickedCount ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
+                          {complete ? '全部已處理' : pickedCount ? `已選 ${pickedCount}` : '待確認'}
                         </span>
                         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
                       </button>
                       {expanded && (
-                        <div className="px-2.5 pb-2.5 space-y-2">
-                          <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
-                            <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
-                              onChange={(event) => setNoOptionCategories((current) => {
-                                const canonical = canonicalAddonCategories(current, quotePresets.addonCategoryAliases);
-                                return event.target.checked
-                                  ? [...new Set([...canonical, cat])]
-                                  : canonical.filter((category) => category !== cat);
-                              })} />
-                            沒有選配（已向客戶確認）
-                          </label>
-                          {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
-                      {showDesc ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {list.map((a) => {
-                            const picked = isPicked(a);
-                            return (
-                              <div key={a.id}
-                                className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'}`}
-                                style={picked ? { background: color + '18', borderColor: color } : undefined}>
-                                <div className="flex items-start justify-between gap-2">
-                                  <p className="text-xs text-ink font-medium leading-snug">
-                                    {a.parentId && <span className="text-ink-3">↳ </span>}
-                                    {picked && <span style={{ color }}>✓ </span>}{a.name}
-                                  </p>
-                                  <span className="text-xs font-bold shrink-0" style={{ color }}>
-                                    {a.pendingPrice ? '待廠商報價' : formatMoney(a.price)}
-                                  </span>
-                                </div>
-                                {a.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{a.desc}</p>}
-                                <button type="button" onClick={() => toggleLine(a)}
-                                  className="text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors"
-                                  style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
-                                  {picked ? '✓ 已加入' : '＋ 加入報價'}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="flex gap-1.5 flex-wrap">
-                          {list.map((a) => {
-                            const picked = isPicked(a);
-                            return (
-                              <button key={a.id} type="button" title={a.desc || ''}
-                                onClick={() => toggleLine(a)}
-                                className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors"
-                                style={picked
-                                  ? { background: color, borderColor: color, color: '#fff' }
-                                  : { borderColor: color + '55' }}>
-                                {picked && <span>✓</span>}
-                                {a.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
-                                <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{a.name}</span>
-                                <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
-                                  {a.pendingPrice ? '待廠商報價' : formatMoney(a.price)}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                        <div className="border-t border-bdr/60 bg-s2/45 p-2 space-y-2">
+                          {section.groups.map(([cat, list]) => (
+                            <AddonCategoryCard key={cat} cat={cat} list={list}
+                              aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
+                              isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
+                              setExpandedAddonCategories={setExpandedAddonCategories}
+                              setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine} />
+                          ))}
                         </div>
                       )}
                     </div>

@@ -191,9 +191,10 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v16';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v17';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
+const DOUBLE_FOLD_TAILGATE_CATEGORY = '雙折尾門';
 const TAILGATE_CYLINDER_CATEGORY = '升降尾門的油壓缸';
 const TAILGATE_ACCESSORY_CATEGORY = '尾門配件';
 const WINDOW_FILM_CATEGORIES = [
@@ -202,7 +203,17 @@ const WINDOW_FILM_CATEGORIES = [
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+];
+
+export const QUOTE_ADDON_SECTIONS = [
+  {
+    key: 'tailgate-system',
+    label: '尾門系統',
+    categories: [SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY],
+  },
+  { key: 'window-film', label: '隔熱紙', categories: WINDOW_FILM_CATEGORIES },
+  { key: 'body-color', label: '車身顏色', categories: ['車身改色', '防刮漆料'] },
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -225,7 +236,7 @@ const VENDOR_QUOTE_ADDONS = [
   ...[
     ['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6'],
   ].map(([id, size]) => ({
-    id: `qa-tailgate-double-fold-${id}`, cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size',
+    id: `qa-tailgate-double-fold-${id}`, cat: DOUBLE_FOLD_TAILGATE_CATEGORY, group: 'g-tailgate-double-fold-size',
     name: `雙折尾門（${size}尺）`, price: 0, pendingPrice: true,
     desc: '實際尺寸、施工規格與價格待廠商確認',
   })),
@@ -492,8 +503,8 @@ export function resolveQuotePresets(row) {
       migrated = { ...migrated, desc: tailgateDefault.desc };
     }
     if (tailgateDefault && migrated.id.startsWith('qa-tailgate-double-fold-')
-      && ['升降尾門', previousTailgateCategory].includes(migrated.cat)) {
-      migrated = { ...migrated, cat: tailgateDefault.cat };
+      && ['升降尾門', previousTailgateCategory, SWIFT_TAILGATE_CATEGORY].includes(migrated.cat)) {
+      migrated = { ...migrated, cat: tailgateDefault.cat, group: tailgateDefault.group };
     }
     if (tailgateDefault && ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'].includes(migrated.id)
       && ['升降尾門', previousTailgateCategory, '客製車體'].includes(migrated.cat)) {
@@ -533,9 +544,13 @@ export function resolveQuotePresets(row) {
     const floorIndex = storedCategories.indexOf(categoryAliases['貨斗底板'] || '貨斗底板');
     storedCategories.splice(floorIndex < 0 ? storedCategories.length : floorIndex + 1, 0, swiftCategory);
   }
+  const doubleFoldCategory = categoryAliases[DOUBLE_FOLD_TAILGATE_CATEGORY] || DOUBLE_FOLD_TAILGATE_CATEGORY;
+  if (!storedCategories.includes(doubleFoldCategory)) {
+    storedCategories.splice(storedCategories.indexOf(swiftCategory) + 1, 0, doubleFoldCategory);
+  }
   const tailgateCylinderCategory = categoryAliases[TAILGATE_CYLINDER_CATEGORY] || TAILGATE_CYLINDER_CATEGORY;
   if (!storedCategories.includes(tailgateCylinderCategory)) {
-    storedCategories.splice(storedCategories.indexOf(swiftCategory) + 1, 0, tailgateCylinderCategory);
+    storedCategories.splice(storedCategories.indexOf(doubleFoldCategory) + 1, 0, tailgateCylinderCategory);
   }
   const tailgateAccessoryCategory = categoryAliases[TAILGATE_ACCESSORY_CATEGORY] || TAILGATE_ACCESSORY_CATEGORY;
   if (!storedCategories.includes(tailgateAccessoryCategory)) {
