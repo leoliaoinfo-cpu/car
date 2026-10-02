@@ -249,7 +249,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
       <div className="flex items-end justify-between flex-wrap gap-3 rounded-2xl border border-copper/25 bg-gradient-to-r from-copper/15 via-s1 to-s1 px-4 py-4 shadow-card">
         <div>
           <p className="text-[10px] font-semibold tracking-[0.18em] text-copper">TODAY OVERVIEW</p>
-          <h1 className="text-xl font-bold text-ink mt-1">☀️ 今日工作</h1>
+          <h1 className="text-xl font-bold text-ink mt-1">📋 完整工作總覽</h1>
           <p className="text-sm text-ink-3 mt-0.5">{dayjs().format('YYYY年M月D日 dddd')}</p>
         </div>
         <button onClick={onOpenReception} className="btn-primary min-h-11">＋ 新增接待</button>

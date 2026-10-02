@@ -11,6 +11,9 @@ import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
 import ReceptionPage from './components/reception/ReceptionPage';
 import TimerModal from './components/TimerModal';
+import WorkPage from './components/work/WorkPage';
+import CasesPage from './components/cases/CasesPage';
+import QuickCreateSheet from './components/QuickCreateSheet';
 import { STORAGE_KEYS } from './storageKeys';
 
 // ── Error Boundary — 任何子元件炸掉都能顯示有意義的訊息 ──────────────────────
@@ -51,10 +54,15 @@ class ErrorBoundary extends Component {
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AppInner() {
   const { loading, dbUnavailable, dbBlocked } = useApp();
-  const [tab, setTab] = useState('today');
+  const [tab, setTab] = useState('work');
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
   const [receptionStartToken, setReceptionStartToken] = useState(null);
+  const [quoteStartToken, setQuoteStartToken] = useState(null);
+  const [clientStartToken, setClientStartToken] = useState(null);
+  const [caseStartToken, setCaseStartToken] = useState(null);
+  const [caseFocusId, setCaseFocusId] = useState(null);
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.isolationNoticeDismissed) !== '1'; } catch { return true; }
   });
@@ -67,6 +75,20 @@ function AppInner() {
   function openClient(id) {
     setCrmFocusId(id);
     setTab('crm');
+  }
+
+  function openCase(id) {
+    setCaseFocusId(id);
+    setTab('cases');
+  }
+
+  function quickCreate(action) {
+    const token = Date.now();
+    setShowQuickCreate(false);
+    if (action === 'case') { setCaseStartToken(token); setTab('cases'); }
+    if (action === 'reception') { setReceptionStartToken(token); setTab('reception'); }
+    if (action === 'quote') { setQuoteStartToken(token); setTab('quotes'); }
+    if (action === 'client') { setClientStartToken(token); setTab('crm'); }
   }
 
   if (loading) {
@@ -114,13 +136,15 @@ function AppInner() {
 
       <main className="pb-20 lg:pb-0">
         <div className="anim-fade-in" key={tab}>
+          {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onQuickCreate={() => setShowQuickCreate(true)} />}
+          {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} onStartConsumed={() => setCaseStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenOperations={() => setTab('operations')} />}
           {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setTab('settings')} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
-            <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} />
+            <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} />
           )}
-          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} />}
+          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} />}
           {tab === 'catalog' && <ProductCatalog />}
           {tab === 'operations' && <OperationsPage onBack={() => setTab('more')} onOpenClient={openClient} />}
           {tab === 'settings' && <SettingsPanel onClose={() => setTab('more')} />}
@@ -128,30 +152,28 @@ function AppInner() {
         </div>
       </main>
 
-      {/* 手機：型錄浮動按鈕（右下角，不擋底部導覽） */}
-      {['today', 'reception', 'crm', 'quotes', 'calendar'].includes(tab) && <button
-        onClick={() => setShowCatalog(true)}
-        className="lg:hidden fixed right-4 bottom-28 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
-        title="產品型錄"
+      {/* 手機全域新增：固定在單手可按範圍，所有主要流程共用。 */}
+      {['work', 'cases', 'crm'].includes(tab) && <button
+        onClick={() => setShowQuickCreate(true)}
+        className="lg:hidden fixed right-4 bottom-24 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex items-center justify-center active:scale-95 transition-transform text-3xl font-light"
+        title="快速新增"
       >
-        <span className="text-xl leading-none">📖</span>
-        <span className="text-[9px] font-medium mt-0.5">型錄</span>
+        ＋
       </button>}
 
       {/* Mobile bottom navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
-          { key: 'today', icon: '☀️', label: '今日', active: 'text-copper bg-copper/10' },
-          { key: 'reception', icon: '🤝', label: '接待', active: 'text-teal bg-teal/10' },
+          { key: 'work', icon: '✓', label: '工作', active: 'text-copper bg-copper/10' },
+          { key: 'cases', icon: '📁', label: '案件', active: 'text-teal bg-teal/10' },
           { key: 'crm', icon: '👥', label: '客戶', active: 'text-sage bg-sage/10' },
-          { key: 'quotes', icon: '🧾', label: '報價單', active: 'text-gold bg-gold/10' },
           { key: 'more', icon: '•••', label: '更多', active: 'text-violet bg-violet/10' },
         ].map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
-              (tab === item.key || (item.key === 'more' && ['calendar', 'catalog', 'operations', 'settings'].includes(tab))) ? item.active : 'text-ink-3'
+              (tab === item.key || (item.key === 'more' && ['today', 'reception', 'quotes', 'calendar', 'catalog', 'operations', 'settings'].includes(tab))) ? item.active : 'text-ink-3'
             }`}
           >
             <span className="text-lg leading-none">{item.icon}</span>
@@ -159,6 +181,7 @@ function AppInner() {
           </button>
         ))}
       </nav>
+      {showQuickCreate && <QuickCreateSheet onClose={() => setShowQuickCreate(false)} onAction={quickCreate} />}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
       <TimerModal />
     </div>

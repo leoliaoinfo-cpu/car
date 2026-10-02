@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
@@ -13,7 +13,7 @@ function requirementPendingCount(quote) {
   return Array.isArray(quote?.pendingRequirements) ? quote.pendingRequirements.length : 0;
 }
 
-export default function QuoteWorkspace({ onOpenClient }) {
+export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed }) {
   const {
     clients, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     savePricingRecord, saveClient, updateClient, cats, stages,
@@ -22,6 +22,13 @@ export default function QuoteWorkspace({ onOpenClient }) {
   const [query, setQuery] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveNotice, setSaveNotice] = useState(null);
+
+  useEffect(() => {
+    if (startNewToken) {
+      setEditing({ mode: 'new' });
+      onStartConsumed?.();
+    }
+  }, [startNewToken, onStartConsumed]);
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const rows = useMemo(() => {

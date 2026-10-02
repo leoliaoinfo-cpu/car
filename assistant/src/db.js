@@ -2,8 +2,8 @@ import { openDB } from 'idb';
 import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
 
 const DB_NAME = CAR_DB_NAME;
-// v11：合作廠商名冊；供成交後施工進度指派與跨裝置同步。
-const DB_VERSION = 11;
+// v12：以「客戶 → 案件 → 工作」為核心的行動工作台；舊資料不搬移、不刪除。
+const DB_VERSION = 12;
 
 let dbPromise = null;
 
@@ -104,6 +104,25 @@ function openRaw() {
           supplier.createIndex('name', 'name');
           supplier.createIndex('active', 'active');
         }
+        if (!database.objectStoreNames.contains('cases')) {
+          const cases = database.createObjectStore('cases', { keyPath: 'id' });
+          cases.createIndex('clientId', 'clientId');
+          cases.createIndex('status', 'status');
+          cases.createIndex('updatedAt', 'updatedAt');
+        }
+        if (!database.objectStoreNames.contains('workItems')) {
+          const workItems = database.createObjectStore('workItems', { keyPath: 'id' });
+          workItems.createIndex('caseId', 'caseId');
+          workItems.createIndex('clientId', 'clientId');
+          workItems.createIndex('state', 'state');
+          workItems.createIndex('due', 'due');
+        }
+        if (!database.objectStoreNames.contains('activities')) {
+          const activities = database.createObjectStore('activities', { keyPath: 'id' });
+          activities.createIndex('caseId', 'caseId');
+          activities.createIndex('clientId', 'clientId');
+          activities.createIndex('date', 'date');
+        }
       },
   });
 }
@@ -119,7 +138,7 @@ function getDB() {
 
 const ALL_STORES = [
   'clients', 'cats', 'stages', 'customFields',
-  'deals', 'dealFields', 'pricingRecords', 'quoteDrafts', 'receptionSessions', 'suppliers', 'tasks', 'events',
+  'deals', 'dealFields', 'pricingRecords', 'quoteDrafts', 'receptionSessions', 'suppliers', 'cases', 'workItems', 'activities', 'tasks', 'events',
   'journalEntries', 'archivedJournal',
   'salaryMonths', 'timers', 'timerHistory', 'settings',
 ];
@@ -127,7 +146,7 @@ const ALL_STORES = [
 // 各 store 的主鍵欄位（同步合併時逐筆比對用）
 export const STORE_KEYS = {
   clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
-  deals: 'id', dealFields: 'id', pricingRecords: 'id', quoteDrafts: 'id', receptionSessions: 'id', suppliers: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
+  deals: 'id', dealFields: 'id', pricingRecords: 'id', quoteDrafts: 'id', receptionSessions: 'id', suppliers: 'id', cases: 'id', workItems: 'id', activities: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
   settings: 'key', salaryMonths: 'key',
   journalEntries: 'date', archivedJournal: 'date',
 };

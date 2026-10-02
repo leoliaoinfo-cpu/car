@@ -791,14 +791,14 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
               <button onClick={() => setDeliveryDate('')} className="text-danger/60 hover:text-danger text-xs px-1">清除</button>
             )}
           </div>
-          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「今日工作」最上方提醒你。實際交車時到下方「互動與成交紀錄」按「🚚 交車」，系統會記錄交車並建立售後回訪。</p>
+          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「完整工作總覽」提醒你。實際交車時到下方「互動與成交紀錄」按「🚚 交車」，系統會記錄交車並建立售後回訪。</p>
         </section>
 
         {/* 生日 / 重要日子（行事曆活動，可每年重複提醒） */}
         <section className="card p-4 space-y-2">
           <h3 className="font-semibold text-sm text-ink-2">🎂 生日 / 重要日子</h3>
           {clientEvents.length === 0 && (
-            <p className="text-xs text-ink-3">記錄客戶生日或重要日子，到期會出現在「今日工作」與行事曆。</p>
+            <p className="text-xs text-ink-3">記錄客戶生日或重要日子，到期會出現在「完整工作總覽」與行事曆。</p>
           )}
           {clientEvents.map((e) => (
             <div key={e.id} className="flex items-center gap-2 text-sm bg-s2 rounded-lg px-3 py-2">

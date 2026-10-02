@@ -13,6 +13,7 @@ import { STORAGE_KEYS } from './storageKeys';
 import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
+import { buildLegacyCaseSeeds, inferCaseType } from './utils/cases';
 
 const AppContext = createContext(null);
 
@@ -61,6 +62,9 @@ const initialState = {
   quoteDrafts: [],
   receptionSessions: [],
   suppliers: [],
+  cases: [],
+  workItems: [],
+  activities: [],
   tasks: [],
   events: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
@@ -156,6 +160,32 @@ function reducer(state, action) {
     case 'DELETE_SUPPLIER':
       return { ...state, suppliers: state.suppliers.filter((row) => row.id !== action.id) };
 
+    // Cases / workbench（新介面；不取代或刪除既有客戶、報價與成交資料）
+    case 'UPSERT_CASE': {
+      const idx = state.cases.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.cases];
+      if (idx === -1) next.push(action.payload); else next[idx] = action.payload;
+      return { ...state, cases: next };
+    }
+    case 'DELETE_CASE':
+      return { ...state, cases: state.cases.filter((row) => row.id !== action.id) };
+    case 'UPSERT_WORK_ITEM': {
+      const idx = state.workItems.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.workItems];
+      if (idx === -1) next.push(action.payload); else next[idx] = action.payload;
+      return { ...state, workItems: next };
+    }
+    case 'DELETE_WORK_ITEM':
+      return { ...state, workItems: state.workItems.filter((row) => row.id !== action.id) };
+    case 'UPSERT_ACTIVITY': {
+      const idx = state.activities.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.activities];
+      if (idx === -1) next.push(action.payload); else next[idx] = action.payload;
+      return { ...state, activities: next };
+    }
+    case 'DELETE_ACTIVITY':
+      return { ...state, activities: state.activities.filter((row) => row.id !== action.id) };
+
     // Tasks（中央待辦）
     case 'UPSERT_TASK': {
       const idx = state.tasks.findIndex((t) => t.id === action.payload.id);
@@ -235,7 +265,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -246,6 +276,9 @@ export function AppProvider({ children }) {
           db.getAll('quoteDrafts'),
           db.getAll('receptionSessions'),
           db.getAll('suppliers'),
+          db.getAll('cases'),
+          db.getAll('workItems'),
+          db.getAll('activities'),
           db.getAll('tasks'),
           db.getAll('events'),
           db.getAll('timers'),
@@ -266,11 +299,17 @@ export function AppProvider({ children }) {
         if (dealFields.length === 0) for (const f of DEFAULT_DEAL_FIELDS) await db.put('dealFields', f).catch(() => {});
 
         const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
+        const caseSeeds = buildLegacyCaseSeeds({
+          deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases,
+        });
+        for (const item of caseSeeds) await db.put('cases', item);
+        const resolvedCases = [...cases, ...caseSeeds];
         dispatch({
           type: 'LOAD_INIT',
           payload: {
             clients: canonical.clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, suppliers, tasks, events, timers,
+            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, suppliers,
+            cases: resolvedCases, workItems, activities, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             heightConfig: normalizeHeightConfig(heightConfigRow),
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
@@ -401,9 +440,26 @@ export function AppProvider({ children }) {
 
   // ── Deals（成交歸檔／業績表）──────────────────────────────────────────────
   const saveDeal = useCallback(async (deal) => {
-    const full = { createdAt: new Date().toISOString(), ...deal };
+    const now = new Date().toISOString();
+    const full = { createdAt: now, ...deal, updatedAt: now };
     dispatch({ type: 'UPSERT_DEAL', payload: full });
     await db.put('deals', full);
+    const allCases = await db.getAll('cases').catch(() => []);
+    const quote = full.quoteId ? await db.get('quoteDrafts', full.quoteId).catch(() => null) : null;
+    const linked = allCases.find((row) => row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)));
+    const caseRow = {
+      ...(linked || {}),
+      id: linked?.id || `case:deal:${full.id}`,
+      clientId: full.clientId || quote?.clientId || linked?.clientId || null,
+      clientName: full.clientName || quote?.customerName || linked?.clientName || '未命名客戶',
+      type: linked?.type || inferCaseType(quote),
+      title: full.model || quote?.model || linked?.title || '購車案件',
+      status: linked?.status || 'active', dealId: full.id,
+      quoteIds: [...new Set([...(linked?.quoteIds || []), full.quoteId].filter(Boolean))],
+      source: linked?.source || 'deal', createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
+    };
+    dispatch({ type: 'UPSERT_CASE', payload: caseRow });
+    await db.put('cases', caseRow);
     return full;
   }, []);
 
@@ -436,6 +492,21 @@ export function AppProvider({ children }) {
     const full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
     dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });
     await db.put('quoteDrafts', full);
+    const allCases = await db.getAll('cases').catch(() => []);
+    const linked = allCases.find((row) => (row.quoteIds || []).includes(full.id));
+    if (linked || full.clientId || full.customerName) {
+      const caseRow = {
+        ...(linked || {}), id: linked?.id || `case:quote:${full.id}`,
+        clientId: full.clientId || linked?.clientId || null,
+        clientName: full.customerName || linked?.clientName || '未命名客戶',
+        type: inferCaseType(full), title: full.model || linked?.title || (inferCaseType(full) === 'modification' ? '改裝報價' : '購車報價'),
+        status: linked?.status || 'active', dealId: linked?.dealId || null,
+        quoteIds: [...new Set([...(linked?.quoteIds || []), full.id])], source: linked?.source || 'quote',
+        createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
+      };
+      dispatch({ type: 'UPSERT_CASE', payload: caseRow });
+      await db.put('cases', caseRow);
+    }
     return full;
   }, []);
 
@@ -483,6 +554,46 @@ export function AppProvider({ children }) {
   const deleteSupplier = useCallback(async (id) => {
     dispatch({ type: 'DELETE_SUPPLIER', id });
     await db.delete('suppliers', id);
+  }, []);
+
+  // ── 客戶案件與行動工作台 ────────────────────────────────────────────────
+  const saveCase = useCallback(async (item) => {
+    const now = new Date().toISOString();
+    const full = { status: 'active', type: 'purchase', createdAt: now, ...item, updatedAt: now };
+    dispatch({ type: 'UPSERT_CASE', payload: full });
+    await db.put('cases', full);
+    return full;
+  }, []);
+
+  const deleteCase = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_CASE', id });
+    await db.delete('cases', id);
+  }, []);
+
+  const saveWorkItem = useCallback(async (item) => {
+    const now = new Date().toISOString();
+    const full = { state: 'todo', createdAt: now, ...item, updatedAt: now };
+    dispatch({ type: 'UPSERT_WORK_ITEM', payload: full });
+    await db.put('workItems', full);
+    return full;
+  }, []);
+
+  const deleteWorkItem = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_WORK_ITEM', id });
+    await db.delete('workItems', id);
+  }, []);
+
+  const saveActivity = useCallback(async (item) => {
+    const now = new Date().toISOString();
+    const full = { date: today(), createdAt: now, ...item, updatedAt: now };
+    dispatch({ type: 'UPSERT_ACTIVITY', payload: full });
+    await db.put('activities', full);
+    return full;
+  }, []);
+
+  const deleteActivity = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_ACTIVITY', id });
+    await db.delete('activities', id);
   }, []);
 
   // ── Tasks（中央待辦）──────────────────────────────────────────────────────
@@ -563,7 +674,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -574,6 +685,9 @@ export function AppProvider({ children }) {
       db.getAll('quoteDrafts'),
       db.getAll('receptionSessions'),
       db.getAll('suppliers'),
+      db.getAll('cases'),
+      db.getAll('workItems'),
+      db.getAll('activities'),
       db.getAll('tasks'),
       db.getAll('events'),
       db.getAll('timers'),
@@ -585,6 +699,8 @@ export function AppProvider({ children }) {
       db.get('settings', 'heightConfig').catch(() => null),
     ]);
     const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
+    const caseSeeds = buildLegacyCaseSeeds({ deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases });
+    for (const item of caseSeeds) await db.put('cases', item);
     dispatch({
       type: 'RELOAD_ALL',
       payload: {
@@ -598,6 +714,9 @@ export function AppProvider({ children }) {
         quoteDrafts: canonical.quoteDrafts,
         receptionSessions,
         suppliers,
+        cases: [...cases, ...caseSeeds],
+        workItems,
+        activities,
         tasks,
         events,
         timers,
@@ -633,6 +752,12 @@ export function AppProvider({ children }) {
     deleteReceptionSession,
     saveSupplier,
     deleteSupplier,
+    saveCase,
+    deleteCase,
+    saveWorkItem,
+    deleteWorkItem,
+    saveActivity,
+    deleteActivity,
     saveTask,
     deleteTask,
     saveEvent,

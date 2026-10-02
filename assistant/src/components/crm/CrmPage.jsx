@@ -58,7 +58,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
   return { visibleItems, totalHeight, offsetY };
 }
 
-export default function CrmPage({ focusId, onFocusConsumed }) {
+export default function CrmPage({ focusId, onFocusConsumed, startNewToken, onStartConsumed }) {
   const { clients, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
@@ -106,6 +106,13 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
       onFocusConsumed?.();
     }
   }, [focusId, onFocusConsumed]);
+
+  useEffect(() => {
+    if (startNewToken) {
+      setShowNewForm(true);
+      onStartConsumed?.();
+    }
+  }, [startNewToken, onStartConsumed]);
 
   const filteredSorted = useMemo(() => {
     let list = clients.filter((c) => clientMatchesFilter(c, filter, thresholds));
@@ -333,12 +340,12 @@ export default function CrmPage({ focusId, onFocusConsumed }) {
                 ))}
               </div>
               {effectiveView === 'list' && (
-                <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="btn-outline text-sm">
+                <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="hidden md:inline-flex btn-outline text-sm">
                   ☑ 選取
                 </button>
               )}
               <button onClick={() => setShowNewForm(true)} className="btn-primary text-sm">+ 新增</button>
-              <span className="text-xs text-ink-3 shrink-0">{filteredSorted.length} 筆</span>
+              <span className="hidden sm:inline text-xs text-ink-3 shrink-0">{filteredSorted.length} 筆</span>
             </>
           )}
         </div>
