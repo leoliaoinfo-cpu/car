@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 5;
+const COST_CATALOG_VERSION = 6;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -63,10 +63,17 @@ const V5_ADDON_COSTS = {
   'qa-h-rack-pair': { cost: 7000 },
 };
 
+const V6_ADDON_COSTS = {
+  'qa-tailgate-35': { cost: 35000 },
+  'qa-tailgate-step': { cost: 1000 },
+  'qa-tailgate-remote': { cost: 2000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
   ...V5_ADDON_COSTS,
+  ...V6_ADDON_COSTS,
 };
 
 // 車輛不以「售價－成本」估利潤，而是直接使用公司公告的每台傭金。
@@ -218,6 +225,7 @@ export function normalizeCostCatalog(row) {
       ...(row && previousVersion < 2 ? SUPPLIER_ADDON_COSTS : {}),
       ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
       ...(row && previousVersion < 5 ? V5_ADDON_COSTS : {}),
+      ...(row && previousVersion < 6 ? V6_ADDON_COSTS : {}),
       ...(row?.addons || {}),
     },
   };

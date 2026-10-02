@@ -191,17 +191,18 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v14';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v15';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
 const TAILGATE_CYLINDER_CATEGORY = '升降尾門的油壓缸';
+const TAILGATE_ACCESSORY_CATEGORY = '尾門配件';
 const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -219,6 +220,8 @@ const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-tailgate-60-special', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（6尺特規）', price: 0, pendingPrice: true, desc: '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格' },
   { id: 'qa-tailgate-double-cylinder', cat: TAILGATE_CYLINDER_CATEGORY, name: '雙缸油壓缸（800～1,000kg）', price: 8000, desc: '搭配升降尾門尺寸選用；實際承重仍依車型、平台與施工內容確認' },
   { id: 'qa-tailgate-four-cylinder', cat: TAILGATE_CYLINDER_CATEGORY, name: '四缸油壓缸（約1,200kg 特製規格）', price: 0, pendingPrice: true, desc: '需確認載重、平台尺寸、車體與四缸配置後向廠商報價' },
+  { id: 'qa-tailgate-step', cat: TAILGATE_ACCESSORY_CATEGORY, name: '尾門腳踏', price: 1000, desc: '升降尾門用輔助腳踏' },
+  { id: 'qa-tailgate-remote', cat: TAILGATE_ACCESSORY_CATEGORY, name: '尾門遙控', price: 2000, desc: '升降尾門遙控操作配件' },
   ...[
     ['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6'],
   ].map(([id, size]) => ({
@@ -492,8 +495,13 @@ export function resolveQuotePresets(row) {
     const floorIndex = storedCategories.indexOf(categoryAliases['貨斗底板'] || '貨斗底板');
     storedCategories.splice(floorIndex < 0 ? storedCategories.length : floorIndex + 1, 0, swiftCategory);
   }
-  if (!storedCategories.includes(TAILGATE_CYLINDER_CATEGORY)) {
-    storedCategories.splice(storedCategories.indexOf(swiftCategory) + 1, 0, TAILGATE_CYLINDER_CATEGORY);
+  const tailgateCylinderCategory = categoryAliases[TAILGATE_CYLINDER_CATEGORY] || TAILGATE_CYLINDER_CATEGORY;
+  if (!storedCategories.includes(tailgateCylinderCategory)) {
+    storedCategories.splice(storedCategories.indexOf(swiftCategory) + 1, 0, tailgateCylinderCategory);
+  }
+  const tailgateAccessoryCategory = categoryAliases[TAILGATE_ACCESSORY_CATEGORY] || TAILGATE_ACCESSORY_CATEGORY;
+  if (!storedCategories.includes(tailgateAccessoryCategory)) {
+    storedCategories.splice(storedCategories.indexOf(tailgateCylinderCategory) + 1, 0, tailgateAccessoryCategory);
   }
   const missingFilmCategories = WINDOW_FILM_CATEGORIES.filter((category) => !storedCategories.includes(category));
   if (missingFilmCategories.length > 0) {

@@ -260,6 +260,9 @@ test('seeds supplier sheet costs and converts each 80-percent row to a number', 
   assert.equal(catalog.addons['qa-pkg1'].cost, 11000);
   assert.equal(catalog.addons['qa-h-rack-single'].cost, 4000);
   assert.equal(catalog.addons['qa-h-rack-pair'].cost, 7000);
+  assert.equal(catalog.addons['qa-tailgate-35'].cost, 35000);
+  assert.equal(catalog.addons['qa-tailgate-step'].cost, 1000);
+  assert.equal(catalog.addons['qa-tailgate-remote'].cost, 2000);
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3200);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
   assert.equal(catalog.addons['qa-star-led-fog'].cost, 1440);
@@ -278,6 +281,27 @@ test('adds priced H-rack options to an existing quote menu', () => {
   });
   assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-single').price, 5000);
   assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-pair').price, 9000);
+});
+
+test('adds tailgate accessories and costs while preserving a manually edited tailgate cost', () => {
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v14',
+    addonCategories: DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => category !== '尾門配件'),
+    addons: DEFAULT_QUOTE_PRESETS.addons.filter((item) => !['qa-tailgate-step', 'qa-tailgate-remote'].includes(item.id)),
+  });
+  assert.deepEqual(
+    resolved.addons.filter((item) => item.cat === '尾門配件').map((item) => [item.id, item.price]),
+    [['qa-tailgate-step', 1000], ['qa-tailgate-remote', 2000]],
+  );
+  assert.equal(resolved.addonCategories.indexOf('尾門配件'), resolved.addonCategories.indexOf('升降尾門的油壓缸') + 1);
+
+  const costs = normalizeCostCatalog({
+    key: 'costCatalog', version: 5, models: {}, addons: { 'qa-tailgate-35': { cost: 36000 } },
+  });
+  assert.equal(costs.addons['qa-tailgate-35'].cost, 36000);
+  assert.equal(costs.addons['qa-tailgate-step'].cost, 1000);
+  assert.equal(costs.addons['qa-tailgate-remote'].cost, 2000);
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
@@ -350,6 +374,10 @@ test('splits cargo floors and liftgates into quote categories with special order
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').pendingPrice, true);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '升降尾門的油壓缸');
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-four-cylinder').name, '四缸油壓缸（約1,200kg 特製規格）');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-step').cat, '尾門配件');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-step').price, 1000);
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-remote').cat, '尾門配件');
+  assert.equal(addons.find((item) => item.id === 'qa-tailgate-remote').price, 2000);
   assert.deepEqual(
     addons.filter((item) => item.cat === '升降尾門的油壓缸').map((item) => item.id).sort(),
     ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'],
@@ -392,6 +420,7 @@ test('moves saved tailgates into size and cylinder categories without restoring 
   assert.equal(upgraded.addonCategories.includes('升降尾門'), false);
   assert.equal(upgraded.addonCategories.includes('尾門其他配備'), false);
   assert.equal(upgraded.addonCategories.includes('升降尾門的油壓缸'), true);
+  assert.equal(upgraded.addonCategories.includes('尾門配件'), true);
   assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-four-cylinder').cat, '升降尾門的油壓缸');
   assert.equal(upgraded.addons.some((item) => (item.desc || '').includes('單缸油壓')), false);
   assert.equal(upgraded.addonCategories.includes('隔熱紙'), false);
@@ -439,7 +468,7 @@ test('moves default tailgate sizes into the Swift category without overwriting c
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-30').cat, '滑特(升降尾門)');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').name, '自訂款（3.5尺）');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-tailgate-35').cat, '我的尾門');
-  assert.deepEqual(resolved.addonCategories.slice(0, 4), ['貨斗底板', '滑特(升降尾門)', '升降尾門的油壓缸', '配件']);
+  assert.deepEqual(resolved.addonCategories.slice(0, 5), ['貨斗底板', '滑特(升降尾門)', '升降尾門的油壓缸', '尾門配件', '配件']);
 });
 
 test('upgrades the old pending deflector price while preserving custom edits', () => {
