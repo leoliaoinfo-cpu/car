@@ -417,12 +417,23 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       costSource = preservedCommission ? existingSources[item.id] : 'commission-catalog';
     }
     if (!preservedManual && item.kind === 'addon') {
-      const resolved = resolveAddonCost(catalog, item.catalogId, quote?.modelId,
-        sameModel && sameItem ? existing?.supplierSelections?.[item.id] : null);
-      cost = resolved.cost;
-      costSource = resolved.source;
-      supplierId = resolved.supplierId;
-      supplierName = resolved.supplierName;
+      const componentIds = item.bundlePricingMode === 'components' && Array.isArray(item.bundleIncludedIds)
+        ? item.bundleIncludedIds.filter(Boolean)
+        : [];
+      if (componentIds.length > 0) {
+        const componentCosts = componentIds.map((addonId) => resolveAddonCost(catalog, addonId, quote?.modelId));
+        cost = componentCosts.every((resolved) => resolved.cost != null)
+          ? componentCosts.reduce((sum, resolved) => sum + resolved.cost, 0)
+          : null;
+        costSource = 'bundle-components';
+      } else {
+        const resolved = resolveAddonCost(catalog, item.catalogId, quote?.modelId,
+          sameModel && sameItem ? existing?.supplierSelections?.[item.id] : null);
+        cost = resolved.cost;
+        costSource = resolved.source;
+        supplierId = resolved.supplierId;
+        supplierName = resolved.supplierName;
+      }
     }
     const discounts = (item.discounts || []).map((row) => normalizeDiscount(row));
     const pricingDiscountRequested = discounts

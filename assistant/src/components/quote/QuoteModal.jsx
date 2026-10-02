@@ -83,6 +83,7 @@ function catColor(cat) {
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
+  allAddons, getBundleQuoteItem, editingBundleId, setEditingBundleId, setBundlePartIncluded,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -91,6 +92,12 @@ function AddonCategoryCard({
   const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
   const numberedDescription = (addon) => {
     if (!addon.desc) return [];
+    if (addon.id === 'qa-pkg2') {
+      return [
+        '安卓四錄整合多媒體（台灣美邁', '9吋安卓觸控螢幕', '高清四錄影監控 & 360度環景',
+        '無線 CarPlay', '卡旺專用底座）', '6輪胎壓偵測器（6輪數據獨立顯示）', '太陽能與 USB 供電',
+      ];
+    }
     if (addon.id === 'qa-double-cab-package') {
       return [
         '特仕版', '多功能方向盤', '安全科技版', 'LED 後照鏡', 'GTR 魚眼頭燈',
@@ -134,6 +141,13 @@ function AddonCategoryCard({
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
                 const descriptionLines = numberedDescription(addon);
+                const bundleParts = (Array.isArray(addon.includes) ? addon.includes : [])
+                  .map((id) => allAddons.find((candidate) => candidate.id === id))
+                  .filter(Boolean);
+                const bundleQuoteItem = getBundleQuoteItem(addon.id);
+                const excludedPartIds = new Set(bundleQuoteItem?.bundleExcludedIds || []);
+                const keptParts = bundleParts.filter((part) => !excludedPartIds.has(part.id));
+                const isEditingBundle = editingBundleId === addon.id;
                 return (
                   <div key={addon.id}
                     className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-white border-slate-300'} ${lockedBy ? 'opacity-70' : ''}`}
@@ -155,20 +169,80 @@ function AddonCategoryCard({
                               雙廂專用｜方案價 250,000 元｜原配件價值標示 275,000 元
                             </p>
                           )}
-                          <ol className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-black list-none">
-                            {descriptionLines.map((line, index) => (
-                              <li key={`${addon.id}-desc-${index}`} className="flex items-start gap-1.5">
-                                <span className="font-bold shrink-0" style={{ color: '#c55a11' }}>{index + 1}.</span>
-                                <span className="text-black">{line}</span>
-                              </li>
-                            ))}
-                          </ol>
+                          {addon.id !== 'qa-double-cab-package' && (
+                            <ol className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-black list-none">
+                              {descriptionLines.map((line, index) => (
+                                <li key={`${addon.id}-desc-${index}`} className="flex items-start gap-1.5">
+                                  <span className="font-bold shrink-0" style={{ color: '#c55a11' }}>{index + 1}.</span>
+                                  <span className="text-black">{line}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                          {bundleParts.length > 0 && addon.id !== 'qa-double-cab-package' && (
+                            <div className="mt-2 rounded-md border border-orange-200 bg-orange-50 p-2">
+                              <p className="text-[10px] font-bold text-orange-700 mb-1">套餐內單項原價</p>
+                              {bundleParts.map((part, index) => (
+                                <div key={part.id} className="flex items-start justify-between gap-2 text-[10px] leading-relaxed text-black">
+                                  <span>{index + 1}. {part.name}</span>
+                                  <span className="font-bold shrink-0">{part.pendingPrice ? '待報價' : formatMoney(part.price)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {addon.id === 'qa-double-cab-package' && bundleParts.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {bundleParts.map((part, index) => (
+                                <div key={part.id} className="flex items-start justify-between gap-2 text-[11px] leading-relaxed text-black">
+                                  <span><span className="font-bold mr-1" style={{ color: '#c55a11' }}>{index + 1}.</span>{part.name}</span>
+                                  <span className="font-bold shrink-0">{part.pendingPrice ? '待報價' : formatMoney(part.price)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </>
                       ) : (
                         <p className="text-[11px] text-black mt-1.5 leading-relaxed">{addon.desc}</p>
                       )
                     )}
                     {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 已含於「{lockedBy.name}」，不可重複加入</p>}
+                    {picked && bundleParts.length > 0 && (
+                      <>
+                        <button type="button" onClick={() => setEditingBundleId(isEditingBundle ? null : addon.id)}
+                          className="mt-2 self-start rounded-md border border-orange-400 px-2 py-1 text-[10px] font-bold text-orange-700 hover:bg-orange-50">
+                          {isEditingBundle ? '收起套餐調整' : '⚙ 調整套餐內容'}
+                        </button>
+                        {bundleQuoteItem?.bundlePricingMode === 'components' && (
+                          <p className="mt-1 text-[10px] font-bold text-red-700">
+                            已取消套餐價，改按保留的 {keptParts.length} 項單品原價合計 {formatMoney(bundleQuoteItem.price)}
+                          </p>
+                        )}
+                        {isEditingBundle && (
+                          <div className="mt-2 rounded-lg border-2 border-orange-300 bg-white p-2 space-y-1.5">
+                            <p className="text-[10px] font-bold text-orange-700">刪除任一項後，完整套餐優惠即取消，改按保留單品原價合計。</p>
+                            {bundleParts.map((part) => {
+                              const included = !excludedPartIds.has(part.id);
+                              const lastIncluded = included && keptParts.length === 1;
+                              return (
+                                <div key={part.id} className={`flex items-center gap-2 rounded-md border px-2 py-1.5 ${included ? 'border-slate-300 bg-white' : 'border-slate-200 bg-slate-100 opacity-70'}`}>
+                                  <span className={`text-[10px] flex-1 ${included ? 'text-black' : 'text-slate-500 line-through'}`}>{part.name}</span>
+                                  <span className="text-[10px] font-bold text-black shrink-0">{formatMoney(part.price)}</span>
+                                  <button type="button" disabled={lastIncluded}
+                                    onClick={() => setBundlePartIncluded(addon, part.id, !included)}
+                                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${lastIncluded ? 'cursor-not-allowed text-slate-400' : included ? 'border border-red-300 text-red-700' : 'border border-green-400 text-green-700'}`}>
+                                    {included ? '刪除' : '恢復'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            <div className="flex items-center justify-between border-t border-slate-200 pt-1.5 text-[11px] font-bold text-black">
+                              <span>{excludedPartIds.size === 0 ? '完整套餐價' : `保留 ${keptParts.length} 項單品合計`}</span>
+                              <span style={{ color: '#c55a11' }}>{formatMoney(bundleQuoteItem?.price ?? addon.price)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                     <button type="button" onClick={() => toggleLine(addon)} disabled={!!lockedBy}
                       className={`text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors ${lockedBy ? 'cursor-not-allowed' : ''}`}
                       style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
@@ -265,6 +339,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
+  const [editingBundleId, setEditingBundleId] = useState(null);
   const [expandedAddonCategories, setExpandedAddonCategories] = useState({});
   const [expandedAddonSections, setExpandedAddonSections] = useState({});
   const [noOptionCategories, setNoOptionCategories] = useState(() =>
@@ -389,7 +464,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const bundleLocks = new Map();
   for (const addon of quotePresets.addons) {
     if (!selectedCatalogIds.has(addon.id) || !Array.isArray(addon.includes)) continue;
-    for (const includedId of bundledAddonIds(quotePresets.addons, addon.id)) {
+    const selectedBundleItem = items.find((item) => item.catalogId === addon.id);
+    const excludedIds = new Set(selectedBundleItem?.bundleExcludedIds || []);
+    const activeIncludedIds = addon.includes
+      .filter((includedId) => !excludedIds.has(includedId))
+      .flatMap((includedId) => [includedId, ...bundledAddonIds(quotePresets.addons, includedId)]);
+    for (const includedId of activeIncludedIds) {
       if (!bundleLocks.has(includedId)) bundleLocks.set(includedId, addon);
     }
   }
@@ -400,11 +480,57 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const reviewedAddonCount = addonGroups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
     || list.some((addon) => isPicked(addon))).length;
 
+  const getBundleQuoteItem = (catalogId) => items.find((item) => item.catalogId === catalogId) || null;
+
+  /** 套餐刪除任一項後不再用套餐價，改以保留單品的型錄售價合計。 */
+  function setBundlePartIncluded(bundle, partId, included) {
+    const directPartIds = Array.isArray(bundle.includes) ? bundle.includes : [];
+    setItems((list) => list.map((item) => {
+      if (item.catalogId !== bundle.id) return item;
+      const excluded = new Set(item.bundleExcludedIds || []);
+      if (included) excluded.delete(partId);
+      else excluded.add(partId);
+      const excludedIds = directPartIds.filter((id) => excluded.has(id));
+      if (excludedIds.length === 0) {
+        return {
+          ...item,
+          price: String(bundle.price),
+          description: bundle.desc || '',
+          bundlePricingMode: null,
+          bundleIncludedIds: null,
+          bundleExcludedIds: [],
+        };
+      }
+      const keptParts = directPartIds
+        .filter((id) => !excluded.has(id))
+        .map((id) => quotePresets.addons.find((addon) => addon.id === id))
+        .filter(Boolean);
+      const removedParts = directPartIds
+        .filter((id) => excluded.has(id))
+        .map((id) => quotePresets.addons.find((addon) => addon.id === id))
+        .filter(Boolean);
+      const componentTotal = keptParts.reduce((sum, part) => sum + (Number(part.price) || 0), 0);
+      return {
+        ...item,
+        price: String(componentTotal),
+        description: `客製套餐（改按單品原價合計）；保留：${keptParts.map((part) => part.name).join('、')}；刪除：${removedParts.map((part) => part.name).join('、')}`,
+        bundlePricingMode: 'components',
+        bundleIncludedIds: keptParts.map((part) => part.id),
+        bundleExcludedIds: excludedIds,
+      };
+    }));
+  }
+
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
   function toggleLine(addon) {
     const { id: catalogId, name, price, group, cat, desc = '', pendingPrice = false } = addon;
     if (bundleLocks.has(catalogId)) return;
-    if (!isPicked({ id: catalogId, name }) && cat) {
+    const currentlyPicked = isPicked({ id: catalogId, name });
+    if (!currentlyPicked && Array.isArray(addon.includes) && addon.includes.length > 0) {
+      setShowDesc(true);
+    }
+    if (currentlyPicked && editingBundleId === catalogId) setEditingBundleId(null);
+    if (!currentlyPicked && cat) {
       setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
         .filter((category) => category !== cat));
     }
@@ -546,6 +672,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
         note: String(it.note || '').trim(),
         requirementStatus: it.requirementStatus || null,
+        bundlePricingMode: it.bundlePricingMode || null,
+        bundleIncludedIds: Array.isArray(it.bundleIncludedIds) ? [...it.bundleIncludedIds] : null,
+        bundleExcludedIds: Array.isArray(it.bundleExcludedIds) ? [...it.bundleExcludedIds] : [],
         discounts: it.pending ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
@@ -853,7 +982,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                       setExpandedAddonCategories={setExpandedAddonCategories}
                       setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
-                      bundleLocks={bundleLocks} />;
+                      bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                      getBundleQuoteItem={getBundleQuoteItem} editingBundleId={editingBundleId}
+                      setEditingBundleId={setEditingBundleId} setBundlePartIncluded={setBundlePartIncluded} />;
                   }
                   const expanded = !!expandedAddonSections[section.key];
                   const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
@@ -884,7 +1015,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                               isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                               setExpandedAddonCategories={setExpandedAddonCategories}
                               setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
-                              bundleLocks={bundleLocks} />
+                              bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                              getBundleQuoteItem={getBundleQuoteItem} editingBundleId={editingBundleId}
+                              setEditingBundleId={setEditingBundleId} setBundlePartIncluded={setBundlePartIncluded} />
                           ))}
                         </div>
                       )}

@@ -320,6 +320,53 @@ test('adds the double-cab package and keeps its unverified crossbar cost pending
   assert.equal(costs.addons['qa-travel-crossbar'], undefined);
 });
 
+test('upgrades the safety package punctuation and USB capitalization', () => {
+  const oldDescription = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v18',
+    addons: DEFAULT_QUOTE_PRESETS.addons.map((item) => item.id === 'qa-pkg2'
+      ? { ...item, desc: oldDescription }
+      : item),
+  });
+  const description = resolved.addons.find((item) => item.id === 'qa-pkg2').desc;
+  assert.match(description, /6輪數據獨立顯示、太陽能與 USB 供電）$/);
+  assert.match(description, /無線 CarPlay/);
+});
+
+test('customized bundle uses retained component costs instead of the package cost', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-custom-bundle',
+      items: [{
+        id: 'bundle', kind: 'addon', catalogId: 'qa-pkg2', name: '安全科技版', price: 35000,
+        bundlePricingMode: 'components', bundleIncludedIds: ['qa-android-surround'],
+      }],
+    },
+    costCatalog: null,
+  });
+  assert.equal(record.lines[0].salePrice, 35000);
+  assert.equal(record.lines[0].cost, 25000);
+  assert.equal(record.lines[0].costSource, 'bundle-components');
+  assert.equal(record.profit, 10000);
+});
+
+test('customized bundle keeps cost unknown when any retained component has no cost', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-custom-bundle-missing-cost',
+      items: [{
+        id: 'bundle', kind: 'addon', catalogId: 'qa-double-cab-package', name: '雙廂高階套裝', price: 45800,
+        bundlePricingMode: 'components', bundleIncludedIds: ['qa-omega', 'qa-interior-led-double', 'qa-tail'],
+      }],
+    },
+    costCatalog: null,
+  });
+  assert.equal(record.lines[0].cost, null);
+  assert.equal(record.lines[0].costKnown, false);
+  assert.equal(record.costComplete, false);
+});
+
 test('removes standalone components already included by a selected package', () => {
   assert.deepEqual(new Set(bundledAddonIds(DEFAULT_QUOTE_PRESETS.addons, 'qa-pkg2')),
     new Set(['qa-android-surround', 'qa-tpms-6']));

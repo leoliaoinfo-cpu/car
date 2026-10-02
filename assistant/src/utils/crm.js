@@ -191,7 +191,10 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v18';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v19';
+
+const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
+const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
 const DOUBLE_FOLD_TAILGATE_CATEGORY = '雙折尾門';
@@ -340,7 +343,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
     { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000,
-      desc: '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）',
+      desc: SAFETY_PACKAGE_DESC,
       includes: ['qa-android-surround', 'qa-tpms-6'] },
     { id: 'qa-pkg3', cat: '配備版本', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000,
       desc: '定速巡航套件；多媒體音控鍵（音量控制/切換/免持/Mode）',
@@ -541,6 +544,9 @@ export function resolveQuotePresets(row) {
     if (migrated.id === 'qa-android-surround'
       && migrated.desc === '中央置物盒另加 500 元；12 個月保固') {
       migrated = { ...migrated, desc: androidSurround.desc };
+    }
+    if (migrated.id === 'qa-pkg2' && migrated.desc === PREVIOUS_SAFETY_PACKAGE_DESC) {
+      migrated = { ...migrated, desc: SAFETY_PACKAGE_DESC };
     }
     const tailgateDefault = REQUIRED_QUOTE_ADDONS.find((addon) => addon.id === migrated.id);
     const previousTailgateCategory = (row.addonCategoryAliases || {})['升降尾門'] || '升降尾門';
