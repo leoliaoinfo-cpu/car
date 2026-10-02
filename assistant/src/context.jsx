@@ -60,6 +60,7 @@ const initialState = {
   pricingRecords: [],
   quoteDrafts: [],
   receptionSessions: [],
+  suppliers: [],
   tasks: [],
   events: [],
   todoTemplate: DEFAULT_TODO_TEMPLATE,
@@ -146,6 +147,14 @@ function reducer(state, action) {
     }
     case 'DELETE_RECEPTION_SESSION':
       return { ...state, receptionSessions: state.receptionSessions.filter((row) => row.id !== action.id) };
+    case 'UPSERT_SUPPLIER': {
+      const idx = state.suppliers.findIndex((row) => row.id === action.payload.id);
+      const next = [...state.suppliers];
+      if (idx === -1) next.push(action.payload); else next[idx] = action.payload;
+      return { ...state, suppliers: next };
+    }
+    case 'DELETE_SUPPLIER':
+      return { ...state, suppliers: state.suppliers.filter((row) => row.id !== action.id) };
 
     // Tasks（中央待辦）
     case 'UPSERT_TASK': {
@@ -226,7 +235,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -236,6 +245,7 @@ export function AppProvider({ children }) {
           db.getAll('pricingRecords'),
           db.getAll('quoteDrafts'),
           db.getAll('receptionSessions'),
+          db.getAll('suppliers'),
           db.getAll('tasks'),
           db.getAll('events'),
           db.getAll('timers'),
@@ -260,7 +270,7 @@ export function AppProvider({ children }) {
           type: 'LOAD_INIT',
           payload: {
             clients: canonical.clients, cats: resolvedCats, stages: resolvedStages, customFields,
-            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, tasks, events, timers,
+            deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, suppliers, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             heightConfig: normalizeHeightConfig(heightConfigRow),
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
@@ -461,6 +471,20 @@ export function AppProvider({ children }) {
     await db.delete('receptionSessions', id);
   }, []);
 
+  // ── 合作廠商（成交後施工指派用）────────────────────────────────────────
+  const saveSupplier = useCallback(async (supplier) => {
+    const now = new Date().toISOString();
+    const full = { active: true, createdAt: now, ...supplier, updatedAt: now };
+    dispatch({ type: 'UPSERT_SUPPLIER', payload: full });
+    await db.put('suppliers', full);
+    return full;
+  }, []);
+
+  const deleteSupplier = useCallback(async (id) => {
+    dispatch({ type: 'DELETE_SUPPLIER', id });
+    await db.delete('suppliers', id);
+  }, []);
+
   // ── Tasks（中央待辦）──────────────────────────────────────────────────────
   const saveTask = useCallback(async (task) => {
     const full = { createdAt: new Date().toISOString(), ...task };
@@ -539,7 +563,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -549,6 +573,7 @@ export function AppProvider({ children }) {
       db.getAll('pricingRecords'),
       db.getAll('quoteDrafts'),
       db.getAll('receptionSessions'),
+      db.getAll('suppliers'),
       db.getAll('tasks'),
       db.getAll('events'),
       db.getAll('timers'),
@@ -572,6 +597,7 @@ export function AppProvider({ children }) {
         pricingRecords,
         quoteDrafts: canonical.quoteDrafts,
         receptionSessions,
+        suppliers,
         tasks,
         events,
         timers,
@@ -605,6 +631,8 @@ export function AppProvider({ children }) {
     deleteQuoteDraft,
     saveReceptionSession,
     deleteReceptionSession,
+    saveSupplier,
+    deleteSupplier,
     saveTask,
     deleteTask,
     saveEvent,

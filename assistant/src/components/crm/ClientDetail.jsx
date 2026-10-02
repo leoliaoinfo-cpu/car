@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import { heightPlanSummary, requirementSummary, requirementPendingItems } from '../../utils/reception';
 import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
+import { generateDeliveryWorkflow, normalizeDeliveryWorkflow } from '../../utils/delivery';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -187,10 +188,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     const activeDeal = clientDeals[0] || null;
     if (isDelivery) {
       const openTodos = (client.todos || []).filter((todo) => !todo.done).length;
-      const requiredSteps = ['contract', 'supplier', 'orders', 'tailgate', 'paint', 'plate', 'install'];
-      const unfinishedSop = activeDeal
-        ? requiredSteps.filter((step) => !['done', 'na'].includes(activeDeal.deliverySop?.[step]?.status)).length
-        : requiredSteps.length;
+      const activeWorkflow = activeDeal ? normalizeDeliveryWorkflow(activeDeal) : [];
+      const unfinishedSop = activeWorkflow.length
+        ? activeWorkflow.filter((step) => step.id !== 'delivery' && !['done', 'na'].includes(step.status)).length
+        : 1;
       if ((openTodos > 0 || unfinishedSop > 0) && !window.confirm(
         `交車前仍有 ${openTodos} 項客戶待辦、${unfinishedSop} 項交車 SOP 尚未完成。確定仍要記錄交車嗎？`,
       )) return;
@@ -236,16 +237,17 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     let deal = activeDeal;
     if (isSaleEvent && !deal) {
       const latestQuote = clientQuotes[0] || null;
-      deal = await saveDeal({
+      const dealDraft = {
         id: generateId('deal'), clientId: client.id, clientName: client.name,
         date: t, amount: amount > 0 ? amount : Number(latestQuote?.total) || 0,
         note: latestQuote?.model || eventNote.trim() || def.label,
         fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '',
-        deliverySop: {
-          contract: { status: 'done', note: type === 'order' ? '下訂時自動完成' : '交車時補建', updatedAt: new Date().toISOString() },
-          ...(isDelivery ? { delivery: { status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() } } : {}),
-        },
-      });
+      };
+      const createdWorkflow = generateDeliveryWorkflow({ deal: dealDraft, pricing: { lines: latestQuote?.items || [] } })
+        .map((step) => step.id === 'contract'
+          ? { ...step, status: 'done', note: type === 'order' ? '下訂時自動完成' : '交車時補建' }
+          : isDelivery && step.id === 'delivery' ? { ...step, status: 'done', note: '已記錄交車' } : step);
+      deal = await saveDeal({ ...dealDraft, deliveryWorkflow: createdWorkflow });
       const quotePricing = latestQuote
         ? pricingRecords.find((row) => row.id === `quote:${latestQuote.id}`)
         : null;
@@ -262,10 +264,12 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
     } else if (isDelivery && deal) {
       deal = await saveDeal({
         ...deal,
-        deliverySop: {
-          ...(deal.deliverySop || {}),
-          delivery: { status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() },
-        },
+        deliveryWorkflow: (normalizeDeliveryWorkflow(deal).length
+          ? normalizeDeliveryWorkflow(deal)
+          : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) }))
+          .map((step) => step.id === 'delivery' || step.id === 'legacy-delivery'
+            ? { ...step, status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() }
+            : step),
       });
     }
 
