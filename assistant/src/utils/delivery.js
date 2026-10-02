@@ -16,6 +16,11 @@ const LEGACY_LABELS = {
   install: '其餘改裝配件安裝確認', delivery: '交車前驗收與交車',
 };
 
+const LEGACY_IDS = {
+  contract: 'contract', supplier: 'supplier', orders: 'orders', tailgate: 'install-tailgate',
+  paint: 'paint-body', plate: 'inspection', install: 'install-accessories', delivery: 'delivery',
+};
+
 function workflowStep(id, label, service, dependsOn = null) {
   return {
     id, label, service, dependsOn, status: 'todo', supplierId: '', plannedDate: '', cost: '', note: '',
@@ -82,7 +87,7 @@ export function normalizeDeliveryWorkflow(deal = {}) {
     return Object.entries(LEGACY_LABELS).map(([id, label], index) => {
       const previous = deal.deliverySop[id] || {};
       return {
-        ...workflowStep(`legacy-${id}`, label, '其他', index ? `legacy-${Object.keys(LEGACY_LABELS)[index - 1]}` : null),
+        ...workflowStep(LEGACY_IDS[id], label, '其他', index ? LEGACY_IDS[Object.keys(LEGACY_LABELS)[index - 1]] : null),
         status: STATUS_VALUES.has(previous.status) ? previous.status : 'todo',
         note: previous.note || '', updatedAt: previous.updatedAt || null,
       };

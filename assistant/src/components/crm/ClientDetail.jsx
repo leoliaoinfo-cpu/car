@@ -267,7 +267,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
         deliveryWorkflow: (normalizeDeliveryWorkflow(deal).length
           ? normalizeDeliveryWorkflow(deal)
           : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) }))
-          .map((step) => step.id === 'delivery' || step.id === 'legacy-delivery'
+          .map((step) => step.id === 'delivery'
             ? { ...step, status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() }
             : step),
       });

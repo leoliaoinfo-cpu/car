@@ -34,7 +34,7 @@ const HELP_CARDS = [
 
 const SECTION_KEYS = ['sync', 'backup', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'height', 'rules', 'help'];
 const SECTION_LABELS = {
-  deals: '📈 內部業績與成本',
+  deals: '🗂️ 內部營運管理',
   sync: '☁️ 雲端同步',
   backup: '💾 備份還原',
   notify: '🔔 通知',
@@ -1080,8 +1080,14 @@ function DealsSection({ onOpenDeals }) {
   return (
     <section>
       <div className="card p-4 space-y-3 border border-warn/30">
-        <h3 className="font-semibold text-ink">📈 開啟內部業績與成本</h3>
-        <p className="text-xs text-ink-3">業績、傭金與成本設定、報價利潤試算都只從這裡進入；報價畫面不提供內部數字入口。</p>
+        <h3 className="font-semibold text-ink">🗂️ 開啟內部營運管理</h3>
+        <p className="text-xs text-ink-3">成交後的內部工作集中在這裡；成本數字不會出現在客戶報價或分享圖片。</p>
+        <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold text-ink-2">
+          <span className="rounded-lg bg-s2 px-2 py-1.5">📈 業績與單車利潤</span>
+          <span className="rounded-lg bg-s2 px-2 py-1.5">🧮 報價成本試算</span>
+          <span className="rounded-lg bg-s2 px-2 py-1.5">🤝 合作廠商名冊</span>
+          <span className="rounded-lg bg-s2 px-2 py-1.5">🚚 交車施工進度</span>
+        </div>
         <div className="space-y-2">
           <Field label="輸入密碼解鎖">
             <input type="text" inputMode="text" lang="zh-Hant" value={unlock}
@@ -1093,7 +1099,7 @@ function DealsSection({ onOpenDeals }) {
           </Field>
           <p className="text-[11px] text-warn">提示：就讀的國小（兩個字）</p>
           {err && <p className="text-danger text-xs">{err}</p>}
-          <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟內部業績與成本</button>
+          <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟內部營運管理</button>
         </div>
       </div>
     </section>

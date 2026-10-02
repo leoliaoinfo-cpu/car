@@ -34,6 +34,6 @@ test('delivery workflow keeps legacy SOP data readable', () => {
     const workflow = normalizeDeliveryWorkflow({ deliverySop: { contract: { status: 'done', note: '完成' } } });
     assert.deepEqual(
       { id: workflow[0].id, status: workflow[0].status, note: workflow[0].note },
-      { id: 'legacy-contract', status: 'done', note: '完成' },
+      { id: 'contract', status: 'done', note: '完成' },
     );
 });
