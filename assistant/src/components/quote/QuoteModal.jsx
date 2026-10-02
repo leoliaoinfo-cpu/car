@@ -89,6 +89,18 @@ function AddonCategoryCard({
   const noOption = pickedCount === 0 && reviewedNoOptionCategories.includes(cat);
   const groupSet = new Set(list.map((addon) => addon.group || ''));
   const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
+  const numberedDescription = (addon) => {
+    if (!addon.desc) return [];
+    if (addon.id === 'qa-double-cab-package') {
+      return [
+        '特仕版', '多功能方向盤', '安全科技版', 'LED 後照鏡', 'GTR 魚眼頭燈',
+        'X7 魚眼霧燈', 'TS 避震', '音響升級', '延長側踏', 'Travel 橫桿', '尿素桶防撞桿',
+        '雙手機架', '室內牌照燈', '側邊照地燈', 'OMEGA 鋁圈', 'HALO 光環尾燈', 'KDM 擾流前下巴',
+      ];
+    }
+    const separators = addon.cat === '配備版本' ? /[\uff1b\u3001]/ : /\uff1b/;
+    return addon.desc.split(separators).map((part) => part.trim()).filter(Boolean);
+  };
   return (
     <div className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
       <button type="button"
@@ -121,12 +133,13 @@ function AddonCategoryCard({
               {list.map((addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
+                const descriptionLines = numberedDescription(addon);
                 return (
                   <div key={addon.id}
-                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'} ${lockedBy ? 'opacity-70' : ''}`}
-                    style={picked ? { background: color + '18', borderColor: color } : undefined}>
+                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-white border-slate-300'} ${lockedBy ? 'opacity-70' : ''}`}
+                    style={picked ? { background: '#fff7ed', borderColor: color } : undefined}>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs text-ink font-medium leading-snug">
+                      <p className="text-xs font-bold leading-snug" style={{ color: '#c55a11' }}>
                         {addon.parentId && <span className="text-ink-3">↳ </span>}
                         {picked && <span style={{ color }}>✓ </span>}{addon.name}
                       </p>
@@ -134,7 +147,27 @@ function AddonCategoryCard({
                         {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                       </span>
                     </div>
-                    {addon.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{addon.desc}</p>}
+                    {descriptionLines.length > 0 && (
+                      addon.cat === '配備版本' ? (
+                        <>
+                          {addon.id === 'qa-double-cab-package' && (
+                            <p className="mt-1.5 text-[11px] leading-relaxed text-black">
+                              雙廂專用｜方案價 250,000 元｜原配件價值標示 275,000 元
+                            </p>
+                          )}
+                          <ol className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-black list-none">
+                            {descriptionLines.map((line, index) => (
+                              <li key={`${addon.id}-desc-${index}`} className="flex items-start gap-1.5">
+                                <span className="font-bold shrink-0" style={{ color: '#c55a11' }}>{index + 1}.</span>
+                                <span className="text-black">{line}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </>
+                      ) : (
+                        <p className="text-[11px] text-black mt-1.5 leading-relaxed">{addon.desc}</p>
+                      )
+                    )}
                     {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 已含於「{lockedBy.name}」，不可重複加入</p>}
                     <button type="button" onClick={() => toggleLine(addon)} disabled={!!lockedBy}
                       className={`text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors ${lockedBy ? 'cursor-not-allowed' : ''}`}
