@@ -1081,7 +1081,6 @@ function DealsSection({ onOpenDeals }) {
     <section>
       <div className="card p-4 space-y-3 border border-warn/30">
         <h3 className="font-semibold text-ink">🗂️ 開啟內部營運管理</h3>
-        <p className="text-xs text-ink-3">成交後的內部工作集中在這裡；成本數字不會出現在客戶報價或分享圖片。</p>
         <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold text-ink-2">
           <span className="rounded-lg bg-s2 px-2 py-1.5">📈 業績與單車利潤</span>
           <span className="rounded-lg bg-s2 px-2 py-1.5">🧮 報價成本試算</span>

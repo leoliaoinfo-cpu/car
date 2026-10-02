@@ -203,10 +203,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
     <div className="space-y-4">
       <div className="card p-4 space-y-3">
         <div>
-          <h2 className="font-bold text-ink">🔒 傭金與成本設定</h2>
-          <p className="text-xs text-ink-3 mt-1 leading-relaxed">
-            這些數字只會顯示在已解鎖的內部區域。車輛直接用公司公告的每台傭金計算利潤，不用整台車成本回推；配件則登錄實際拿貨成本。
-          </p>
+          <h2 className="font-bold text-ink">🧮 傭金與成本設定</h2>
         </div>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
         {(missingModelCount > 0 || missingAddonCount > 0) && (

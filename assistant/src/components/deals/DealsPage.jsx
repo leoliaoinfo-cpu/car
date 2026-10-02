@@ -192,7 +192,6 @@ export default function DealsPage({ onOpenClient }) {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-xl font-bold text-ink">📈 業績與單車利潤</h1>
-              <p className="text-xs text-ink-3 mt-1">成本只在此密碼保護區顯示，不會進入客戶報價或分享圖片。</p>
             </div>
             <div className="flex rounded-lg border border-bdr overflow-hidden">
               <button onClick={() => setView('month')}
