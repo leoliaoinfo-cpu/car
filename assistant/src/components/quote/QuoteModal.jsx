@@ -80,6 +80,16 @@ function catColor(cat) {
   return CAT_COLORS_Q[h % CAT_COLORS_Q.length];
 }
 
+const PACKAGE_ADDON_IDS = new Set([
+  'qa-double-cab-package', 'qa-pkg1', 'qa-pkg2', 'qa-pkg3',
+  'qa-aero', 'qa-led', 'qa-tlsound', 'qa-phone',
+]);
+
+function isPackageAddon(addon) {
+  return PACKAGE_ADDON_IDS.has(addon.id)
+    || (Array.isArray(addon.includes) && addon.includes.length > 0);
+}
+
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
@@ -105,7 +115,7 @@ function AddonCategoryCard({
         '雙手機架', '室內牌照燈', '側邊照地燈', 'OMEGA 鋁圈', 'HALO 光環尾燈', 'KDM 擾流前下巴',
       ];
     }
-    const separators = addon.cat === '配備版本' ? /[\uff1b\u3001]/ : /\uff1b/;
+    const separators = isPackageAddon(addon) ? /[\uff1b\u3001]/ : /\uff1b/;
     return addon.desc.split(separators).map((part) => part.trim()).filter(Boolean);
   };
   return (
@@ -135,11 +145,17 @@ function AddonCategoryCard({
             沒有選配（已向客戶確認）
           </label>
           {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
+          {cat === '貨斗底板' && (
+            <p className="rounded-md border border-orange-300 bg-orange-50 px-2 py-1.5 text-[11px] font-bold text-black">
+              統一說明：本分類所有貨斗底板材質厚度均為 5mm。
+            </p>
+          )}
           {showDesc ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {list.map((addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
+                const packageAddon = isPackageAddon(addon);
                 const descriptionLines = numberedDescription(addon);
                 const bundleParts = (Array.isArray(addon.includes) ? addon.includes : [])
                   .map((id) => allAddons.find((candidate) => candidate.id === id))
@@ -150,19 +166,20 @@ function AddonCategoryCard({
                 const isEditingBundle = editingBundleId === addon.id;
                 return (
                   <div key={addon.id}
-                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-white border-slate-300'} ${lockedBy ? 'opacity-70' : ''}`}
-                    style={picked ? { background: '#fff7ed', borderColor: color } : undefined}>
+                    className={`flex flex-col rounded-lg px-2.5 py-2 transition-colors ${packageAddon ? 'border-2 border-red-500 shadow-sm' : 'border'} ${picked ? '' : packageAddon ? 'bg-red-50/40' : 'bg-white border-slate-300'} ${lockedBy ? 'opacity-70' : ''}`}
+                    style={picked ? { background: '#fff7ed', borderColor: packageAddon ? '#dc2626' : color } : undefined}>
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs font-bold leading-snug" style={{ color: '#c55a11' }}>
                         {addon.parentId && <span className="text-ink-3">↳ </span>}
                         {picked && <span style={{ color }}>✓ </span>}{addon.name}
+                        {packageAddon && <span className="ml-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">套餐</span>}
                       </p>
                       <span className="text-xs font-bold shrink-0" style={{ color }}>
                         {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                       </span>
                     </div>
                     {descriptionLines.length > 0 && (
-                      addon.cat === '配備版本' ? (
+                      packageAddon ? (
                         <>
                           {addon.id === 'qa-double-cab-package' && (
                             <p className="mt-1.5 text-[11px] leading-relaxed text-black">
@@ -257,18 +274,20 @@ function AddonCategoryCard({
               {list.map((addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
+                const packageAddon = isPackageAddon(addon);
                 return (
                   <button key={addon.id} type="button" disabled={!!lockedBy}
                     title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
-                    className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={picked
-                      ? { background: color, borderColor: color, color: '#fff' }
-                      : { borderColor: color + '55' }}>
+                      ? { background: color, borderColor: packageAddon ? '#dc2626' : color, color: '#fff' }
+                      : { borderColor: packageAddon ? '#dc2626' : color + '55' }}>
                     {lockedBy && <span>🔒</span>}
                     {picked && <span>✓</span>}
                     {addon.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
                     <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{addon.name}</span>
+                    {packageAddon && <span className="rounded bg-red-600 px-1 py-0.5 text-[9px] font-bold text-white">套餐</span>}
                     <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
                       {lockedBy ? '套裝已含' : addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                     </span>

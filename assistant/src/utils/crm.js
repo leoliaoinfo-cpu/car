@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v19';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v20';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -220,10 +220,10 @@ export const QUOTE_ADDON_SECTIONS = [
 ];
 
 const VENDOR_QUOTE_ADDONS = [
-  { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型、貨斗尺寸與厚度向廠商確認價格' },
-  { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '依花紋板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
-  { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '依平板板材厚度、貨斗尺寸與施工規格向廠商確認價格' },
-  { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '依白鐵材質、板厚與貨斗尺寸向廠商確認價格' },
+  { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
+  { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
+  { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-tailgate-25', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（2.5尺）', price: 37000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
   { id: 'qa-tailgate-30', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（3尺）', price: 40000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
   { id: 'qa-tailgate-35', cat: SWIFT_TAILGATE_CATEGORY, group: 'g-tailgate-size', name: '升降尾門（3.5尺）', price: 40000, desc: '選定尾門尺寸後，再依載重需求選擇雙缸或四缸油壓缸；實際配置仍依施工內容確認' },
@@ -268,8 +268,6 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
   { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
-  { id: 'qa-lighting-custom', cat: '燈組', name: '專用燈系套裝', price: 0, pendingPrice: true, desc: '售價、獎金與保固待確認' },
-
   { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
   { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
   { id: 'qa-film-fsk-body-l', cat: WINDOW_FILM_CATEGORIES[2], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・大單廂）', price: 7000, desc: '料號 99PVYPUFSKB120L' },
@@ -508,8 +506,23 @@ export function removeBundledQuoteItems(items = [], addons = []) {
  */
 export function resolveQuotePresets(row) {
   if (!row || !Array.isArray(row.addons)) return DEFAULT_QUOTE_PRESETS;
+  const cargoFloorCategory = (row.addonCategoryAliases || {})['貨斗底板'] || '貨斗底板';
+  const normalizeCurrentAddon = (item) => {
+    if (item.id === 'qa-lighting-custom') return null;
+    const isCargoFloor = item.id?.startsWith('qa-floor-')
+      || ['貨斗底板', cargoFloorCategory].includes(item.cat);
+    if (!isCargoFloor || String(item.desc || '').includes('5mm')) return item;
+    return {
+      ...item,
+      desc: `材質厚度 5mm${item.desc ? `；${item.desc}` : ''}`,
+    };
+  };
   if (row._catalog === QUOTE_CATALOG_VERSION && Array.isArray(row.addonCategories)) {
-    return { ...row, models: quoteVehicleModels() };
+    return {
+      ...row,
+      models: quoteVehicleModels(),
+      addons: row.addons.map(normalizeCurrentAddon).filter(Boolean),
+    };
   }
   const names = row.addons.map((a) => a.name);
   const untouched = !row.models
@@ -587,14 +600,17 @@ export function resolveQuotePresets(row) {
     if (Array.isArray(latestDefault?.includes)) {
       migrated = { ...migrated, includes: [...latestDefault.includes] };
     }
-    return migrated;
+    return normalizeCurrentAddon(migrated);
   });
-  const addonIds = new Set(migratedAddons.map((item) => item.id));
-  const addonNames = new Set(migratedAddons.map((item) => item.name));
+  const activeMigratedAddons = migratedAddons.filter(Boolean);
+  const addonIds = new Set(activeMigratedAddons.map((item) => item.id));
+  const addonNames = new Set(activeMigratedAddons.map((item) => item.name));
   const categoryAliases = row.addonCategoryAliases || {};
   const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name))
     .map((item) => ({ ...item, cat: categoryAliases[item.cat] || item.cat }));
-  const addons = [...migratedAddons, ...newAddons];
+  const addons = [...activeMigratedAddons, ...newAddons]
+    .map(normalizeCurrentAddon)
+    .filter(Boolean);
   const previousTailgateCategory = categoryAliases['升降尾門'] || '升降尾門';
   const previousFilmCategory = categoryAliases.隔熱紙 || '隔熱紙';
   const originalCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];

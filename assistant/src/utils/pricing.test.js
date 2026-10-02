@@ -410,7 +410,7 @@ test('upgrades unchanged supplier prices and costs while preserving manual edits
   assert.equal(resolved.addons.find((item) => item.id === 'qa-urea').price, 5500);
   assert.equal(resolved.addons.find((item) => item.id === 'qa-roof').price, 16000);
   assert.equal(resolved.addons.find((item) => item.id === 'qa-rear-dr').price, 12800);
-  assert.equal(resolved.addons.find((item) => item.id === 'qa-lighting-custom').pendingPrice, true);
+  assert.equal(resolved.addons.some((item) => item.id === 'qa-lighting-custom'), false);
 
   const costs = normalizeCostCatalog({
     key: 'costCatalog', version: 6, models: {}, addons: {
@@ -527,6 +527,24 @@ test('adds supplier sheet options to existing quote menus without exposing costs
   assert.equal(film.price, 8000);
   assert.equal(Object.prototype.hasOwnProperty.call(film, 'cost'), false);
   assert.ok(resolved.addons.find((item) => item.id === 'qa-brake-kit'));
+});
+
+test('removes the nonexistent lighting bundle and marks every cargo floor as 5mm', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v19', models: [], subsidies: [],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
+    addons: [
+      { id: 'qa-lighting-custom', cat: '燈組', name: '專用燈系套裝', price: 0, pendingPrice: true },
+      { id: 'qa-floor-rubber', cat: '貨斗底板', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '依車型報價' },
+      { id: 'custom-floor', cat: '貨斗底板', name: '客製底板', price: 12000, desc: '客製施工' },
+    ],
+  });
+
+  assert.equal(resolved.addons.some((item) => item.id === 'qa-lighting-custom'), false);
+  const cargoFloors = resolved.addons.filter((item) => item.cat === '貨斗底板');
+  assert.ok(cargoFloors.length >= 4);
+  assert.ok(cargoFloors.every((item) => item.desc.includes('5mm')));
+  assert.match(resolved.addons.find((item) => item.id === 'custom-floor').desc, /5mm；客製施工/);
 });
 
 test('groups window film into front glass and three cab types', () => {
