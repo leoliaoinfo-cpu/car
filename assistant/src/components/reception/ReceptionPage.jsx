@@ -505,8 +505,8 @@ function CustomerShowcase({ onExit }) {
   }
 
   function recoverPin() {
-    if (recoveryAnswer.trim() !== '東平') {
-      setError('安全問題答案不正確');
+    if (recoveryAnswer.trim() !== '冠銘') {
+      setError('管理密碼不正確');
       return;
     }
     try { localStorage.setItem(STORAGE_KEYS.presentationPinHash, DEFAULT_PRESENTATION_PIN_HASH); } catch { /* noop */ }
@@ -539,8 +539,7 @@ function CustomerShowcase({ onExit }) {
             <button type="button" disabled={pin.length !== 4 || busy} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '返回業務系統'}</button>
             <button type="button" onClick={() => { setRecovering(true); setError(''); }} className="btn-ghost w-full mt-2 text-xs">忘記 PIN</button>
             <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續看車</button>
-          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">安全問題：就讀的國小</span><input type="text" inputMode="text" lang="zh-Hant" value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value)} autoComplete="off" className="w-full mt-1" placeholder="輸入答案" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並返回業務系統</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
-          <p className="text-[10px] text-ink-3 text-center mt-3">離開 PIN 只用來防止客人隨手開啟內部系統；忘記時可用安全問題復原。</p>
+          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">管理驗證</span><input type="password" value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value)} autoComplete="off" className="w-full mt-1" placeholder="輸入管理密碼" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並返回業務系統</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
         </div>
       </div>}
     </div>

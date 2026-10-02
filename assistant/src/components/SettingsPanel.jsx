@@ -32,9 +32,7 @@ const HELP_CARDS = [
   { icon: '☁️', title: '雲端同步', desc: '第一次使用先到設定連線汽車系統專用的私人 GitHub repo；完成後可跨裝置同步文字資料。照片仍以 LINE 相簿分享。' },
 ];
 
-const SECTION_KEYS = ['sync', 'backup', 'deals', 'notify', 'cats', 'stages', 'industries', 'fields', 'dealFields', 'template', 'quoteMenu', 'height', 'rules', 'help'];
 const SECTION_LABELS = {
-  deals: '🗂️ 內部營運管理',
   sync: '☁️ 雲端同步',
   backup: '💾 備份還原',
   notify: '🔔 通知',
@@ -50,14 +48,19 @@ const SECTION_LABELS = {
   help: '📖 使用說明',
 };
 
-export default function SettingsPanel({ onClose, onOpenDeals }) {
+const SETTING_GROUPS = [
+  { title: '報價與商品', keys: ['quoteMenu', 'height', 'dealFields', 'template'] },
+  { title: '客戶與工作', keys: ['cats', 'stages', 'industries', 'fields', 'rules', 'notify'] },
+  { title: '資料與系統', keys: ['sync', 'backup', 'help'] },
+];
+
+export default function SettingsPanel({ onClose }) {
   const {
     cats, stages, customFields, dealFields, thresholds, todoTemplate, quotePresets, industries, heightConfig,
     saveCats, saveStages, saveCustomFields, saveDealFields, saveThresholds,
     saveTodoTemplate, saveQuotePresets, saveIndustries, saveHeightConfig, reloadAll,
   } = useApp();
   const [activeSection, setActiveSection] = useState('sync');
-  const [fullscreen, setFullscreen] = useState(false);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.theme) || 'dark'; } catch { return 'dark'; }
   });
@@ -69,42 +72,40 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
     document.documentElement.classList.toggle('dark', next === 'dark');
   }
   return (
-    <>
-      <div className="overlay" onClick={onClose} />
-      <div className={`safe-panel fixed inset-y-0 right-0 w-full bg-s1 border-l border-bdr shadow-panel z-50 flex flex-col ${fullscreen ? 'max-w-none' : 'max-w-md anim-slide-right'}`}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-bdr shrink-0">
-          <h2 className="font-bold text-lg text-ink">⚙️ 設定</h2>
-          <div className="flex items-center gap-1.5">
-            <button type="button" onClick={() => setFullscreen((value) => !value)}
-              className="btn-outline text-xs" title={fullscreen ? '縮回側邊設定' : '全螢幕展開設定'}>
-              {fullscreen ? '⤡ 縮回' : '⤢ 全螢幕'}
-            </button>
-            <button onClick={toggleTheme} className="btn-outline text-xs" title="切換深/淺色主題">
-              {theme === 'dark' ? '🌙 深色' : '☀️ 淺色'}
-            </button>
-            <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
+    <div className="max-w-6xl mx-auto px-4 py-5 sm:py-7 space-y-5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onClose} className="btn-ghost text-sm lg:hidden">← 返回</button>
+          <div>
+            <p className="text-[10px] tracking-[0.18em] text-ink-3">SYSTEM SETTINGS</p>
+            <h1 className="text-xl font-bold text-ink">⚙️ 系統設定</h1>
           </div>
         </div>
+        <button onClick={toggleTheme} className="btn-outline text-xs" title="切換深/淺色主題">
+          {theme === 'dark' ? '🌙 深色' : '☀️ 淺色'}
+        </button>
+      </div>
 
-        {/* Section tabs */}
-        <div className="flex gap-0.5 px-3 py-2 border-b border-bdr overflow-x-auto shrink-0">
-          {SECTION_KEYS.map((k) => (
-            <button
-              key={k}
-              onClick={() => setActiveSection(k)}
-              className={`flex-none text-xs px-2.5 py-1.5 rounded-lg font-medium whitespace-nowrap transition-colors ${
-                activeSection === k ? 'bg-accent/10 text-accent' : 'text-ink-3 hover:bg-s3'
-              }`}
-            >
-              {SECTION_LABELS[k]}
-            </button>
-          ))}
-        </div>
+      <div className="space-y-4">
+        {SETTING_GROUPS.map((group) => (
+          <section key={group.title}>
+            <h2 className="mb-2 text-xs font-bold text-ink-3">{group.title}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {group.keys.map((key) => (
+                <button key={key} type="button" onClick={() => {
+                  setActiveSection(key);
+                  setTimeout(() => document.getElementById('settings-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                }}
+                  className={`card min-h-20 p-3 text-left text-sm font-semibold transition-all hover:border-accent/50 ${activeSection === key ? 'border-2 border-accent bg-accent/5 text-accent' : 'text-ink'}`}>
+                  {SECTION_LABELS[key]}
+                </button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
 
-        <div id="settings-scroll-panel" className={`flex-1 overflow-y-auto p-4 space-y-4 ${fullscreen ? 'px-4 sm:px-6 lg:px-8' : ''}`}>
-          {/* ── 業績表入口 + 密碼 ── */}
-          {activeSection === 'deals' && <DealsSection onOpenDeals={onOpenDeals} />}
+      <div id="settings-detail" className="scroll-mt-4 border-t border-bdr pt-5 space-y-4">
 
           {/* ── Cloud sync ── */}
           {activeSection === 'sync' && <SyncSection reloadAll={reloadAll} />}
@@ -185,7 +186,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
 
           {/* ── Quote presets ── */}
           {activeSection === 'quoteMenu' && (
-            <div className={`space-y-5 ${fullscreen ? 'max-w-7xl mx-auto' : ''}`}>
+            <div className="space-y-5">
               <button type="button" onClick={() => document.getElementById('settings-addon-editor')?.scrollIntoView({ behavior: 'smooth' })}
                 className="btn-outline text-xs">跳到配備分類管理 ↓</button>
               <LoanTermsEditor />
@@ -201,7 +202,7 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
               <AddonPresetEditor
                 items={quotePresets.addons || []}
                 categoryOrder={quotePresets.addonCategories || QUOTE_ADDON_CATS}
-                fullscreen={fullscreen}
+                fullscreen
                 onChange={(addons, addonCategories) => saveQuotePresets({ ...quotePresets, addons, addonCategories: addonCategories || quotePresets.addonCategories })}
                 onRenameCategory={(oldName, newName) => saveQuotePresets(renameAddonCategory(quotePresets, oldName, newName))}
                 reservedCategoryNames={Object.keys(quotePresets.addonCategoryAliases || {})}
@@ -243,9 +244,8 @@ export default function SettingsPanel({ onClose, onOpenDeals }) {
               <p className="text-center text-xs text-ink-3 py-2">業務系統 v2.3</p>
             </div>
           )}
-        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -1060,46 +1060,6 @@ function BackupSection({ reloadAll }) {
           </div>
         )}
         {message && <p className="text-sm text-ink-2 bg-s2 rounded-lg px-3 py-2">{message}</p>}
-      </div>
-    </section>
-  );
-}
-
-// ── 📈 業績表入口 + 密碼保護 ──────────────────────────────────────────────────
-// 業績表已從主導覽移除，只能從這裡輸入固定通關答案進入，避免給客人看到。
-function DealsSection({ onOpenDeals }) {
-  const [unlock, setUnlock] = useState('');
-  const [err, setErr] = useState('');
-
-  function tryOpen() {
-    setErr('');
-    if (unlock.trim() === '東平') { setUnlock(''); onOpenDeals(); }
-    else setErr('密碼錯誤，請重新輸入');
-  }
-
-  return (
-    <section>
-      <div className="card p-4 space-y-3 border border-warn/30">
-        <h3 className="font-semibold text-ink">🗂️ 開啟內部營運管理</h3>
-        <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold text-ink-2">
-          <span className="rounded-lg bg-s2 px-2 py-1.5">📈 業績與單車利潤</span>
-          <span className="rounded-lg bg-s2 px-2 py-1.5">🧮 報價成本試算</span>
-          <span className="rounded-lg bg-s2 px-2 py-1.5">🤝 合作廠商名冊</span>
-          <span className="rounded-lg bg-s2 px-2 py-1.5">🚚 交車施工進度</span>
-        </div>
-        <div className="space-y-2">
-          <Field label="輸入密碼解鎖">
-            <input type="text" inputMode="text" lang="zh-Hant" value={unlock}
-              autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false}
-              onChange={(e) => setUnlock(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) tryOpen(); }}
-              style={{ WebkitTextSecurity: 'disc' }}
-              placeholder="請輸入兩個中文字" className="w-full" />
-          </Field>
-          <p className="text-[11px] text-warn">提示：就讀的國小（兩個字）</p>
-          {err && <p className="text-danger text-xs">{err}</p>}
-          <button onClick={tryOpen} disabled={!unlock} className="btn-primary w-full disabled:opacity-40">🔓 解鎖並開啟內部營運管理</button>
-        </div>
       </div>
     </section>
   );

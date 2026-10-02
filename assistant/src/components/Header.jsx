@@ -1,4 +1,4 @@
-export default function Header({ tab, setTab, onSettings }) {
+export default function Header({ tab, setTab }) {
   const tabs = [
     { key: 'today', icon: '☀️', label: '今日工作', active: 'bg-copper/15 text-copper ring-1 ring-copper/25' },
     { key: 'reception', icon: '🤝', label: '客戶接待', active: 'bg-teal/15 text-teal ring-1 ring-teal/25' },
@@ -9,14 +9,14 @@ export default function Header({ tab, setTab, onSettings }) {
   ];
 
   return (
-    <header className="hidden md:flex items-center bg-s1 border-b border-bdr px-4 h-14 sticky top-0 z-30 shadow-card">
-      <span className="font-bold text-accent mr-6 text-base tracking-tight">🚛 業務系統</span>
-      <nav className="flex gap-1 flex-1">
+    <header className="hidden lg:flex items-center bg-s1 border-b border-bdr px-3 h-14 sticky top-0 z-30 shadow-card">
+      <span className="font-bold text-accent mr-3 text-sm tracking-tight shrink-0">🚛 業務系統</span>
+      <nav className="flex gap-0.5 flex-1 min-w-0">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               tab === t.key
                 ? t.active
                 : 'text-ink-2 hover:bg-s3 hover:text-ink'
@@ -28,9 +28,16 @@ export default function Header({ tab, setTab, onSettings }) {
         ))}
       </nav>
       <button
-        onClick={onSettings}
-        className="btn-ghost gap-1.5 text-sm"
-        title="設定"
+        onClick={() => setTab('operations')}
+        className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${tab === 'operations' ? 'bg-orange-500/15 text-orange-500' : 'text-ink-2 hover:bg-s3'}`}
+        title="營運管理"
+      >
+        🗂️ 營運管理
+      </button>
+      <button
+        onClick={() => setTab('settings')}
+        className={`ml-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ${tab === 'settings' ? 'bg-accent/15 text-accent' : 'text-ink-2 hover:bg-s3'}`}
+        title="系統設定"
       >
         ⚙️ 設定
       </button>

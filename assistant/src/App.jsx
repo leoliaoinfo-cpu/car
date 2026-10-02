@@ -4,8 +4,9 @@ import Header from './components/Header';
 import TodayPage from './components/today/TodayPage';
 import CalendarPage from './components/calendar/CalendarPage';
 import CrmPage from './components/crm/CrmPage';
-import DealsPage from './components/deals/DealsPage';
+import OperationsPage from './components/deals/OperationsPage';
 import SettingsPanel from './components/SettingsPanel';
+import MorePage from './components/MorePage';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
 import ReceptionPage from './components/reception/ReceptionPage';
@@ -51,9 +52,7 @@ class ErrorBoundary extends Component {
 function AppInner() {
   const { loading, dbUnavailable, dbBlocked } = useApp();
   const [tab, setTab] = useState('today');
-  const [showSettings, setShowSettings] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
-  const [showDeals, setShowDeals] = useState(false); // 業績表（從設定經密碼解鎖後開啟）
   const [crmFocusId, setCrmFocusId] = useState(null);
   const [receptionStartToken, setReceptionStartToken] = useState(null);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
@@ -106,16 +105,16 @@ function AppInner() {
             <strong className="text-accent">✅ 汽車系統已改用獨立儲存空間。</strong>
             舊的共用資料沒有刪除。若此頁暫時沒有汽車資料，請到「設定 → 雲端同步」重新連線汽車系統專用的私人 repo。
           </div>
-          <button onClick={() => setShowSettings(true)} className="btn-outline text-[11px] shrink-0">開啟設定</button>
+          <button onClick={() => setTab('settings')} className="btn-outline text-[11px] shrink-0">開啟設定</button>
           <button onClick={dismissIsolationNotice} className="text-ink-3 text-lg leading-none shrink-0" aria-label="關閉提示">×</button>
         </div>
       )}
 
-      <Header tab={tab} setTab={setTab} onSettings={() => setShowSettings(true)} />
+      <Header tab={tab} setTab={setTab} />
 
-      <main className="pb-20 md:pb-0">
+      <main className="pb-20 lg:pb-0">
         <div className="anim-fade-in" key={tab}>
-          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setShowSettings(true)} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
+          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setTab('settings')} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
@@ -123,66 +122,44 @@ function AppInner() {
           )}
           {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} />}
           {tab === 'catalog' && <ProductCatalog />}
+          {tab === 'operations' && <OperationsPage onBack={() => setTab('more')} onOpenClient={openClient} />}
+          {tab === 'settings' && <SettingsPanel onClose={() => setTab('more')} />}
+          {tab === 'more' && <MorePage onNavigate={setTab} />}
         </div>
       </main>
 
       {/* 手機：型錄浮動按鈕（右下角，不擋底部導覽） */}
-      <button
+      {['today', 'reception', 'crm', 'quotes', 'calendar'].includes(tab) && <button
         onClick={() => setShowCatalog(true)}
-        className="md:hidden fixed right-4 bottom-28 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
+        className="lg:hidden fixed right-4 bottom-28 z-40 w-14 h-14 rounded-full bg-accent text-on-accent shadow-panel flex flex-col items-center justify-center active:scale-95 transition-transform"
         title="產品型錄"
       >
         <span className="text-xl leading-none">📖</span>
         <span className="text-[9px] font-medium mt-0.5">型錄</span>
-      </button>
+      </button>}
 
       {/* Mobile bottom navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
           { key: 'today', icon: '☀️', label: '今日', active: 'text-copper bg-copper/10' },
           { key: 'reception', icon: '🤝', label: '接待', active: 'text-teal bg-teal/10' },
           { key: 'crm', icon: '👥', label: '客戶', active: 'text-sage bg-sage/10' },
           { key: 'quotes', icon: '🧾', label: '報價單', active: 'text-gold bg-gold/10' },
-          { key: 'calendar', icon: '📅', label: '行事曆', active: 'text-violet bg-violet/10' },
+          { key: 'more', icon: '•••', label: '更多', active: 'text-violet bg-violet/10' },
         ].map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
-              tab === item.key ? item.active : 'text-ink-3'
+              (tab === item.key || (item.key === 'more' && ['calendar', 'catalog', 'operations', 'settings'].includes(tab))) ? item.active : 'text-ink-3'
             }`}
           >
             <span className="text-lg leading-none">{item.icon}</span>
             <span className="text-[10px] font-medium">{item.label}</span>
           </button>
         ))}
-        <button
-          onClick={() => setShowSettings(true)}
-          className="flex-1 flex flex-col items-center py-2.5 gap-0.5 text-ink-3"
-        >
-          <span className="text-lg leading-none">⚙️</span>
-          <span className="text-[10px] font-medium">設定</span>
-        </button>
       </nav>
-
-      {showSettings && (
-        <SettingsPanel
-          onClose={() => setShowSettings(false)}
-          onOpenDeals={() => { setShowSettings(false); setShowDeals(true); }}
-        />
-      )}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
-
-      {/* 業績表：從設定解鎖後全螢幕開啟（不放主導覽，避免給客人看到） */}
-      {showDeals && (
-        <div className="safe-panel fixed inset-0 z-50 bg-bg overflow-y-auto anim-fade-in">
-          <div className="sticky top-0 z-10 flex items-center justify-between bg-s1 border-b border-bdr px-4 h-14">
-            <span className="font-bold text-accent text-base">🗂️ 內部營運管理</span>
-            <button onClick={() => setShowDeals(false)} className="btn-ghost gap-1.5 text-sm">✕ 關閉</button>
-          </div>
-          <DealsPage onOpenClient={(id) => { setShowDeals(false); openClient(id); }} />
-        </div>
-      )}
       <TimerModal />
     </div>
   );
