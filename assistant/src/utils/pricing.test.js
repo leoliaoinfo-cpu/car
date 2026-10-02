@@ -4,7 +4,7 @@ import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
 } from './pricing.js';
-import { canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
+import { bundledAddonIds, canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, removeBundledQuoteItems, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
 test('formats quotation totals as formal Traditional Chinese currency', () => {
   assert.equal(formatChineseTwd(0), '新臺幣零元整');
@@ -263,6 +263,8 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-tailgate-35'].cost, 35000);
   assert.equal(catalog.addons['qa-tailgate-step'].cost, 1000);
   assert.equal(catalog.addons['qa-tailgate-remote'].cost, 2000);
+  assert.equal(catalog.addons['qa-double-cab-package'].cost, 203500);
+  assert.equal(catalog.addons['qa-travel-crossbar'], undefined);
   assert.equal(catalog.addons['qa-android-console-box'].cost, 500);
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
@@ -293,6 +295,47 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-paint2'].cost, 34000);
   assert.equal(catalog.addons['qa-paint3'].cost, 36000);
   assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
+});
+
+test('adds the double-cab package and keeps its unverified crossbar cost pending', () => {
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v17',
+    addons: DEFAULT_QUOTE_PRESETS.addons
+      .filter((item) => !['qa-double-cab-package', 'qa-travel-crossbar'].includes(item.id))
+      .map((item) => {
+        const { includes, ...legacyItem } = item;
+        return legacyItem;
+      }),
+  });
+  const doubleCabPackage = resolved.addons.find((item) => item.id === 'qa-double-cab-package');
+  assert.equal(doubleCabPackage.price, 250000);
+  assert.equal(doubleCabPackage.includes.length, 17);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-travel-crossbar').price, 12000);
+  assert.deepEqual(resolved.addons.find((item) => item.id === 'qa-pkg2').includes,
+    ['qa-android-surround', 'qa-tpms-6']);
+
+  const costs = normalizeCostCatalog({ key: 'costCatalog', version: 7, models: {}, addons: {} });
+  assert.equal(costs.addons['qa-double-cab-package'].cost, 203500);
+  assert.equal(costs.addons['qa-travel-crossbar'], undefined);
+});
+
+test('removes standalone components already included by a selected package', () => {
+  assert.deepEqual(new Set(bundledAddonIds(DEFAULT_QUOTE_PRESETS.addons, 'qa-pkg2')),
+    new Set(['qa-android-surround', 'qa-tpms-6']));
+  const doubleCabIncluded = new Set(bundledAddonIds(DEFAULT_QUOTE_PRESETS.addons, 'qa-double-cab-package'));
+  assert.ok(doubleCabIncluded.has('qa-pkg2'));
+  assert.ok(doubleCabIncluded.has('qa-android-surround'));
+  assert.ok(doubleCabIncluded.has('qa-tpms-6'));
+  assert.ok(doubleCabIncluded.has('qa-travel-crossbar'));
+
+  const cleaned = removeBundledQuoteItems([
+    { id: 'bundle', catalogId: 'qa-double-cab-package' },
+    { id: 'nested-bundle', catalogId: 'qa-pkg2' },
+    { id: 'android', catalogId: 'qa-android-surround' },
+    { id: 'unrelated', catalogId: 'qa-tailgate-step' },
+  ], DEFAULT_QUOTE_PRESETS.addons);
+  assert.deepEqual(cleaned.map((item) => item.catalogId), ['qa-double-cab-package', 'qa-tailgate-step']);
 });
 
 test('adds priced H-rack options to an existing quote menu', () => {

@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 7;
+const COST_CATALOG_VERSION = 8;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -80,6 +80,11 @@ const V6_ADDON_COSTS = {
   'qa-tailgate-remote': { cost: 2000 },
 };
 
+// 2027 雙廂高階套裝由使用者確認的整套成本；Travel 橫桿沒有獎金資料，維持待補成本。
+const V8_ADDON_COSTS = {
+  'qa-double-cab-package': { cost: 203500 },
+};
+
 // 最新「2026 卡旺配件清單」成本＝建議售價－獎金。
 // from 為舊內建成本；只有仍等於舊值才更新，避免覆蓋業務手動調整。
 // to: null 表示清單的獎金為「＊」，無法可靠反推成本，應改回待補成本。
@@ -117,6 +122,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V3_ADDON_COSTS,
   ...V5_ADDON_COSTS,
   ...V6_ADDON_COSTS,
+  ...V8_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -286,6 +292,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
     ...(row && previousVersion < 5 ? V5_ADDON_COSTS : {}),
     ...(row && previousVersion < 6 ? V6_ADDON_COSTS : {}),
+    ...(row && previousVersion < 8 ? V8_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   return {

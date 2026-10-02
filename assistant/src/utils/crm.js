@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v17';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v18';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
 const DOUBLE_FOLD_TAILGATE_CATEGORY = '雙折尾門';
@@ -281,7 +281,23 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-film-3m-body-d', cat: WINDOW_FILM_CATEGORIES[3], group: 'g-film-body', name: '3M 隔熱紙－車身（P18／35／40／70・雙廂）', price: 10000, desc: '料號 99PVY3M20CD' },
 ];
 
-const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS];
+const LATEST_CATALOG_ADDONS = [
+  {
+    id: 'qa-travel-crossbar', cat: '金屬製研', name: 'Travel 鋁合金行李橫桿', price: 12000,
+    desc: '法規認證合法變更；雙廂專用',
+  },
+  {
+    id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000,
+    desc: '雙廂專用。型錄方案價 250,000 元，原配件價值標示 275,000 元；包含特仕版、多功能方向盤、安全科技版、LED後照鏡、GTR魚眼頭燈、X7魚眼霧燈、TS避震、音響升級、延長側踏、Travel橫桿、尿素桶防撞桿、雙手機架、室內牌照燈、側邊照地燈、OMEGA鋁圈、HALO光環尾燈及KDM擾流前下巴',
+    includes: [
+      'qa-pkg1', 'qa-pkg3', 'qa-pkg2', 'qa-mirror1', 'qa-gtr', 'qa-fog', 'qa-ts', 'qa-tlsound',
+      'qa-side', 'qa-travel-crossbar', 'qa-urea', 'qa-phone', 'qa-interior-led-double', 'qa-puddle-lamp',
+      'qa-omega', 'qa-tail', 'qa-lip',
+    ],
+  },
+];
+
+const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS, ...LATEST_CATALOG_ADDONS];
 
 // v16 以前的內建值：只有仍等於舊預設的項目才自動套用最新版清單，
 // 使用者自行改過名稱或售價的項目一律保留。
@@ -324,18 +340,22 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
     { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000,
-      desc: '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）' },
+      desc: '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）',
+      includes: ['qa-android-surround', 'qa-tpms-6'] },
     { id: 'qa-pkg3', cat: '配備版本', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000,
-      desc: '定速巡航套件；多媒體音控鍵（音量控制/切換/免持/Mode）' },
+      desc: '定速巡航套件；多媒體音控鍵（音量控制/切換/免持/Mode）',
+      includes: ['qa-cruise', 'qa-media-controls'] },
     // 外觀空力（NLD灣岸）
     { id: 'qa-aero', cat: '外觀空力', name: 'NLD空力套裝（前下巴+鏡蓋+側燈殼）', price: 12000,
-      desc: '前下巴套件+後照鏡飾蓋+改裝側邊方向燈殼(白)。台灣研發設計鋁製模具、3D原車掃描、ABS強化熱塑材質(硬度佳彈性好)、原車直上不破壞保險桿、三段式本體、KDM風格設計' },
+      desc: '前下巴套件+後照鏡飾蓋+改裝側邊方向燈殼(白)。台灣研發設計鋁製模具、3D原車掃描、ABS強化熱塑材質(硬度佳彈性好)、原車直上不破壞保險桿、三段式本體、KDM風格設計',
+      includes: ['qa-lip', 'qa-mcover', 'qa-turn'] },
     { id: 'qa-lip', cat: '外觀空力', name: '前下巴套件', price: 9500, desc: 'NLD灣岸空力套件' },
     { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件' },
     { id: 'qa-turn', cat: '外觀空力', name: '側邊霧白方向燈殼', price: 1200, desc: 'KDM 灣岸空力套件' },
     // 燈組
     { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000,
-      desc: '卡旺全車LED燈組（日行燈/大燈/遠燈/前後方向燈/後霧燈+倒車燈）、LED霧燈、LED室內燈+牌照燈（CANBUS解碼王）、極光側邊照地燈' },
+      desc: '卡旺全車LED燈組（日行燈/大燈/遠燈/前後方向燈/後霧燈+倒車燈）、LED霧燈、LED室內燈+牌照燈（CANBUS解碼王）、極光側邊照地燈',
+      includes: ['qa-star-led-head', 'qa-star-led-tail', 'qa-star-led-fog', 'qa-puddle-lamp'] },
     { id: 'qa-gtr', cat: '燈組', name: 'GTR-plus 魚眼大燈（黑化）', price: 28900,
       desc: '精準照明、三階切線、完美無損。雙切驗車模式、日行燈換白光；安裝不破壞頭燈結構，12 個月保固' },
     { id: 'qa-tail', cat: '燈組', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800,
@@ -346,10 +366,11 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '全視線後照鏡', price: 5000, desc: '塑料黑、整片全視線鏡片' },
     // 音響
     { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500,
-      desc: '6.5吋碳纖維中低音喇叭＋音質處理器＋專用線組、韓國原裝卡旺高音喇叭＋高音電容＋專用線組，組合含 4 顆喇叭；1 年保固' },
+      desc: '6.5吋碳纖維中低音喇叭＋音質處理器＋專用線組、韓國原裝卡旺高音喇叭＋高音電容＋專用線組，組合含 4 顆喇叭；1 年保固',
+      includes: ['qa-audio-65', 'qa-tweeter'] },
     { id: 'qa-speaker', cat: '音響', name: 'GUDE 警示喇叭', price: 2800, desc: '6 個月保固' },
     // 配件
-    { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一' },
+    { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一', includes: ['qa-phone-basic', 'qa-phone-a-pillar'] },
     // 底盤強化
     { id: 'qa-ts', cat: '底盤強化', name: 'TS 氮氣液壓避震器組', price: 29800,
       desc: '含四輪定位乙次；韓國原裝 11mm 專用強化版、16 段舒適阻尼調整；2 年保固' },
@@ -446,6 +467,36 @@ export function canonicalAddonCategories(names = [], aliases = {}) {
   return [...new Set(names.map((name) => aliases[name] || name))];
 }
 
+/** 取得套餐直接與間接包含的配備 id；防止巢狀套餐重複計價。 */
+export function bundledAddonIds(addons = [], bundleId = '') {
+  const byId = new Map((Array.isArray(addons) ? addons : []).map((addon) => [addon.id, addon]));
+  const found = [];
+  const visited = new Set([bundleId]);
+  function visit(id) {
+    const addon = byId.get(id);
+    for (const childId of Array.isArray(addon?.includes) ? addon.includes : []) {
+      if (!childId || visited.has(childId)) continue;
+      visited.add(childId);
+      found.push(childId);
+      visit(childId);
+    }
+  }
+  visit(bundleId);
+  return found;
+}
+
+/** 舊報價若同時存有套餐與內含單品，自動保留套餐並移除重複單品。 */
+export function removeBundledQuoteItems(items = [], addons = []) {
+  const rows = Array.isArray(items) ? items : [];
+  const selectedIds = new Set(rows.map((item) => item?.catalogId).filter(Boolean));
+  const included = new Set();
+  for (const addon of Array.isArray(addons) ? addons : []) {
+    if (!selectedIds.has(addon.id) || !Array.isArray(addon.includes)) continue;
+    for (const id of bundledAddonIds(addons, addon.id)) included.add(id);
+  }
+  return rows.filter((item) => !included.has(item?.catalogId));
+}
+
 /**
  * 解析儲存的報價選單：
  * - 沒有存過 → 用原廠型錄
@@ -525,6 +576,10 @@ export function resolveQuotePresets(row) {
       && Number(migrated.price) === previousDefault[0]
       && migrated.name === previousDefault[1]) {
       migrated = { ...migrated, ...latestDefault, cat: migrated.cat };
+    }
+    // 套餐內含關係是防止重複計價的系統規則，不屬於可客製名稱／售價。
+    if (Array.isArray(latestDefault?.includes)) {
+      migrated = { ...migrated, includes: [...latestDefault.includes] };
     }
     return migrated;
   });

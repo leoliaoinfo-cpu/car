@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field } from '../ui';
@@ -82,7 +82,7 @@ function catColor(cat) {
 
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
-  setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine,
+  setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -120,9 +120,10 @@ function AddonCategoryCard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {list.map((addon) => {
                 const picked = isPicked(addon);
+                const lockedBy = bundleLocks.get(addon.id);
                 return (
                   <div key={addon.id}
-                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'}`}
+                    className={`flex flex-col rounded-lg px-2.5 py-2 border transition-colors ${picked ? '' : 'bg-s1 border-bdr/50'} ${lockedBy ? 'opacity-70' : ''}`}
                     style={picked ? { background: color + '18', borderColor: color } : undefined}>
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs text-ink font-medium leading-snug">
@@ -134,10 +135,11 @@ function AddonCategoryCard({
                       </span>
                     </div>
                     {addon.desc && <p className="text-[10px] text-ink-3 mt-1 leading-relaxed">{addon.desc}</p>}
-                    <button type="button" onClick={() => toggleLine(addon)}
-                      className="text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors"
+                    {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 已含於「{lockedBy.name}」，不可重複加入</p>}
+                    <button type="button" onClick={() => toggleLine(addon)} disabled={!!lockedBy}
+                      className={`text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors ${lockedBy ? 'cursor-not-allowed' : ''}`}
                       style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
-                      {picked ? '✓ 已加入' : '＋ 加入報價'}
+                      {lockedBy ? '🔒 套裝已含' : picked ? '✓ 已加入' : '＋ 加入報價'}
                     </button>
                   </div>
                 );
@@ -147,18 +149,21 @@ function AddonCategoryCard({
             <div className="flex gap-1.5 flex-wrap">
               {list.map((addon) => {
                 const picked = isPicked(addon);
+                const lockedBy = bundleLocks.get(addon.id);
                 return (
-                  <button key={addon.id} type="button" title={addon.desc || ''}
+                  <button key={addon.id} type="button" disabled={!!lockedBy}
+                    title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
-                    className="flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors"
+                    className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] transition-colors ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={picked
                       ? { background: color, borderColor: color, color: '#fff' }
                       : { borderColor: color + '55' }}>
+                    {lockedBy && <span>🔒</span>}
                     {picked && <span>✓</span>}
                     {addon.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
                     <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{addon.name}</span>
                     <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
-                      {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
+                      {lockedBy ? '套裝已含' : addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                     </span>
                   </button>
                 );
@@ -189,6 +194,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const normalizedInitial = normalizeQuoteItems(quote?.items || []);
+  const dedupedInitialItems = removeBundledQuoteItems(normalizedInitial.items, quotePresets.addons);
   const [model, setModel] = useState(quote?.model || '');
   const [modelYear, setModelYear] = useState(() => String(quote?.modelYear || DEFAULT_QUOTE_MODEL_YEAR));
   const [modelId, setModelId] = useState(() => quote?.modelId
@@ -196,8 +202,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     || null);
   const [excludeVehiclePrice, setExcludeVehiclePrice] = useState(!!quote?.excludeVehiclePrice);
   const [items, setItems] = useState(() =>
-    normalizedInitial.items.length
-      ? normalizedInitial.items.map((it) => ({
+    dedupedInitialItems.length
+      ? dedupedInitialItems.map((it) => ({
         ...it,
         price: String(it.price),
         pending: !!it.pending,
@@ -346,6 +352,14 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
   const isCatalogPicked = (catalogId) => items.some((it) => it.catalogId === catalogId);
   const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
+  const selectedCatalogIds = new Set(items.map((item) => item.catalogId).filter(Boolean));
+  const bundleLocks = new Map();
+  for (const addon of quotePresets.addons) {
+    if (!selectedCatalogIds.has(addon.id) || !Array.isArray(addon.includes)) continue;
+    for (const includedId of bundledAddonIds(quotePresets.addons, addon.id)) {
+      if (!bundleLocks.has(includedId)) bundleLocks.set(includedId, addon);
+    }
+  }
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
   const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
   const addonSections = groupAddonSections(addonGroups, quotePresets.addonCategoryAliases);
@@ -354,7 +368,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
     || list.some((addon) => isPicked(addon))).length;
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
-  function toggleLine({ id: catalogId, name, price, group, cat, desc = '', pendingPrice = false }) {
+  function toggleLine(addon) {
+    const { id: catalogId, name, price, group, cat, desc = '', pendingPrice = false } = addon;
+    if (bundleLocks.has(catalogId)) return;
     if (!isPicked({ id: catalogId, name }) && cat) {
       setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
         .filter((category) => category !== cat));
@@ -371,9 +387,13 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
         return next.length ? next : [{ id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [] }];
       }
       let base = list;
+      const includedIds = new Set(bundledAddonIds(quotePresets.addons, catalogId));
+      if (includedIds.size > 0) {
+        base = base.filter((item) => !includedIds.has(item.catalogId));
+      }
       if (group) {
         const siblings = quotePresets.addons.filter((x) => x.group === group).map((x) => x.name);
-        base = list.filter((it) => !siblings.includes(it.name.trim()));
+        base = base.filter((it) => !siblings.includes(it.name.trim()));
       }
       const emptyIdx = base.findIndex((it) => !it.name.trim() && !Number(it.price));
       const value = {
@@ -799,7 +819,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                       aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
                       isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                       setExpandedAddonCategories={setExpandedAddonCategories}
-                      setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine} />;
+                      setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
+                      bundleLocks={bundleLocks} />;
                   }
                   const expanded = !!expandedAddonSections[section.key];
                   const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
@@ -829,7 +850,8 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                               aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
                               isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                               setExpandedAddonCategories={setExpandedAddonCategories}
-                              setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine} />
+                              setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
+                              bundleLocks={bundleLocks} />
                           ))}
                         </div>
                       )}
