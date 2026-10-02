@@ -1,86 +1,17 @@
 [
-  {
-    "slug": "01-models",
-    "label": "車型與售價",
-    "w": 1090,
-    "h": 1502
-  },
-  {
-    "slug": "02-spec",
-    "label": "配備升級",
-    "w": 1089,
-    "h": 1502
-  },
-  {
-    "slug": "03-lights",
-    "label": "燈組升級",
-    "w": 1089,
-    "h": 1502
-  },
-  {
-    "slug": "04-exterior",
-    "label": "外觀空力 (NLD)",
-    "w": 1090,
-    "h": 1502
-  },
-  {
-    "slug": "05-audio",
-    "label": "音響升級 (TLSOUND)",
-    "w": 1089,
-    "h": 1502
-  },
-  {
-    "slug": "06-chassis",
-    "label": "底盤強化",
-    "w": 1089,
-    "h": 1502
-  },
-  {
-    "slug": "07-metal",
-    "label": "金屬製研",
-    "w": 1088,
-    "h": 1504
-  },
-  {
-    "slug": "08-color",
-    "label": "車身改色",
-    "w": 1089,
-    "h": 1502
-  },
-  {
-    "slug": "09-taillight",
-    "label": "LED光環尾燈",
-    "w": 1070,
-    "h": 1527
-  },
-  {
-    "slug": "10-foglight",
-    "label": "霧燈升級",
-    "w": 1070,
-    "h": 1527
-  },
-  {
-    "slug": "11-headlight",
-    "label": "GTR大燈升級",
-    "w": 1091,
-    "h": 1499
-  },
-  {
-    "slug": "12-cutline",
-    "label": "三階切線說明",
-    "w": 1104,
-    "h": 1483
-  },
-  {
-    "slug": "13-wheels",
-    "label": "鋁圈升級 (OMEGA)",
-    "w": 1086,
-    "h": 1506
-  },
-  {
-    "slug": "14-liftgate",
-    "label": "滑特升降尾門尺寸與承重",
-    "w": 1122,
-    "h": 1403
-  }
+  { "slug": "01-premium-package", "label": "雙廂高階套裝", "w": 961, "h": 1280 },
+  { "slug": "02-body-color", "label": "車身改色與防刮漆料", "w": 1024, "h": 1280 },
+  { "slug": "03-model-prices", "label": "2027 年式車型與售價", "w": 1096, "h": 1280 },
+  { "slug": "04-equipment-packages", "label": "配備升級套裝", "w": 960, "h": 1280 },
+  { "slug": "05-lighting", "label": "燈組與配件升級", "w": 914, "h": 1280 },
+  { "slug": "06-metal-parts", "label": "金屬製研配件", "w": 960, "h": 1280 },
+  { "slug": "07-chassis", "label": "底盤載重強化", "w": 1024, "h": 1280 },
+  { "slug": "08-exterior", "label": "外觀空力套件", "w": 1024, "h": 1280 },
+  { "slug": "09-audio", "label": "音響升級", "w": 914, "h": 1280 },
+  { "slug": "10-led-tail-light", "label": "LED 光環尾燈組", "w": 897, "h": 1280 },
+  { "slug": "11-omega-wheels", "label": "OMEGA 鋁圈升級", "w": 959, "h": 1280 },
+  { "slug": "12-x7-fog-light", "label": "X7 魚眼霧燈升級", "w": 960, "h": 1280 },
+  { "slug": "13-gtr-headlight", "label": "GTR-plus 魚眼大燈", "w": 933, "h": 1280 },
+  { "slug": "14-gtr-cutline", "label": "GTR 三階切線說明", "w": 952, "h": 1280 },
+  { "slug": "15-gtr-demo", "label": "GTR 雙切驗車模式", "w": 933, "h": 1280 }
 ]

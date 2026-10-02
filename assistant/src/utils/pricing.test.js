@@ -252,7 +252,7 @@ test('classifies all three quote safety states', () => {
   assert.equal(pricingSafetyStatus({ costComplete: true, belowCost: false }), 'ok');
 });
 
-test('seeds supplier sheet costs and converts each 80-percent row to a number', () => {
+test('seeds the latest supplier sheet costs from sale price minus bonus', () => {
   const catalog = normalizeCostCatalog(null);
   assert.equal(catalog.models['qm-1'].commission, 35000);
   assert.equal(catalog.models['qm-5'].commission, 50000);
@@ -263,14 +263,35 @@ test('seeds supplier sheet costs and converts each 80-percent row to a number', 
   assert.equal(catalog.addons['qa-tailgate-35'].cost, 35000);
   assert.equal(catalog.addons['qa-tailgate-step'].cost, 1000);
   assert.equal(catalog.addons['qa-tailgate-remote'].cost, 2000);
-  assert.equal(catalog.addons['qa-star-led-head'].cost, 3200);
+  assert.equal(catalog.addons['qa-android-console-box'].cost, 500);
+  assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
-  assert.equal(catalog.addons['qa-star-led-fog'].cost, 1440);
+  assert.equal(catalog.addons['qa-star-led-fog'].cost, 1400);
   assert.equal(catalog.addons['qa-puddle-lamp'].cost, 2800);
-  assert.equal(catalog.addons['qa-interior-led-single'].cost, 400);
-  assert.equal(catalog.addons['qa-interior-led-double'].cost, 480);
+  assert.equal(catalog.addons['qa-interior-led-single'], undefined);
+  assert.equal(catalog.addons['qa-interior-led-double'], undefined);
+  assert.equal(catalog.addons['qa-turn'], undefined);
   assert.equal(catalog.addons['qa-phone-basic'].cost, 1040);
   assert.equal(catalog.addons['qa-phone-a-pillar'].cost, 1200);
+  assert.equal(catalog.addons['qa-phone'].cost, 2300);
+  assert.equal(catalog.addons['qa-tlsound'].cost, 7500);
+  assert.equal(catalog.addons['qa-mirror2'].cost, 4000);
+  assert.equal(catalog.addons['qa-ts'].cost, 25300);
+  assert.equal(catalog.addons['qa-block'].cost, 6800);
+  assert.equal(catalog.addons['qa-atc'].cost, 17000);
+  assert.equal(catalog.addons['qa-leaf'].cost, 14500);
+  assert.equal(catalog.addons['qa-urea'].cost, 4500);
+  assert.equal(catalog.addons['qa-side'].cost, 15900);
+  assert.equal(catalog.addons['qa-rear'].cost, 6000);
+  assert.equal(catalog.addons['qa-rear-dr'].cost, 10800);
+  assert.equal(catalog.addons['qa-roof'].cost, 13500);
+  assert.equal(catalog.addons['qa-omega'].cost, 29800);
+  assert.equal(catalog.addons['qa-fog'].cost, 4300);
+  assert.equal(catalog.addons['qa-tail'].cost, 9300);
+  assert.equal(catalog.addons['qa-gtr'].cost, 25900);
+  assert.equal(catalog.addons['qa-paint1'].cost, 33000);
+  assert.equal(catalog.addons['qa-paint2'].cost, 34000);
+  assert.equal(catalog.addons['qa-paint3'].cost, 36000);
   assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
 });
 
@@ -281,6 +302,66 @@ test('adds priced H-rack options to an existing quote menu', () => {
   });
   assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-single').price, 5000);
   assert.equal(resolved.addons.find((item) => item.id === 'qa-h-rack-pair').price, 9000);
+});
+
+test('upgrades unchanged supplier prices and costs while preserving manual edits', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v15', models: [], subsidies: [],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
+    addons: [
+      { id: 'qa-gtr', cat: '燈組', name: 'GTR大燈升級（三階切線）', price: 27000 },
+      { id: 'qa-atc', cat: '底盤強化', name: 'ATC防傾桿', price: 15000 },
+      { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5000 },
+      { id: 'qa-roof', cat: '金屬製研', name: '車頂行李架/籃（單廂/大單廂專用）', price: 16000 },
+    ],
+  });
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-gtr').price, 28900);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-atc').price, 18500);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-urea').price, 5500);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-roof').price, 16000);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-rear-dr').price, 12800);
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-lighting-custom').pendingPrice, true);
+
+  const costs = normalizeCostCatalog({
+    key: 'costCatalog', version: 6, models: {}, addons: {
+      'qa-star-led-head': { cost: 3200 },
+      'qa-turn': { cost: 1000 },
+      'qa-lip': { cost: 7000 },
+      'qa-ts': { cost: 24000 },
+    },
+  });
+  assert.equal(costs.addons['qa-star-led-head'].cost, 3000);
+  assert.equal(costs.addons['qa-turn'], undefined);
+  assert.equal(costs.addons['qa-lip'].cost, 7500);
+  assert.equal(costs.addons['qa-ts'].cost, 24000);
+  assert.equal(costs.addons['qa-gtr'].cost, 25900);
+});
+
+test('matches every known latest-sheet cost to sale price minus bonus', () => {
+  const costs = normalizeCostCatalog(null).addons;
+  const rows = [
+    ['qa-android-surround', 35000, 10000], ['qa-tpms-6', 5000, 1000],
+    ['qa-cruise', 8000, 5000], ['qa-media-controls', 12000, 4000],
+    ['qa-lip', 9500, 2000], ['qa-mcover', 2800, 800],
+    ['qa-tlsound', 9500, 2000], ['qa-led', 15000, 5500],
+    ['qa-star-led-head', 4000, 1000], ['qa-star-led-tail', 2500, 500],
+    ['qa-star-led-fog', 1800, 400], ['qa-puddle-lamp', 3500, 700],
+    ['qa-phone', 3000, 700], ['qa-mirror1', 8500, 1500],
+    ['qa-mirror2', 5000, 1000], ['qa-speaker', 2800, 800],
+    ['qa-ts', 29800, 4500], ['qa-block', 7800, 1000],
+    ['qa-atc', 18500, 1500], ['qa-leaf', 15500, 1000],
+    ['qa-urea', 5500, 1000], ['qa-side', 18900, 3000],
+    ['qa-skid', 12500, 3000], ['qa-rear', 7500, 1500],
+    ['qa-rear-dr', 12800, 2000], ['qa-roof', 15500, 2000],
+    ['qa-omega', 33800, 4000], ['qa-fog', 5800, 1500],
+    ['qa-tail', 11800, 2500], ['qa-gtr', 28900, 3000],
+    ['qa-paint1', 36000, 3000], ['qa-paint2', 37000, 3000],
+    ['qa-paint3', 39000, 3000],
+  ];
+  for (const [id, sale, bonus] of rows) {
+    assert.equal(DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === id)?.price, sale, `${id} sale`);
+    assert.equal(costs[id]?.cost, sale - bonus, `${id} cost`);
+  }
 });
 
 test('adds tailgate accessories and costs while preserving a manually edited tailgate cost', () => {
@@ -531,7 +612,7 @@ test('upgrades the old galvanized floor name and adds the dependent console opti
     resolved.addons.find((item) => item.id === 'qa-floor-galvanized').name,
     '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)',
   );
-  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '12 個月保固');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '中央置物盒另加 500 元；1 年保固');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-android-console-box').parentId, 'qa-android-surround');
 });
 

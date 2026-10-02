@@ -1,43 +1,54 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 6;
+const COST_CATALOG_VERSION = 7;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
 const SUPPLIER_ADDON_COSTS = {
   'qa-pkg2': { cost: 29000 },
   'qa-android-surround': { cost: 25000 },
+  'qa-android-console-box': { cost: 500 },
   'qa-tpms-6': { cost: 4000 },
   'qa-pkg3': { cost: 11000 },
   'qa-cruise': { cost: 3000 },
   'qa-media-controls': { cost: 8000 },
   'qa-aero': { cost: 10000 },
-  'qa-lip': { cost: 7000 },
+  'qa-lip': { cost: 7500 },
   'qa-mcover': { cost: 2000 },
-  'qa-turn': { cost: 1000 },
   'qa-audio-65': { cost: 4000 },
   'qa-tweeter': { cost: 2000 },
+  'qa-tlsound': { cost: 7500 },
   'qa-led': { cost: 9500 },
-  'qa-star-led-head': { cost: 3200 },
+  'qa-star-led-head': { cost: 3000 },
   'qa-star-led-tail': { cost: 2000 },
-  'qa-star-led-fog': { cost: 1440 },
+  'qa-star-led-fog': { cost: 1400 },
   'qa-puddle-lamp': { cost: 2800 },
-  'qa-interior-led-single': { cost: 400 },
-  'qa-interior-led-double': { cost: 480 },
   'qa-phone-basic': { cost: 1040 },
   'qa-phone-a-pillar': { cost: 1200 },
+  'qa-phone': { cost: 2300 },
   'qa-mirror1': { cost: 7000 },
-  'qa-mirror2': { cost: 3000 },
+  'qa-mirror2': { cost: 4000 },
   'qa-speaker': { cost: 2000 },
-  'qa-ts': { cost: 25000 },
+  'qa-ts': { cost: 25300 },
+  'qa-block': { cost: 6800 },
+  'qa-atc': { cost: 17000 },
+  'qa-leaf': { cost: 14500 },
   'qa-brake-kit': { cost: 12000 },
-  'qa-roof': { cost: 11000 },
-  'qa-side': { cost: 15000 },
-  'qa-urea': { cost: 3500 },
-  'qa-rear': { cost: 5500 },
+  'qa-roof': { cost: 13500 },
+  'qa-side': { cost: 15900 },
+  'qa-urea': { cost: 4500 },
+  'qa-rear': { cost: 6000 },
+  'qa-rear-dr': { cost: 10800 },
   'qa-skid': { cost: 9500 },
   'qa-ext': { cost: 7000 },
+  'qa-omega': { cost: 29800 },
+  'qa-fog': { cost: 4300 },
+  'qa-tail': { cost: 9300 },
+  'qa-gtr': { cost: 25900 },
+  'qa-paint1': { cost: 33000 },
+  'qa-paint2': { cost: 34000 },
+  'qa-paint3': { cost: 36000 },
   'qa-film-fsk-front': { cost: 2160 },
   'qa-film-fsk-body-s': { cost: 2160 },
   'qa-film-fsk-body-l': { cost: 2477 },
@@ -69,12 +80,66 @@ const V6_ADDON_COSTS = {
   'qa-tailgate-remote': { cost: 2000 },
 };
 
+// 最新「2026 卡旺配件清單」成本＝建議售價－獎金。
+// from 為舊內建成本；只有仍等於舊值才更新，避免覆蓋業務手動調整。
+// to: null 表示清單的獎金為「＊」，無法可靠反推成本，應改回待補成本。
+const V7_COST_REVISIONS = {
+  'qa-lip': { from: 7000, to: 7500 },
+  'qa-turn': { from: 1000, to: null },
+  'qa-android-console-box': { to: 500, addIfMissing: true },
+  'qa-tlsound': { to: 7500, addIfMissing: true },
+  'qa-star-led-head': { from: 3200, to: 3000 },
+  'qa-star-led-fog': { from: 1440, to: 1400 },
+  'qa-interior-led-single': { from: 400, to: null },
+  'qa-interior-led-double': { from: 480, to: null },
+  'qa-phone': { to: 2300, addIfMissing: true },
+  'qa-mirror2': { from: 3000, to: 4000 },
+  'qa-ts': { from: 25000, to: 25300 },
+  'qa-block': { to: 6800, addIfMissing: true },
+  'qa-atc': { to: 17000, addIfMissing: true },
+  'qa-leaf': { to: 14500, addIfMissing: true },
+  'qa-roof': { from: 11000, to: 13500 },
+  'qa-side': { from: 15000, to: 15900 },
+  'qa-urea': { from: 3500, to: 4500 },
+  'qa-rear': { from: 5500, to: 6000 },
+  'qa-rear-dr': { to: 10800, addIfMissing: true },
+  'qa-omega': { to: 29800, addIfMissing: true },
+  'qa-fog': { to: 4300, addIfMissing: true },
+  'qa-tail': { to: 9300, addIfMissing: true },
+  'qa-gtr': { to: 25900, addIfMissing: true },
+  'qa-paint1': { to: 33000, addIfMissing: true },
+  'qa-paint2': { to: 34000, addIfMissing: true },
+  'qa-paint3': { to: 36000, addIfMissing: true },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
   ...V5_ADDON_COSTS,
   ...V6_ADDON_COSTS,
 };
+
+function migrateV7Costs(addons) {
+  const next = { ...(addons || {}) };
+  for (const [id, revision] of Object.entries(V7_COST_REVISIONS)) {
+    const hasValue = Object.prototype.hasOwnProperty.call(next, id);
+    if (!hasValue) {
+      if (revision.addIfMissing && revision.to != null) next[id] = { cost: revision.to };
+      continue;
+    }
+    const currentEntry = next[id];
+    const currentCost = Number(currentEntry?.cost ?? currentEntry);
+    if (!Number.isFinite(currentCost) || currentCost !== revision.from) continue;
+    if (revision.to == null) {
+      delete next[id];
+    } else {
+      next[id] = typeof currentEntry === 'object' && currentEntry != null
+        ? { ...currentEntry, cost: revision.to }
+        : { cost: revision.to };
+    }
+  }
+  return next;
+}
 
 // 車輛不以「售價－成本」估利潤，而是直接使用公司公告的每台傭金。
 const DEFAULT_MODEL_COMMISSIONS = Object.fromEntries(VEHICLE_VARIANTS.map((variant) => [
@@ -215,19 +280,20 @@ export function normalizeCostCatalog(row) {
     }
     models[id] = normalized;
   }
+  const versionedAddons = {
+    ...(!row ? DEFAULT_ADDON_COSTS : {}),
+    ...(row && previousVersion < 2 ? SUPPLIER_ADDON_COSTS : {}),
+    ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
+    ...(row && previousVersion < 5 ? V5_ADDON_COSTS : {}),
+    ...(row && previousVersion < 6 ? V6_ADDON_COSTS : {}),
+    ...(row?.addons || {}),
+  };
   return {
     ...EMPTY_COST_CATALOG,
     ...(row || {}),
     version: COST_CATALOG_VERSION,
     models,
-    addons: {
-      ...(!row ? DEFAULT_ADDON_COSTS : {}),
-      ...(row && previousVersion < 2 ? SUPPLIER_ADDON_COSTS : {}),
-      ...(row && previousVersion < 3 ? V3_ADDON_COSTS : {}),
-      ...(row && previousVersion < 5 ? V5_ADDON_COSTS : {}),
-      ...(row && previousVersion < 6 ? V6_ADDON_COSTS : {}),
-      ...(row?.addons || {}),
-    },
+    addons: row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons,
   };
 }
 

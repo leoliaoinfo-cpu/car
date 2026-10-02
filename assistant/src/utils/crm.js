@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v15';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v16';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
 const TAILGATE_CYLINDER_CATEGORY = '升降尾門的油壓缸';
@@ -237,22 +237,24 @@ const VENDOR_QUOTE_ADDONS = [
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
-  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '12 個月保固' },
+  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '中央置物盒另加 500 元；1 年保固' },
   { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
-  { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, desc: '12 個月保固' },
-  { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, desc: '48 個月保固' },
-  { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, desc: '48 個月保固' },
+  { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, desc: '1 年保固' },
+  { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, desc: '4 年保固' },
+  { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, desc: '4 年保固' },
   { id: 'qa-audio-65', cat: '音響', name: '6.5吋音響升級', price: 5000, desc: '含專用線組；12 個月保固' },
   { id: 'qa-tweeter', cat: '音響', name: '高音喇叭', price: 3000, desc: '含專用線組；12 個月保固' },
-  { id: 'qa-star-led-head', cat: '燈組', name: '卡旺之星 LED 頭燈組', price: 4000, desc: '6 個月保固' },
-  { id: 'qa-star-led-tail', cat: '燈組', name: '卡旺之星 LED 尾燈組', price: 2500, desc: '6 個月保固' },
-  { id: 'qa-star-led-fog', cat: '燈組', name: '卡旺之星 LED 霧燈', price: 1800, desc: '黃金／白光／螢光綠；6 個月保固' },
-  { id: 'qa-puddle-lamp', cat: '燈組', name: '側邊照地燈 2P', price: 3500, desc: '有裝防水快速開關；6 個月保固' },
+  { id: 'qa-star-led-head', cat: '燈組', name: 'LED 頭燈組', price: 4000, desc: '6 個月保固' },
+  { id: 'qa-star-led-tail', cat: '燈組', name: 'LED 尾燈組', price: 2500, desc: '6 個月保固' },
+  { id: 'qa-star-led-fog', cat: '燈組', name: 'LED 霧燈', price: 1800, desc: '黃金／白光；6 個月保固' },
+  { id: 'qa-puddle-lamp', cat: '燈組', name: 'LED 側邊照地燈', price: 3500, desc: '有裝防水快速開關；6 個月保固' },
   { id: 'qa-interior-led-single', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（單廂）', price: 500, desc: '6 個月保固' },
   { id: 'qa-interior-led-double', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（雙廂）', price: 600, desc: '6 個月保固' },
   { id: 'qa-phone-basic', cat: '配件', name: '一般手機架組', price: 1300 },
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
+  { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
+  { id: 'qa-lighting-custom', cat: '燈組', name: '專用燈系套裝', price: 0, pendingPrice: true, desc: '售價、獎金與保固待確認' },
 
   { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
   { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
@@ -269,6 +271,35 @@ const SUPPLIER_SHEET_ADDONS = [
 ];
 
 const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS];
+
+// v16 以前的內建值：只有仍等於舊預設的項目才自動套用最新版清單，
+// 使用者自行改過名稱或售價的項目一律保留。
+const V16_PREVIOUS_ADDON_DEFAULTS = {
+  'qa-android-surround': [35000, '安卓＋四錄＆環景＋專用底座'],
+  'qa-tpms-6': [5000, '6輪胎壓偵測器'],
+  'qa-cruise': [8000, '定速巡航'],
+  'qa-media-controls': [12000, '多媒體音控'],
+  'qa-star-led-head': [4000, '卡旺之星 LED 頭燈組'],
+  'qa-star-led-tail': [2500, '卡旺之星 LED 尾燈組'],
+  'qa-star-led-fog': [1800, '卡旺之星 LED 霧燈'],
+  'qa-puddle-lamp': [3500, '側邊照地燈 2P'],
+  'qa-turn': [1000, '改裝側邊方向燈殼（白）'],
+  'qa-gtr': [27000, 'GTR大燈升級（三階切線）'],
+  'qa-tail': [11800, 'LED光環尾燈組（卡旺專用原車直上）'],
+  'qa-fog': [5800, '卡旺專用魚眼霧燈（黃金眼/6000K白光）'],
+  'qa-mirror1': [8500, 'LED韓版後照鏡（方向燈+全視線）'],
+  'qa-mirror2': [5000, '後照鏡組-全視線鏡片'],
+  'qa-tlsound': [8800, 'TLSOUND音響升級（4顆碳纖維喇叭+高音+處理器）'],
+  'qa-speaker': [2800, '專用喇叭改裝'],
+  'qa-ts': [29800, 'TS氮氣液壓避震器（卡旺強化避震王）'],
+  'qa-block': [7500, '抗震模塊4顆'],
+  'qa-atc': [15000, 'ATC防傾桿'],
+  'qa-leaf': [12000, '彈簧鋼板避震彈簧'],
+  'qa-urea': [5000, '尿素桶防撞桿'],
+  'qa-skid': [12000, '4WD專用鋁合金下護板'],
+  'qa-rear': [7000, '車尾防撞鋼樑（2WD專用）'],
+  'qa-roof': [15000, '車頂行李架/籃（單廂/大單廂專用）'],
+};
 
 export const DEFAULT_QUOTE_PRESETS = {
   _catalog: QUOTE_CATALOG_VERSION,
@@ -290,37 +321,37 @@ export const DEFAULT_QUOTE_PRESETS = {
       desc: '前下巴套件+後照鏡飾蓋+改裝側邊方向燈殼(白)。台灣研發設計鋁製模具、3D原車掃描、ABS強化熱塑材質(硬度佳彈性好)、原車直上不破壞保險桿、三段式本體、KDM風格設計' },
     { id: 'qa-lip', cat: '外觀空力', name: '前下巴套件', price: 9500, desc: 'NLD灣岸空力套件' },
     { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件' },
-    { id: 'qa-turn', cat: '外觀空力', name: '改裝側邊方向燈殼（白）', price: 1000, desc: 'NLD灣岸空力套件' },
+    { id: 'qa-turn', cat: '外觀空力', name: '側邊霧白方向燈殼', price: 1200, desc: 'KDM 灣岸空力套件' },
     // 燈組
     { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000,
       desc: '卡旺全車LED燈組（日行燈/大燈/遠燈/前後方向燈/後霧燈+倒車燈）、LED霧燈、LED室內燈+牌照燈（CANBUS解碼王）、極光側邊照地燈' },
-    { id: 'qa-gtr', cat: '燈組', name: 'GTR大燈升級（三階切線）', price: 27000,
-      desc: '精準照明、三階切線、完美無損。高亮聚光（夜間視野更清晰）、精準切線（不眩光守護用路人）、穩定可靠。三階切線：右側照明距離最長（提前告知路口車輛/辨識路牌標語）、左側照明距離適中（減低對向駕駛眩光），安裝不破壞頭燈結構' },
-    { id: 'qa-tail', cat: '燈組', name: 'LED光環尾燈組（卡旺專用原車直上）', price: 11800,
-      desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片' },
-    { id: 'qa-fog', cat: '燈組', name: '卡旺專用魚眼霧燈（黃金眼/6000K白光）', price: 5800,
-      desc: 'SD次世代魚眼霧燈、光型集中+照射度廣。黃金眼色系 / 6000K白光色系' },
-    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED韓版後照鏡（方向燈+全視線）', price: 8500, desc: 'LED方向燈+全視線鏡片' },
-    { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '後照鏡組-全視線鏡片', price: 5000, desc: '整片全視線鏡片(黑)' },
+    { id: 'qa-gtr', cat: '燈組', name: 'GTR-plus 魚眼大燈（黑化）', price: 28900,
+      desc: '精準照明、三階切線、完美無損。雙切驗車模式、日行燈換白光；安裝不破壞頭燈結構，12 個月保固' },
+    { id: 'qa-tail', cat: '燈組', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800,
+      desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
+    { id: 'qa-fog', cat: '燈組', name: 'X7 魚眼霧燈（黃金眼/6000K白光）', price: 5800,
+      desc: 'SD 次世代魚眼霧燈、光型集中且照射度廣。黃金眼色系／6000K 白光色系；6 個月保固' },
+    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
+    { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '全視線後照鏡', price: 5000, desc: '塑料黑、整片全視線鏡片' },
     // 音響
-    { id: 'qa-tlsound', cat: '音響', name: 'TLSOUND音響升級（4顆碳纖維喇叭+高音+處理器）', price: 8800,
-      desc: '6.5吋碳纖維中低音喇叭+音質處理器+專用線組、韓國原裝卡旺高音喇叭+高音電容+專用線組，組合含4顆喇叭。CARBON碳纖維高剛性音盆、純鋁子彈頭、承受功率100W+' },
-    { id: 'qa-speaker', cat: '音響', name: '專用喇叭改裝', price: 2800, desc: '專用插座無損音質、高功率高低音混合' },
+    { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500,
+      desc: '6.5吋碳纖維中低音喇叭＋音質處理器＋專用線組、韓國原裝卡旺高音喇叭＋高音電容＋專用線組，組合含 4 顆喇叭；1 年保固' },
+    { id: 'qa-speaker', cat: '音響', name: 'GUDE 警示喇叭', price: 2800, desc: '6 個月保固' },
     // 配件
     { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一' },
     // 底盤強化
-    { id: 'qa-ts', cat: '底盤強化', name: 'TS氮氣液壓避震器（卡旺強化避震王）', price: 29800,
-      desc: '韓國原裝、11mm專用強化版。16段舒適阻尼調整、11mm支撐承重彈簧、超有效改善晃動不適感' },
+    { id: 'qa-ts', cat: '底盤強化', name: 'TS 氮氣液壓避震器組', price: 29800,
+      desc: '含四輪定位乙次；韓國原裝 11mm 專用強化版、16 段舒適阻尼調整；2 年保固' },
     { id: 'qa-spring', cat: '底盤強化', name: '彈簧鋼板', price: 5500, desc: '增加支撐力、防止車尾下垂' },
-    { id: 'qa-block', cat: '底盤強化', name: '抗震模塊4顆', price: 7500, desc: '吸收鋼板間的撞擊震動、防止左右側傾與下垂' },
-    { id: 'qa-atc', cat: '底盤強化', name: 'ATC防傾桿', price: 15000, desc: '防止過彎左右側傾、減少左右晃動感' },
-    { id: 'qa-leaf', cat: '底盤強化', name: '彈簧鋼板避震彈簧', price: 12000, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
+    { id: 'qa-block', cat: '底盤強化', name: '抗震優力膠', price: 7800, desc: '吸收鋼板間的撞擊震動、防止左右側傾與下垂' },
+    { id: 'qa-atc', cat: '底盤強化', name: 'ATC 防傾桿', price: 18500, desc: '2WD；優力膠套換紅色強化版' },
+    { id: 'qa-leaf', cat: '底盤強化', name: '鋼板避震彈簧', price: 15500, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
     // 金屬製研
-    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5000, desc: '原車鎖點結構穩固、保護尿素桶防止破損' },
+    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, desc: '原車鎖點結構穩固、保護尿素桶防止破損' },
     { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
-    { id: 'qa-skid', cat: '金屬製研', name: '4WD專用鋁合金下護板', price: 12000, desc: '原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
-    { id: 'qa-rear', cat: '金屬製研', name: '車尾防撞鋼樑（2WD專用）', price: 7000, desc: '2WD專用' },
-    { id: 'qa-roof', cat: '金屬製研', name: '車頂行李架/籃（單廂/大單廂專用）', price: 15000, desc: '單廂、大單廂專用' },
+    { id: 'qa-skid', cat: '金屬製研', name: '4WD 專用鋁合金下護板', price: 12500, desc: '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
+    { id: 'qa-rear', cat: '金屬製研', name: '車尾後防撞桿', price: 7500, desc: '需變更；尾門車無法安裝' },
+    { id: 'qa-roof', cat: '金屬製研', name: '車頂行李籃', price: 15500, desc: '單廂、大單廂專用' },
     { id: 'qa-ext', cat: '金屬製研', name: '貨斗延伸護欄（+350mm）', price: 8500, desc: '貨斗延長+350mm' },
     // 車身改色（烤漆爐烘烤；消光霧面另計）
     { id: 'qa-paint1', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（單廂）', price: 36000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
@@ -476,6 +507,13 @@ export function resolveQuotePresets(row) {
     if (tailgateDefault?.cat?.startsWith('隔熱紙（')
       && ['隔熱紙', (row.addonCategoryAliases || {}).隔熱紙].filter(Boolean).includes(migrated.cat)) {
       migrated = { ...migrated, cat: tailgateDefault.cat };
+    }
+    const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];
+    const latestDefault = DEFAULT_QUOTE_PRESETS.addons.find((addon) => addon.id === migrated.id);
+    if (previousDefault && latestDefault
+      && Number(migrated.price) === previousDefault[0]
+      && migrated.name === previousDefault[1]) {
+      migrated = { ...migrated, ...latestDefault, cat: migrated.cat };
     }
     return migrated;
   });
