@@ -263,8 +263,8 @@ function shortHash(str) {
  * 建立報價單：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
  * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
-export default function QuoteModal({ client, clients = [], quote, onSaveQuote, onClose }) {
-  const { quotePresets, costCatalog, pricingRecords } = useApp();
+export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onClose }) {
+  const { quotePresets, costCatalog, pricingRecords, cases } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const normalizedInitial = normalizeQuoteItems(quote?.items || []);
@@ -303,6 +303,11 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   const [note, setNote] = useState(quote?.note || '');
   const [requirements, setRequirements] = useState(quote?.requirements || '');
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
+  const initialClientId = quote?.clientId || client?.id || '';
+  const initialCaseCandidates = cases.filter((row) => row.clientId === initialClientId && row.status !== 'completed');
+  const [linkedCaseId, setLinkedCaseId] = useState(quote?.caseId || initialCaseId
+    || (initialCaseCandidates.length === 1 ? initialCaseCandidates[0].id : ''));
+  const [caseError, setCaseError] = useState('');
   const [customerName, setCustomerName] = useState(quote?.customerName || client?.name || '');
   const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
   const [customerMode, setCustomerMode] = useState(() => {
@@ -419,6 +424,9 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       setCustomerName(picked.name || '');
       setCustomerPhone(picked.phone || '');
     }
+    const matches = cases.filter((row) => row.clientId === clientId && row.status !== 'completed');
+    setLinkedCaseId(matches.length === 1 ? matches[0].id : '');
+    setCaseError('');
   }
 
   const duplicateClient = customerMode === 'new'
@@ -428,7 +436,11 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
   function switchCustomerMode(nextMode) {
     setCustomerMode(nextMode);
     setCustomerError('');
-    if (nextMode !== 'existing') setLinkedClientId('');
+    if (nextMode !== 'existing') {
+      setLinkedClientId('');
+      setLinkedCaseId('');
+      setCaseError('');
+    }
   }
 
   // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
@@ -583,6 +595,7 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       ...(quote || {}),
       id: quoteId,
       clientId: client?.id || linkedClientId || null,
+      caseId: linkedCaseId || null,
       date: quote?.date || dayjs().format('YYYY-MM-DD'),
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -767,6 +780,12 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
       setCustomerError('請先選擇要連結的既有客戶。');
       return;
     }
+    const effectiveClientId = client?.id || (customerMode === 'existing' ? linkedClientId : null);
+    const activeCases = cases.filter((row) => row.clientId === effectiveClientId && row.status !== 'completed');
+    if (effectiveClientId && activeCases.length > 1 && !linkedCaseId) {
+      setCaseError('這位客戶有多筆進行中案件，請先選擇報價要歸入哪一筆。');
+      return;
+    }
     const payload = makeQuotePayload();
     await onSaveQuote({
       ...payload,
@@ -845,6 +864,20 @@ export default function QuoteModal({ client, clients = [], quote, onSaveQuote, o
                 {customerError && <p role="alert" className="text-xs text-danger">{customerError}</p>}
               </div>
             )}
+            {(client?.id || (customerMode === 'existing' && linkedClientId)) && (() => {
+              const effectiveClientId = client?.id || linkedClientId;
+              const activeCases = cases.filter((row) => row.clientId === effectiveClientId && row.status !== 'completed');
+              return (
+                <div className="rounded-xl border border-teal/30 bg-teal/8 p-3 space-y-2">
+                  <div><p className="text-xs font-semibold text-teal">📁 歸入客戶案件</p><p className="text-[11px] text-ink-3 mt-0.5">報價會直接留在這筆案件，不會另外產生重複案件。</p></div>
+                  {activeCases.length > 0 ? <select value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
+                    {activeCases.length > 1 && <option value="">請選擇案件…</option>}
+                    {activeCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改車' : '購車'}・{row.title || '未命名案件'}</option>)}
+                  </select> : <p className="text-xs text-ink-2">儲存後會自動建立一筆新案件。</p>}
+                  {caseError && <p role="alert" className="text-xs text-danger">{caseError}</p>}
+                </div>
+              );
+            })()}
             {(quote?.internalHeightPlanSummary || quote?.pendingRequirements?.length > 0) && (
               <details className="rounded-xl border border-warn/35 bg-warn/10 p-3" defaultOpen={quote?.pendingRequirements?.length > 0}>
                 <summary className="cursor-pointer text-sm font-semibold text-warn">⚠️ 接待需求與施工檢查（僅內部顯示）</summary>

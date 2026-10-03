@@ -58,7 +58,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
   return { visibleItems, totalHeight, offsetY };
 }
 
-export default function CrmPage({ focusId, onFocusConsumed, startNewToken, onStartConsumed }) {
+export default function CrmPage({ focusId, onFocusConsumed, startNewToken, onStartConsumed, onOpenCase, onCreateCase }) {
   const { clients, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
@@ -401,6 +401,8 @@ export default function CrmPage({ focusId, onFocusConsumed, startNewToken, onSta
                   stages={stages}
                   onClose={() => { setSelectedId(null); setFocusDetail(false); }}
                   onDelete={async (id) => { await deleteClient(id); setSelectedId(null); setFocusDetail(false); }}
+                  onOpenCase={onOpenCase}
+                  onCreateCase={onCreateCase}
                 />
               </div>
             )}
@@ -420,6 +422,8 @@ export default function CrmPage({ focusId, onFocusConsumed, startNewToken, onSta
               stages={stages}
               onClose={() => setSelectedId(null)}
               onDelete={async (id) => { await deleteClient(id); setSelectedId(null); }}
+              onOpenCase={onOpenCase}
+              onCreateCase={onCreateCase}
             />
           </div>
         </>

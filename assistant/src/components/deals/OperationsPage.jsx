@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import DealsPage from './DealsPage';
 
-export default function OperationsPage({ onOpenClient, onBack }) {
+export default function OperationsPage({ onOpenClient, onBack, focusDealId = null }) {
   const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -16,7 +16,7 @@ export default function OperationsPage({ onOpenClient, onBack }) {
     setError('密碼錯誤');
   }
 
-  if (unlocked) return <DealsPage onOpenClient={onOpenClient} />;
+  if (unlocked) return <DealsPage onOpenClient={onOpenClient} focusDealId={focusDealId} />;
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 sm:py-14">

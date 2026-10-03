@@ -15,6 +15,7 @@ import { heightPlanSummary, requirementSummary, requirementPendingItems } from '
 import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow } from '../../utils/delivery';
+import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from '../../utils/cases';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -33,13 +34,13 @@ function pickEditable(client) {
   return out;
 }
 
-export default function ClientDetail({ client, cats, stages, onClose, onDelete }) {
+export default function ClientDetail({ client, cats, stages, onClose, onDelete, onOpenCase, onCreateCase }) {
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
     deals, dealFields, saveDeal, todoTemplate, industries,
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
-    events, saveEvent, deleteEvent, heightConfig,
+    events, saveEvent, deleteEvent, heightConfig, cases,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
   const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
@@ -113,6 +114,9 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
   const clientDeals = deals
     .filter((d) => d.clientId === client.id)
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const clientCases = cases
+    .filter((row) => row.clientId === client.id)
+    .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
 
   // 已記錄下訂 / 交車但還沒歸檔業績 → 提示（避免賣了車卻忘了計入業績）
   const hasSaleEvent = (client.log || []).some((e) => e.type === 'order' || e.type === 'delivery');
@@ -519,6 +523,36 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
             <p className="text-[10px] text-ink-3">未接次數</p>
           </div>
         </div>
+
+        <section className="card p-4 space-y-3 border-teal/30">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold text-sm text-teal">📁 客戶案件</h3>
+              <p className="text-[11px] text-ink-3 mt-0.5">客戶只負責歸戶；報價、成交與施工都從案件處理。</p>
+            </div>
+            <button type="button" onClick={() => onCreateCase?.(client.id)} className="btn-primary text-xs shrink-0">＋ 新案件</button>
+          </div>
+          {clientCases.length === 0 ? (
+            <p className="rounded-xl bg-s2 px-3 py-3 text-xs text-ink-3">尚未建立案件。先建立購車或改車案件，再進行報價。</p>
+          ) : (
+            <div className="space-y-2">
+              {clientCases.map((item) => (
+                <button key={item.id} type="button" onClick={() => onOpenCase?.(item.id)} className="w-full rounded-xl border border-bdr bg-s2 px-3 py-3 text-left hover:border-teal/50 active:scale-[0.99] transition-all">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
+                        <span className="badge bg-s1 text-ink-2">{CASE_STATUS_LABEL[item.status] || '進行中'}</span>
+                      </div>
+                      <p className="mt-1.5 truncate text-sm font-semibold text-ink">{item.title || '未命名案件'}</p>
+                    </div>
+                    <span className="text-ink-3">›</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
 
         <button type="button" onClick={() => setShowTruckComparison(true)} className="btn-outline w-full min-h-11">
           🚚 K2500 與競品比較{client.truckComparison?.competitorId ? '・繼續上次比較' : ''}
@@ -1250,6 +1284,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete }
           <DealModal
             deal={null}
             client={client}
+            cases={clientCases}
             dealFields={dealFields}
             onClose={() => setShowDealModal(false)}
             onSave={handleArchiveDeal}

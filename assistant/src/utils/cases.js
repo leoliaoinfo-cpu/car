@@ -71,6 +71,16 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   const caseMap = new Map(cases.map((row) => [row.id, row]));
   const clientMap = new Map(clients.map((row) => [row.id, row]));
   const rows = [];
+  const activeCasesByClient = new Map();
+  cases.filter((row) => row.clientId && row.status !== 'completed').forEach((row) => {
+    const list = activeCasesByClient.get(row.clientId) || [];
+    list.push(row);
+    activeCasesByClient.set(row.clientId, list);
+  });
+  const onlyCaseForClient = (clientId) => {
+    const list = activeCasesByClient.get(clientId) || [];
+    return list.length === 1 ? list[0].id : null;
+  };
   const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn) });
 
   workItems.filter((row) => row.state !== 'done').forEach((row) => {
@@ -80,23 +90,25 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   tasks.filter((row) => !row.done).forEach((row) => push({
     id: `task:${row.id}`, sourceType: 'task', sourceId: row.id, title: row.title || row.text || '待辦事項',
     due: row.due || row.date || '', state: 'todo', clientId: row.clientId || null,
-    clientName: clientMap.get(row.clientId)?.name || '', createdAt: row.createdAt,
+    caseId: row.caseId || onlyCaseForClient(row.clientId), clientName: clientMap.get(row.clientId)?.name || '', createdAt: row.createdAt,
   }));
   clients.forEach((client) => {
-    if (client.nextDate) push({ id: `client-next:${client.id}`, sourceType: 'client-next', sourceId: client.id, title: '聯繫客戶', due: client.nextDate, state: 'todo', clientId: client.id, clientName: client.name });
+    const caseId = onlyCaseForClient(client.id);
+    if (client.nextDate) push({ id: `client-next:${client.id}`, sourceType: 'client-next', sourceId: client.id, title: '聯繫客戶', due: client.nextDate, state: 'todo', caseId, clientId: client.id, clientName: client.name });
     (client.todos || []).filter((row) => !row.done).forEach((row) => push({
       id: `client-todo:${client.id}:${row.id}`, sourceType: 'client-todo', sourceId: row.id,
-      title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', clientId: client.id, clientName: client.name,
+      title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, clientId: client.id, clientName: client.name,
     }));
   });
   deals.forEach((deal) => {
+    const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
     const workflow = normalizeDeliveryWorkflow(deal);
     workflow.filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {
       const waitingOn = getWaitingOn(step, workflow);
       push({
         id: `delivery:${deal.id}:${step.id}`, sourceType: 'delivery', sourceId: step.id, dealId: deal.id,
         title: step.label, due: step.plannedDate || '', state: waitingOn ? 'waiting' : 'todo', waitingOn: waitingOn?.label || '',
-        clientId: deal.clientId || null, clientName: clientMap.get(deal.clientId)?.name || deal.clientName || '',
+        caseId: linkedCase?.id || onlyCaseForClient(deal.clientId), clientId: deal.clientId || null, clientName: clientMap.get(deal.clientId)?.name || deal.clientName || '',
         caseTitle: deal.model || deal.note || '交車案件',
       });
     });

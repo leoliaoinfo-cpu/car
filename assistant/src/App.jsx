@@ -59,9 +59,13 @@ function AppInner() {
   const [crmFocusId, setCrmFocusId] = useState(null);
   const [receptionStartToken, setReceptionStartToken] = useState(null);
   const [quoteStartToken, setQuoteStartToken] = useState(null);
+  const [quoteFocusId, setQuoteFocusId] = useState(null);
+  const [quoteCaseContext, setQuoteCaseContext] = useState(null);
   const [clientStartToken, setClientStartToken] = useState(null);
   const [caseStartToken, setCaseStartToken] = useState(null);
+  const [caseCreateClientId, setCaseCreateClientId] = useState(null);
   const [caseFocusId, setCaseFocusId] = useState(null);
+  const [operationsFocusDealId, setOperationsFocusDealId] = useState(null);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.isolationNoticeDismissed) !== '1'; } catch { return true; }
@@ -82,10 +86,27 @@ function AppInner() {
     setTab('cases');
   }
 
+  function createCaseForClient(clientId) {
+    setCaseCreateClientId(clientId || null);
+    setCaseStartToken(Date.now());
+    setTab('cases');
+  }
+
+  function openCaseQuote(caseItem, quoteId = null) {
+    if (quoteId) setQuoteFocusId(quoteId);
+    else setQuoteCaseContext({ token: Date.now(), caseId: caseItem.id, clientId: caseItem.clientId });
+    setTab('quotes');
+  }
+
+  function openCaseOperations(dealId = null) {
+    setOperationsFocusDealId(dealId);
+    setTab('operations');
+  }
+
   function quickCreate(action) {
     const token = Date.now();
     setShowQuickCreate(false);
-    if (action === 'case') { setCaseStartToken(token); setTab('cases'); }
+    if (action === 'case') { setCaseCreateClientId(null); setCaseStartToken(token); setTab('cases'); }
     if (action === 'reception') { setReceptionStartToken(token); setTab('reception'); }
     if (action === 'quote') { setQuoteStartToken(token); setTab('quotes'); }
     if (action === 'client') { setClientStartToken(token); setTab('crm'); }
@@ -137,16 +158,16 @@ function AppInner() {
       <main className="pb-20 lg:pb-0">
         <div className="anim-fade-in" key={tab}>
           {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onQuickCreate={() => setShowQuickCreate(true)} />}
-          {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} onStartConsumed={() => setCaseStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenOperations={() => setTab('operations')} />}
+          {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
           {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setTab('settings')} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
-            <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} />
+            <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
-          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} />}
+          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} />}
           {tab === 'catalog' && <ProductCatalog />}
-          {tab === 'operations' && <OperationsPage onBack={() => setTab('more')} onOpenClient={openClient} />}
+          {tab === 'operations' && <OperationsPage onBack={() => setTab('more')} onOpenClient={openClient} focusDealId={operationsFocusDealId} />}
           {tab === 'settings' && <SettingsPanel onClose={() => setTab('more')} />}
           {tab === 'more' && <MorePage onNavigate={setTab} />}
         </div>

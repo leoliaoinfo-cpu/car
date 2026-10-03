@@ -441,12 +441,15 @@ export function AppProvider({ children }) {
   // ── Deals（成交歸檔／業績表）──────────────────────────────────────────────
   const saveDeal = useCallback(async (deal) => {
     const now = new Date().toISOString();
-    const full = { createdAt: now, ...deal, updatedAt: now };
-    dispatch({ type: 'UPSERT_DEAL', payload: full });
-    await db.put('deals', full);
+    let full = { createdAt: now, ...deal, updatedAt: now };
     const allCases = await db.getAll('cases').catch(() => []);
     const quote = full.quoteId ? await db.get('quoteDrafts', full.quoteId).catch(() => null) : null;
-    const linked = allCases.find((row) => row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)));
+    const caseType = inferCaseType(quote);
+    const candidates = allCases.filter((row) => row.clientId && row.clientId === (full.clientId || quote?.clientId)
+      && row.type === caseType && row.status !== 'completed');
+    const linked = allCases.find((row) => row.id === full.caseId || row.id === quote?.caseId
+      || row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)))
+      || (candidates.length === 1 ? candidates[0] : null);
     const caseRow = {
       ...(linked || {}),
       id: linked?.id || `case:deal:${full.id}`,
@@ -458,6 +461,9 @@ export function AppProvider({ children }) {
       quoteIds: [...new Set([...(linked?.quoteIds || []), full.quoteId].filter(Boolean))],
       source: linked?.source || 'deal', createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
     };
+    full = { ...full, caseId: caseRow.id };
+    dispatch({ type: 'UPSERT_DEAL', payload: full });
+    await db.put('deals', full);
     dispatch({ type: 'UPSERT_CASE', payload: caseRow });
     await db.put('cases', caseRow);
     return full;
@@ -468,6 +474,12 @@ export function AppProvider({ children }) {
     await db.delete('deals', id);
     await db.delete('pricingRecords', `deal:${id}`).catch(() => {});
     dispatch({ type: 'DELETE_PRICING_RECORD', id: `deal:${id}` });
+    const linkedCases = (await db.getAll('cases').catch(() => [])).filter((row) => row.dealId === id);
+    for (const row of linkedCases) {
+      const next = { ...row, dealId: null, updatedAt: new Date().toISOString() };
+      dispatch({ type: 'UPSERT_CASE', payload: next });
+      await db.put('cases', next);
+    }
   }, []);
 
   const saveDealFields = useCallback(async (fields) => {
@@ -489,13 +501,18 @@ export function AppProvider({ children }) {
   // ── 報價管理工作區 ───────────────────────────────────────────────────────
   const saveQuoteDraft = useCallback(async (quote) => {
     const now = new Date().toISOString();
-    const full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
-    dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });
-    await db.put('quoteDrafts', full);
+    let full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
     const allCases = await db.getAll('cases').catch(() => []);
-    const linked = allCases.find((row) => (row.quoteIds || []).includes(full.id));
+    const caseType = inferCaseType(full);
+    const previousLinked = allCases.find((row) => (row.quoteIds || []).includes(full.id));
+    const candidates = allCases.filter((row) => row.clientId && row.clientId === full.clientId
+      && row.type === caseType && row.status !== 'completed');
+    const linked = allCases.find((row) => row.id === full.caseId)
+      || previousLinked
+      || (candidates.length === 1 ? candidates[0] : null);
+    let caseRow = null;
     if (linked || full.clientId || full.customerName) {
-      const caseRow = {
+      caseRow = {
         ...(linked || {}), id: linked?.id || `case:quote:${full.id}`,
         clientId: full.clientId || linked?.clientId || null,
         clientName: full.customerName || linked?.clientName || '未命名客戶',
@@ -504,6 +521,16 @@ export function AppProvider({ children }) {
         quoteIds: [...new Set([...(linked?.quoteIds || []), full.id])], source: linked?.source || 'quote',
         createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
       };
+      full = { ...full, caseId: caseRow.id };
+    }
+    dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });
+    await db.put('quoteDrafts', full);
+    if (previousLinked && caseRow && previousLinked.id !== caseRow.id) {
+      const previous = { ...previousLinked, quoteIds: (previousLinked.quoteIds || []).filter((id) => id !== full.id), updatedAt: now };
+      dispatch({ type: 'UPSERT_CASE', payload: previous });
+      await db.put('cases', previous);
+    }
+    if (caseRow) {
       dispatch({ type: 'UPSERT_CASE', payload: caseRow });
       await db.put('cases', caseRow);
     }
@@ -515,6 +542,12 @@ export function AppProvider({ children }) {
     await db.delete('quoteDrafts', id);
     await db.delete('pricingRecords', `quote:${id}`).catch(() => {});
     dispatch({ type: 'DELETE_PRICING_RECORD', id: `quote:${id}` });
+    const linkedCases = (await db.getAll('cases').catch(() => [])).filter((row) => (row.quoteIds || []).includes(id));
+    for (const row of linkedCases) {
+      const next = { ...row, quoteIds: (row.quoteIds || []).filter((quoteId) => quoteId !== id), updatedAt: new Date().toISOString() };
+      dispatch({ type: 'UPSERT_CASE', payload: next });
+      await db.put('cases', next);
+    }
     const linkedClients = clientsRef.current.filter((client) =>
       (client.quotes || []).some((quote) => quote.id === id)
       || (client.log || []).some((entry) => entry.quoteId === id));

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { FIELD_COLORS, formatMoney, sumDeals } from '../../utils/crm';
@@ -13,9 +13,10 @@ import {
   QuotePricingPanel,
 } from './InternalPricing';
 
-export default function DealsPage({ onOpenClient }) {
+export default function DealsPage({ onOpenClient, focusDealId = null }) {
   const {
     deals,
+    cases,
     dealFields,
     clients,
     quotePresets,
@@ -38,6 +39,10 @@ export default function DealsPage({ onOpenClient }) {
   const [editingPricing, setEditingPricing] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [costSearch, setCostSearch] = useState('');
+
+  useEffect(() => {
+    if (focusDealId) setSection('fulfillment');
+  }, [focusDealId]);
 
   const sortedFields = useMemo(
     () => [...dealFields].sort((a, b) => (a.order || 0) - (b.order || 0)),
@@ -180,7 +185,7 @@ export default function DealsPage({ onOpenClient }) {
 
       {section === 'fulfillment' && (
         <DeliveryWorkflowPanel deals={deals} clients={clients} pricingById={pricingById}
-          suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} />
+          suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} focusDealId={focusDealId} />
       )}
 
       {section === 'suppliers' && (
@@ -282,7 +287,7 @@ export default function DealsPage({ onOpenClient }) {
       )}
 
       {editingDeal && (
-        <DealModal deal={editingDeal} dealFields={sortedFields}
+        <DealModal deal={editingDeal} cases={cases} dealFields={sortedFields}
           onClose={() => setEditingDeal(null)} onSave={handleSaveDeal} />
       )}
       {editingPricing && (

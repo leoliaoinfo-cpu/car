@@ -13,7 +13,7 @@ function requirementPendingCount(quote) {
   return Array.isArray(quote?.pendingRequirements) ? quote.pendingRequirements.length : 0;
 }
 
-export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed }) {
+export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed }) {
   const {
     clients, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     savePricingRecord, saveClient, updateClient, cats, stages,
@@ -29,6 +29,19 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       onStartConsumed?.();
     }
   }, [startNewToken, onStartConsumed]);
+
+  useEffect(() => {
+    if (!focusId) return;
+    const quote = quoteDrafts.find((row) => row.id === focusId);
+    if (quote) setEditing({ mode: 'edit', quote });
+    onFocusConsumed?.();
+  }, [focusId, quoteDrafts, onFocusConsumed]);
+
+  useEffect(() => {
+    if (!caseContext?.token) return;
+    setEditing({ mode: 'new', caseId: caseContext.caseId, clientId: caseContext.clientId });
+    onCaseContextConsumed?.();
+  }, [caseContext, onCaseContextConsumed]);
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const rows = useMemo(() => {
@@ -223,7 +236,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         <QuoteModal
           key={editing.quote?.id || 'new-quote'}
           clients={clients}
+          client={clientMap.get(editing.clientId || editing.quote?.clientId)}
           quote={editing.mode === 'edit' ? editing.quote : null}
+          initialCaseId={editing.caseId || ''}
           onSaveQuote={handleSave}
           onClose={() => setEditing(null)}
         />

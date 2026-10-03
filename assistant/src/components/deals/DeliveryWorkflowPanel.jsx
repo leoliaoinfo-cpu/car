@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   DELIVERY_STATUS_OPTIONS, generateDeliveryWorkflow, getWaitingOn, mergeSuggestedWorkflow, normalizeDeliveryWorkflow,
@@ -8,12 +8,16 @@ function makeId() {
   return globalThis.crypto?.randomUUID?.() || `work-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export default function DeliveryWorkflowPanel({ deals, clients, pricingById, suppliers, onSaveDeal, onOpenPricing }) {
+export default function DeliveryWorkflowPanel({ deals, clients, pricingById, suppliers, onSaveDeal, onOpenPricing, focusDealId = null }) {
   const [openDealId, setOpenDealId] = useState(null);
   const [newStep, setNewStep] = useState({ label: '', service: '' });
   const [deleteStepId, setDeleteStepId] = useState(null);
   const clientNames = new Map(clients.map((client) => [client.id, client.name]));
   const sortedDeals = [...deals].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  useEffect(() => {
+    if (focusDealId && deals.some((deal) => deal.id === focusDealId)) setOpenDealId(focusDealId);
+  }, [focusDealId, deals]);
 
   function saveWorkflow(deal, workflow) {
     return onSaveDeal({ ...deal, deliveryWorkflow: workflow, deliveryWorkflowUpdatedAt: new Date().toISOString() });
@@ -56,7 +60,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
         const pricing = pricingById.get(`deal:${deal.id}`);
         const isOpen = openDealId === deal.id;
         return (
-          <section key={deal.id} className="card overflow-hidden">
+          <section key={deal.id} className={`card overflow-hidden ${focusDealId === deal.id ? 'ring-2 ring-copper/40' : ''}`}>
             <button type="button" onClick={() => { setOpenDealId(isOpen ? null : deal.id); setNewStep({ label: '', service: '' }); }}
               className="w-full flex items-center justify-between gap-3 p-3 text-left">
               <span className="min-w-0">
