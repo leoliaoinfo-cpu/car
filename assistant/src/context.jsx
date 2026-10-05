@@ -414,6 +414,42 @@ export function AppProvider({ children }) {
     await cleanupClientLinks(set);
   }, [cleanupClientLinks]);
 
+  /**
+   * 將暫名客戶的所有關聯資料改掛到正式客戶；同一個 id 時則只刷新顯示名稱。
+   * 以 clientId 為真正關聯鍵，避免改姓名後產生第二位客戶或遺失案件歷程。
+   */
+  const reassignClientRecords = useCallback(async (sourceId, targetClient) => {
+    if (!sourceId || !targetClient?.id) return;
+    const now = new Date().toISOString();
+    const mappings = [
+      ['cases', 'UPSERT_CASE', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
+      ['workItems', 'UPSERT_WORK_ITEM', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
+      ['activities', 'UPSERT_ACTIVITY', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
+      ['tasks', 'UPSERT_TASK', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
+      ['events', 'UPSERT_EVENT', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
+      ['timers', 'UPSERT_TIMER', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
+      ['pricingRecords', 'UPSERT_PRICING_RECORD', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
+      ['quoteDrafts', 'UPSERT_QUOTE_DRAFT', (row) => ({ ...row, clientId: targetClient.id, customerName: targetClient.name, updatedAt: now })],
+      ['deals', 'UPSERT_DEAL', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
+      ['receptionSessions', 'UPSERT_RECEPTION_SESSION', (row) => ({ ...row, clientId: targetClient.id, displayName: targetClient.name, pendingCustomerDetails: !!targetClient.pendingCustomerDetails, updatedAt: now })],
+    ];
+    for (const [storeName, actionType, patch] of mappings) {
+      const rows = await db.getAll(storeName).catch(() => []);
+      for (const row of rows) {
+        if (row.clientId !== sourceId) continue;
+        const next = patch(row);
+        await db.put(storeName, next);
+        dispatch({ type: actionType, payload: next });
+      }
+    }
+    if (sourceId !== targetClient.id) {
+      clientsRef.current = clientsRef.current.filter((row) => row.id !== sourceId);
+      await db.delete('clients', sourceId);
+      await db.deletePhotosByClient(sourceId).catch(() => {});
+      dispatch({ type: 'DELETE_CLIENT', id: sourceId });
+    }
+  }, []);
+
   /** 覆寫整個 store：寫入現有項目並刪除已移除的（否則刪除的項目重整後會復活） */
   const overwriteStore = useCallback(async (storeName, items) => {
     for (const it of items) await db.put(storeName, it);
@@ -771,6 +807,7 @@ export function AppProvider({ children }) {
     updateClient,
     deleteClient,
     deleteClients,
+    reassignClientRecords,
     saveCats,
     saveStages,
     saveCustomFields,

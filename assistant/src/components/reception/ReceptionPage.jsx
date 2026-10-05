@@ -15,6 +15,7 @@ import {
 } from '../../utils/vehicles';
 import { DEFAULT_PRESENTATION_PIN_HASH, verifyPresentationPin } from '../../utils/presentationLock';
 import { STORAGE_KEYS } from '../../storageKeys';
+import { addDays, today } from '../../utils/date';
 import ProductCatalog from '../catalog/ProductCatalog';
 import TruckComparison from './TruckComparison';
 
@@ -52,7 +53,8 @@ function FieldBlock({ label, children, note }) {
 export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenClient, onOpenQuotes, onOpenCatalog }) {
   const {
     receptionSessions, saveReceptionSession, deleteReceptionSession,
-    clients, quotePresets, saveQuoteDraft, saveClient, updateClient, cats, stages, heightConfig,
+    clients, quotePresets, saveQuoteDraft, saveClient, updateClient, reassignClientRecords, cats, stages, heightConfig,
+    cases, workItems, saveCase, saveWorkItem, saveActivity,
   } = useApp();
   const [view, setView] = useState('sessions');
   const [selectedId, setSelectedId] = useState(null);
@@ -62,6 +64,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   const [showSessionComparison, setShowSessionComparison] = useState(false);
   const [showSessionSpecs, setShowSessionSpecs] = useState(false);
   const [showCustomerShowcase, setShowCustomerShowcase] = useState(false);
+  const [savingQuote, setSavingQuote] = useState(false);
 
   const sorted = useMemo(() => [...receptionSessions].sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || '')), [receptionSessions]);
   const session = receptionSessions.find((row) => row.id === selectedId) || null;
@@ -92,13 +95,13 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     if (!session || !formal.name.trim()) return;
     const selectedVariant = getVehicleVariant(session.vehicleVariantId);
     const generatedHeightSummary = heightPlanSummary(session, selectedVariant, heightConfig);
-    const duplicate = findDuplicateClient(clients, {
+    const linkedClient = session.clientId ? clients.find((row) => row.id === session.clientId) : null;
+    const duplicate = findDuplicateClient(clients.filter((row) => row.id !== linkedClient?.id), {
       name: formal.name.trim(), phone: formal.phone,
     });
-    if (duplicate?.reason === 'phone') {
-      const client = await updateClient(duplicate.client.id, (current) => ({
+    const applyFormalDetails = (current) => ({
         ...current,
-        name: formal.name.trim() || current.name,
+        name: formal.name.trim(),
         phone: formal.phone || current.phone,
         lineId: formal.lineId || current.lineId,
         company: formal.company || current.company,
@@ -118,26 +121,41 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
         heightPlanSummary: generatedHeightSummary || current.heightPlanSummary || '',
         notes: [current.notes, session.quickNote].filter(Boolean).join('\n'),
         truckComparison: session.truckComparison || current.truckComparison || null,
+        pendingCustomerDetails: !(formal.phone.trim() || formal.lineId.trim()),
+      });
+    let client;
+    if (linkedClient) {
+      if (duplicate?.reason === 'phone') {
+        client = await updateClient(duplicate.client.id, (current) => {
+          const merged = applyFormalDetails(current);
+          const sourceLog = linkedClient.log || [];
+          const sourceTodos = linkedClient.todos || [];
+          return {
+            ...merged,
+            log: [...(current.log || []), ...sourceLog.filter((row) => !(current.log || []).some((item) => item.id === row.id))],
+            todos: [...(current.todos || []), ...sourceTodos.filter((row) => !(current.todos || []).some((item) => item.id === row.id))],
+          };
+        });
+      } else {
+        client = await updateClient(linkedClient.id, applyFormalDetails);
+      }
+      await reassignClientRecords(linkedClient.id, client);
+      const reminder = workItems.find((row) => row.id === `work:customer-details:${linkedClient.id}`);
+      if (reminder) await saveWorkItem({
+        ...reminder, clientId: client.id, clientName: client.name,
+        state: client.pendingCustomerDetails ? 'todo' : 'done',
+        completedAt: client.pendingCustomerDetails ? null : new Date().toISOString(),
+      });
+    } else if (duplicate?.reason === 'phone') {
+      client = await updateClient(duplicate.client.id, applyFormalDetails);
+      await reassignClientRecords(client.id, client);
+    } else {
+      client = await saveClient(applyFormalDetails({
+        id: generateId('client'), catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
+        clientType: formal.company ? 'company' : 'personal', log: [], todos: [], missedCalls: 0,
+        createdAt: new Date().toISOString(),
       }));
-      await saveReceptionSession({ ...session, status: 'formalized', clientId: client.id, displayName: client.name });
-      setShowFormalize(false);
-      onOpenClient?.(client.id);
-      return;
     }
-    const client = {
-      id: generateId('client'), name: formal.name.trim(), phone: formal.phone, lineId: formal.lineId,
-      company: formal.company, address: formal.address, budget: formal.budget, purchaseTime: formal.purchaseTime,
-      paymentMethod: formal.payment, loanNeed: formal.loanNeed, nextDate: formal.nextDate || null,
-      industry: session.industry, source: session.source, customerMode: session.customerMode,
-      catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
-      clientType: formal.company ? 'company' : 'personal', log: [], missedCalls: 0,
-      receptionSessionId: session.id, demandProfile: session,
-      requirementSummary: requirementSummary(session), pendingRequirements: requirementPendingItems(session, selectedVariant, heightConfig),
-      heightPlanSummary: generatedHeightSummary,
-      notes: session.quickNote || '', createdAt: new Date().toISOString(),
-      truckComparison: session.truckComparison || null,
-    };
-    await saveClient(client);
     await saveReceptionSession({ ...session, status: 'formalized', clientId: client.id, displayName: client.name });
     setShowFormalize(false);
     onOpenClient?.(client.id);
@@ -159,7 +177,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   }
 
   async function addConfirmedToQuote() {
-    if (!session) return;
+    if (!session || savingQuote) return;
     const items = [];
     const variant = getVehicleVariant(session.vehicleVariantId);
     const plan = heightPlanning(session, variant, heightConfig);
@@ -181,11 +199,47 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       setNotice('目前沒有可帶入報價的車型或配件；請先選車型或選配需求。');
       return;
     }
+    setSavingQuote(true);
     const totals = calculateQuoteTotals(items.filter((item) => !item.pending), []);
-    const linkedClientId = session.clientId || '';
+    let linkedClient = session.clientId ? clients.find((row) => row.id === session.clientId) : null;
+    let linkedCase = cases.find((row) => row.id === session.caseId)
+      || cases.find((row) => row.sourceReceptionId === session.id && row.status !== 'completed');
+    try {
+      if (!linkedClient) {
+        const temporaryName = `待補姓名・${session.displayName}`;
+        linkedClient = await saveClient({
+          id: generateId('client'), name: temporaryName, phone: '', source: session.source || '現場接待',
+          catId: cats[0]?.id || '', stageId: stages.find((row) => row.name === '報價')?.id || stages[0]?.id || '',
+          clientType: 'personal', intentLevel: 0, nextDate: '', notes: session.quickNote || '',
+          log: [], todos: [], missedCalls: 0, receptionSessionId: session.id, demandProfile: session,
+          requirementSummary: requirementSummary(session), pendingRequirements,
+          heightPlanSummary: heightPlanSummary(session, variant, heightConfig), pendingCustomerDetails: true,
+        });
+      }
+      if (!linkedCase) {
+        linkedCase = await saveCase({
+          id: generateId('case'), clientId: linkedClient.id, clientName: linkedClient.name,
+          type: session.customerMode === '只做改裝' ? 'modification' : 'purchase', status: 'active',
+          title: variant?.quoteName || (session.customerMode === '只做改裝' ? '現場改裝需求' : '現場購車需求'),
+          source: 'reception', sourceReceptionId: session.id, quoteIds: [], dealId: null,
+        });
+        await saveActivity({
+          id: generateId('activity'), caseId: linkedCase.id, clientId: linkedClient.id,
+          clientName: linkedClient.name, type: 'created', text: '由現場接待建立案件', date: today(),
+        });
+      }
+      const reminderId = `work:customer-details:${linkedClient.id}`;
+      await saveWorkItem({
+        id: reminderId, caseId: linkedCase.id, clientId: linkedClient.id, clientName: linkedClient.name,
+        title: '補上客戶姓名與聯絡資料', due: addDays(today(), 1), state: linkedClient.pendingCustomerDetails ? 'todo' : 'done',
+      });
+      await saveReceptionSession({
+        ...session, clientId: linkedClient.id, caseId: linkedCase.id,
+        displayName: linkedClient.name, pendingCustomerDetails: !!linkedClient.pendingCustomerDetails,
+      });
     const quote = {
-      id: generateId('quote'), date: dayjs().format('YYYY-MM-DD'), clientId: linkedClientId,
-      customerName: linkedClientId ? session.displayName : '', customerPhone: '',
+      id: generateId('quote'), date: dayjs().format('YYYY-MM-DD'), clientId: linkedClient.id, caseId: linkedCase.id,
+      customerName: linkedClient.pendingCustomerDetails ? '' : linkedClient.name, customerPhone: linkedClient.phone || '',
       modelId: variant?.id || null, model: variant?.quoteName || '',
       excludeVehiclePrice: session.customerMode === '只做改裝', items, generalDiscounts: [],
       requirements: requirementSummary(session).join('、'),
@@ -196,15 +250,30 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       sourceReceptionId: session.id, createdAt: new Date().toISOString(),
     };
     await saveQuoteDraft(quote);
+      await updateClient(linkedClient.id, (current) => ({
+        ...current,
+        log: [...(current.log || []), {
+          id: generateId('log'), date: today(), type: 'quote', quoteId: quote.id,
+          text: `建立初步報價${variant?.quoteName ? `・${variant.quoteName}` : ''}`, amount: quote.total,
+        }],
+        lastContact: today(),
+      }));
+      await saveActivity({
+        id: generateId('activity'), caseId: linkedCase.id, clientId: linkedClient.id,
+        clientName: linkedClient.name, type: 'quote', text: '已建立初步報價', date: today(), quoteId: quote.id,
+      });
     setNotice(pendingRequirements.length
-      ? `已建立初步報價；還有 ${pendingRequirements.length} 項內部資料待確認，報價編輯時會持續提醒。`
-      : '已把需求加入原本報價系統。');
+        ? `已建立初步報價與案件；明天會提醒補客戶姓名，另有 ${pendingRequirements.length} 項資料待確認。`
+        : '已建立初步報價與案件；明天會提醒補上客戶姓名與聯絡資料。');
     onOpenQuotes?.();
+    } finally {
+      setSavingQuote(false);
+    }
   }
 
   if (session) return <>
     <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement} heightConfig={heightConfig}
-      onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote}
+      onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote} quoteSaving={savingQuote}
       onOpenCatalog={onOpenCatalog}
       onOpenShowcase={() => setShowCustomerShowcase(true)}
       onOpenSpecs={() => setShowSessionSpecs(true)}
@@ -260,7 +329,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   );
 }
 
-function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, onOpenCatalog, onOpenShowcase, onOpenSpecs, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
+function ReceptionEditor({ session, update, updateRequirement, heightConfig, onBack, onFormalize, onAddQuote, quoteSaving, onOpenCatalog, onOpenShowcase, onOpenSpecs, onOpenComparison, onHold, onNoFollow, notice, onNotice }) {
   const [handoffCopyStatus, setHandoffCopyStatus] = useState('');
   const promptStatus = receptionPromptStatus(session);
   const summary = requirementSummary(session);
@@ -334,7 +403,7 @@ function ReceptionEditor({ session, update, updateRequirement, heightConfig, onB
         <Section title="6. 需求摘要"><div className="grid sm:grid-cols-2 gap-x-5 gap-y-2 text-sm">{[['行業', session.industry], ['目前車', session.currentVehicle], ['載運', (session.cargo || []).join('＋')], ['載重', session.loadKg ? `約 ${session.loadKg}kg` : session.loadRange], ['駕駛', session.driver], ['路線', (session.environments || []).join('＋')], ['限高', ['會', '會下地下室', '有其他限高場所'].includes(session.parking) ? `${session.clearanceCm || '待確認'}cm` : session.parking], ['考慮車型', variant?.name]].map(([label, value]) => value && <div key={label} className="flex justify-between gap-3 border-b border-bdr/40 py-2"><span className="text-ink-3">{label}</span><strong className="text-right">{value}</strong></div>)}</div>{summary.length > 0 && <div><p className="text-xs text-ink-3 mb-2">車體／配備</p><div className="flex flex-wrap gap-2">{summary.map((text) => <span key={text} className="badge bg-accent/10 text-accent">{text}</span>)}</div></div>}{generatedHeightSummary && <div className="space-y-2"><div className="flex items-center justify-between gap-2"><p className="text-xs text-ink-3">自動施工交接</p><button type="button" onClick={copyHandoff} className="btn-outline text-xs">📋 複製施工交接</button></div><pre className="whitespace-pre-wrap rounded-xl bg-s2 border border-bdr p-3 text-xs leading-relaxed font-sans">{generatedHeightSummary}</pre>{handoffCopyStatus && <p className="text-xs text-ok">{handoffCopyStatus}</p>}</div>}<textarea value={session.quickNote} onChange={(e) => update({ quickNote: e.target.value })} placeholder="快速備註（手機可使用鍵盤語音輸入）" rows={4} className="w-full" /><textarea value={session.handoffNote} onChange={(e) => update({ handoffNote: e.target.value })} placeholder="補充交接備註（自動施工交接之外的提醒）" rows={3} className="w-full" /></Section>
 
         {notice && <div className="rounded-xl bg-accent/10 border border-accent/30 p-3 text-sm flex gap-3"><span className="flex-1">{notice}</span><button onClick={onNotice}>×</button></div>}
-        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} className="btn-primary min-h-12 col-span-2">將選定需求加入報價</button><button onClick={onFormalize} className="btn-outline min-h-12">建立客戶並追蹤</button><button onClick={onHold} className="btn-outline min-h-12">保留接待紀錄</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">結束接待（不追蹤）</button></div>
+        <div className="grid grid-cols-2 gap-2"><button onClick={onAddQuote} disabled={quoteSaving} className="btn-primary min-h-12 col-span-2 disabled:opacity-50">{quoteSaving ? '建立報價與案件中…' : '將選定需求加入報價'}</button><button onClick={onFormalize} className="btn-outline min-h-12">建立客戶並追蹤</button><button onClick={onHold} className="btn-outline min-h-12">保留接待紀錄</button><button onClick={onNoFollow} className="btn-ghost min-h-11 col-span-2 text-ink-3">結束接待（不追蹤）</button></div>
       </main>
     </div>
   );

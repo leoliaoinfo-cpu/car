@@ -41,6 +41,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     events, saveEvent, deleteEvent, heightConfig, cases,
+    workItems, saveWorkItem, reassignClientRecords,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
   const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
@@ -140,7 +141,22 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
   async function handleSave() {
     setEditing(false);
     // 以最新客戶資料為底、只合併可編輯欄位，避免舊快照覆蓋掉報價單/時間軸等
-    await updateClient(client.id, (c) => ({ ...c, ...form }));
+    const formalName = form.name?.trim() || '';
+    const nameResolved = !!formalName && !formalName.startsWith('待補姓名・');
+    const contactResolved = !!(form.phone?.trim() || form.lineId?.trim());
+    const detailsComplete = nameResolved && contactResolved;
+    const saved = await updateClient(client.id, (c) => ({
+      ...c, ...form, name: formalName || c.name,
+      pendingCustomerDetails: c.pendingCustomerDetails ? !detailsComplete : false,
+    }));
+    if (!saved) return;
+    await reassignClientRecords(client.id, saved);
+    const reminder = workItems.find((row) => row.id === `work:customer-details:${client.id}`);
+    if (reminder) await saveWorkItem({
+      ...reminder, clientId: saved.id, clientName: saved.name,
+      state: saved.pendingCustomerDetails ? 'todo' : 'done',
+      completedAt: saved.pendingCustomerDetails ? null : new Date().toISOString(),
+    });
   }
 
   async function handleContacted() {
@@ -523,6 +539,18 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
             <p className="text-[10px] text-ink-3">未接次數</p>
           </div>
         </div>
+
+        {client.pendingCustomerDetails && (
+          <section className="rounded-2xl border-2 border-warn/40 bg-warn/10 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-warn">待補客戶資料</p>
+                <p className="mt-1 text-xs leading-relaxed text-ink-2">補上正式姓名，以及電話或 LINE；儲存後案件、接待紀錄與報價名稱會一起更新。</p>
+              </div>
+              {!editing && <button type="button" onClick={() => { setForm(pickEditable(client)); setEditing(true); }} className="btn-primary shrink-0 text-xs">立即補資料</button>}
+            </div>
+          </section>
+        )}
 
         <section className="card p-4 space-y-3 border-teal/30">
           <div className="flex items-center justify-between gap-3">

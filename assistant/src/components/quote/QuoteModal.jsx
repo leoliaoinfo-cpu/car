@@ -308,7 +308,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [linkedCaseId, setLinkedCaseId] = useState(quote?.caseId || initialCaseId
     || (initialCaseCandidates.length === 1 ? initialCaseCandidates[0].id : ''));
   const [caseError, setCaseError] = useState('');
-  const [customerName, setCustomerName] = useState(quote?.customerName || client?.name || '');
+  const [customerName, setCustomerName] = useState(quote?.customerName || (client?.pendingCustomerDetails ? '' : client?.name) || '');
   const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
   const [customerMode, setCustomerMode] = useState(() => {
     if (quote?.clientId || client?.id) return 'existing';
@@ -421,7 +421,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     setCustomerError('');
     const picked = clients.find((row) => row.id === clientId);
     if (picked) {
-      setCustomerName(picked.name || '');
+      setCustomerName(picked.pendingCustomerDetails ? '' : (picked.name || ''));
       setCustomerPhone(picked.phone || '');
     }
     const matches = cases.filter((row) => row.clientId === clientId && row.status !== 'completed');
@@ -753,7 +753,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       ]);
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('capture failed');
-      const fileName = `報價單-${(customerName || client?.name || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
+      const fileName = `報價單-${(customerName || (client?.pendingCustomerDetails ? '貴賓' : client?.name) || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${dayjs().format('YYYYMMDD')}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
       setExportedImage((previous) => {
         if (previous?.url) URL.revokeObjectURL(previous.url);
@@ -1237,7 +1237,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ color: '#9aa7b0', fontSize: 9.5, letterSpacing: 1, marginBottom: 3 }}>客戶</p>
-                  <p style={{ color: '#2e3a42', fontSize: 16, fontWeight: 700 }}>{customerName || client?.name || '貴賓'}</p>
+                  <p style={{ color: '#2e3a42', fontSize: 16, fontWeight: 700 }}>{customerName || (client?.pendingCustomerDetails ? '貴賓' : client?.name) || '貴賓'}</p>
                   {(customerPhone || client?.phone) && <p style={{ color: '#8b98a1', fontSize: 11, marginTop: 1 }}>{customerPhone || client.phone}</p>}
                 </div>
                 {(profile.name || profile.phone) && (
