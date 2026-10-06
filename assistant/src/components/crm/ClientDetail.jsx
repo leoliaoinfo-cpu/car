@@ -14,7 +14,7 @@ import dayjs from 'dayjs';
 import { heightPlanSummary, requirementSummary, requirementPendingItems } from '../../utils/reception';
 import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
-import { generateDeliveryWorkflow, normalizeDeliveryWorkflow } from '../../utils/delivery';
+import { generateDeliveryWorkflow, normalizeDeliveryWorkflow, updateWorkflowStepStatus } from '../../utils/delivery';
 import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from '../../utils/cases';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
@@ -41,7 +41,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     events, saveEvent, deleteEvent, heightConfig, cases,
-    workItems, saveWorkItem, reassignClientRecords,
+    workItems, saveWorkItem, reassignClientRecords, saveCase,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
   const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
@@ -257,17 +257,22 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     let deal = activeDeal;
     if (isSaleEvent && !deal) {
       const latestQuote = clientQuotes[0] || null;
+      const openCases = clientCases.filter((row) => row.status !== 'completed');
+      const linkedCase = clientCases.find((row) => row.id === latestQuote?.caseId)
+        || (openCases.length === 1 ? openCases[0] : null);
       const dealDraft = {
         id: generateId('deal'), clientId: client.id, clientName: client.name,
         date: t, amount: amount > 0 ? amount : Number(latestQuote?.total) || 0,
         note: latestQuote?.model || eventNote.trim() || def.label,
-        fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '',
+        fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '', caseId: linkedCase?.id || null,
       };
-      const createdWorkflow = generateDeliveryWorkflow({ deal: dealDraft, pricing: { lines: latestQuote?.items || [] } })
-        .map((step) => step.id === 'contract'
-          ? { ...step, status: 'done', note: type === 'order' ? '下訂時自動完成' : '交車時補建' }
-          : isDelivery && step.id === 'delivery' ? { ...step, status: 'done', note: '已記錄交車' } : step);
-      deal = await saveDeal({ ...dealDraft, deliveryWorkflow: createdWorkflow });
+      let createdWorkflow = generateDeliveryWorkflow({ deal: dealDraft, pricing: { lines: latestQuote?.items || [] } });
+      createdWorkflow = updateWorkflowStepStatus(createdWorkflow, 'contract', 'done')
+        .map((step) => step.id === 'contract' ? { ...step, note: type === 'order' ? '下訂時自動完成' : '交車時補建' } : step);
+      if (isDelivery) createdWorkflow = updateWorkflowStepStatus(createdWorkflow, 'delivery', 'done')
+        .map((step) => step.id === 'delivery' ? { ...step, note: '已記錄交車' } : step);
+      deal = await saveDeal({ ...dealDraft, deliveryWorkflow: createdWorkflow, deliveryWorkflowStartDate: t });
+      if (linkedCase && linkedCase.dealId !== deal.id) await saveCase({ ...linkedCase, dealId: deal.id, updatedAt: new Date().toISOString() });
       const quotePricing = latestQuote
         ? pricingRecords.find((row) => row.id === `quote:${latestQuote.id}`)
         : null;
@@ -284,12 +289,10 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     } else if (isDelivery && deal) {
       deal = await saveDeal({
         ...deal,
-        deliveryWorkflow: (normalizeDeliveryWorkflow(deal).length
+        deliveryWorkflow: updateWorkflowStepStatus((normalizeDeliveryWorkflow(deal).length
           ? normalizeDeliveryWorkflow(deal)
-          : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) }))
-          .map((step) => step.id === 'delivery'
-            ? { ...step, status: 'done', note: '已記錄交車', updatedAt: new Date().toISOString() }
-            : step),
+          : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) })), 'delivery', 'done')
+          .map((step) => step.id === 'delivery' ? { ...step, note: '已記錄交車' } : step),
       });
     }
 
@@ -413,10 +416,13 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
   async function handleArchiveDeal(deal) {
     setShowDealModal(false);
     const latestQuote = clientQuotes[0] || null;
+    const openCases = clientCases.filter((row) => row.status !== 'completed');
+    const resolvedCaseId = deal.caseId || latestQuote?.caseId || (openCases.length === 1 ? openCases[0].id : null);
     const fullDeal = {
       ...deal,
       quoteId: latestQuote?.id || null,
       model: latestQuote?.model || deal.note || '',
+      caseId: resolvedCaseId,
     };
     await saveDeal(fullDeal);
     const quotePricing = latestQuote

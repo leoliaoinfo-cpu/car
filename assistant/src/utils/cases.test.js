@@ -32,3 +32,19 @@ test('工作佇列會合併案件工作、中央待辦與客戶追蹤', () => {
   assert.equal(rows.length, 3);
   assert.equal(rows.find((row) => row.sourceType === 'workItem').clientName, '王先生');
 });
+
+test('施工階段依分配天數產生催辦期限，未解鎖階段維持等待', () => {
+  const rows = buildWorkQueue({
+    deals: [{ id: 'd1', clientId: 'c1', caseId: 'case-1', deliveryWorkflow: [
+      { id: 'a', label: '目前施工', status: 'doing', plannedDays: 2, activatedAt: '2026-10-01T01:00:00.000Z' },
+      { id: 'b', label: '後續施工', status: 'todo', plannedDays: 1, dependsOn: 'a' },
+    ] }],
+    cases: [{ id: 'case-1', clientId: 'c1', dealId: 'd1', status: 'active' }],
+    clients: [{ id: 'c1', name: '測試客戶' }],
+  });
+  const active = rows.find((row) => row.sourceId === 'a');
+  const waiting = rows.find((row) => row.sourceId === 'b');
+  assert.equal(active.due, '2026-10-02');
+  assert.equal(waiting.state, 'waiting');
+  assert.equal(waiting.waitingOn, '目前施工');
+});

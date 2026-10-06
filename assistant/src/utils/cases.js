@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { getWaitingOn, normalizeDeliveryWorkflow } from './delivery.js';
+import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './delivery.js';
 
 export const CASE_TYPE_LABEL = { purchase: '購車', modification: '改車' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
@@ -105,9 +105,13 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     const workflow = normalizeDeliveryWorkflow(deal);
     workflow.filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {
       const waitingOn = getWaitingOn(step, workflow);
+      const timing = getStageTiming(step, workflow);
+      const calculatedDue = step.activatedAt && timing.elapsedDays != null
+        ? dayjs(step.activatedAt).add(timing.plannedDays - 1, 'day').format('YYYY-MM-DD')
+        : '';
       push({
         id: `delivery:${deal.id}:${step.id}`, sourceType: 'delivery', sourceId: step.id, dealId: deal.id,
-        title: step.label, due: step.plannedDate || '', state: waitingOn ? 'waiting' : 'todo', waitingOn: waitingOn?.label || '',
+        title: step.label, due: step.plannedDate || calculatedDue, state: waitingOn || step.status === 'blocked' ? 'waiting' : 'todo', waitingOn: waitingOn?.label || (step.status === 'blocked' ? '階段已標記卡住' : ''),
         caseId: linkedCase?.id || onlyCaseForClient(deal.clientId), clientId: deal.clientId || null, clientName: clientMap.get(deal.clientId)?.name || deal.clientName || '',
         caseTitle: deal.model || deal.note || '交車案件',
       });

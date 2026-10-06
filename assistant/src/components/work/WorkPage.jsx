@@ -4,7 +4,7 @@ import { useApp } from '../../context';
 import { buildWorkQueue } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { generateId } from '../../utils/crm';
-import { normalizeDeliveryWorkflow } from '../../utils/delivery';
+import { normalizeDeliveryWorkflow, updateWorkflowStepStatus } from '../../utils/delivery';
 
 const FILTERS = [
   ['overdue', '逾期'], ['today', '今天'], ['waiting', '等待'], ['next', '接下來'],
@@ -58,7 +58,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onQuickCreate }) {
       const deal = deals.find((item) => item.id === row.dealId);
       if (deal) await saveDeal({
         ...deal,
-        deliveryWorkflow: normalizeDeliveryWorkflow(deal).map((step) => step.id === row.sourceId ? { ...step, status: 'done', updatedAt: new Date().toISOString() } : step),
+        deliveryWorkflow: updateWorkflowStepStatus(normalizeDeliveryWorkflow(deal), row.sourceId, 'done'),
       });
     }
     await writeActivity(row, `完成：${row.title}`);
