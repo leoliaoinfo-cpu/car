@@ -334,6 +334,29 @@ test('upgrades the safety package punctuation and USB capitalization', () => {
   assert.match(description, /無線 CarPlay/);
 });
 
+test('adds paint accessories as a category under body color without inventing costs', () => {
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v20',
+    addons: DEFAULT_QUOTE_PRESETS.addons
+      .filter((item) => !['qa-paint-logo', 'qa-paint-wheel-cap'].includes(item.id)),
+  });
+  const logo = resolved.addons.find((item) => item.id === 'qa-paint-logo');
+  const wheelCap = resolved.addons.find((item) => item.id === 'qa-paint-wheel-cap');
+  assert.deepEqual(
+    { cat: logo.cat, name: logo.name, price: logo.price },
+    { cat: '烤漆周邊', name: 'Logo', price: 1500 },
+  );
+  assert.deepEqual(
+    { cat: wheelCap.cat, name: wheelCap.name, price: wheelCap.price },
+    { cat: '烤漆周邊', name: '輪胎蓋', price: 3000 },
+  );
+  assert.ok(QUOTE_ADDON_SECTIONS.find((section) => section.key === 'body-color').categories.includes('烤漆周邊'));
+  const costs = normalizeCostCatalog(null);
+  assert.equal(costs.addons['qa-paint-logo'], undefined);
+  assert.equal(costs.addons['qa-paint-wheel-cap'], undefined);
+});
+
 test('customized bundle uses retained component costs instead of the package cost', () => {
   const record = buildPricingRecord({
     quote: {
@@ -497,7 +520,7 @@ test('separates regular and double-fold liftgates and restores the accessory sec
     ['滑特(升降尾門)', '雙折尾門', '升降尾門的油壓缸', '尾門配件'],
   );
   assert.deepEqual(QUOTE_ADDON_SECTIONS.map((section) => [section.label, section.categories.length]), [
-    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 2],
+    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3],
   ]);
 });
 

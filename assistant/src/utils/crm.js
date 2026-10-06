@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v20';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v21';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -206,7 +206,7 @@ const WINDOW_FILM_CATEGORIES = [
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '烤漆周邊', '鋁圈',
 ];
 
 export const QUOTE_ADDON_SECTIONS = [
@@ -216,7 +216,7 @@ export const QUOTE_ADDON_SECTIONS = [
     categories: [SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY],
   },
   { key: 'window-film', label: '隔熱紙', categories: WINDOW_FILM_CATEGORIES },
-  { key: 'body-color', label: '車身顏色', categories: ['車身改色', '防刮漆料'] },
+  { key: 'body-color', label: '車身顏色', categories: ['車身改色', '防刮漆料', '烤漆周邊'] },
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -298,7 +298,17 @@ const LATEST_CATALOG_ADDONS = [
   },
 ];
 
-const REQUIRED_QUOTE_ADDONS = [...VENDOR_QUOTE_ADDONS, ...SUPPLIER_SHEET_ADDONS, ...LATEST_CATALOG_ADDONS];
+const PAINT_ACCESSORY_ADDONS = [
+  { id: 'qa-paint-logo', cat: '烤漆周邊', name: 'Logo', price: 1500 },
+  { id: 'qa-paint-wheel-cap', cat: '烤漆周邊', name: '輪胎蓋', price: 3000 },
+];
+
+const REQUIRED_QUOTE_ADDONS = [
+  ...VENDOR_QUOTE_ADDONS,
+  ...SUPPLIER_SHEET_ADDONS,
+  ...LATEST_CATALOG_ADDONS,
+  ...PAINT_ACCESSORY_ADDONS,
+];
 
 // v16 以前的內建值：只有仍等於舊預設的項目才自動套用最新版清單，
 // 使用者自行改過名稱或售價的項目一律保留。
