@@ -50,3 +50,19 @@ H架兩隻　+0.9萬
 優惠合計：4.2萬
 專案成交價：90.2萬`);
 });
+
+test('shows gifts clearly in the LINE quote and excludes them from the payable total', () => {
+  const message = buildQuoteMessage({
+    customerName: '王老闆',
+    items: [
+      { id: 'a', kind: 'addon', name: '手機架', price: 3000, gift: true },
+      { id: 'b', kind: 'addon', name: '清潔組', price: 0, gift: true },
+      { id: 'c', kind: 'addon', name: '尾門遙控', price: 2000 },
+    ],
+  });
+  assert.match(message, /手機架　🎁贈送（價值0\.3萬）/);
+  assert.match(message, /清潔組　🎁贈送/);
+  assert.match(message, /優惠／贈送合計：0\.3萬/);
+  assert.match(message, /專案成交價：0\.2萬/);
+  assert.doesNotMatch(message, /手機架優惠/);
+});

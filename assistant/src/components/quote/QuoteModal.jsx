@@ -288,13 +288,14 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           price: String(restorePackage ? catalogItem.price : it.price),
           description: restorePackage ? (catalogItem.desc || '') : it.description,
           pending: !!it.pending,
+          gift: !!it.gift,
           bundlePricingMode: null,
           bundleIncludedIds: null,
           bundleExcludedIds: [],
           discounts: (it.discounts || []).map((row) => ({ ...row, amount: String(row.amount) })),
         };
       })
-      : [{ id: generateId('qi'), name: '車輛售價', price: '', pending: false, kind: 'vehicle', catalogId: null, discounts: [] }]
+      : [{ id: generateId('qi'), name: '車輛售價', price: '', pending: false, gift: false, kind: 'vehicle', catalogId: null, discounts: [] }]
   );
   const [generalDiscounts, setGeneralDiscounts] = useState(() => [
     ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
@@ -318,7 +319,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     return quote ? 'quote-only' : 'new';
   });
   const [customerError, setCustomerError] = useState('');
-  const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false });
+  const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false, gift: false });
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
@@ -365,8 +366,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   }
 
   const selectedItems = includedQuoteItems(items, excludeVehiclePrice)
-    .filter((it) => it.name.trim() && (it.pending || Number(it.price) > 0));
-  const pricedItems = selectedItems.filter((it) => !it.pending && Number(it.price) > 0);
+    .filter((it) => it.name.trim() && (it.pending || it.gift || Number(it.price) > 0));
+  const pricedItems = selectedItems.filter((it) => !it.pending && (it.gift || Number(it.price) > 0));
   const pendingItems = selectedItems.filter((it) => it.pending);
   const validGeneralDiscounts = generalDiscounts
     .filter((row) => row.name.trim() && Number(row.amount) > 0);
@@ -399,11 +400,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     setItems((list) => {
       const idx = list.findIndex((it) => it.kind === 'vehicle' || it.name.trim() === '車輛售價');
       if (idx !== -1) return list.map((it, i) => (i === idx ? {
-        ...it, name: '車輛售價', price: String(m.price), pending: false, kind: 'vehicle', catalogId: m.id,
+        ...it, name: '車輛售價', price: String(m.price), pending: false, gift: false, kind: 'vehicle', catalogId: m.id,
       } : it));
       return [{
         id: generateId('qi'), name: '車輛售價', price: String(m.price),
-        pending: false, kind: 'vehicle', catalogId: m.id, discounts: [],
+        pending: false, gift: false, kind: 'vehicle', catalogId: m.id, discounts: [],
       }, ...list];
     });
   }
@@ -415,7 +416,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     if (!selectedModel) return;
     setItems((list) => list.some((item) => item.kind === 'vehicle') ? list : [{
       id: generateId('qi'), name: '車輛售價', price: String(selectedModel.price),
-      pending: false, kind: 'vehicle', catalogId: selectedModel.id, discounts: [],
+      pending: false, gift: false, kind: 'vehicle', catalogId: selectedModel.id, discounts: [],
     }, ...list]);
   }
 
@@ -487,7 +488,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         const next = list.filter((it) => it.catalogId !== catalogId
           && it.name.trim() !== name
           && !dependentIds.has(it.catalogId));
-        return next.length ? next : [{ id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [] }];
+        return next.length ? next : [{ id: generateId('qi'), name: '', price: '', pending: false, gift: false, kind: 'other', catalogId: null, discounts: [] }];
       }
       let base = list;
       const includedIds = new Set(bundledAddonIds(quotePresets.addons, catalogId));
@@ -503,6 +504,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         name,
         price: pendingPrice ? '' : String(price),
         pending: !!pendingPrice,
+        gift: false,
         kind: 'addon',
         catalogId,
         description: desc,
@@ -520,18 +522,19 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
 
   function addItem() {
     setItems((list) => [...list, {
-      id: generateId('qi'), name: '', price: '', pending: false, kind: 'other', catalogId: null, discounts: [],
+      id: generateId('qi'), name: '', price: '', pending: false, gift: false, kind: 'other', catalogId: null, discounts: [],
     }]);
   }
 
   function addExtraAddon() {
     const name = extraAddon.name.trim();
-    if (!name || (!extraAddon.pending && !(Number(extraAddon.price) > 0))) return;
+    if (!name || (!extraAddon.pending && !extraAddon.gift && !(Number(extraAddon.price) > 0))) return;
     const value = {
       id: generateId('qi'),
       name,
       price: extraAddon.pending ? '' : String(Math.max(0, Number(extraAddon.price) || 0)),
       pending: !!extraAddon.pending,
+      gift: !!extraAddon.gift,
       kind: 'addon',
       catalogId: null,
       discounts: [],
@@ -541,7 +544,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       if (emptyIdx === -1) return [...list, value];
       return list.map((item, index) => (index === emptyIdx ? { ...item, ...value, id: item.id } : item));
     });
-    setExtraAddon({ name: '', price: '', pending: false });
+    setExtraAddon({ name: '', price: '', pending: false, gift: false });
   }
 
   function removeItem(id) {
@@ -554,6 +557,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       const value = Math.min(Math.max(0, Number(item.price) || 0), Math.max(0, Number(amount) || 0));
       return {
         ...item,
+        gift: false,
         discounts: value > 0 ? [{
           id: `pricing-discount:${item.id}`,
           name: '優惠',
@@ -599,13 +603,14 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         name: it.name.trim(),
         price: it.pending ? 0 : (Number(it.price) || 0),
         pending: !!it.pending,
+        gift: !!it.gift,
         description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
         note: String(it.note || '').trim(),
         requirementStatus: it.requirementStatus || null,
         bundlePricingMode: it.bundlePricingMode || null,
         bundleIncludedIds: Array.isArray(it.bundleIncludedIds) ? [...it.bundleIncludedIds] : null,
         bundleExcludedIds: Array.isArray(it.bundleExcludedIds) ? [...it.bundleExcludedIds] : [],
-        discounts: it.pending ? [] : (it.discounts || [])
+        discounts: it.pending || it.gift ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
       })),
@@ -987,7 +992,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             <div className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-ink-2">➕ 額外配件／未列配件</p>
-                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入；尚未取得廠商價格時，直接勾選「待廠商報價」。</p>
+                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入，也能標記為贈送或待廠商報價。</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_7rem] gap-2">
                 <input value={extraAddon.name}
@@ -997,16 +1002,28 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 <input type="number" min="0" value={extraAddon.price}
                   onChange={(e) => setExtraAddon((value) => ({ ...value, price: e.target.value }))}
                   disabled={extraAddon.pending}
-                  placeholder={extraAddon.pending ? '待確認' : '金額'} className="w-full text-sm disabled:opacity-40" />
+                  placeholder={extraAddon.pending ? '待確認' : extraAddon.gift ? '贈送價值（選填）' : '金額'} className="w-full text-sm disabled:opacity-40" />
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer">
-                  <input type="checkbox" checked={extraAddon.pending}
-                    onChange={(e) => setExtraAddon((value) => ({ ...value, pending: e.target.checked, price: e.target.checked ? '' : value.price }))} />
-                  待廠商報價（暫不計入總額）
-                </label>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer min-h-11">
+                    <input type="checkbox" checked={extraAddon.pending}
+                      onChange={(e) => setExtraAddon((value) => ({
+                        ...value, pending: e.target.checked, gift: e.target.checked ? false : value.gift,
+                        price: e.target.checked ? '' : value.price,
+                      }))} />
+                    待廠商報價
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer min-h-11">
+                    <input type="checkbox" checked={extraAddon.gift}
+                      onChange={(e) => setExtraAddon((value) => ({
+                        ...value, gift: e.target.checked, pending: e.target.checked ? false : value.pending,
+                      }))} />
+                    🎁 贈送
+                  </label>
+                </div>
                 <button type="button" onClick={addExtraAddon}
-                  disabled={!extraAddon.name.trim() || (!extraAddon.pending && !(Number(extraAddon.price) > 0))}
+                  disabled={!extraAddon.name.trim() || (!extraAddon.pending && !extraAddon.gift && !(Number(extraAddon.price) > 0))}
                   className="btn-primary text-xs shrink-0 disabled:opacity-40">加入報價</button>
               </div>
             </div>
@@ -1016,7 +1033,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <span className="w-4" />
             </div>
             {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
-              const selected = it.name.trim() && (it.pending || Number(it.price) > 0);
+              const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
               return (
@@ -1026,7 +1043,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
                     <input type="number" min="0" value={it.price}
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
-                      disabled={it.pending} placeholder={it.pending ? '待廠商報價' : '0'}
+                      disabled={it.pending} placeholder={it.pending ? '待廠商報價' : it.gift ? '贈送價值' : '0'}
                       className="w-28 text-sm disabled:opacity-40" />
                     <button onClick={() => removeItem(it.id)}
                       className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
@@ -1045,19 +1062,31 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       <span className="text-[10px] text-ink-3">
                         {it.pending
                           ? '此項待向廠商確認價格，暫不列入總額'
+                          : it.gift
+                          ? `此項贈送${Number(it.price) > 0 ? `・價值 ${formatMoney(it.price)}` : ''}`
                           : (it.discounts || []).length > 0
                           ? `已優惠 ${formatMoney(discountSum)}・折後 ${formatMoney(Math.max(0, Number(it.price) - discountSum))}`
                           : selected ? '此項目目前沒有優惠' : '請輸入金額或標記待廠商報價'}
                       </span>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button type="button" onClick={() => setItem(it.id, { pending: !it.pending, discounts: it.pending ? it.discounts : [] })}
+                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                        <button type="button" onClick={() => setItem(it.id, {
+                          pending: !it.pending, gift: false, discounts: it.pending ? it.discounts : [],
+                        })}
                           className={`text-[11px] rounded-lg border px-2 py-1 ${it.pending ? 'border-warn bg-warn/10 text-warn' : 'border-bdr text-ink-3'}`}>
                           {it.pending ? '✓ 待廠商報價' : '設為待廠商報價'}
                         </button>
+                        {it.kind !== 'vehicle' && (
+                          <button type="button" onClick={() => setItem(it.id, {
+                            gift: !it.gift, pending: false, discounts: [],
+                          })}
+                            className={`text-[11px] rounded-lg border px-2 py-1 ${it.gift ? 'border-ok bg-ok/10 text-ok' : 'border-bdr text-ink-3'}`}>
+                            {it.gift ? '✓ 已設為贈送' : '🎁 設為贈送'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
-                  {selected && !it.pending && (
+                  {selected && !it.pending && !it.gift && (
                     <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 p-2">
                       <label htmlFor={`central-discount-${it.id}`} className="flex-1 min-w-0">
                         <span className="block text-[11px] font-semibold text-ink-2">中央優惠</span>
@@ -1291,6 +1320,17 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                                 <span style={{ color: '#a9793f', background: '#fff7e8', border: '1px solid #ecd8b7', borderRadius: 999, padding: '2px 7px', fontSize: 9.5, fontWeight: 700 }}>
                                   待廠商報價
                                 </span>
+                              ) : item.gift ? (
+                                <>
+                                  {itemTotal.original > 0 && (
+                                    <span style={{ display: 'block', color: '#aab4bc', fontSize: 9.5, marginBottom: 3 }}>
+                                      價值 {formatMoney(itemTotal.original)}
+                                    </span>
+                                  )}
+                                  <span style={{ color: '#3f7652', background: '#edf5ef', border: '1px solid #d8e9dc', borderRadius: 999, padding: '3px 8px', fontSize: 10, fontWeight: 800 }}>
+                                    🎁 贈送
+                                  </span>
+                                </>
                               ) : hasDiscount ? (
                                 <>
                                   <span style={{ display: 'block', color: '#aab4bc', fontSize: 10.5, marginBottom: 3 }}>
@@ -1313,7 +1353,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               )}
                             </span>
                           </div>
-                          {!item.pending && hasDiscount && (
+                          {!item.pending && !item.gift && hasDiscount && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
                               {(item.discounts || []).filter((row) => Number(row.amount) > 0).map((discount) => (
                                 <span key={discount.id} style={{
@@ -1350,7 +1390,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div style={{ borderTop: '1px solid #e8ecef', marginTop: 14, paddingTop: 10 }}>
                 {[
                   ['售價', totals.originalTotal],
-                  ['優惠折扣', -totals.discountTotal],
+                  [selectedItems.some((item) => item.gift) ? '優惠／贈送' : '優惠折扣', -totals.discountTotal],
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', color: value < 0 ? '#6f957a' : '#8b98a1', fontSize: 10.5, padding: '2px 2px' }}>
                     <span>{label}</span><span>{value < 0 ? '−' : ''}{formatMoney(Math.abs(value))}</span>

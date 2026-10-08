@@ -27,6 +27,26 @@ test('calculates item and whole-quote discounts', () => {
   assert.equal(result.itemTotals.addon.net, 25000);
 });
 
+test('treats a gift as a full line discount while retaining its cost internally', () => {
+  const totals = calculateQuoteTotals([
+    { id: 'gift', kind: 'addon', price: 3000, gift: true, discounts: [] },
+  ]);
+  assert.equal(totals.originalTotal, 3000);
+  assert.equal(totals.itemDiscountTotal, 3000);
+  assert.equal(totals.itemTotals.gift.net, 0);
+  assert.equal(totals.total, 0);
+
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-gift', items: [{ id: 'gift', kind: 'addon', catalogId: 'gift-addon', name: '贈品', price: 0, gift: true }],
+    },
+    costCatalog: { models: {}, addons: { 'gift-addon': { cost: 1200 } } },
+  });
+  assert.equal(record.lines.length, 1);
+  assert.equal(record.lines[0].netPrice, 0);
+  assert.equal(record.profit, -1200);
+});
+
 test('excludes vehicle sale from an accessory-only quote without losing its model or accessory costs', () => {
   const items = [
     { id: 'v', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 800000 },

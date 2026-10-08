@@ -35,8 +35,8 @@ export function buildQuoteMessage({
   generalDiscounts = [],
 } = {}) {
   const selectedItems = (Array.isArray(items) ? items : [])
-    .filter((item) => String(item?.name || '').trim() && (item?.pending || money(item?.price) > 0));
-  const pricedItems = selectedItems.filter((item) => !item.pending && money(item.price) > 0);
+    .filter((item) => String(item?.name || '').trim() && (item?.pending || item?.gift || money(item?.price) > 0));
+  const pricedItems = selectedItems.filter((item) => !item.pending && (item.gift || money(item.price) > 0));
   const discounts = (Array.isArray(generalDiscounts) ? generalDiscounts : [])
     .filter((row) => String(row?.name || '').trim() && money(row?.amount) > 0);
   const totals = calculateQuoteTotals(pricedItems, discounts);
@@ -52,12 +52,15 @@ export function buildQuoteMessage({
 
   for (const item of selectedItems.filter((row) => row.kind !== 'vehicle')) {
     const name = compactQuoteItemName(item.name);
-    lines.push(item.pending ? `${name}　+待廠商報價` : `${name}　+${formatWan(item.price)}`);
+    if (item.pending) lines.push(`${name}　+待廠商報價`);
+    else if (item.gift) lines.push(`${name}　🎁贈送${money(item.price) > 0 ? `（價值${formatWan(item.price)}）` : ''}`);
+    else lines.push(`${name}　+${formatWan(item.price)}`);
   }
 
   lines.push('----------', '', `原價總計：${formatWan(totals.originalTotal)}`);
 
   for (const item of pricedItems) {
+    if (item.gift) continue;
     for (const row of Array.isArray(item.discounts) ? item.discounts : []) {
       const amount = money(row?.amount);
       if (!amount) continue;
@@ -68,6 +71,7 @@ export function buildQuoteMessage({
   }
   for (const row of discounts) lines.push(`${String(row.name).trim()}-${formatWan(row.amount)}`);
 
-  lines.push('-------', '', `優惠合計：${formatWan(totals.discountTotal)}`, `專案成交價：${formatWan(totals.total)}`);
+  const discountLabel = selectedItems.some((item) => item.gift) ? '優惠／贈送合計' : '優惠合計';
+  lines.push('-------', '', `${discountLabel}：${formatWan(totals.discountTotal)}`, `專案成交價：${formatWan(totals.total)}`);
   return lines.join('\n');
 }

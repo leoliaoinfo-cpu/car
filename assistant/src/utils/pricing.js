@@ -204,7 +204,7 @@ export function calculateQuoteTotals(items = [], generalDiscounts = []) {
 
   for (const item of items) {
     const price = money(item?.price);
-    const requestedDiscount = (item?.discounts || [])
+    const requestedDiscount = item?.gift ? price : (item?.discounts || [])
       .reduce((sum, row) => sum + money(row?.amount), 0);
     const appliedDiscount = Math.min(price, requestedDiscount);
     originalTotal += price;
@@ -254,7 +254,12 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
       name: PRICING_DISCOUNT_NAME,
       amount,
     }] : [];
-    return { ...item, discounts: pricingDiscount };
+    return {
+      ...item,
+      // 後台將贈送折扣改成非全額時，即視為取消贈送，避免標示與金額不一致。
+      gift: !!item.gift && amount >= money(item.price),
+      discounts: pricingDiscount,
+    };
   });
   const generalDiscounts = [
     ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
@@ -284,7 +289,7 @@ export function synchronizeQuoteDiscounts(quote, pricingRecord = null) {
     const central = recordLines.get(item.id);
     const amount = central
       ? Math.max(0, money(central.salePrice) - money(central.netPrice))
-      : (item.discounts || []).reduce((sum, row) => sum + money(row?.amount), 0);
+      : item.gift ? money(item.price) : (item.discounts || []).reduce((sum, row) => sum + money(row?.amount), 0);
     return [item.id, Math.min(money(item.price), amount)];
   }));
   return applyPricingDiscountsToQuote(quote, lineDiscounts);
@@ -401,7 +406,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
   const catalog = normalizeCostCatalog(costCatalog);
   const normalized = normalizeQuoteItems(quote?.items || []);
   // 待廠商報價項目尚未形成售價或成本，不納入目前金額與安全底線判斷。
-  const items = normalized.items.filter((item) => !item.pending && money(item.price) > 0);
+  const items = normalized.items.filter((item) => !item.pending && (money(item.price) > 0 || item.gift));
   const generalDiscounts = [
     ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
     ...normalized.legacyDiscounts,
