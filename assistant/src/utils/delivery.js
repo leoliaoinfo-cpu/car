@@ -127,6 +127,91 @@ export function mergeSuggestedWorkflow(current, suggested) {
   return [...(current || []), ...(suggested || []).filter((step) => !existing.has(step.id))];
 }
 
+export function reorderWorkflow(workflow, draggedId, targetId) {
+  const source = [...(workflow || [])];
+  const from = source.findIndex((step) => step.id === draggedId);
+  const to = source.findIndex((step) => step.id === targetId);
+  if (from < 0 || to < 0 || from === to) return source;
+  const [moved] = source.splice(from, 1);
+  source.splice(to, 0, moved);
+  return source;
+}
+
+/** 建立精準復原點：只記錄這次操作真正改動的欄位、增刪步驟與原位置。 */
+export function createWorkflowRestorePoint(beforeWorkflow, afterWorkflow) {
+  const before = beforeWorkflow || [];
+  const after = afterWorkflow || [];
+  const beforeById = new Map(before.map((step) => [step.id, step]));
+  const afterById = new Map(after.map((step) => [step.id, step]));
+  const patches = {};
+  for (const [id, previous] of beforeById) {
+    const next = afterById.get(id);
+    if (!next) continue;
+    const patch = {};
+    for (const key of new Set([...Object.keys(previous), ...Object.keys(next)])) {
+      if (!Object.is(previous[key], next[key])) patch[key] = previous[key];
+    }
+    if (Object.keys(patch).length) patches[id] = patch;
+  }
+  return {
+    patches,
+    removedSteps: before
+      .map((step, index) => ({ step: { ...step }, index }))
+      .filter(({ step }) => !afterById.has(step.id)),
+    addedStepIds: after.filter((step) => !beforeById.has(step.id)).map((step) => step.id),
+  };
+}
+
+/** 套用精準復原點；保留該次操作之後新增的備註、成本、廠商與其他無關欄位。 */
+export function restoreWorkflowChange(currentWorkflow, restorePoint) {
+  const point = restorePoint || {};
+  const added = new Set(point.addedStepIds || []);
+  let restored = (currentWorkflow || [])
+    .filter((step) => !added.has(step.id))
+    .map((step) => point.patches?.[step.id] ? { ...step, ...point.patches[step.id] } : { ...step });
+  for (const removed of [...(point.removedSteps || [])].sort((a, b) => a.index - b.index)) {
+    if (restored.some((step) => step.id === removed.step.id)) continue;
+    restored.splice(Math.min(Math.max(0, removed.index), restored.length), 0, { ...removed.step });
+  }
+  return restored;
+}
+
+/** 判斷把 stepId 的前置工作改成 newDependsOnId 是否會形成循環。 */
+export function wouldCreateCycle(workflow, stepId, newDependsOnId) {
+  if (!newDependsOnId) return false;
+  if (stepId === newDependsOnId) return true;
+  const byId = new Map((workflow || []).map((step) => [step.id, step]));
+  const visited = new Set();
+  let currentId = newDependsOnId;
+  while (currentId && !visited.has(currentId)) {
+    if (currentId === stepId) return true;
+    visited.add(currentId);
+    currentId = byId.get(currentId)?.dependsOn || null;
+  }
+  return false;
+}
+
+/** 回傳既有資料中真正位於循環內的步驟 id；只讀取、不修正資料。 */
+export function findWorkflowCycleIds(workflow) {
+  const byId = new Map((workflow || []).map((step) => [step.id, step]));
+  const cycleIds = new Set();
+  for (const start of workflow || []) {
+    const path = [];
+    const position = new Map();
+    let currentId = start.id;
+    while (currentId && byId.has(currentId)) {
+      if (position.has(currentId)) {
+        path.slice(position.get(currentId)).forEach((id) => cycleIds.add(id));
+        break;
+      }
+      position.set(currentId, path.length);
+      path.push(currentId);
+      currentId = byId.get(currentId)?.dependsOn || null;
+    }
+  }
+  return cycleIds;
+}
+
 export function getWaitingOn(step, workflow) {
   if (!step?.dependsOn) return null;
   const dependency = (workflow || []).find((candidate) => candidate.id === step.dependsOn);
@@ -178,6 +263,28 @@ export function updateWorkflowStepStatus(workflow, stepId, status, at = new Date
   return activateAvailableWorkflowSteps(next, timestamp);
 }
 
+/**
+ * 規劃一次狀態變更，讓畫面能在真正存檔前顯示影響範圍。
+ * 純函式：不會改動傳入的 workflow。
+ */
+export function planWorkflowStatusChange(workflow, stepId, status, at = new Date().toISOString()) {
+  const beforeWorkflow = (workflow || []).map((step) => ({ ...step }));
+  const step = beforeWorkflow.find((candidate) => candidate.id === stepId) || null;
+  if (!step || step.status === status) {
+    return { beforeWorkflow, nextWorkflow: beforeWorkflow, step, newlyAvailable: [] };
+  }
+  const waitingBefore = new Set(beforeWorkflow
+    .filter((candidate) => getWaitingOn(candidate, beforeWorkflow))
+    .map((candidate) => candidate.id));
+  const nextWorkflow = updateWorkflowStepStatus(beforeWorkflow, stepId, status, at);
+  const newlyAvailable = nextWorkflow.filter((candidate) => (
+    waitingBefore.has(candidate.id)
+    && !getWaitingOn(candidate, nextWorkflow)
+    && !FINISHED_STATUSES.has(candidate.status)
+  ));
+  return { beforeWorkflow, nextWorkflow, step, newlyAvailable };
+}
+
 export function getStageTiming(step, workflow, now = new Date()) {
   const plannedDays = Math.max(1, Number(step?.plannedDays) || DELIVERY_DEFAULT_DAYS[step?.id] || 1);
   if (!step || getWaitingOn(step, workflow) || !step.activatedAt) {
@@ -220,5 +327,30 @@ export function buildDeliverySchedule(workflow) {
     return { ...step, plannedDays, startOffset, endOffset: startOffset + plannedDays };
   });
   return { rows, totalDays: Math.max(0, ...rows.map((row) => row.endOffset)) };
+}
+
+/**
+ * 目前工作依施工邏輯判定，不依畫面陣列順序：
+ * 1. 優先選沒有未完成前置工作的階段；若循環使全部都在等待，才從全部未完成階段選擇。
+ * 2. 排程起點較早者優先。
+ * 3. 已在進行中的狀態優先，再以預計日、啟用時間與固定 id 決勝。
+ */
+export function getCurrentWorkflowStep(workflow) {
+  const source = workflow || [];
+  const unfinished = source.filter((step) => !FINISHED_STATUSES.has(step.status));
+  if (!unfinished.length) return null;
+  const available = unfinished.filter((step) => !getWaitingOn(step, source));
+  const candidates = available.length ? available : unfinished;
+  const offsets = new Map(buildDeliverySchedule(source).rows.map((step) => [step.id, step.startOffset]));
+  const statusRank = new Map([
+    ['doing', 0], ['scheduled', 1], ['contacted', 2], ['blocked', 3], ['todo', 4],
+  ]);
+  return [...candidates].sort((a, b) => (
+    (offsets.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (offsets.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+    || (statusRank.get(a.status) ?? 9) - (statusRank.get(b.status) ?? 9)
+    || String(a.plannedDate || '9999-12-31').localeCompare(String(b.plannedDate || '9999-12-31'))
+    || String(a.activatedAt || '9999-12-31').localeCompare(String(b.activatedAt || '9999-12-31'))
+    || String(a.id).localeCompare(String(b.id))
+  ))[0];
 }
 
