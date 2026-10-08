@@ -326,7 +326,10 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   const [lineCostSources, setLineCostSources] = useState(() => ({ ...(record.lineCostSources || {}) }));
   const [supplierSelections, setSupplierSelections] = useState(() => ({ ...(record.supplierSelections || {}) }));
   const [lineDiscounts, setLineDiscounts] = useState(() => Object.fromEntries(
-    (record.lines || []).map((line) => [line.id, line.pricingDiscount ? String(line.pricingDiscount) : '']),
+    (record.lines || []).map((line) => {
+      const total = Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0));
+      return [line.id, total ? String(total) : ''];
+    }),
   ));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
 
@@ -419,7 +422,6 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                   <p className="text-[10px] text-ink-3">
                     原始售價 NT$ {formatMoney(line.salePrice)}・折後 NT$ {formatMoney(previewLine.netPrice)}
                   </p>
-                  {line.baseDiscountTotal > 0 && <p className="text-[10px] text-ok">原有優惠 NT$ {formatMoney(line.baseDiscountTotal)}</p>}
                   {hasSupplierCosts && (
                     <div className="mt-1 space-y-1">
                       {cheapestSupplier && (
@@ -453,8 +455,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                   </label>
                   {quote && (
                     <label className="block">
-                      <span className="block text-[9px] text-ink-3 mb-0.5">優惠折扣</span>
-                      <input type="number" min="0" max={Math.max(0, line.salePrice - (line.baseDiscountTotal || 0))}
+                      <span className="block text-[9px] text-ink-3 mb-0.5">中央優惠（與報價同步）</span>
+                      <input type="number" min="0" max={Math.max(0, line.salePrice)}
                         value={lineDiscounts[line.id] ?? ''}
                         onChange={(e) => setLineDiscounts((current) => ({ ...current, [line.id]: e.target.value }))}
                         placeholder="折扣金額" className="text-xs w-full" />

@@ -8,6 +8,7 @@ import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, includedQuoteItems, normalizeDiscount, normalizeQuoteItems,
+  synchronizeQuoteDiscounts,
 } from '../../utils/pricing';
 import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteText';
 
@@ -267,7 +268,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const { quotePresets, costCatalog, pricingRecords, cases } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
-  const normalizedInitial = normalizeQuoteItems(quote?.items || []);
+  const existingPricingRecord = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
+  const synchronizedQuote = quote ? synchronizeQuoteDiscounts(quote, existingPricingRecord) : null;
+  const normalizedInitial = normalizeQuoteItems(synchronizedQuote?.items || []);
   const dedupedInitialItems = removeBundledQuoteItems(normalizedInitial.items, quotePresets.addons);
   const [model, setModel] = useState(quote?.model || '');
   const [modelYear, setModelYear] = useState(() => String(quote?.modelYear || DEFAULT_QUOTE_MODEL_YEAR));
@@ -545,34 +548,19 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     setItems((list) => (list.length > 1 ? list.filter((it) => it.id !== id) : list));
   }
 
-  function addItemDiscount(itemId) {
-    setItems((list) => list.map((item) => (item.id === itemId ? {
-      ...item,
-      discounts: [...(item.discounts || []), { id: generateId('discount'), name: '專案優惠', amount: '' }],
-    } : item)));
-  }
-
-  function setItemDiscount(itemId, discountId, patch) {
+  function setCentralItemDiscount(itemId, amount) {
     setItems((list) => list.map((item) => {
       if (item.id !== itemId) return item;
-      let nextPatch = patch;
-      if (Object.prototype.hasOwnProperty.call(patch, 'amount')) {
-        const other = (item.discounts || []).filter((row) => row.id !== discountId)
-          .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-        const max = Math.max(0, (Number(item.price) || 0) - other);
-        nextPatch = { ...patch, amount: String(Math.min(max, Math.max(0, Number(patch.amount) || 0))) };
-      }
+      const value = Math.min(Math.max(0, Number(item.price) || 0), Math.max(0, Number(amount) || 0));
       return {
         ...item,
-        discounts: (item.discounts || []).map((row) => (row.id === discountId ? { ...row, ...nextPatch } : row)),
+        discounts: value > 0 ? [{
+          id: `pricing-discount:${item.id}`,
+          name: '優惠',
+          amount: String(value),
+        }] : [],
       };
     }));
-  }
-
-  function removeItemDiscount(itemId, discountId) {
-    setItems((list) => list.map((item) => (item.id === itemId
-      ? { ...item, discounts: (item.discounts || []).filter((row) => row.id !== discountId) }
-      : item)));
   }
 
   function addGeneralDiscount(row = null) {
@@ -1066,30 +1054,19 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                           className={`text-[11px] rounded-lg border px-2 py-1 ${it.pending ? 'border-warn bg-warn/10 text-warn' : 'border-bdr text-ink-3'}`}>
                           {it.pending ? '✓ 待廠商報價' : '設為待廠商報價'}
                         </button>
-                        {selected && !it.pending && (
-                          <button type="button" onClick={() => addItemDiscount(it.id)}
-                            className="text-[11px] text-accent hover:bg-accent/10 rounded-lg px-2 py-1">
-                            ＋ 新增優惠折扣
-                          </button>
-                        )}
                       </div>
                     </div>
                   )}
-                  {!it.pending && (it.discounts || []).length > 0 && (
-                    <div className="space-y-1.5 border-l-2 border-ok/40 pl-2">
-                      {it.discounts.map((discount) => (
-                        <div key={discount.id} className="flex gap-2 items-center">
-                          <input value={discount.name}
-                            onChange={(e) => setItemDiscount(it.id, discount.id, { name: e.target.value })}
-                            placeholder="優惠名稱" className="flex-1 text-xs min-w-0" />
-                          <input type="number" min="0" value={discount.amount}
-                            onChange={(e) => setItemDiscount(it.id, discount.id, { amount: e.target.value })}
-                            placeholder="折扣金額" className="w-28 text-xs" />
-                          <button type="button" onClick={() => removeItemDiscount(it.id, discount.id)}
-                            className="text-danger/50 hover:text-danger px-1">✕</button>
-                        </div>
-                      ))}
-                      <p className="text-[10px] text-ink-3">單項優惠合計不會超過此項目售價；更多折扣請放到下方優惠折扣。</p>
+                  {selected && !it.pending && (
+                    <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 p-2">
+                      <label htmlFor={`central-discount-${it.id}`} className="flex-1 min-w-0">
+                        <span className="block text-[11px] font-semibold text-ink-2">中央優惠</span>
+                        <span className="block text-[10px] text-ink-3">與後台利潤試算同步，只會保留一筆</span>
+                      </label>
+                      <input id={`central-discount-${it.id}`} type="number" min="0" max={Math.max(0, Number(it.price) || 0)}
+                        value={(it.discounts || [])[0]?.amount || ''}
+                        onChange={(e) => setCentralItemDiscount(it.id, e.target.value)}
+                        placeholder="0" className="w-28 min-h-11 text-xs" />
                     </div>
                   )}
                 </div>

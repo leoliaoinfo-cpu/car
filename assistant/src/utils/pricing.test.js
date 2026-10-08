@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost, updatePricingCosts,
+  applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost,
+  synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
 import { bundledAddonIds, canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, removeBundledQuoteItems, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
@@ -172,7 +173,7 @@ test('keeps a chosen supplier and refreshes its cost, while preserving manual co
   assert.equal(manual.lines[0].cost, 17000);
 });
 
-test('recalculates line profit and writes an internal discount back to the quote', () => {
+test('consolidates old front discounts into the single central discount', () => {
   const quote = {
     id: 'q-discount',
     items: [{
@@ -183,15 +184,17 @@ test('recalculates line profit and writes an internal discount back to the quote
   };
   const record = buildPricingRecord({ quote, costCatalog: { models: {}, addons: { a1: { cost: 10000 } } } });
   const preview = updatePricingCosts(record, { a: 10000 }, [], { a: 5000 });
-  assert.equal(preview.itemDiscountTotal, 7000);
-  assert.equal(preview.saleTotal, 13000);
-  assert.equal(preview.profit, 3000);
+  assert.equal(record.lines[0].pricingDiscount, 2000);
+  assert.equal(record.lines[0].baseDiscountTotal, 0);
+  assert.equal(preview.itemDiscountTotal, 5000);
+  assert.equal(preview.saleTotal, 15000);
+  assert.equal(preview.profit, 5000);
 
   const updatedQuote = applyPricingDiscountsToQuote(quote, { a: 5000 });
-  assert.equal(updatedQuote.items[0].discounts.length, 2);
-  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '活動優惠').amount, 2000);
-  assert.equal(updatedQuote.items[0].discounts.find((row) => row.name === '優惠').amount, 5000);
-  assert.equal(updatedQuote.total, 13000);
+  assert.equal(updatedQuote.items[0].discounts.length, 1);
+  assert.equal(updatedQuote.items[0].discounts[0].name, '優惠');
+  assert.equal(updatedQuote.items[0].discounts[0].amount, 5000);
+  assert.equal(updatedQuote.total, 15000);
 });
 
 test('renames a legacy business discount to the customer-facing discount label', () => {
@@ -207,6 +210,25 @@ test('renames a legacy business discount to the customer-facing discount label',
   assert.equal(updatedQuote.items[0].discounts.length, 1);
   assert.equal(updatedQuote.items[0].discounts[0].name, '優惠');
   assert.equal(updatedQuote.items[0].discounts[0].amount, 500);
+});
+
+test('uses the backend pricing record as the central discount source', () => {
+  const quote = {
+    id: 'q-central-discount',
+    items: [{
+      id: 'a', kind: 'addon', name: '配件', price: 20000,
+      discounts: [{ id: 'front-only', name: '前台優惠', amount: 1500 }],
+    }],
+    generalDiscounts: [],
+  };
+  const synced = synchronizeQuoteDiscounts(quote, {
+    lines: [{ id: 'a', salePrice: 20000, netPrice: 16500 }],
+  });
+  assert.deepEqual(synced.items[0].discounts, [{
+    id: 'pricing-discount:a', name: '優惠', amount: 3500,
+  }]);
+  assert.equal(synced.itemDiscountTotal, 3500);
+  assert.equal(synced.total, 16500);
 });
 
 test('does not carry a reused line id cost or supplier to a different accessory', () => {

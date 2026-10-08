@@ -239,24 +239,22 @@ function isPricingDiscount(row) {
     || String(row?.id || '').startsWith('pricing-discount:');
 }
 
-/** 把內部試算輸入的單項優惠寫回客戶報價，保留原有其他優惠名稱與金額。 */
+/**
+ * 把中央利潤試算的單項優惠寫回客戶報價。
+ * 每個品項只保留一筆中央優惠，避免前台與後台各自折扣後被重複加總。
+ */
 export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
   const normalized = normalizeQuoteItems(quote?.items || []);
   const items = normalized.items.map((item) => {
     if (!Object.prototype.hasOwnProperty.call(lineDiscounts, item.id)) return item;
-    const otherDiscounts = (item.discounts || [])
-      .filter((row) => !isPricingDiscount(row))
-      .map((row) => normalizeDiscount(row))
-      .filter((row) => row.amount > 0);
-    const otherTotal = otherDiscounts.reduce((sum, row) => sum + row.amount, 0);
-    const amount = Math.min(money(lineDiscounts[item.id]), Math.max(0, money(item.price) - otherTotal));
+    const amount = Math.min(money(lineDiscounts[item.id]), money(item.price));
     const previous = (item.discounts || []).find((row) => isPricingDiscount(row));
     const pricingDiscount = amount > 0 ? [{
       id: previous?.id || `pricing-discount:${item.id}`,
       name: PRICING_DISCOUNT_NAME,
       amount,
     }] : [];
-    return { ...item, discounts: [...otherDiscounts, ...pricingDiscount] };
+    return { ...item, discounts: pricingDiscount };
   });
   const generalDiscounts = [
     ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
@@ -273,6 +271,23 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
     discountTotal: totals.discountTotal,
     total: totals.total,
   };
+}
+
+/**
+ * 後台 pricing record 是單項優惠的主資料；沒有舊紀錄的品項才採用報價上既有優惠總額。
+ * 這也會把舊版多筆單項優惠安全合併為同一筆中央優惠。
+ */
+export function synchronizeQuoteDiscounts(quote, pricingRecord = null) {
+  if (!quote) return quote;
+  const recordLines = new Map((pricingRecord?.lines || []).map((line) => [line.id, line]));
+  const lineDiscounts = Object.fromEntries(normalizeQuoteItems(quote.items || []).items.map((item) => {
+    const central = recordLines.get(item.id);
+    const amount = central
+      ? Math.max(0, money(central.salePrice) - money(central.netPrice))
+      : (item.discounts || []).reduce((sum, row) => sum + money(row?.amount), 0);
+    return [item.id, Math.min(money(item.price), amount)];
+  }));
+  return applyPricingDiscountsToQuote(quote, lineDiscounts);
 }
 
 export function normalizeCostCatalog(row) {
@@ -436,11 +451,9 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       }
     }
     const discounts = (item.discounts || []).map((row) => normalizeDiscount(row));
-    const pricingDiscountRequested = discounts
-      .filter((row) => isPricingDiscount(row))
-      .reduce((sum, row) => sum + row.amount, 0);
     const totalDiscount = totals.itemTotals[item.id]?.discount || 0;
-    const pricingDiscount = Math.min(pricingDiscountRequested, totalDiscount);
+    // 所有單項優惠都併入中央優惠；前台與後台不再各自保留一套折扣。
+    const pricingDiscount = totalDiscount;
     return {
       id: item.id,
       catalogId: item.catalogId || null,
@@ -449,7 +462,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       salePrice: money(item.price),
       netPrice: totals.itemTotals[item.id]?.net || 0,
       discounts,
-      baseDiscountTotal: Math.max(0, totalDiscount - pricingDiscount),
+      baseDiscountTotal: 0,
       pricingDiscount,
       cost,
       costKnown: cost != null,
@@ -499,10 +512,10 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
   const lines = (record?.lines || []).map((line) => {
     const has = Object.prototype.hasOwnProperty.call(lineCosts, line.id);
     const cost = has ? money(lineCosts[line.id]) : null;
-    const baseDiscountTotal = money(line.baseDiscountTotal
-      ?? Math.max(0, money(line.salePrice) - money(line.netPrice) - money(line.pricingDiscount)));
     const hasPricingDiscount = lineDiscounts != null
       && Object.prototype.hasOwnProperty.call(lineDiscounts, line.id);
+    const baseDiscountTotal = lineDiscounts != null ? 0 : money(line.baseDiscountTotal
+      ?? Math.max(0, money(line.salePrice) - money(line.netPrice) - money(line.pricingDiscount)));
     const pricingDiscount = Math.min(
       hasPricingDiscount ? money(lineDiscounts[line.id]) : money(line.pricingDiscount),
       Math.max(0, money(line.salePrice) - baseDiscountTotal),
