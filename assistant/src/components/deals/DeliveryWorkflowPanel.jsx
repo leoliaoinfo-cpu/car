@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import {
-  activateAvailableWorkflowSteps, buildDeliverySchedule, DELIVERY_STATUS_OPTIONS, generateDeliveryWorkflow,
+  activateAvailableWorkflowSteps, alignWorkflowOrderToDependencies, buildDeliverySchedule, DELIVERY_STATUS_OPTIONS, generateDeliveryWorkflow,
   createWorkflowRestorePoint, findWorkflowCycleIds, getCurrentWorkflowStep, getStageTiming, getWaitingOn,
   mergeSuggestedWorkflow, normalizeDeliveryWorkflow, planWorkflowStatusChange, reorderWorkflow,
   restoreWorkflowChange, updateWorkflowStepStatus, wouldCreateCycle,
@@ -287,7 +287,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
     setConfirmAction({
       title: `確認修改「${step.label}」的前置工作？`,
       description: `由「${previous?.label || '可獨立進行'}」改為「${next?.label || '可獨立進行'}」。`,
-      effects: ['重新判定這個階段是否需要等待', '重新計算預計施工起點與總工期', '不會刪除任何既有進度或備註'],
+      effects: ['把這個階段排到前置工作之後，畫面順序同步更新', '重新判定等待狀態並計算施工起點與總工期', '不會刪除任何既有進度或備註'],
       confirmLabel: '確認修改', icon: '↳',
       perform: async () => {
         const currentWorkflow = latestWorkflow(deal);
@@ -301,12 +301,13 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
         const changed = currentWorkflow.map((candidate) => candidate.id === stepId
           ? { ...candidate, dependsOn: nextDependsOn || null, updatedAt: timestamp }
           : candidate);
+        const aligned = alignWorkflowOrderToDependencies(changed);
         const event = workflowEvent({
           type: 'dependency', action: `修改「${currentStep.label}」的前置工作`,
-          step: currentStep, beforeWorkflow: currentWorkflow, afterWorkflow: changed,
+          step: currentStep, beforeWorkflow: currentWorkflow, afterWorkflow: aligned,
           detail: `${previous?.label || '可獨立進行'} → ${next?.label || '可獨立進行'}`,
         });
-        const saved = await saveWorkflow(deal, changed, { event });
+        const saved = await saveWorkflow(deal, aligned, { event });
         if (!saved) return false;
         setUndoAction({ dealId: deal.id, eventId: event.id, message: event.action });
         return true;
@@ -675,9 +676,10 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                 {isSortMode && (
                   <div className="flex items-start gap-3 rounded-xl border border-gold/45 bg-gold/8 p-3" role="status">
                     <span className="text-xl leading-none text-gold">☷</span>
-                    <div><p className="text-xs font-bold text-ink">按住右側把手，上下拖到想要的位置</p><p className="mt-1 text-[11px] leading-5 text-ink-3">拖拉只調整顯示順序；實際施工先後仍依「前置工作」計算。</p></div>
+                    <div><p className="text-xs font-bold text-ink">按住整張階段卡，上下拖到想要的位置</p><p className="mt-1 text-[11px] leading-5 text-ink-3">手機可直接長按移動；也可使用每張卡片下方的上移／下移。</p></div>
                   </div>
                 )}
+                {isSortMode && dragState?.dealId === deal.id && <div className="sticky top-2 z-20 rounded-xl border border-accent/55 bg-s1/95 px-3 py-2 text-center text-xs font-bold text-accent shadow-panel" role="status">正在移動「{displayWorkflow.find((candidate) => candidate.id === dragState.stepId)?.label}」— 移到目標位置後放開</div>}
                 {workflow.length > 0 && (
                   <div className="grid grid-cols-2 rounded-xl border border-bdr bg-s2 p-1" role="tablist" aria-label="施工流程顯示方式">
                     <button type="button" onClick={() => setViewModeByDeal((current) => ({ ...current, [deal.id]: 'steps' }))} className={`min-h-10 rounded-lg text-xs font-bold ${viewMode === 'steps' ? 'bg-s1 text-accent shadow-sm' : 'text-ink-3'}`}>直式步驟</button>
@@ -699,16 +701,16 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                   const supplierName = supplierNames.get(step.supplierId) || '未指派廠商';
                   const timing = getStageTiming(step, workflow);
                   return (
-                    <article key={step.id} data-sort-step-id={step.id} data-sort-deal-id={deal.id} className={`overflow-hidden rounded-xl border transition ${inCycle ? 'border-danger/65 bg-danger/5' : waiting ? 'border-gold/45 bg-gold/5' : stats.current?.id === step.id ? 'border-accent/45 bg-accent/5' : 'border-bdr bg-s2/35'} ${dragState?.stepId === step.id ? 'scale-[.99] opacity-55' : ''} ${dragState?.overId === step.id && dragState?.stepId !== step.id ? 'ring-2 ring-gold/60' : ''}`}>
+                    <article key={step.id} data-sort-step-id={step.id} data-sort-deal-id={deal.id} tabIndex={isSortMode ? 0 : undefined} aria-label={isSortMode ? `拖拉排序 ${step.label}` : undefined} onPointerDown={isSortMode ? (event) => startDragging(event, deal, displayWorkflow, step.id) : undefined} onPointerMove={isSortMode ? (event) => dragStep(event, deal) : undefined} onPointerUp={isSortMode ? (event) => finishDragging(event, deal) : undefined} onPointerCancel={isSortMode ? () => cancelDragging(deal, workflow) : undefined} onKeyDown={isSortMode ? (event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, -1); } if (event.key === 'ArrowDown') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, 1); } } : undefined} className={`overflow-hidden rounded-xl border transition ${isSortMode ? 'touch-none select-none cursor-grab active:cursor-grabbing' : ''} ${inCycle ? 'border-danger/65 bg-danger/5' : waiting ? 'border-gold/45 bg-gold/5' : stats.current?.id === step.id ? 'border-accent/45 bg-accent/5' : 'border-bdr bg-s2/35'} ${dragState?.stepId === step.id ? 'scale-[.99] opacity-55 shadow-panel' : ''} ${dragState?.overId === step.id && dragState?.stepId !== step.id ? 'ring-2 ring-gold/70' : ''}`}>
                       <div className="flex items-start gap-2.5 p-3">
                           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${finished ? 'bg-ok text-on-accent' : waiting ? 'bg-gold/15 text-gold' : 'bg-accent/12 text-accent'}`}>{finished ? '✓' : index + 1}</span>
-                          <button type="button" disabled={isSortMode} onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-expanded={expanded} className="min-w-0 flex-1 text-left disabled:cursor-default"><p className="text-sm font-bold text-ink">{step.label}</p><div className="mt-1 flex flex-wrap gap-1.5 text-[10px]"><span className={`rounded-full px-2 py-0.5 font-bold ${STATUS_STYLES[step.status]}`}>{STATUS_LABELS.get(step.status)}</span><span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">{supplierName}</span><span className={`rounded-full px-2 py-0.5 ${timing.urgency === 'overdue' ? 'bg-danger/12 font-bold text-danger' : 'bg-s3 text-ink-3'}`}>{timing.elapsedDays ? `${timing.elapsedDays}/${timing.plannedDays} 天` : `分配 ${timing.plannedDays} 天`}</span>{step.cost !== '' && <span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">NT$ {Number(step.cost).toLocaleString('zh-TW')}</span>}</div>{waiting && <p className="mt-1 text-[10px] text-gold">等待「{waiting.label}」完成</p>}{inCycle && <p className="mt-1 text-[10px] font-bold text-danger">此步驟位於循環依賴中，請修正前置工作</p>}</button>
-                          {isSortMode ? <button type="button" aria-label={`拖拉調整${step.label}`} title="按住拖拉；方向鍵也可微調" className="flex h-11 w-11 touch-none select-none shrink-0 items-center justify-center rounded-xl border border-gold/45 bg-gold/10 text-xl text-gold active:scale-95" onPointerDown={(event) => startDragging(event, deal, displayWorkflow, step.id)} onPointerMove={(event) => dragStep(event, deal)} onPointerUp={(event) => finishDragging(event, deal)} onPointerCancel={() => cancelDragging(deal, workflow)} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, -1); } if (event.key === 'ArrowDown') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, 1); } }}>☷</button> : <><button type="button" onClick={() => { setExpandedSteps((current) => ({ ...current, [stepKey]: true })); setStepNameDrafts((current) => ({ ...current, [stepKey]: step.label })); }} className="min-h-11 shrink-0 rounded-lg border border-copper/35 px-2 text-[11px] font-bold text-copper" aria-label={`修改${step.label}名稱`}>✎ 改名</button><button type="button" onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-label={expanded ? `收合${step.label}` : `展開${step.label}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xs text-ink-3">{expanded ? '▲' : '▼'}</button></>}
+                          <button type="button" disabled={isSortMode} onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-expanded={expanded} className={`min-w-0 flex-1 text-left disabled:cursor-default ${isSortMode ? 'pointer-events-none' : ''}`}><p className="text-sm font-bold text-ink">{step.label}</p><div className="mt-1 flex flex-wrap gap-1.5 text-[10px]"><span className={`rounded-full px-2 py-0.5 font-bold ${STATUS_STYLES[step.status]}`}>{STATUS_LABELS.get(step.status)}</span><span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">{supplierName}</span><span className={`rounded-full px-2 py-0.5 ${timing.urgency === 'overdue' ? 'bg-danger/12 font-bold text-danger' : 'bg-s3 text-ink-3'}`}>{timing.elapsedDays ? `${timing.elapsedDays}/${timing.plannedDays} 天` : `分配 ${timing.plannedDays} 天`}</span>{step.cost !== '' && <span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">NT$ {Number(step.cost).toLocaleString('zh-TW')}</span>}</div>{waiting && <p className="mt-1 text-[10px] text-gold">等待「{waiting.label}」完成</p>}{inCycle && <p className="mt-1 text-[10px] font-bold text-danger">此步驟位於循環依賴中，請修正前置工作</p>}</button>
+                          {isSortMode ? <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gold/55 bg-gold/12 text-xl text-gold">☷</span> : <><button type="button" onClick={() => { setExpandedSteps((current) => ({ ...current, [stepKey]: true })); setStepNameDrafts((current) => ({ ...current, [stepKey]: step.label })); }} className="min-h-11 shrink-0 rounded-lg border border-copper/35 px-2 text-[11px] font-bold text-copper" aria-label={`修改${step.label}名稱`}>✎ 改名</button><button type="button" onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-label={expanded ? `收合${step.label}` : `展開${step.label}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xs text-ink-3">{expanded ? '▲' : '▼'}</button></>}
                       </div>
                       {isSortMode && (
                         <div className="flex items-center justify-end gap-2 border-t border-bdr/60 px-3 py-2">
-                          <button type="button" disabled={index === 0} onClick={() => moveStepByKeyboard(deal, displayWorkflow, step.id, -1)} className="min-h-11 min-w-[76px] rounded-xl border border-bdr px-3 text-xs font-bold text-ink-2 disabled:opacity-35" aria-label={`上移${step.label}`}>↑ 上移</button>
-                          <button type="button" disabled={index === displayWorkflow.length - 1} onClick={() => moveStepByKeyboard(deal, displayWorkflow, step.id, 1)} className="min-h-11 min-w-[76px] rounded-xl border border-bdr px-3 text-xs font-bold text-ink-2 disabled:opacity-35" aria-label={`下移${step.label}`}>↓ 下移</button>
+                          <button type="button" disabled={index === 0} onPointerDown={(event) => event.stopPropagation()} onClick={() => moveStepByKeyboard(deal, displayWorkflow, step.id, -1)} className="min-h-11 min-w-[76px] rounded-xl border border-bdr px-3 text-xs font-bold text-ink-2 disabled:opacity-35" aria-label={`上移${step.label}`}>↑ 上移</button>
+                          <button type="button" disabled={index === displayWorkflow.length - 1} onPointerDown={(event) => event.stopPropagation()} onClick={() => moveStepByKeyboard(deal, displayWorkflow, step.id, 1)} className="min-h-11 min-w-[76px] rounded-xl border border-bdr px-3 text-xs font-bold text-ink-2 disabled:opacity-35" aria-label={`下移${step.label}`}>↓ 下移</button>
                         </div>
                       )}
                       {expanded && (

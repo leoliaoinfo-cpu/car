@@ -1,10 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildDeliverySchedule, createWorkflowRestorePoint, findWorkflowCycleIds, generateDeliveryWorkflow,
+  alignWorkflowOrderToDependencies, buildDeliverySchedule, createWorkflowRestorePoint, findWorkflowCycleIds, generateDeliveryWorkflow,
   getCurrentWorkflowStep, getStageTiming, getWaitingOn, mergeSuggestedWorkflow, normalizeDeliveryWorkflow,
   planWorkflowStatusChange, reorderWorkflow, restoreWorkflowChange, updateWorkflowStepStatus, wouldCreateCycle,
 } from './delivery.js';
+
+test('changing a predecessor aligns the visual order while preserving parallel work order', () => {
+  const workflow = [
+    { id: 'contract', label: '簽約', dependsOn: null },
+    { id: 'canvas', label: '帆布', dependsOn: 'contract' },
+    { id: 'wash', label: '洗車', dependsOn: 'paint' },
+    { id: 'tailgate', label: '尾門', dependsOn: 'contract' },
+    { id: 'paint', label: '烤漆', dependsOn: 'tailgate' },
+    { id: 'delivery', label: '交車', dependsOn: 'wash' },
+  ];
+  const ordered = alignWorkflowOrderToDependencies(workflow);
+  assert.deepEqual(ordered.map((step) => step.id), ['contract', 'canvas', 'tailgate', 'paint', 'wash', 'delivery']);
+  assert.deepEqual(workflow.map((step) => step.id), ['contract', 'canvas', 'wash', 'tailgate', 'paint', 'delivery']);
+});
+
+test('dependency alignment keeps existing cycles intact for manual correction', () => {
+  const workflow = [
+    { id: 'free', dependsOn: null },
+    { id: 'a', dependsOn: 'b' },
+    { id: 'b', dependsOn: 'a' },
+  ];
+  assert.deepEqual(alignWorkflowOrderToDependencies(workflow).map((step) => step.id), ['free', 'a', 'b']);
+});
 
 test('delivery workflow keeps vendor contact parallel and construction in the requested order', () => {
     const workflow = generateDeliveryWorkflow({

@@ -137,6 +137,41 @@ export function reorderWorkflow(workflow, draggedId, targetId) {
   return source;
 }
 
+/**
+ * 依前置關係建立穩定的顯示順序：前置階段一定在後續階段之前，
+ * 彼此無依賴的平行工作則盡量保留使用者原本的排列。
+ * 若舊資料本身已有循環，循環中的資料不刪除，會依原順序留在最後供使用者修正。
+ */
+export function alignWorkflowOrderToDependencies(workflow) {
+  const source = [...(workflow || [])];
+  const byId = new Map(source.map((step) => [step.id, step]));
+  const sourceIndex = new Map(source.map((step, index) => [step.id, index]));
+  const indegree = new Map(source.map((step) => [step.id, 0]));
+  const children = new Map(source.map((step) => [step.id, []]));
+
+  for (const step of source) {
+    if (!step.dependsOn || step.dependsOn === step.id || !byId.has(step.dependsOn)) continue;
+    indegree.set(step.id, (indegree.get(step.id) || 0) + 1);
+    children.get(step.dependsOn).push(step.id);
+  }
+
+  const available = source.filter((step) => indegree.get(step.id) === 0);
+  const ordered = [];
+  const emitted = new Set();
+  while (available.length) {
+    available.sort((left, right) => sourceIndex.get(left.id) - sourceIndex.get(right.id));
+    const step = available.shift();
+    ordered.push(step);
+    emitted.add(step.id);
+    for (const childId of children.get(step.id) || []) {
+      indegree.set(childId, indegree.get(childId) - 1);
+      if (indegree.get(childId) === 0) available.push(byId.get(childId));
+    }
+  }
+
+  return [...ordered, ...source.filter((step) => !emitted.has(step.id))];
+}
+
 /** 建立精準復原點：只記錄這次操作真正改動的欄位、增刪步驟與原位置。 */
 export function createWorkflowRestorePoint(beforeWorkflow, afterWorkflow) {
   const before = beforeWorkflow || [];
