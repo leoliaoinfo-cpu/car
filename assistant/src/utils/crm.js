@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v21';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v22';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -203,10 +203,11 @@ const TAILGATE_ACCESSORY_CATEGORY = '尾門配件';
 const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
+const BODY_BUILD_CATEGORIES = ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '烤漆周邊', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', ...BODY_BUILD_CATEGORIES, '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '烤漆周邊', '鋁圈',
 ];
 
 export const QUOTE_ADDON_SECTIONS = [
@@ -217,6 +218,7 @@ export const QUOTE_ADDON_SECTIONS = [
   },
   { key: 'window-film', label: '隔熱紙', categories: WINDOW_FILM_CATEGORIES },
   { key: 'body-color', label: '車身顏色', categories: ['車身改色', '防刮漆料', '烤漆周邊'] },
+  { key: 'body-build', label: '車體打造', categories: BODY_BUILD_CATEGORIES },
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -303,11 +305,31 @@ const PAINT_ACCESSORY_ADDONS = [
   { id: 'qa-paint-wheel-cap', cat: '烤漆周邊', name: '輪胎蓋', price: 3000 },
 ];
 
+const BODY_BUILD_ADDONS = [
+  {
+    id: 'qa-custom-canvas', cat: '客製帆布', name: '客製帆布', price: 0, pendingPrice: true,
+    desc: '依車型、帆布尺寸、高度、材質、開門方式與施工內容確認後報價',
+  },
+  {
+    id: 'qa-refrigerated-box', cat: '冷凍冷藏箱', name: '冷凍冷藏箱', price: 0, pendingPrice: true,
+    desc: '依箱體尺寸、使用溫層、冷凍機組、供電方式與施工規格確認後報價',
+  },
+  {
+    id: 'qa-electric-gullwing', cat: '電動歐翼', name: '電動歐翼', price: 0, pendingPrice: true,
+    desc: '依箱體尺寸、開啟方向、電動機構與施工規格確認後報價',
+  },
+  {
+    id: 'qa-camper-box', cat: '露營箱體', name: '露營箱體', price: 0, pendingPrice: true,
+    desc: '依箱體尺寸、內裝、水電配置與設備需求確認後報價',
+  },
+];
+
 const REQUIRED_QUOTE_ADDONS = [
   ...VENDOR_QUOTE_ADDONS,
   ...SUPPLIER_SHEET_ADDONS,
   ...LATEST_CATALOG_ADDONS,
   ...PAINT_ACCESSORY_ADDONS,
+  ...BODY_BUILD_ADDONS,
 ];
 
 // v16 以前的內建值：只有仍等於舊預設的項目才自動套用最新版清單，
@@ -647,6 +669,11 @@ export function resolveQuotePresets(row) {
   if (missingFilmCategories.length > 0) {
     const insertAt = storedCategories.indexOf('底盤強化');
     storedCategories.splice(insertAt < 0 ? storedCategories.length : insertAt, 0, ...missingFilmCategories);
+  }
+  const missingBodyBuildCategories = BODY_BUILD_CATEGORIES.filter((category) => !storedCategories.includes(category));
+  if (missingBodyBuildCategories.length > 0) {
+    const customBodyIndex = storedCategories.indexOf(categoryAliases['客製車體'] || '客製車體');
+    storedCategories.splice(customBodyIndex < 0 ? storedCategories.length : customBodyIndex + 1, 0, ...missingBodyBuildCategories);
   }
   const addonCategories = [...new Set([...storedCategories, ...addons.map((item) => item.cat || '其他')])];
   return {

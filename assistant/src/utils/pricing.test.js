@@ -542,8 +542,31 @@ test('separates regular and double-fold liftgates and restores the accessory sec
     ['滑特(升降尾門)', '雙折尾門', '升降尾門的油壓缸', '尾門配件'],
   );
   assert.deepEqual(QUOTE_ADDON_SECTIONS.map((section) => [section.label, section.categories.length]), [
-    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3],
+    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 4],
   ]);
+});
+
+test('adds body-build categories with vendor-quote placeholders', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v21',
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
+    models: [], addons: [], subsidies: [],
+  });
+  const section = QUOTE_ADDON_SECTIONS.find((row) => row.label === '車體打造');
+  assert.deepEqual(section.categories, ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+  assert.deepEqual(section.categories.map((category) => {
+    const item = resolved.addons.find((addon) => addon.cat === category);
+    return [category, item?.name, item?.pendingPrice];
+  }), [
+    ['客製帆布', '客製帆布', true],
+    ['冷凍冷藏箱', '冷凍冷藏箱', true],
+    ['電動歐翼', '電動歐翼', true],
+    ['露營箱體', '露營箱體', true],
+  ]);
+  assert.deepEqual(
+    resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 5),
+    section.categories,
+  );
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
