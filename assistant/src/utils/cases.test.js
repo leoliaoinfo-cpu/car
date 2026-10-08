@@ -1,20 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildLegacyCaseSeeds, buildWorkQueue, getCaseStatusLabel, inferCaseType, resolveCaseDeliveryTarget,
+  buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
 } from './cases.js';
 
-test('交車日期必須由使用者選指定日期或幾天幾週後，不提供隱藏預設', () => {
-  assert.equal(resolveCaseDeliveryTarget({}), '');
-  assert.equal(resolveCaseDeliveryTarget({ mode: 'date', date: '2026-10-20' }), '2026-10-20');
-  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 10, unit: 'days', baseDate: '2026-10-08' }), '2026-10-18');
-  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 3, unit: 'weeks', baseDate: '2026-10-08' }), '2026-10-29');
-  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 0, unit: 'days', baseDate: '2026-10-08' }), '');
+test('新案件追蹤日必須由使用者選指定日期或幾天幾週後，不提供隱藏預設', () => {
+  assert.equal(resolveCaseFollowUpTarget({}), '');
+  assert.equal(resolveCaseFollowUpTarget({ mode: 'date', date: '2026-10-20' }), '2026-10-20');
+  assert.equal(resolveCaseFollowUpTarget({ mode: 'relative', amount: 10, unit: 'days', baseDate: '2026-10-08' }), '2026-10-18');
+  assert.equal(resolveCaseFollowUpTarget({ mode: 'relative', amount: 3, unit: 'weeks', baseDate: '2026-10-08' }), '2026-10-29');
+  assert.equal(resolveCaseFollowUpTarget({ mode: 'relative', amount: 0, unit: 'days', baseDate: '2026-10-08' }), '');
 });
 
 test('案件可用自訂階段名稱取代固定狀態文字', () => {
   assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '等待料件' }), '等待料件');
   assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '' }), '等待中');
+});
+
+test('案件流程依資料進展為新案件、報價、成交、施工與交車', () => {
+  const item = { id: 'case-1', quoteIds: [] };
+  assert.equal(getCasePipelineStage(item), '新案件');
+  assert.equal(getCasePipelineStage({ ...item, quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), '報價');
+  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1' }] }), '成交');
+  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1', deliveryWorkflow: [{ id: 'work', label: '施工', status: 'doing' }] }] }), '施工');
+  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1', deliveryWorkflow: [{ id: 'delivery', label: '交車', status: 'done' }] }] }), '交車');
 });
 
 test('改裝報價會建立改車案件，且已被成交引用的報價不重複建立', () => {

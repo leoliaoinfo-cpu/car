@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import {
-  buildWorkQueue, CASE_STATUS_LABEL, CASE_TYPE_LABEL, getCaseStatusLabel, resolveCaseDeliveryTarget,
+  buildWorkQueue, CASE_STATUS_LABEL, CASE_TYPE_LABEL, getCasePipelineStage, getCaseStatusLabel, resolveCaseFollowUpTarget,
 } from '../../utils/cases';
 import { today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
@@ -10,6 +10,7 @@ import { buildDeliverySchedule, getStageTiming, getWaitingOn, normalizeDeliveryW
 import { ClientPicker } from '../ui';
 
 const STATUS_FILTERS = [['active', '進行中'], ['waiting', '等待中'], ['completed', '已完成'], ['all', '全部']];
+const CASE_PIPELINE = ['新案件', '報價', '成交', '施工', '交車'];
 
 export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
   const { cases, workItems, activities, tasks, clients, deals, quoteDrafts, cats, stages, saveCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
@@ -29,10 +30,10 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
     const needle = query.trim().toLowerCase();
     return [...cases]
       .filter((row) => filter === 'all' || row.status === filter)
-      .filter((row) => !needle || [row.clientName, row.title, CASE_TYPE_LABEL[row.type], getCaseStatusLabel(row), row.expectedDeliveryDate]
+      .filter((row) => !needle || [row.clientName, row.title, CASE_TYPE_LABEL[row.type], getCaseStatusLabel(row), row.nextFollowUpDate, getCasePipelineStage(row, { deals, quotes: quoteDrafts })]
         .some((value) => String(value || '').toLowerCase().includes(needle)))
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-  }, [cases, filter, query]);
+  }, [cases, deals, filter, query, quoteDrafts]);
   const workQueue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
   const selected = cases.find((row) => row.id === selectedId);
 
@@ -69,12 +70,14 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
           {rows.map((item) => {
             const caseActions = workQueue.filter((row) => row.caseId === item.id);
             const action = caseActions.find((row) => row.state !== 'waiting') || caseActions[0];
+            const pipelineStage = getCasePipelineStage(item, { deals, quotes: quoteDrafts });
             return (
               <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className="card p-4 text-left hover:border-teal/50 active:scale-[0.99] transition-all">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
+                      <span className="badge bg-copper/12 text-copper">{pipelineStage}</span>
                       <span className="badge bg-s2 text-ink-2">{getCaseStatusLabel(item)}</span>
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
@@ -86,8 +89,8 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                   <p className="text-[10px] text-ink-3">下一步</p>
                   <p className={`text-sm mt-0.5 ${action ? 'text-ink font-medium' : 'text-ink-3'}`}>{action?.title || '尚未安排工作'}</p>
                 </div>
-                <p className={`mt-2 text-xs ${item.expectedDeliveryDate ? 'text-copper' : 'font-semibold text-gold'}`}>
-                  {item.expectedDeliveryDate ? `預計交車 ${dayjs(item.expectedDeliveryDate).format('YYYY/MM/DD')}` : '尚未設定預計交車日期'}
+                <p className={`mt-2 text-xs ${item.nextFollowUpDate ? 'text-copper' : 'font-semibold text-gold'}`}>
+                  {item.nextFollowUpDate ? `下次追蹤 ${dayjs(item.nextFollowUpDate).format('YYYY/MM/DD')}` : item.status === 'completed' ? '案件已完成' : '尚未設定下次追蹤日'}
                 </p>
               </button>
             );
@@ -109,23 +112,22 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
   const [type, setType] = useState('purchase');
   const [title, setTitle] = useState('');
   const [nextTitle, setNextTitle] = useState('確認客戶需求');
-  const [due, setDue] = useState('');
-  const [deliveryMode, setDeliveryMode] = useState('');
-  const [deliveryDate, setDeliveryDate] = useState('');
-  const [deliveryAmount, setDeliveryAmount] = useState('');
-  const [deliveryUnit, setDeliveryUnit] = useState('days');
+  const [followUpMode, setFollowUpMode] = useState('');
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpAmount, setFollowUpAmount] = useState('');
+  const [followUpUnit, setFollowUpUnit] = useState('days');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const expectedDeliveryDate = resolveCaseDeliveryTarget({
-    mode: deliveryMode, date: deliveryDate, amount: deliveryAmount, unit: deliveryUnit, baseDate: today(),
+  const nextFollowUpDate = resolveCaseFollowUpTarget({
+    mode: followUpMode, date: followUpDate, amount: followUpAmount, unit: followUpUnit, baseDate: today(),
   });
 
   async function submit(event) {
     event.preventDefault();
     if (saving) return;
     setError('');
-    if (!expectedDeliveryDate) {
-      setError('請先選擇「指定交車日期」或「幾天／幾週後」。系統不會替你預設。');
+    if (!nextFollowUpDate) {
+      setError('請先選擇下次追蹤日期，或設定幾天／幾週後追蹤。');
       return;
     }
     setSaving(true);
@@ -143,12 +145,12 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
     const item = await onSaveCase({
       id, clientId: client.id, clientName: client.name, type, status: 'active',
       title: title.trim() || (type === 'purchase' ? '購車案件' : '改車案件'), source: 'manual', quoteIds: [], dealId: null,
-      expectedDeliveryDate, deliveryPlanMode: deliveryMode,
-      deliveryPlanBaseDate: deliveryMode === 'relative' ? today() : null,
-      deliveryPlanAmount: deliveryMode === 'relative' ? Number(deliveryAmount) : null,
-      deliveryPlanUnit: deliveryMode === 'relative' ? deliveryUnit : null,
+      nextFollowUpDate, followUpPlanMode: followUpMode,
+      followUpPlanBaseDate: followUpMode === 'relative' ? today() : null,
+      followUpPlanAmount: followUpMode === 'relative' ? Number(followUpAmount) : null,
+      followUpPlanUnit: followUpMode === 'relative' ? followUpUnit : null,
     });
-    if (nextTitle.trim()) await onSaveWorkItem({ id: generateId('work'), caseId: id, clientId: client.id, clientName: client.name, title: nextTitle.trim(), due, state: 'todo' });
+    if (nextTitle.trim()) await onSaveWorkItem({ id: generateId('work'), caseId: id, clientId: client.id, clientName: client.name, title: nextTitle.trim(), due: nextFollowUpDate, state: 'todo' });
     await onSaveActivity({ id: generateId('activity'), caseId: id, clientId: client.id, type: 'created', text: `建立${CASE_TYPE_LABEL[type]}案件`, date: today() });
     onCreated(item.id);
   }
@@ -181,12 +183,11 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
             <label className="section-title block px-0">3. 案件與下一步</label>
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === 'purchase' ? '例：K2500 雙廂購車' : '例：尾門＋帆布改裝'} className="w-full min-h-12" />
             <input value={nextTitle} onChange={(event) => setNextTitle(event.target.value)} placeholder="下一步要做什麼" className="w-full min-h-12" />
-            <label className="block text-[11px] font-medium text-ink-3">下一步處理日期（選填）<input type="date" value={due} onChange={(event) => setDue(event.target.value)} className="mt-1 w-full min-h-12" /></label>
           </section>
           <section>
-            <label className="section-title block px-0">4. 預計交車時間 <span className="text-danger">＊必選</span></label>
-            <p className="mt-1 text-xs text-ink-3">由你決定日期或工期，系統不會自動套預設值。</p>
-            <DeliveryTargetChooser mode={deliveryMode} onModeChange={setDeliveryMode} date={deliveryDate} onDateChange={setDeliveryDate} amount={deliveryAmount} onAmountChange={setDeliveryAmount} unit={deliveryUnit} onUnitChange={setDeliveryUnit} targetDate={expectedDeliveryDate} />
+            <label className="section-title block px-0">4. 下次追蹤日 <span className="text-danger">＊必選</span></label>
+            <p className="mt-1 text-xs text-ink-3">新案件先安排追蹤；成交後才會進入施工與交車排程。</p>
+            <FollowUpTargetChooser mode={followUpMode} onModeChange={setFollowUpMode} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} />
           </section>
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
         </div>
@@ -195,7 +196,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
   );
 }
 
-function DeliveryTargetChooser({ mode, onModeChange, date, onDateChange, amount, onAmountChange, unit, onUnitChange, targetDate }) {
+function FollowUpTargetChooser({ mode, onModeChange, date, onDateChange, amount, onAmountChange, unit, onUnitChange, targetDate }) {
   return (
     <div className="mt-3 space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -203,7 +204,7 @@ function DeliveryTargetChooser({ mode, onModeChange, date, onDateChange, amount,
         <button type="button" onClick={() => onModeChange('relative')} className={`min-h-14 rounded-xl border px-3 text-sm font-bold ${mode === 'relative' ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s2 text-ink-2'}`}>⏳ 幾天／幾週後</button>
       </div>
       {mode === 'date' && (
-        <label className="block text-[11px] font-medium text-ink-3">預計交車日期<input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} className="mt-1 min-h-12 w-full" /></label>
+        <label className="block text-[11px] font-medium text-ink-3">下次追蹤日期<input type="date" value={date} onChange={(event) => onDateChange(event.target.value)} className="mt-1 min-h-12 w-full" /></label>
       )}
       {mode === 'relative' && (
         <div className="grid grid-cols-[1fr_120px] gap-2">
@@ -211,41 +212,57 @@ function DeliveryTargetChooser({ mode, onModeChange, date, onDateChange, amount,
           <label className="block text-[11px] font-medium text-ink-3">單位<select value={unit} onChange={(event) => onUnitChange(event.target.value)} className="mt-1 min-h-12 w-full"><option value="days">天後</option><option value="weeks">週後</option></select></label>
         </div>
       )}
-      {targetDate && <div className="rounded-xl border border-ok/35 bg-ok/10 px-3 py-2 text-sm font-bold text-ok">預計交車：{dayjs(targetDate).format('YYYY/MM/DD')}</div>}
+      {targetDate && <div className="rounded-xl border border-ok/35 bg-ok/10 px-3 py-2 text-sm font-bold text-ok">下次追蹤：{dayjs(targetDate).format('YYYY/MM/DD')}</div>}
     </div>
   );
 }
 
-function CaseEditSheet({ item, onClose, onSaveCase, onSaveActivity }) {
+function CasePipeline({ current }) {
+  const currentIndex = Math.max(0, CASE_PIPELINE.indexOf(current));
+  return (
+    <section className="card p-3" aria-label="案件流程">
+      <div className="grid grid-cols-5 gap-1">
+        {CASE_PIPELINE.map((label, index) => <div key={label} className="min-w-0 text-center"><div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${index < currentIndex ? 'bg-ok text-on-accent' : index === currentIndex ? 'bg-copper text-on-accent ring-4 ring-copper/15' : 'bg-s3 text-ink-3'}`}>{index < currentIndex ? '✓' : index + 1}</div><p className={`mt-1 truncate text-[10px] font-bold ${index === currentIndex ? 'text-copper' : 'text-ink-3'}`}>{label}</p></div>)}
+      </div>
+    </section>
+  );
+}
+
+function CaseEditSheet({ item, workItems = [], onClose, onSaveCase, onSaveWorkItem, onSaveActivity }) {
   const [title, setTitle] = useState(item.title || '');
   const [type, setType] = useState(item.type || 'purchase');
   const [status, setStatus] = useState(item.status || 'active');
   const [stageLabel, setStageLabel] = useState(item.stageLabel || '');
-  const [deliveryMode, setDeliveryMode] = useState(item.deliveryPlanMode || (item.expectedDeliveryDate ? 'date' : ''));
-  const [deliveryDate, setDeliveryDate] = useState(item.expectedDeliveryDate || '');
-  const [deliveryAmount, setDeliveryAmount] = useState(item.deliveryPlanAmount ? String(item.deliveryPlanAmount) : '');
-  const [deliveryUnit, setDeliveryUnit] = useState(item.deliveryPlanUnit || 'days');
-  const [deliveryBaseDate, setDeliveryBaseDate] = useState(item.deliveryPlanBaseDate || today());
+  const [followUpMode, setFollowUpMode] = useState(item.nextFollowUpDate ? 'date' : '');
+  const [followUpDate, setFollowUpDate] = useState(item.nextFollowUpDate || '');
+  const [followUpAmount, setFollowUpAmount] = useState('');
+  const [followUpUnit, setFollowUpUnit] = useState('days');
+  const [followUpBaseDate, setFollowUpBaseDate] = useState(today());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const expectedDeliveryDate = resolveCaseDeliveryTarget({
-    mode: deliveryMode, date: deliveryDate, amount: deliveryAmount, unit: deliveryUnit, baseDate: deliveryBaseDate,
+  const nextFollowUpDate = resolveCaseFollowUpTarget({
+    mode: followUpMode, date: followUpDate, amount: followUpAmount, unit: followUpUnit, baseDate: followUpBaseDate,
   });
 
   async function save(event) {
     event.preventDefault();
     if (saving) return;
     if (!title.trim()) { setError('請輸入案件名稱。'); return; }
-    if (!expectedDeliveryDate) { setError('請選擇指定交車日期，或填寫幾天／幾週後。'); return; }
+    if (status !== 'completed' && !nextFollowUpDate) { setError('請設定下一次追蹤日期。'); return; }
     setSaving(true);
     setError('');
     await onSaveCase({
-      ...item, title: title.trim(), type, status, stageLabel: stageLabel.trim(), expectedDeliveryDate,
-      deliveryPlanMode: deliveryMode,
-      deliveryPlanBaseDate: deliveryMode === 'relative' ? deliveryBaseDate : null,
-      deliveryPlanAmount: deliveryMode === 'relative' ? Number(deliveryAmount) : null,
-      deliveryPlanUnit: deliveryMode === 'relative' ? deliveryUnit : null,
+      ...item, title: title.trim(), type, status, stageLabel: stageLabel.trim(),
+      nextFollowUpDate: status === 'completed' ? '' : nextFollowUpDate,
+      followUpPlanMode: status === 'completed' ? null : followUpMode,
+      followUpPlanBaseDate: status !== 'completed' && followUpMode === 'relative' ? followUpBaseDate : null,
+      followUpPlanAmount: status !== 'completed' && followUpMode === 'relative' ? Number(followUpAmount) : null,
+      followUpPlanUnit: status !== 'completed' && followUpMode === 'relative' ? followUpUnit : null,
     });
+    const nextWork = workItems.find((work) => work.state !== 'done');
+    if (nextWork && status !== 'completed' && nextFollowUpDate) {
+      await onSaveWorkItem({ ...nextWork, due: nextFollowUpDate });
+    }
     await onSaveActivity({
       id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName,
       type: 'case', text: `更新案件：${title.trim()}・${stageLabel.trim() || CASE_STATUS_LABEL[status]}`, date: today(),
@@ -265,7 +282,7 @@ function CaseEditSheet({ item, onClose, onSaveCase, onSaveActivity }) {
           <label className="block text-xs font-bold text-ink-2">案件名稱<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：尾門＋帆布改裝" className="mt-2 min-h-12 w-full" /></label>
           <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
           <section><p className="text-xs font-bold text-ink-2">案件狀態</p><div className="mt-2 grid grid-cols-3 gap-2">{Object.entries(CASE_STATUS_LABEL).map(([key, label]) => <button key={key} type="button" onClick={() => setStatus(key)} className={`min-h-11 rounded-xl border text-xs font-bold ${status === key ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{label}</button>)}</div><label className="mt-3 block text-[11px] font-medium text-ink-3">自訂階段名稱（選填）<input value={stageLabel} onChange={(event) => setStageLabel(event.target.value)} placeholder="例如：等待料件、待客戶確認" className="mt-1 min-h-12 w-full" /></label></section>
-          <section><p className="text-xs font-bold text-ink-2">預計交車時間</p><p className="mt-1 text-xs text-ink-3">可以改成指定日期，或從今天重新計算幾天／幾週後。</p><DeliveryTargetChooser mode={deliveryMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && deliveryMode !== 'relative') setDeliveryBaseDate(today()); setDeliveryMode(nextMode); }} date={deliveryDate} onDateChange={setDeliveryDate} amount={deliveryAmount} onAmountChange={setDeliveryAmount} unit={deliveryUnit} onUnitChange={setDeliveryUnit} targetDate={expectedDeliveryDate} /></section>
+          {status !== 'completed' && <section><p className="text-xs font-bold text-ink-2">下次追蹤日</p><p className="mt-1 text-xs text-ink-3">安排下一次聯絡或處理時間。</p><FollowUpTargetChooser mode={followUpMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && followUpMode !== 'relative') setFollowUpBaseDate(today()); setFollowUpMode(nextMode); }} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} /></section>}
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
           <div className="grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="btn-outline min-h-12">取消</button><button type="submit" disabled={saving} className="btn-primary min-h-12">{saving ? '儲存中…' : '確認儲存案件'}</button></div>
         </div>
@@ -280,7 +297,8 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const [section, setSection] = useState('overview');
   const [showEdit, setShowEdit] = useState(false);
   const linkedDeal = deals.find((row) => row.id === item.dealId || row.caseId === item.id);
-  const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id));
+  const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
+  const pipelineStage = getCasePipelineStage(item, { deals, quotes });
   const caseWork = workItems.filter((row) => row.caseId === item.id);
   const pending = caseQueue;
   const actionablePending = pending.filter((row) => row.state !== 'waiting');
@@ -296,8 +314,8 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const workflowPercent = workflow.length ? Math.round(completedStages / workflow.length * 100) : 0;
   const workflowStart = linkedDeal?.deliveryWorkflowStartDate || linkedDeal?.date || '';
   const targetDate = workflowStart && schedule.totalDays ? dayjs(workflowStart).add(schedule.totalDays - 1, 'day').format('YYYY/MM/DD') : '';
-  const caseDeliveryTiming = item.expectedDeliveryDate
-    ? dayjs(item.expectedDeliveryDate).startOf('day').diff(dayjs().startOf('day'), 'day')
+  const followUpTiming = item.nextFollowUpDate
+    ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day')
     : null;
 
   async function addWork(event) {
@@ -334,12 +352,13 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           <button type="button" onClick={onClose} className="btn-ghost min-h-11 px-3">←</button>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-ink truncate">{item.clientName || '未命名客戶'}</p>
-            <p className="text-xs text-ink-3 truncate">{CASE_TYPE_LABEL[item.type]}・{item.title}・{getCaseStatusLabel(item)}</p>
+            <p className="text-xs text-ink-3 truncate">{CASE_TYPE_LABEL[item.type]}・{item.title}・{pipelineStage}</p>
           </div>
           <button type="button" onClick={() => setShowEdit(true)} className="min-h-11 shrink-0 rounded-xl border border-copper/45 bg-copper/10 px-3 text-xs font-bold text-copper">✎ 編輯案件</button>
         </header>
 
         <div className="p-3 md:p-5 space-y-4 pb-28">
+          <CasePipeline current={pipelineStage} />
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
@@ -351,10 +370,10 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           </nav>
 
           {section === 'overview' && (
-            <section className={`card p-4 ${item.expectedDeliveryDate ? 'border-copper/35' : 'border-gold/55 bg-gold/5'}`}>
+            <section className={`card p-4 ${item.nextFollowUpDate ? 'border-copper/35' : item.status === 'completed' ? '' : 'border-gold/55 bg-gold/5'}`}>
               <div className="flex items-start justify-between gap-3">
-                <div><p className="text-[11px] font-bold text-copper">預計交車</p><p className="mt-1 text-lg font-bold text-ink">{item.expectedDeliveryDate ? dayjs(item.expectedDeliveryDate).format('YYYY/MM/DD') : '尚未設定'}</p>{item.expectedDeliveryDate && <p className={`mt-1 text-xs ${caseDeliveryTiming < 0 ? 'font-bold text-danger' : 'text-ink-3'}`}>{caseDeliveryTiming < 0 ? `已逾期 ${Math.abs(caseDeliveryTiming)} 天` : caseDeliveryTiming === 0 ? '今天預計交車' : `剩餘 ${caseDeliveryTiming} 天`}</p>}</div>
-                <button type="button" onClick={() => setShowEdit(true)} className="btn-outline min-h-11 shrink-0 text-xs">{item.expectedDeliveryDate ? '修改時間' : '立即設定'}</button>
+                <div><p className="text-[11px] font-bold text-copper">下次追蹤</p><p className="mt-1 text-lg font-bold text-ink">{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : item.status === 'completed' ? '案件已完成' : '尚未設定'}</p>{item.nextFollowUpDate && <p className={`mt-1 text-xs ${followUpTiming < 0 ? 'font-bold text-danger' : 'text-ink-3'}`}>{followUpTiming < 0 ? `已逾期 ${Math.abs(followUpTiming)} 天` : followUpTiming === 0 ? '今天需要追蹤' : `${followUpTiming} 天後追蹤`}</p>}</div>
+                {item.status !== 'completed' && <button type="button" onClick={() => setShowEdit(true)} className="btn-outline min-h-11 shrink-0 text-xs">{item.nextFollowUpDate ? '修改追蹤日' : '立即設定'}</button>}
               </div>
             </section>
           )}
@@ -376,7 +395,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
         </div>
-        {showEdit && <CaseEditSheet item={item} onClose={() => setShowEdit(false)} onSaveCase={onSaveCase} onSaveActivity={onSaveActivity} />}
+        {showEdit && <CaseEditSheet item={item} workItems={caseWork} onClose={() => setShowEdit(false)} onSaveCase={onSaveCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
       </div>
     </div>
   );

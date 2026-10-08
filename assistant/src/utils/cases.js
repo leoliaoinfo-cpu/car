@@ -8,11 +8,22 @@ export function getCaseStatusLabel(item) {
   return String(item?.stageLabel || '').trim() || CASE_STATUS_LABEL[item?.status] || '進行中';
 }
 
+export function getCasePipelineStage(item, { deals = [], quotes = [] } = {}) {
+  const linkedDeal = deals.find((row) => row.id === item?.dealId || row.caseId === item?.id);
+  if (linkedDeal) {
+    const workflow = normalizeDeliveryWorkflow(linkedDeal);
+    if (!workflow.length) return '成交';
+    return workflow.every((step) => ['done', 'na'].includes(step.status)) ? '交車' : '施工';
+  }
+  const hasQuote = quotes.some((row) => (item?.quoteIds || []).includes(row.id) || row.caseId === item?.id);
+  return hasQuote ? '報價' : '新案件';
+}
+
 /**
- * 把使用者親自選擇的交車規劃換算成日期。
+ * 把使用者親自選擇的案件追蹤規劃換算成日期。
  * 沒選模式、日期或有效天數時回傳空字串，不替使用者偷偷帶預設值。
  */
-export function resolveCaseDeliveryTarget({ mode, date, amount, unit, baseDate } = {}) {
+export function resolveCaseFollowUpTarget({ mode, date, amount, unit, baseDate } = {}) {
   if (mode === 'date') {
     const value = String(date || '').trim();
     return /^\d{4}-\d{2}-\d{2}$/.test(value) && dayjs(value).isValid() ? value : '';

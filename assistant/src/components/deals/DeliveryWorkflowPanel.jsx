@@ -102,6 +102,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
   const [undoBusy, setUndoBusy] = useState(false);
   const [showCompletedByDeal, setShowCompletedByDeal] = useState({});
   const [showHistoryByDeal, setShowHistoryByDeal] = useState({});
+  const [timelineEditKey, setTimelineEditKey] = useState(null);
   const sortDraftsRef = useRef({});
   const dragStateRef = useRef(null);
   const stepDraftsRef = useRef({});
@@ -754,10 +755,32 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                       const waiting = getWaitingOn(row, workflow);
                       const left = stats.schedule.totalDays ? row.startOffset / stats.schedule.totalDays * 100 : 0;
                       const width = stats.schedule.totalDays ? row.plannedDays / stats.schedule.totalDays * 100 : 100;
-                      return <article key={row.id} className={`rounded-xl border p-3 ${stats.current?.id === row.id ? 'border-accent/50 bg-accent/5' : 'border-bdr bg-s2/35'}`}>
-                        <div className="flex items-start gap-2"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${FINISHED_STATUSES.has(row.status) ? 'bg-ok text-on-accent' : 'bg-s3 text-ink-2'}`}>{FINISHED_STATUSES.has(row.status) ? '✓' : index + 1}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{row.label}</p><p className={`mt-0.5 text-[11px] ${timing.urgency === 'overdue' ? 'font-bold text-danger' : 'text-ink-3'}`}>{waiting ? `等待：${waiting.label}` : timing.elapsedDays ? `實際 ${timing.elapsedDays} 天／分配 ${timing.plannedDays} 天${timing.overDays ? `・超過 ${timing.overDays} 天` : ''}` : `分配 ${timing.plannedDays} 天`}</p></div></div>
-                        <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className={`absolute top-0 h-full rounded-full ${timing.urgency === 'overdue' ? 'bg-danger' : FINISHED_STATUSES.has(row.status) ? 'bg-ok' : 'bg-accent'}`} style={{ left: `${left}%`, width: `${Math.max(width, 3)}%` }} /></div>
-                        <div className="mt-1 flex justify-between text-[9px] text-ink-3"><span>第 {row.startOffset + 1} 天</span><span>第 {row.endOffset} 天</span></div>
+                      const stepKey = `${deal.id}:${row.id}`;
+                      const editing = timelineEditKey === stepKey;
+                      const stepDraft = stepDrafts[stepKey] || {};
+                      const finished = FINISHED_STATUSES.has(row.status);
+                      const matchedSuppliers = suppliers.filter((supplier) => supplier.active !== false
+                        && (!(supplier.services || []).length || (supplier.services || []).some((service) => row.service.includes(service) || service.includes(row.service))));
+                      const supplierOptions = matchedSuppliers.length ? matchedSuppliers : suppliers.filter((supplier) => supplier.active !== false);
+                      return <article key={row.id} className={`overflow-hidden rounded-xl border ${stats.current?.id === row.id ? 'border-accent/50 bg-accent/5' : 'border-bdr bg-s2/35'}`}>
+                        <div className="p-3">
+                          <div className="flex items-start gap-2"><span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${finished ? 'bg-ok text-on-accent' : 'bg-s3 text-ink-2'}`}>{finished ? '✓' : index + 1}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-ink">{row.label}</p><p className={`mt-0.5 text-[11px] ${timing.urgency === 'overdue' ? 'font-bold text-danger' : 'text-ink-3'}`}>{waiting ? `等待：${waiting.label}` : timing.elapsedDays ? `實際 ${timing.elapsedDays} 天／分配 ${timing.plannedDays} 天${timing.overDays ? `・超過 ${timing.overDays} 天` : ''}` : `分配 ${timing.plannedDays} 天`}</p></div><button type="button" onClick={() => { setTimelineEditKey(editing ? null : stepKey); if (!editing) setStepNameDrafts((current) => ({ ...current, [stepKey]: row.label })); }} className={`min-h-11 shrink-0 rounded-xl border px-3 text-xs font-bold ${editing ? 'border-accent bg-accent/12 text-accent' : 'border-copper/40 text-copper'}`}>{editing ? '收合 ▲' : '✎ 修改'}</button></div>
+                          <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className={`absolute top-0 h-full rounded-full ${timing.urgency === 'overdue' ? 'bg-danger' : finished ? 'bg-ok' : 'bg-accent'}`} style={{ left: `${left}%`, width: `${Math.max(width, 3)}%` }} /></div>
+                          <div className="mt-1 flex justify-between text-[9px] text-ink-3"><span>第 {row.startOffset + 1} 天</span><span>第 {row.endOffset} 天</span></div>
+                        </div>
+                        {editing && <div className="space-y-3 border-t border-bdr/70 bg-s1/45 p-3">
+                          <div className="rounded-xl border border-copper/35 bg-copper/5 p-3"><label className="block text-[11px] font-bold text-copper">施工階段名稱</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input value={stepNameDrafts[stepKey] ?? row.label} onChange={(event) => setStepNameDrafts((current) => ({ ...current, [stepKey]: event.target.value }))} className="min-h-11 w-full text-sm font-semibold" /><button type="button" disabled={!String(stepNameDrafts[stepKey] ?? row.label).trim() || String(stepNameDrafts[stepKey] ?? row.label).trim() === row.label} onClick={() => saveStepName(deal, row)} className="btn-primary min-h-11 px-3 text-xs disabled:opacity-40">儲存名稱</button></div></div>
+                          <div className="grid grid-cols-[1fr_auto] gap-2"><select value={row.status} onChange={(event) => requestStatusChange(deal, row.id, event.target.value)} aria-label={`${row.label}狀態`} className="min-h-11 text-xs">{DELIVERY_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{!finished && <button type="button" onClick={() => completeStep(deal, row.id)} className="btn-outline min-h-11 px-3 text-xs text-ok">✓ 完成</button>}</div>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <label className="text-[10px] text-ink-3">施工廠商<select value={row.supplierId || ''} onChange={(event) => updateStep(deal, row.id, { supplierId: event.target.value })} className="mt-1 min-h-11 w-full text-xs"><option value="">未指派廠商</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                            <label className="text-[10px] text-ink-3">預計日期<input type="date" value={row.plannedDate || ''} onChange={(event) => updateStep(deal, row.id, { plannedDate: event.target.value })} className="mt-1 min-h-11 w-full text-xs" /></label>
+                            <label className="text-[10px] text-ink-3">分配天數<input inputMode="numeric" value={Object.hasOwn(stepDraft, 'plannedDays') ? stepDraft.plannedDays : (row.plannedDays || 1)} onChange={(event) => setStepDraftValue(deal, row.id, 'plannedDays', event.target.value.replace(/[^0-9]/g, ''))} onBlur={() => flushStepDraft(deal, row.id)} className="mt-1 min-h-11 w-full text-xs" /></label>
+                            <label className="text-[10px] text-ink-3">成本／廠商報價<input inputMode="numeric" value={Object.hasOwn(stepDraft, 'cost') ? stepDraft.cost : (row.cost ?? '')} onChange={(event) => setStepDraftValue(deal, row.id, 'cost', event.target.value.replace(/[^0-9]/g, ''))} onBlur={() => flushStepDraft(deal, row.id)} placeholder="尚未確認" className="mt-1 min-h-11 w-full text-xs" /></label>
+                            <label className="text-[10px] text-ink-3 sm:col-span-2">前置工作<select value={row.dependsOn || ''} onChange={(event) => requestDependencyChange(deal, row.id, event.target.value || null)} className="mt-1 min-h-11 w-full text-xs"><option value="">可獨立／可同時進行</option>{workflow.filter((candidate) => candidate.id !== row.id && !wouldCreateCycle(workflow, row.id, candidate.id)).map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}</select></label>
+                          </div>
+                          <textarea value={Object.hasOwn(stepDraft, 'note') ? stepDraft.note : (row.note || '')} onChange={(event) => setStepDraftValue(deal, row.id, 'note', event.target.value)} onBlur={() => flushStepDraft(deal, row.id)} rows={2} placeholder="聯繫結果、施工地址、注意事項或進度備註" className="w-full text-xs" />
+                          <div className="flex justify-end"><button type="button" onClick={() => requestDeleteStep(deal, row.id)} className="min-h-11 px-3 text-xs text-danger/80">刪除工作</button></div>
+                        </div>}
                       </article>;
                     })}
                   </div>
