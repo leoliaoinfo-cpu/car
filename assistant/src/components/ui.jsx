@@ -14,7 +14,7 @@ export function Field({ label, required, className = '', children }) {
 }
 
 /**
- * 客戶挑選器：輸入即時篩選（依姓名 / 電話），取代下拉選單。
+ * 客戶挑選器：輸入即時篩選（姓名 / 電話 / LINE / 公司 / 車牌），取代下拉選單。
  * 客戶量大時也能快速找到人。value 為客戶 id（空字串＝未選）。
  */
 export function ClientPicker({
@@ -31,7 +31,8 @@ export function ClientPicker({
     const q = query.trim().toLowerCase();
     return clients
       .filter((c) => c.id !== excludeId)
-      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
+      .filter((c) => !q || [c.name, c.phone, c.lineId, c.company, c.plate, c.licensePlate]
+        .some((value) => String(value || '').toLowerCase().includes(q)))
       .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
       .slice(0, 8);
   }, [clients, query, excludeId]);

@@ -4,6 +4,29 @@ import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './deliv
 export const CASE_TYPE_LABEL = { purchase: '購車', modification: '改車' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
 
+export function getCaseStatusLabel(item) {
+  return String(item?.stageLabel || '').trim() || CASE_STATUS_LABEL[item?.status] || '進行中';
+}
+
+/**
+ * 把使用者親自選擇的交車規劃換算成日期。
+ * 沒選模式、日期或有效天數時回傳空字串，不替使用者偷偷帶預設值。
+ */
+export function resolveCaseDeliveryTarget({ mode, date, amount, unit, baseDate } = {}) {
+  if (mode === 'date') {
+    const value = String(date || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && dayjs(value).isValid() ? value : '';
+  }
+  if (mode === 'relative') {
+    const count = Number(amount);
+    if (!Number.isInteger(count) || count < 1) return '';
+    const base = dayjs(baseDate || undefined);
+    if (!base.isValid()) return '';
+    return base.add(count, unit === 'weeks' ? 'week' : 'day').format('YYYY-MM-DD');
+  }
+  return '';
+}
+
 export function inferCaseType(quote) {
   return quote?.excludeVehiclePrice ? 'modification' : 'purchase';
 }
@@ -26,7 +49,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
       clientId: deal.clientId || quote?.clientId || null,
       clientName: deal.clientName || client?.name || quote?.customerName || '未命名客戶',
       type: inferCaseType(quote),
-      title: deal.model || quote?.model || (inferCaseType(quote) === 'modification' ? '改裝案件' : '購車案件'),
+      title: deal.model || quote?.model || (inferCaseType(quote) === 'modification' ? '改車案件' : '購車案件'),
       status: 'active',
       dealId: deal.id,
       quoteIds: deal.quoteId ? [deal.quoteId] : [],
@@ -45,7 +68,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
       clientId: quote.clientId || null,
       clientName: quote.customerName || client?.name || '未命名客戶',
       type: inferCaseType(quote),
-      title: quote.model || (inferCaseType(quote) === 'modification' ? '改裝報價' : '購車報價'),
+      title: quote.model || (inferCaseType(quote) === 'modification' ? '改車報價' : '購車報價'),
       status: 'active',
       dealId: null,
       quoteIds: [quote.id],

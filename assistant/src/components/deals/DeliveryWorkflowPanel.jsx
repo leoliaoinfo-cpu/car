@@ -93,6 +93,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
   const [sortDrafts, setSortDrafts] = useState({});
   const [dragState, setDragState] = useState(null);
   const [stepDrafts, setStepDrafts] = useState({});
+  const [stepNameDrafts, setStepNameDrafts] = useState({});
   const [saveErrors, setSaveErrors] = useState({});
   const [saveStatusByDeal, setSaveStatusByDeal] = useState({});
   const [confirmAction, setConfirmAction] = useState(null);
@@ -113,7 +114,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
   const persistedWorkflowRefs = useRef({});
   const persistedEventRefs = useRef({});
   const persistedVersionRefs = useRef({});
-  const [newStep, setNewStep] = useState({ label: '', service: '' });
+  const [newStep, setNewStep] = useState({ label: '', service: '', plannedDays: '1', dependsOn: '' });
   const clientNames = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
   const supplierNames = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])), [suppliers]);
   const sortedDeals = [...deals].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -448,8 +449,26 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
       setAddStepDealId(null);
       return;
     }
-    setNewStep({ label: '', service: '' });
+    setNewStep({ label: '', service: '', plannedDays: '1', dependsOn: '' });
     openDeal(deal, workflow);
+  }
+
+  function openAddStep(deal, workflow) {
+    const current = latestWorkflow(deal) || workflow;
+    setNewStep({ label: '', service: '', plannedDays: '1', dependsOn: current.at(-1)?.id || '' });
+    setAddStepDealId(deal.id);
+  }
+
+  async function saveStepName(deal, step) {
+    const key = `${deal.id}:${step.id}`;
+    const label = String(stepNameDrafts[key] ?? step.label).trim();
+    if (!label || label === step.label) return;
+    const saved = await updateStep(deal, step.id, { label });
+    if (saved) setStepNameDrafts((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   }
 
   function toggleStep(dealId, stepId, defaultExpanded = false) {
@@ -542,14 +561,13 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
   function addStep(deal, workflow) {
     if (!newStep.label.trim()) return;
     const currentWorkflow = latestWorkflow(deal) || workflow;
-    const previous = currentWorkflow.at(-1);
     const added = {
       id: makeId(), label: newStep.label.trim(), service: newStep.service.trim() || '其他',
-      dependsOn: previous?.id || null, status: 'todo', supplierId: '', plannedDate: '', cost: '', note: '',
-      plannedDays: 1, activatedAt: null, completedAt: null, statusChangedAt: null,
+      dependsOn: newStep.dependsOn || null, status: 'todo', supplierId: '', plannedDate: '', cost: '', note: '',
+      plannedDays: Math.max(1, Number(newStep.plannedDays) || 1), activatedAt: null, completedAt: null, statusChangedAt: null,
     };
     saveWorkflow(deal, [...currentWorkflow, added]);
-    setNewStep({ label: '', service: '' });
+    setNewStep({ label: '', service: '', plannedDays: '1', dependsOn: '' });
     setAddStepDealId(null);
     setExpandedSteps((current) => ({ ...current, [`${deal.id}:${added.id}`]: true }));
   }
@@ -615,7 +633,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                 {!isOpen && (
                   <div className="grid grid-cols-3 gap-2">
                     <button type="button" onClick={() => openDeal(deal, workflow)} className="btn-primary min-h-11 text-xs">管理流程</button>
-                    <button type="button" onClick={() => { openDeal(deal, workflow); setAddStepDealId(deal.id); }} className="btn-outline min-h-11 text-xs">＋工作</button>
+                    <button type="button" onClick={() => { openDeal(deal, workflow); openAddStep(deal, workflow); }} className="btn-outline min-h-11 text-xs">＋施工階段</button>
                     <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline min-h-11 text-xs">成交配備</button>
                   </div>
                 )}
@@ -651,7 +669,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                     {workflow.length ? '＋ 補上建議步驟' : '依成交內容建立流程'}
                   </button>
                   <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline min-h-10 text-xs">成本與成交配備</button>
-                  <button type="button" onClick={() => setAddStepDealId(addStepDealId === deal.id ? null : deal.id)} className="btn-outline min-h-10 text-xs">＋ 新增工作</button>
+                  <button type="button" onClick={() => addStepDealId === deal.id ? setAddStepDealId(null) : openAddStep(deal, workflow)} className="min-h-11 rounded-xl border border-copper/50 bg-copper/12 px-4 text-sm font-bold text-copper">＋ 新增施工階段／狀態</button>
                   {workflow.length > 0 && <button type="button" onClick={() => toggleSortMode(deal, workflow, !isSortMode)} className={`min-h-10 rounded-lg border px-3 text-xs font-bold ${isSortMode ? 'border-gold bg-gold/12 text-gold' : 'border-bdr text-ink-2'}`}>{isSortMode ? '完成排序' : '拖拉排序'}</button>}
                 </div>
                 {isSortMode && (
@@ -685,7 +703,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                       <div className="flex items-start gap-2.5 p-3">
                           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${finished ? 'bg-ok text-on-accent' : waiting ? 'bg-gold/15 text-gold' : 'bg-accent/12 text-accent'}`}>{finished ? '✓' : index + 1}</span>
                           <button type="button" disabled={isSortMode} onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-expanded={expanded} className="min-w-0 flex-1 text-left disabled:cursor-default"><p className="text-sm font-bold text-ink">{step.label}</p><div className="mt-1 flex flex-wrap gap-1.5 text-[10px]"><span className={`rounded-full px-2 py-0.5 font-bold ${STATUS_STYLES[step.status]}`}>{STATUS_LABELS.get(step.status)}</span><span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">{supplierName}</span><span className={`rounded-full px-2 py-0.5 ${timing.urgency === 'overdue' ? 'bg-danger/12 font-bold text-danger' : 'bg-s3 text-ink-3'}`}>{timing.elapsedDays ? `${timing.elapsedDays}/${timing.plannedDays} 天` : `分配 ${timing.plannedDays} 天`}</span>{step.cost !== '' && <span className="rounded-full bg-s3 px-2 py-0.5 text-ink-3">NT$ {Number(step.cost).toLocaleString('zh-TW')}</span>}</div>{waiting && <p className="mt-1 text-[10px] text-gold">等待「{waiting.label}」完成</p>}{inCycle && <p className="mt-1 text-[10px] font-bold text-danger">此步驟位於循環依賴中，請修正前置工作</p>}</button>
-                          {isSortMode ? <button type="button" aria-label={`拖拉調整${step.label}`} title="按住拖拉；方向鍵也可微調" className="flex h-11 w-11 touch-none select-none shrink-0 items-center justify-center rounded-xl border border-gold/45 bg-gold/10 text-xl text-gold active:scale-95" onPointerDown={(event) => startDragging(event, deal, displayWorkflow, step.id)} onPointerMove={(event) => dragStep(event, deal)} onPointerUp={(event) => finishDragging(event, deal)} onPointerCancel={() => cancelDragging(deal, workflow)} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, -1); } if (event.key === 'ArrowDown') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, 1); } }}>☷</button> : <button type="button" onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-label={expanded ? `收合${step.label}` : `展開${step.label}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs text-ink-3">{expanded ? '▲' : '▼'}</button>}
+                          {isSortMode ? <button type="button" aria-label={`拖拉調整${step.label}`} title="按住拖拉；方向鍵也可微調" className="flex h-11 w-11 touch-none select-none shrink-0 items-center justify-center rounded-xl border border-gold/45 bg-gold/10 text-xl text-gold active:scale-95" onPointerDown={(event) => startDragging(event, deal, displayWorkflow, step.id)} onPointerMove={(event) => dragStep(event, deal)} onPointerUp={(event) => finishDragging(event, deal)} onPointerCancel={() => cancelDragging(deal, workflow)} onKeyDown={(event) => { if (event.key === 'ArrowUp') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, -1); } if (event.key === 'ArrowDown') { event.preventDefault(); moveStepByKeyboard(deal, displayWorkflow, step.id, 1); } }}>☷</button> : <><button type="button" onClick={() => { setExpandedSteps((current) => ({ ...current, [stepKey]: true })); setStepNameDrafts((current) => ({ ...current, [stepKey]: step.label })); }} className="min-h-11 shrink-0 rounded-lg border border-copper/35 px-2 text-[11px] font-bold text-copper" aria-label={`修改${step.label}名稱`}>✎ 改名</button><button type="button" onClick={() => toggleStep(deal.id, step.id, stats.current?.id === step.id)} aria-label={expanded ? `收合${step.label}` : `展開${step.label}`} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-xs text-ink-3">{expanded ? '▲' : '▼'}</button></>}
                       </div>
                       {isSortMode && (
                         <div className="flex items-center justify-end gap-2 border-t border-bdr/60 px-3 py-2">
@@ -695,6 +713,10 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                       )}
                       {expanded && (
                         <div className="border-t border-bdr/60 p-3 space-y-3">
+                          <div className="rounded-xl border border-copper/35 bg-copper/5 p-3">
+                            <label className="block text-[11px] font-bold text-copper">施工階段名稱</label>
+                            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input value={stepNameDrafts[stepKey] ?? step.label} onChange={(event) => setStepNameDrafts((current) => ({ ...current, [stepKey]: event.target.value }))} className="min-h-11 w-full text-sm font-semibold" aria-label={`${step.label}施工階段名稱`} /><button type="button" disabled={!String(stepNameDrafts[stepKey] ?? step.label).trim() || String(stepNameDrafts[stepKey] ?? step.label).trim() === step.label} onClick={() => saveStepName(deal, step)} className="btn-primary min-h-11 px-3 text-xs disabled:opacity-40">儲存名稱</button></div>
+                          </div>
                           <div className="grid grid-cols-[1fr_auto] gap-2">
                             <select value={step.status} onChange={(event) => requestStatusChange(deal, step.id, event.target.value)} aria-label={`${step.label}狀態`} className="min-h-11 text-xs">
                               {DELIVERY_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -757,9 +779,9 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                   </div>
                 )}
                 {addStepDealId === deal.id && (
-                  <div className="rounded-xl border-2 border-dashed border-accent/40 bg-accent/5 p-3">
-                    <div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold text-ink">新增自訂工作</p><button type="button" onClick={() => setAddStepDealId(null)} className="btn-ghost min-h-10 px-3 text-xs">收起</button></div>
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-2"><input value={newStep.label} onChange={(event) => setNewStep((current) => ({ ...current, label: event.target.value }))} placeholder="例如：安裝冷凍機" className="min-h-11 text-xs" /><input value={newStep.service} onChange={(event) => setNewStep((current) => ({ ...current, service: event.target.value }))} placeholder="工作類型" className="min-h-11 text-xs" /><button type="button" onClick={() => addStep(deal, workflow)} className="btn-primary min-h-11 text-xs">加入流程</button></div>
+                  <div className="rounded-xl border-2 border-copper/45 bg-copper/5 p-3">
+                    <div className="mb-3 flex items-center justify-between"><div><p className="text-sm font-bold text-ink">新增施工階段</p><p className="mt-0.5 text-[11px] text-ink-3">名稱、工期與前置階段都由你決定。</p></div><button type="button" onClick={() => setAddStepDealId(null)} className="btn-ghost min-h-11 px-3 text-xs">取消</button></div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-[11px] font-medium text-ink-3 sm:col-span-2">施工階段名稱<input value={newStep.label} onChange={(event) => setNewStep((current) => ({ ...current, label: event.target.value }))} placeholder="例如：安裝冷凍機" className="mt-1 min-h-12 w-full text-sm" /></label><label className="text-[11px] font-medium text-ink-3">工作類型<input value={newStep.service} onChange={(event) => setNewStep((current) => ({ ...current, service: event.target.value }))} placeholder="例如：冷凍設備" className="mt-1 min-h-12 w-full text-sm" /></label><label className="text-[11px] font-medium text-ink-3">預計天數<input inputMode="numeric" value={newStep.plannedDays} onChange={(event) => setNewStep((current) => ({ ...current, plannedDays: event.target.value.replace(/[^0-9]/g, '') }))} className="mt-1 min-h-12 w-full text-sm" /></label><label className="text-[11px] font-medium text-ink-3 sm:col-span-2">接在哪個階段之後<select value={newStep.dependsOn} onChange={(event) => setNewStep((current) => ({ ...current, dependsOn: event.target.value }))} className="mt-1 min-h-12 w-full text-sm"><option value="">可獨立／可同時進行</option>{displayWorkflow.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}</select></label><button type="button" disabled={!newStep.label.trim()} onClick={() => addStep(deal, workflow)} className="btn-primary min-h-12 sm:col-span-2 disabled:opacity-40">確認加入施工流程</button></div>
                   </div>
                 )}
               </div>

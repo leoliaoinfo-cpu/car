@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLegacyCaseSeeds, buildWorkQueue, inferCaseType } from './cases.js';
+import {
+  buildLegacyCaseSeeds, buildWorkQueue, getCaseStatusLabel, inferCaseType, resolveCaseDeliveryTarget,
+} from './cases.js';
+
+test('交車日期必須由使用者選指定日期或幾天幾週後，不提供隱藏預設', () => {
+  assert.equal(resolveCaseDeliveryTarget({}), '');
+  assert.equal(resolveCaseDeliveryTarget({ mode: 'date', date: '2026-10-20' }), '2026-10-20');
+  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 10, unit: 'days', baseDate: '2026-10-08' }), '2026-10-18');
+  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 3, unit: 'weeks', baseDate: '2026-10-08' }), '2026-10-29');
+  assert.equal(resolveCaseDeliveryTarget({ mode: 'relative', amount: 0, unit: 'days', baseDate: '2026-10-08' }), '');
+});
+
+test('案件可用自訂階段名稱取代固定狀態文字', () => {
+  assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '等待料件' }), '等待料件');
+  assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '' }), '等待中');
+});
 
 test('改裝報價會建立改車案件，且已被成交引用的報價不重複建立', () => {
   const quotes = [
