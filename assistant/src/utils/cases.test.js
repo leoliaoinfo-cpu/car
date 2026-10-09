@@ -65,13 +65,14 @@ test('案件相容轉換使用固定 id，可安全重跑', () => {
 
 test('工作佇列會合併案件工作、中央待辦與客戶追蹤', () => {
   const rows = buildWorkQueue({
-    cases: [{ id: 'case-1', clientName: '王先生', title: '購車案件' }],
+    cases: [{ id: 'case-1', caseNumber: 100, clientName: '王先生', title: '購車案件' }],
     workItems: [{ id: 'w1', caseId: 'case-1', title: '確認規格', state: 'todo' }],
     tasks: [{ id: 't1', title: '回覆廠商', done: false }],
     clients: [{ id: 'c1', name: '陳先生', nextDate: '2099-01-01' }],
   });
   assert.equal(rows.length, 3);
   assert.equal(rows.find((row) => row.sourceType === 'workItem').clientName, '王先生');
+  assert.equal(rows.find((row) => row.sourceType === 'workItem').caseNumber, 100);
 });
 
 test('施工階段依分配天數產生催辦期限，未解鎖階段維持等待', () => {

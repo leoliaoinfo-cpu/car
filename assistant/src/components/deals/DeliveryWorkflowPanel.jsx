@@ -84,7 +84,7 @@ function progressStats(workflow, deal = {}) {
   return { complete, current, timing, overdue, schedule, startedAt, runningDays, targetDate, percent: workflow.length ? Math.round(complete / workflow.length * 100) : 0 };
 }
 
-export default function DeliveryWorkflowPanel({ deals, clients, pricingById, suppliers, onSaveDeal, onOpenPricing, focusDealId = null }) {
+export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pricingById, suppliers, onSaveDeal, onOpenPricing, focusDealId = null }) {
   const [openDealId, setOpenDealId] = useState(null);
   const [expandedSteps, setExpandedSteps] = useState({});
   const [addStepDealId, setAddStepDealId] = useState(null);
@@ -117,6 +117,14 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
   const persistedVersionRefs = useRef({});
   const [newStep, setNewStep] = useState({ label: '', service: '', plannedDays: '1', dependsOn: '' });
   const clientNames = useMemo(() => new Map(clients.map((client) => [client.id, client.name])), [clients]);
+  const caseNumbers = useMemo(() => {
+    const map = new Map();
+    cases.forEach((item) => {
+      if (item.dealId) map.set(`deal:${item.dealId}`, item.caseNumber);
+      map.set(`case:${item.id}`, item.caseNumber);
+    });
+    return map;
+  }, [cases]);
   const supplierNames = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])), [suppliers]);
   const sortedDeals = [...deals].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
@@ -599,6 +607,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
           : displayWorkflow.filter((step) => !FINISHED_STATUSES.has(step.status));
         const workflowEvents = eventRefs.current[deal.id] || deal.deliveryWorkflowEvents || [];
         const saveStatus = saveStatusByDeal[deal.id];
+        const caseNumber = caseNumbers.get(`deal:${deal.id}`) || caseNumbers.get(`case:${deal.caseId}`);
         return (
           <section key={deal.id} className={`card overflow-hidden ${focusDealId === deal.id ? 'ring-2 ring-copper/40' : ''}`}>
             <button type="button" onClick={() => toggleDeal(deal, workflow)} aria-expanded={isOpen}
@@ -608,7 +617,7 @@ export default function DeliveryWorkflowPanel({ deals, clients, pricingById, sup
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-s1">{workflow.length ? `${stats.percent}%` : '＋'}</span>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-ink truncate">{clientNames.get(deal.clientId) || deal.clientName || '未連結客戶'}・{deal.model || deal.note || '車輛'}</span>
+                <span className="block text-sm font-semibold text-ink truncate">{caseNumber ? `#${caseNumber}・` : ''}{clientNames.get(deal.clientId) || deal.clientName || '未連結客戶'}・{deal.model || deal.note || '車輛'}</span>
                 <span className="block text-[11px] text-ink-3">{deal.date ? dayjs(deal.date).format('YYYY/MM/DD') : '日期未填'}・{workflow.length ? `完成 ${stats.complete}/${workflow.length}` : '尚未建立流程'}{saveStatus === 'saving' ? '・儲存中…' : saveStatus === 'saved' ? '・已儲存' : saveStatus === 'error' ? '・儲存失敗' : ''}</span>
                 {stats.current && <span className="mt-1 block truncate text-[11px] text-accent">目前：{stats.current.label}</span>}
               </span>

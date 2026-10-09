@@ -575,6 +575,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
+                        {item.caseNumber != null && <span className="badge bg-s1 font-mono font-bold text-ink">#{item.caseNumber}</span>}
                         <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
                         <span className="badge bg-s1 text-ink-2">{CASE_STATUS_LABEL[item.status] || '進行中'}</span>
                       </div>

@@ -865,7 +865,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   <div><p className="text-xs font-semibold text-teal">📁 歸入客戶案件</p><p className="text-[11px] text-ink-3 mt-0.5">報價會直接留在這筆案件，不會另外產生重複案件。</p></div>
                   {activeCases.length > 0 ? <select value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
                     {activeCases.length > 1 && <option value="">請選擇案件…</option>}
-                    {activeCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改車' : '購車'}・{row.title || '未命名案件'}</option>)}
+                    {activeCases.map((row) => <option key={row.id} value={row.id}>{row.caseNumber != null ? `#${row.caseNumber}・` : ''}{row.type === 'modification' ? '改車' : '購車'}・{row.title || '未命名案件'}</option>)}
                   </select> : <p className="text-xs text-ink-2">儲存後會自動建立一筆新案件。</p>}
                   {caseError && <p role="alert" className="text-xs text-danger">{caseError}</p>}
                 </div>

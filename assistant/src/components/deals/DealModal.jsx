@@ -78,7 +78,7 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
                 <span className="block mb-1.5 font-medium">歸入客戶案件</span>
                 <select value={caseId} onChange={(event) => { setCaseId(event.target.value); setCaseError(''); }} className="w-full min-h-11">
                   <option value="">請選擇案件…</option>
-                  {availableCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改車' : '購車'}・{row.title || '未命名案件'}{row.status === 'completed' ? '（已完成）' : ''}</option>)}
+                  {availableCases.map((row) => <option key={row.id} value={row.id}>{row.caseNumber != null ? `#${row.caseNumber}・` : ''}{row.type === 'modification' ? '改車' : '購車'}・{row.title || '未命名案件'}{row.status === 'completed' ? '（已完成）' : ''}</option>)}
                 </select>
                 {caseError && <span className="block mt-1 text-xs text-danger">{caseError}</span>}
               </label>

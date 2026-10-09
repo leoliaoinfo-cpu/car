@@ -184,7 +184,7 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
       )}
 
       {section === 'fulfillment' && (
-        <DeliveryWorkflowPanel deals={deals} clients={clients} pricingById={pricingById}
+        <DeliveryWorkflowPanel deals={deals} cases={cases} clients={clients} pricingById={pricingById}
           suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} focusDealId={focusDealId} />
       )}
 
@@ -247,7 +247,7 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
             <div className="card overflow-hidden">
               {monthDeals.length === 0 && <EmptyDeals />}
               {monthDeals.map((deal) => (
-                <DealRow key={deal.id} deal={deal} fields={sortedFields}
+                <DealRow key={deal.id} deal={deal} caseNumber={cases.find((row) => row.id === deal.caseId || row.dealId === deal.id)?.caseNumber} fields={sortedFields}
                   pricing={pricingById.get(`deal:${deal.id}`)}
                   onOpenClient={onOpenClient} onEdit={() => setEditingDeal(deal)}
                   onPricing={() => openDealPricing(deal)}
@@ -270,7 +270,7 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
                     <span className="text-xs text-ink-2">{group.totals.count} 筆・NT$ {formatMoney(group.totals.amount)}</span>
                   </div>
                   {group.list.map((deal) => (
-                    <DealRow key={deal.id} deal={deal} fields={sortedFields}
+                    <DealRow key={deal.id} deal={deal} caseNumber={cases.find((row) => row.id === deal.caseId || row.dealId === deal.id)?.caseNumber} fields={sortedFields}
                       pricing={pricingById.get(`deal:${deal.id}`)}
                       onOpenClient={onOpenClient} onEdit={() => setEditingDeal(deal)}
                       onPricing={() => openDealPricing(deal)}
@@ -316,13 +316,14 @@ function SummaryMetric({ label, value, tone = 'ink' }) {
 }
 
 function DealRow({
-  deal, fields, pricing, onOpenClient, onEdit, onPricing,
+  deal, caseNumber, fields, pricing, onOpenClient, onEdit, onPricing,
   confirming, onDeleteAsk, onDeleteCancel, onDelete,
 }) {
   return (
     <div className="px-3 py-2.5 border-b border-bdr/50 last:border-0">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-ink-3 font-mono shrink-0">{dayjs(deal.date).format('MM/DD')}</span>
+        {caseNumber && <span className="badge bg-s2 font-mono font-bold text-ink">#{caseNumber}</span>}
         {deal.clientId ? (
           <button onClick={() => onOpenClient(deal.clientId)} className="font-medium text-sm text-accent hover:underline">
             {deal.clientName || '未命名客戶'}
