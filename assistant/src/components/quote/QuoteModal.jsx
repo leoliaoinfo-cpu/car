@@ -319,7 +319,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     return quote ? 'quote-only' : 'new';
   });
   const [customerError, setCustomerError] = useState('');
-  const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false, gift: false });
+  const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false });
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
@@ -528,13 +528,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
 
   function addExtraAddon() {
     const name = extraAddon.name.trim();
-    if (!name || (!extraAddon.pending && !extraAddon.gift && !(Number(extraAddon.price) > 0))) return;
+    if (!name || (!extraAddon.pending && !(Number(extraAddon.price) > 0))) return;
     const value = {
       id: generateId('qi'),
       name,
       price: extraAddon.pending ? '' : String(Math.max(0, Number(extraAddon.price) || 0)),
       pending: !!extraAddon.pending,
-      gift: !!extraAddon.gift,
+      gift: false,
       kind: 'addon',
       catalogId: null,
       discounts: [],
@@ -544,7 +544,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       if (emptyIdx === -1) return [...list, value];
       return list.map((item, index) => (index === emptyIdx ? { ...item, ...value, id: item.id } : item));
     });
-    setExtraAddon({ name: '', price: '', pending: false, gift: false });
+    setExtraAddon({ name: '', price: '', pending: false });
   }
 
   function removeItem(id) {
@@ -992,7 +992,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             <div className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-ink-2">➕ 額外配件／未列配件</p>
-                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入，也能標記為贈送或待廠商報價。</p>
+                <p className="text-[10px] text-ink-3 mt-0.5">型錄沒有的配件可自行輸入；贈送項目須由後台利潤試算核定。</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_7rem] gap-2">
                 <input value={extraAddon.name}
@@ -1002,28 +1002,18 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 <input type="number" min="0" value={extraAddon.price}
                   onChange={(e) => setExtraAddon((value) => ({ ...value, price: e.target.value }))}
                   disabled={extraAddon.pending}
-                  placeholder={extraAddon.pending ? '待確認' : extraAddon.gift ? '贈送價值（選填）' : '金額'} className="w-full text-sm disabled:opacity-40" />
+                  placeholder={extraAddon.pending ? '待確認' : '金額'} className="w-full text-sm disabled:opacity-40" />
               </div>
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer min-h-11">
-                    <input type="checkbox" checked={extraAddon.pending}
-                      onChange={(e) => setExtraAddon((value) => ({
-                        ...value, pending: e.target.checked, gift: e.target.checked ? false : value.gift,
-                        price: e.target.checked ? '' : value.price,
-                      }))} />
-                    待廠商報價
-                  </label>
-                  <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer min-h-11">
-                    <input type="checkbox" checked={extraAddon.gift}
-                      onChange={(e) => setExtraAddon((value) => ({
-                        ...value, gift: e.target.checked, pending: e.target.checked ? false : value.pending,
-                      }))} />
-                    🎁 贈送
-                  </label>
-                </div>
+                <label className="flex items-center gap-2 text-[11px] text-ink-2 cursor-pointer min-h-11">
+                  <input type="checkbox" checked={extraAddon.pending}
+                    onChange={(e) => setExtraAddon((value) => ({
+                      ...value, pending: e.target.checked, price: e.target.checked ? '' : value.price,
+                    }))} />
+                  待廠商報價
+                </label>
                 <button type="button" onClick={addExtraAddon}
-                  disabled={!extraAddon.name.trim() || (!extraAddon.pending && !extraAddon.gift && !(Number(extraAddon.price) > 0))}
+                  disabled={!extraAddon.name.trim() || (!extraAddon.pending && !(Number(extraAddon.price) > 0))}
                   className="btn-primary text-xs shrink-0 disabled:opacity-40">加入報價</button>
               </div>
             </div>
@@ -1069,20 +1059,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                           : selected ? '此項目目前沒有優惠' : '請輸入金額或標記待廠商報價'}
                       </span>
                       <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                        <button type="button" onClick={() => setItem(it.id, {
-                          pending: !it.pending, gift: false, discounts: it.pending ? it.discounts : [],
+                        {!it.gift && <button type="button" onClick={() => setItem(it.id, {
+                          pending: !it.pending, discounts: it.pending ? it.discounts : [],
                         })}
                           className={`text-[11px] rounded-lg border px-2 py-1 ${it.pending ? 'border-warn bg-warn/10 text-warn' : 'border-bdr text-ink-3'}`}>
                           {it.pending ? '✓ 待廠商報價' : '設為待廠商報價'}
-                        </button>
-                        {it.kind !== 'vehicle' && (
-                          <button type="button" onClick={() => setItem(it.id, {
-                            gift: !it.gift, pending: false, discounts: [],
-                          })}
-                            className={`text-[11px] rounded-lg border px-2 py-1 ${it.gift ? 'border-ok bg-ok/10 text-ok' : 'border-bdr text-ink-3'}`}>
-                            {it.gift ? '✓ 已設為贈送' : '🎁 設為贈送'}
-                          </button>
-                        )}
+                        </button>}
+                        {it.gift && <span className="text-[11px] rounded-lg border border-ok bg-ok/10 text-ok px-2 py-1">🎁 後台核定贈送</span>}
                       </div>
                     </div>
                   )}

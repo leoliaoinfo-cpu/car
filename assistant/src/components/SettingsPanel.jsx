@@ -12,6 +12,10 @@ import {
 } from '../notify';
 import { Field } from './ui';
 import { STORAGE_KEYS } from '../storageKeys';
+import {
+  DEFAULT_PRESENTATION_PIN_HASH, hashPresentationPin, isValidPresentationPin,
+  MAX_PRESENTATION_PIN_LENGTH, verifyPresentationPin,
+} from '../utils/presentationLock';
 
 const HELP_CARDS = [
   { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
@@ -45,13 +49,14 @@ const SECTION_LABELS = {
   quoteMenu: '🚚 報價選單',
   height: '📐 車高參數',
   rules: '⏱ 追蹤規則',
+  security: '🔐 後台密碼',
   help: '📖 使用說明',
 };
 
 const SETTING_GROUPS = [
   { title: '報價與商品', keys: ['quoteMenu', 'height', 'dealFields', 'template'] },
   { title: '客戶與工作', keys: ['cats', 'stages', 'industries', 'fields', 'rules', 'notify'] },
-  { title: '資料與系統', keys: ['sync', 'backup', 'help'] },
+  { title: '資料與系統', keys: ['security', 'sync', 'backup', 'help'] },
 ];
 
 export default function SettingsPanel({ onClose }) {
@@ -111,6 +116,8 @@ export default function SettingsPanel({ onClose }) {
           {activeSection === 'sync' && <SyncSection reloadAll={reloadAll} />}
 
           {activeSection === 'backup' && <BackupSection reloadAll={reloadAll} />}
+
+          {activeSection === 'security' && <BackendPasswordEditor />}
 
           {/* ── Notifications ── */}
           {activeSection === 'notify' && <NotifySection />}
@@ -246,6 +253,70 @@ export default function SettingsPanel({ onClose }) {
           )}
       </div>
     </div>
+  );
+}
+
+function readBackendPasswordHash() {
+  try { return localStorage.getItem(STORAGE_KEYS.presentationPinHash) || DEFAULT_PRESENTATION_PIN_HASH; }
+  catch { return DEFAULT_PRESENTATION_PIN_HASH; }
+}
+
+function BackendPasswordEditor() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const clean = (value) => value.replace(/\D/g, '').slice(0, MAX_PRESENTATION_PIN_LENGTH);
+
+  async function save(event) {
+    event.preventDefault();
+    if (saving) return;
+    setError('');
+    setMessage('');
+    if (!isValidPresentationPin(currentPassword) || !isValidPresentationPin(nextPassword)) {
+      setError('密碼必須是 4～12 位數字。');
+      return;
+    }
+    if (nextPassword !== confirmPassword) {
+      setError('新密碼與確認密碼不一致。');
+      return;
+    }
+    setSaving(true);
+    try {
+      if (!await verifyPresentationPin(currentPassword, readBackendPasswordHash())) {
+        setError('目前密碼不正確。');
+        return;
+      }
+      const hash = await hashPresentationPin(nextPassword);
+      localStorage.setItem(STORAGE_KEYS.presentationPinHash, hash);
+      setCurrentPassword('');
+      setNextPassword('');
+      setConfirmPassword('');
+      setMessage('後台密碼已更新。');
+    } catch {
+      setError('密碼無法儲存，請確認瀏覽器允許本機儲存。');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={save} className="card max-w-xl p-4 space-y-4">
+      <div>
+        <h2 className="font-bold text-ink">🔐 後台密碼</h2>
+        <p className="mt-1 text-xs leading-relaxed text-ink-3">同一組密碼用於「成交與施工」及離開客戶看車模式。可設定 4～12 位數字；系統只保存雜湊，不保存明文。</p>
+      </div>
+      {[['目前密碼', currentPassword, setCurrentPassword], ['新密碼', nextPassword, setNextPassword], ['再次輸入新密碼', confirmPassword, setConfirmPassword]].map(([label, value, setter]) => (
+        <label key={label} className="block text-xs font-medium text-ink-3">{label}
+          <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={MAX_PRESENTATION_PIN_LENGTH} value={value} onChange={(event) => setter(clean(event.target.value))} autoComplete="new-password" className="mt-1 min-h-11 w-full" />
+        </label>
+      ))}
+      {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
+      {message && <p role="status" className="rounded-xl border border-ok/40 bg-ok/10 p-3 text-sm text-ok">{message}</p>}
+      <button type="submit" disabled={saving} className="btn-primary min-h-11 w-full disabled:opacity-40">{saving ? '儲存中…' : '更新後台密碼'}</button>
+    </form>
   );
 }
 

@@ -13,6 +13,7 @@ import ReceptionPage from './components/reception/ReceptionPage';
 import TimerModal from './components/TimerModal';
 import WorkPage from './components/work/WorkPage';
 import CasesPage from './components/cases/CasesPage';
+import CaseQuickSearch from './components/cases/CaseQuickSearch';
 import QuickCreateSheet from './components/QuickCreateSheet';
 import { STORAGE_KEYS } from './storageKeys';
 
@@ -67,6 +68,7 @@ function AppInner() {
   const [caseFocusId, setCaseFocusId] = useState(null);
   const [operationsFocusDealId, setOperationsFocusDealId] = useState(null);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [showCaseSearch, setShowCaseSearch] = useState(false);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.isolationNoticeDismissed) !== '1'; } catch { return true; }
   });
@@ -153,7 +155,7 @@ function AppInner() {
         </div>
       )}
 
-      <Header tab={tab} setTab={setTab} />
+      <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} />
 
       <main className="pb-20 lg:pb-0">
         <div className="anim-fade-in" key={tab}>
@@ -182,6 +184,10 @@ function AppInner() {
         ＋
       </button>}
 
+      <button type="button" onClick={() => setShowCaseSearch(true)}
+        className="lg:hidden fixed left-4 bottom-24 z-40 min-h-14 min-w-14 rounded-full border border-teal/40 bg-s1 text-teal shadow-panel flex items-center justify-center active:scale-95 transition-transform text-xl"
+        title="快速搜尋案件" aria-label="快速搜尋案件">🔎</button>
+
       {/* Mobile bottom navigation */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
@@ -203,6 +209,7 @@ function AppInner() {
         ))}
       </nav>
       {showQuickCreate && <QuickCreateSheet onClose={() => setShowQuickCreate(false)} onAction={quickCreate} />}
+      {showCaseSearch && <CaseQuickSearch onClose={() => setShowCaseSearch(false)} onOpenCase={openCase} />}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
       <TimerModal />
     </div>

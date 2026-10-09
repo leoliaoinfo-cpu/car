@@ -13,7 +13,10 @@ import {
 import {
   VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatTwd, formatVehiclePrice, getVehicleVariant,
 } from '../../utils/vehicles';
-import { DEFAULT_PRESENTATION_PIN_HASH, verifyPresentationPin } from '../../utils/presentationLock';
+import {
+  DEFAULT_PRESENTATION_PIN_HASH, isValidPresentationPin, MAX_PRESENTATION_PIN_LENGTH,
+  registerPinFailure, verifyPresentationPin,
+} from '../../utils/presentationLock';
 import { STORAGE_KEYS } from '../../storageKeys';
 import { addDays, today } from '../../utils/date';
 import ProductCatalog from '../catalog/ProductCatalog';
@@ -540,47 +543,50 @@ function readPresentationPinHash() {
 
 function CustomerShowcase({ onExit }) {
   const [tab, setTab] = useState('home');
-  const [storedHash, setStoredHash] = useState(readPresentationPinHash);
+  const [storedHash] = useState(readPresentationPinHash);
   const [gate, setGate] = useState(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [recovering, setRecovering] = useState(false);
-  const [recoveryAnswer, setRecoveryAnswer] = useState('');
+  const [failureCount, setFailureCount] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const remainingSeconds = Math.max(0, Math.ceil((lockedUntil - now) / 1000));
+
+  useEffect(() => {
+    if (!remainingSeconds) return undefined;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [remainingSeconds]);
 
   function openExitGate() {
     setPin('');
     setError('');
-    setRecovering(false);
     setGate('unlock');
   }
 
   async function submitPin() {
-    if (pin.length !== 4 || busy) return;
+    if (!isValidPresentationPin(pin) || busy || remainingSeconds) return;
     setBusy(true);
     setError('');
     try {
       if (await verifyPresentationPin(pin, storedHash)) {
+        setFailureCount(0);
+        setLockedUntil(0);
         onExit();
       } else {
-        setError('PIN 錯誤，請再試一次');
+        const next = registerPinFailure(failureCount);
+        setFailureCount(next.failureCount);
+        setLockedUntil(next.lockedUntil);
+        setNow(Date.now());
+        setError(next.lockedUntil ? '嘗試次數過多，請稍後再試' : '密碼錯誤');
         setPin('');
       }
     } catch {
-      setError('無法儲存或驗證 PIN，請確認瀏覽器允許本機儲存');
+      setError('暫時無法驗證，請重新整理後再試');
     } finally {
       setBusy(false);
     }
-  }
-
-  function recoverPin() {
-    if (recoveryAnswer.trim() !== '0623') {
-      setError('管理密碼不正確');
-      return;
-    }
-    try { localStorage.setItem(STORAGE_KEYS.presentationPinHash, DEFAULT_PRESENTATION_PIN_HASH); } catch { /* noop */ }
-    setStoredHash(DEFAULT_PRESENTATION_PIN_HASH);
-    onExit();
   }
 
   return (
@@ -601,14 +607,12 @@ function CustomerShowcase({ onExit }) {
 
       {gate && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
         <div className="w-full max-w-sm rounded-3xl bg-s1 border border-bdr p-5 shadow-panel">
-          <div className="text-center"><div className="text-3xl">🔒</div><h2 className="font-bold text-lg mt-2">業務驗證</h2><p className="text-xs text-ink-3 mt-1">輸入 4 位數 PIN，才能回到業務系統</p></div>
-          {!recovering ? <>
-            <PinPad pin={pin} onChange={setPin} />
-            {error && <p className="text-xs text-danger text-center mt-2">{error}</p>}
-            <button type="button" disabled={pin.length !== 4 || busy} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '返回業務系統'}</button>
-            <button type="button" onClick={() => { setRecovering(true); setError(''); }} className="btn-ghost w-full mt-2 text-xs">忘記 PIN</button>
-            <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續看車</button>
-          </> : <div className="mt-4 space-y-3"><label className="block"><span className="text-xs text-ink-3">管理驗證</span><input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={recoveryAnswer} onChange={(event) => setRecoveryAnswer(event.target.value.replace(/\D/g, '').slice(0, 4))} autoComplete="off" className="w-full mt-1" placeholder="輸入4位數密碼" /></label>{error && <p className="text-xs text-danger">{error}</p>}<button type="button" onClick={recoverPin} className="btn-primary w-full">驗證並返回業務系統</button><button type="button" onClick={() => { setRecovering(false); setError(''); }} className="btn-outline w-full">返回 PIN</button></div>}
+          <div className="text-center"><div className="text-3xl">🔒</div><h2 className="font-bold text-lg mt-2">業務驗證</h2><p className="text-xs text-ink-3 mt-1">輸入管理密碼，才能回到業務系統</p></div>
+          <PinPad pin={pin} onChange={setPin} />
+          {error && <p className="text-xs text-danger text-center mt-2">{error}</p>}
+          {remainingSeconds > 0 && <p className="text-xs font-semibold text-warn text-center mt-2">{remainingSeconds} 秒後可再次嘗試</p>}
+          <button type="button" disabled={!isValidPresentationPin(pin) || busy || remainingSeconds > 0} onClick={submitPin} className="btn-primary w-full mt-3 disabled:opacity-40">{busy ? '驗證中…' : '返回業務系統'}</button>
+          <button type="button" onClick={() => setGate(null)} className="btn-outline w-full mt-2 text-xs">繼續看車</button>
         </div>
       </div>}
     </div>
@@ -620,9 +624,9 @@ function PinPad({ pin, onChange }) {
   function press(key) {
     if (key === '清除') onChange('');
     else if (key === '⌫') onChange(pin.slice(0, -1));
-    else if (pin.length < 4) onChange(`${pin}${key}`);
+    else if (pin.length < MAX_PRESENTATION_PIN_LENGTH) onChange(`${pin}${key}`);
   }
-  return <div className="mt-5"><div className="flex justify-center gap-3 mb-4">{[0, 1, 2, 3].map((index) => <span key={index} className={`w-4 h-4 rounded-full border ${pin.length > index ? 'bg-accent border-accent' : 'bg-s2 border-bdr'}`} />)}</div><div className="grid grid-cols-3 gap-2">{keys.map((key) => <button type="button" key={key} onClick={() => press(key)} className="min-h-12 rounded-xl border border-bdr bg-s2 text-base font-semibold active:bg-accent active:text-on-accent">{key}</button>)}</div></div>;
+  return <div className="mt-5"><div className="min-h-6 text-center text-lg tracking-[0.35em] text-accent" aria-label={`已輸入 ${pin.length} 位`}>{pin ? '●'.repeat(pin.length) : ' '}</div><div className="grid grid-cols-3 gap-2 mt-3">{keys.map((key) => <button type="button" key={key} onClick={() => press(key)} className="min-h-12 rounded-xl border border-bdr bg-s2 text-base font-semibold active:bg-accent active:text-on-accent">{key}</button>)}</div></div>;
 }
 
 function ShowcaseHome({ onSelect }) {

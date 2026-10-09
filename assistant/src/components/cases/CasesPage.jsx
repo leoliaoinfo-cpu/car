@@ -30,10 +30,18 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
     const needle = query.trim().toLowerCase();
     return [...cases]
       .filter((row) => filter === 'all' || row.status === filter)
-      .filter((row) => !needle || [row.clientName, row.title, CASE_TYPE_LABEL[row.type], getCaseStatusLabel(row), row.nextFollowUpDate, getCasePipelineStage(row, { deals, quotes: quoteDrafts })]
-        .some((value) => String(value || '').toLowerCase().includes(needle)))
+      .filter((row) => {
+        if (!needle) return true;
+        const client = clients.find((item) => item.id === row.clientId);
+        const linkedDeal = deals.find((item) => item.id === row.dealId || item.caseId === row.id);
+        const linkedQuotes = quoteDrafts.filter((item) => (row.quoteIds || []).includes(item.id) || item.caseId === row.id);
+        return [row.caseNumber, `#${row.caseNumber}`, row.clientName, row.title, CASE_TYPE_LABEL[row.type], getCaseStatusLabel(row), row.nextFollowUpDate,
+          getCasePipelineStage(row, { deals, quotes: quoteDrafts }), client?.phone, client?.lineId, client?.company, client?.plate, client?.licensePlate,
+          linkedDeal?.model, ...linkedQuotes.map((item) => item.model)]
+          .some((value) => String(value || '').toLowerCase().includes(needle));
+      })
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-  }, [cases, deals, filter, query, quoteDrafts]);
+  }, [cases, clients, deals, filter, query, quoteDrafts]);
   const workQueue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
   const selected = cases.find((row) => row.id === selectedId);
 
@@ -50,7 +58,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
         </div>
       </section>
 
-      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋客戶或案件…" className="w-full min-h-11" />
+      <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋 #案件編號、姓名、電話、車牌或車型…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {STATUS_FILTERS.map(([key, label]) => {
           const count = key === 'all' ? cases.length : cases.filter((row) => row.status === key).length;
@@ -76,6 +84,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="badge bg-s3 font-mono text-ink">#{item.caseNumber}</span>
                       <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
                       <span className="badge bg-copper/12 text-copper">{pipelineStage}</span>
                       <span className="badge bg-s2 text-ink-2">{getCaseStatusLabel(item)}</span>
@@ -352,7 +361,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           <button type="button" onClick={onClose} className="btn-ghost min-h-11 px-3">←</button>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-ink truncate">{item.clientName || '未命名客戶'}</p>
-            <p className="text-xs text-ink-3 truncate">{CASE_TYPE_LABEL[item.type]}・{item.title}・{pipelineStage}</p>
+            <p className="text-xs text-ink-3 truncate">#{item.caseNumber}・{CASE_TYPE_LABEL[item.type]}・{item.title}・{pipelineStage}</p>
           </div>
           <button type="button" onClick={() => setShowEdit(true)} className="min-h-11 shrink-0 rounded-xl border border-copper/45 bg-copper/10 px-3 text-xs font-bold text-copper">✎ 編輯案件</button>
         </header>

@@ -1,4 +1,4 @@
-export default function Header({ tab, setTab }) {
+export default function Header({ tab, setTab, onOpenCaseSearch }) {
   const tabs = [
     { key: 'work', icon: '✓', label: '工作台', active: 'bg-copper/15 text-copper ring-1 ring-copper/25' },
     { key: 'cases', icon: '📁', label: '客戶案件', active: 'bg-teal/15 text-teal ring-1 ring-teal/25' },
@@ -27,6 +27,9 @@ export default function Header({ tab, setTab }) {
           </button>
         ))}
       </nav>
+      <button type="button" onClick={onOpenCaseSearch} className="mr-1 min-h-10 rounded-lg px-2.5 text-xs font-semibold text-teal hover:bg-s3" title="快速搜尋案件">
+        🔎 案件快搜
+      </button>
       <button
         onClick={() => setTab('operations')}
         className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${tab === 'operations' ? 'bg-orange-500/15 text-orange-500' : 'text-ink-2 hover:bg-s3'}`}

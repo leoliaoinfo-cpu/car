@@ -243,7 +243,7 @@ function isPricingDiscount(row) {
  * 把中央利潤試算的單項優惠寫回客戶報價。
  * 每個品項只保留一筆中央優惠，避免前台與後台各自折扣後被重複加總。
  */
-export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
+export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}, lineGifts = {}) {
   const normalized = normalizeQuoteItems(quote?.items || []);
   const items = normalized.items.map((item) => {
     if (!Object.prototype.hasOwnProperty.call(lineDiscounts, item.id)) return item;
@@ -254,10 +254,12 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}) {
       name: PRICING_DISCOUNT_NAME,
       amount,
     }] : [];
+    const hasGiftControl = Object.prototype.hasOwnProperty.call(lineGifts, item.id);
+    const requestedGift = hasGiftControl ? !!lineGifts[item.id] : !!item.gift;
     return {
       ...item,
       // 後台將贈送折扣改成非全額時，即視為取消贈送，避免標示與金額不一致。
-      gift: !!item.gift && amount >= money(item.price),
+      gift: requestedGift && amount >= money(item.price),
       discounts: pricingDiscount,
     };
   });

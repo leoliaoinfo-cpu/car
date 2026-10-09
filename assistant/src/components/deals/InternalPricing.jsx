@@ -331,6 +331,9 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       return [line.id, total ? String(total) : ''];
     }),
   ));
+  const [lineGifts, setLineGifts] = useState(() => Object.fromEntries(
+    (quote?.items || []).map((item) => [item.id, !!item.gift]),
+  ));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
 
   const cleanLineCosts = Object.fromEntries(Object.entries(lineCosts)
@@ -351,7 +354,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
     })),
   };
   const preview = updatePricingCosts(previewBase, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
-  const updatedQuote = quote ? applyPricingDiscountsToQuote(quote, cleanLineDiscounts) : null;
+  const updatedQuote = quote ? applyPricingDiscountsToQuote(quote, cleanLineDiscounts, lineGifts) : null;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
 
@@ -379,6 +382,15 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       delete next[line.id];
       return next;
     });
+  }
+
+  function toggleGift(line) {
+    const nextGift = !lineGifts[line.id];
+    setLineGifts((current) => ({ ...current, [line.id]: nextGift }));
+    setLineDiscounts((current) => ({
+      ...current,
+      [line.id]: nextGift ? String(line.salePrice || 0) : '',
+    }));
   }
 
   function saveInternalPricing() {
@@ -458,9 +470,18 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                       <span className="block text-[9px] text-ink-3 mb-0.5">中央優惠（與報價同步）</span>
                       <input type="number" min="0" max={Math.max(0, line.salePrice)}
                         value={lineDiscounts[line.id] ?? ''}
-                        onChange={(e) => setLineDiscounts((current) => ({ ...current, [line.id]: e.target.value }))}
+                        onChange={(e) => {
+                          setLineDiscounts((current) => ({ ...current, [line.id]: e.target.value }));
+                          if (lineGifts[line.id]) setLineGifts((current) => ({ ...current, [line.id]: false }));
+                        }}
                         placeholder="折扣金額" className="text-xs w-full" />
                     </label>
+                  )}
+                  {quote && line.kind !== 'vehicle' && (
+                    <button type="button" onClick={() => toggleGift(line)}
+                      className={`min-h-11 rounded-lg border px-3 text-xs font-semibold ${lineGifts[line.id] ? 'border-ok bg-ok/15 text-ok' : 'border-bdr text-ink-2 hover:bg-s3'} col-span-2`}>
+                      {lineGifts[line.id] ? '✓ 此項已核定贈送' : '🎁 核定此項贈送'}
+                    </button>
                   )}
                   <p className={`text-[10px] text-right mt-0.5 ${quote ? 'col-span-2' : ''} ${contribution == null ? 'text-warn font-semibold' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
                     {contribution == null ? `⚠️ 未設定${line.kind === 'vehicle' ? '傭金' : '成本'}` : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}

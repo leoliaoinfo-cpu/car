@@ -13,7 +13,7 @@ import { STORAGE_KEYS } from './storageKeys';
 import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
-import { buildLegacyCaseSeeds, inferCaseType } from './utils/cases';
+import { assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 
 const AppContext = createContext(null);
 
@@ -243,6 +243,9 @@ export function AppProvider({ children }) {
   // 同步鏡射 clients，讓快速連續的增量更新（updateClient）不會讀到過期快照
   const clientsRef = useRef(initialState.clients);
   clientsRef.current = state.clients;
+  const casesRef = useRef(initialState.cases);
+  casesRef.current = state.cases;
+  const caseNumberNextRef = useRef(FIRST_CASE_NUMBER);
 
   // 只在真正被其他分頁的舊連線擋住時通知（IndexedDB 原生訊號，非猜測性逾時）
   useEffect(() => {
@@ -265,7 +268,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -288,6 +291,7 @@ export function AppProvider({ children }) {
           db.get('settings', 'costCatalog').catch(() => null),
           db.get('settings', 'industries').catch(() => null),
           db.get('settings', 'heightConfig').catch(() => null),
+          db.get('settings', 'caseNumberSequence').catch(() => null),
         ]);
 
         const resolvedCats = cats.length > 0 ? cats : DEFAULT_CATS;
@@ -303,7 +307,15 @@ export function AppProvider({ children }) {
           deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases,
         });
         for (const item of caseSeeds) await db.put('cases', item);
-        const resolvedCases = [...cases, ...caseSeeds];
+        const numberedCases = assignCaseNumbers([...cases, ...caseSeeds], caseNumberSequenceRow?.nextNumber);
+        const changedCaseIds = new Set(numberedCases.changedIds);
+        for (const item of numberedCases.cases) if (changedCaseIds.has(item.id)) await db.put('cases', item);
+        caseNumberNextRef.current = numberedCases.nextNumber;
+        casesRef.current = numberedCases.cases;
+        if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
+          await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
+        }
+        const resolvedCases = numberedCases.cases;
         dispatch({
           type: 'LOAD_INIT',
           payload: {
@@ -628,7 +640,15 @@ export function AppProvider({ children }) {
   // ── 客戶案件與行動工作台 ────────────────────────────────────────────────
   const saveCase = useCallback(async (item) => {
     const now = new Date().toISOString();
-    const full = { status: 'active', type: 'purchase', createdAt: now, ...item, updatedAt: now };
+    const previous = casesRef.current.find((row) => row.id === item.id);
+    let caseNumber = previous?.caseNumber;
+    if (!Number.isInteger(Number(caseNumber)) || Number(caseNumber) < FIRST_CASE_NUMBER) {
+      caseNumber = caseNumberNextRef.current;
+      caseNumberNextRef.current += 1;
+      await db.put('settings', { key: 'caseNumberSequence', nextNumber: caseNumberNextRef.current });
+    }
+    const full = { status: 'active', type: 'purchase', createdAt: previous?.createdAt || now, ...item, caseNumber: Number(caseNumber), updatedAt: now };
+    casesRef.current = [...casesRef.current.filter((row) => row.id !== full.id), full];
     dispatch({ type: 'UPSERT_CASE', payload: full });
     await db.put('cases', full);
     return full;
@@ -743,7 +763,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -766,10 +786,19 @@ export function AppProvider({ children }) {
       db.get('settings', 'costCatalog').catch(() => null),
       db.get('settings', 'industries').catch(() => null),
       db.get('settings', 'heightConfig').catch(() => null),
+      db.get('settings', 'caseNumberSequence').catch(() => null),
     ]);
     const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
     const caseSeeds = buildLegacyCaseSeeds({ deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases });
     for (const item of caseSeeds) await db.put('cases', item);
+    const numberedCases = assignCaseNumbers([...cases, ...caseSeeds], caseNumberSequenceRow?.nextNumber);
+    const changedCaseIds = new Set(numberedCases.changedIds);
+    for (const item of numberedCases.cases) if (changedCaseIds.has(item.id)) await db.put('cases', item);
+    caseNumberNextRef.current = numberedCases.nextNumber;
+    casesRef.current = numberedCases.cases;
+    if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
+      await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
+    }
     dispatch({
       type: 'RELOAD_ALL',
       payload: {
@@ -783,7 +812,7 @@ export function AppProvider({ children }) {
         quoteDrafts: canonical.quoteDrafts,
         receptionSessions,
         suppliers,
-        cases: [...cases, ...caseSeeds],
+        cases: numberedCases.cases,
         workItems,
         activities,
         tasks,

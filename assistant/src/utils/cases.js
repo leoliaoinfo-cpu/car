@@ -3,6 +3,36 @@ import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './deliv
 
 export const CASE_TYPE_LABEL = { purchase: '購車', modification: '改車' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
+export const FIRST_CASE_NUMBER = 100;
+
+export function assignCaseNumbers(items = [], nextNumber = FIRST_CASE_NUMBER) {
+  const ordered = [...items].sort((a, b) => String(a.createdAt || a.updatedAt || a.id || '').localeCompare(String(b.createdAt || b.updatedAt || b.id || '')));
+  const used = new Set();
+  let cursor = Math.max(FIRST_CASE_NUMBER, Number.isInteger(Number(nextNumber)) ? Number(nextNumber) : FIRST_CASE_NUMBER);
+  const byId = new Map();
+  const changedIds = [];
+
+  for (const item of ordered) {
+    const requested = Number(item.caseNumber);
+    let caseNumber = Number.isInteger(requested) && requested >= FIRST_CASE_NUMBER && !used.has(requested) ? requested : null;
+    if (caseNumber == null) {
+      while (used.has(cursor)) cursor += 1;
+      caseNumber = cursor;
+      cursor += 1;
+    }
+    used.add(caseNumber);
+    cursor = Math.max(cursor, caseNumber + 1);
+    const next = caseNumber === item.caseNumber ? item : { ...item, caseNumber };
+    if (next !== item) changedIds.push(item.id);
+    byId.set(item.id, next);
+  }
+
+  return {
+    cases: items.map((item) => byId.get(item.id) || item),
+    nextNumber: cursor,
+    changedIds,
+  };
+}
 
 export function getCaseStatusLabel(item) {
   return String(item?.stageLabel || '').trim() || CASE_STATUS_LABEL[item?.status] || '進行中';

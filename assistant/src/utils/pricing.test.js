@@ -217,6 +217,16 @@ test('consolidates old front discounts into the single central discount', () => 
   assert.equal(updatedQuote.total, 15000);
 });
 
+test('backend gift approval is the only source that can add or remove a gift', () => {
+  const quote = { id: 'q-gift-control', items: [{ id: 'a', kind: 'addon', name: '配件', price: 3000, gift: false }], generalDiscounts: [] };
+  const gifted = applyPricingDiscountsToQuote(quote, { a: 3000 }, { a: true });
+  assert.equal(gifted.items[0].gift, true);
+  assert.equal(gifted.total, 0);
+  const restored = applyPricingDiscountsToQuote(gifted, { a: 0 }, { a: false });
+  assert.equal(restored.items[0].gift, false);
+  assert.equal(restored.total, 3000);
+});
+
 test('renames a legacy business discount to the customer-facing discount label', () => {
   const quote = {
     id: 'q-legacy-discount-name',

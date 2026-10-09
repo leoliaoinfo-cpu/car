@@ -1,8 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
+  assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
 } from './cases.js';
+
+test('案件編號從 100 起補齊、保留既有編號並修復重複編號', () => {
+  const result = assignCaseNumbers([
+    { id: 'old', createdAt: '2026-01-01' },
+    { id: 'kept', createdAt: '2026-01-02', caseNumber: 105 },
+    { id: 'duplicate', createdAt: '2026-01-03', caseNumber: 105 },
+  ]);
+  assert.deepEqual(result.cases.map((row) => row.caseNumber), [100, 105, 106]);
+  assert.equal(result.nextNumber, 107);
+  assert.deepEqual(result.changedIds, ['old', 'duplicate']);
+});
+
+test('案件編號序號器不會因刪除舊案件而回收號碼', () => {
+  const result = assignCaseNumbers([{ id: 'new' }], 123);
+  assert.equal(result.cases[0].caseNumber, 123);
+  assert.equal(result.nextNumber, 124);
+});
 
 test('新案件追蹤日必須由使用者選指定日期或幾天幾週後，不提供隱藏預設', () => {
   assert.equal(resolveCaseFollowUpTarget({}), '');
