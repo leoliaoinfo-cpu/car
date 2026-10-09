@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
 import { addDays, today } from '../../utils/date';
+import { CASE_TYPE_LABEL, inferCaseType } from '../../utils/cases';
 import QuoteModal from './QuoteModal';
 
 function pendingCount(quote) {
@@ -15,11 +16,12 @@ function requirementPendingCount(quote) {
 
 export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed }) {
   const {
-    clients, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
+    clients, cases, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     savePricingRecord, saveClient, updateClient, cats, stages,
   } = useApp();
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveNotice, setSaveNotice] = useState(null);
 
@@ -44,17 +46,34 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   }, [caseContext, onCaseContextConsumed]);
 
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const caseById = useMemo(() => new Map(cases.map((item) => [item.id, item])), [cases]);
+  const caseByQuoteId = useMemo(() => {
+    const map = new Map();
+    cases.forEach((item) => (item.quoteIds || []).forEach((quoteId) => map.set(quoteId, item)));
+    return map;
+  }, [cases]);
+  const linkedCaseFor = (quote) => caseById.get(quote.caseId) || caseByQuoteId.get(quote.id) || null;
+  const typeCounts = useMemo(() => quoteDrafts.reduce((counts, quote) => {
+    const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
+    const type = linkedCase?.type || inferCaseType(quote);
+    counts[type] = (counts[type] || 0) + 1;
+    if (!linkedCase) counts.unlinked += 1;
+    return counts;
+  }, { purchase: 0, modification: 0, unlinked: 0 }), [quoteDrafts, caseById, caseByQuoteId]);
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return [...quoteDrafts]
       .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))
       .filter((quote) => {
+        const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
+        const quoteType = linkedCase?.type || inferCaseType(quote);
+        if (typeFilter === 'unlinked' ? linkedCase : typeFilter !== 'all' && quoteType !== typeFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
-        return [quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
+        return [linkedCase?.caseNumber, linkedCase?.caseNumber ? `#${linkedCase.caseNumber}` : '', CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
-  }, [quoteDrafts, query, clientMap]);
+  }, [quoteDrafts, query, typeFilter, clientMap, caseById, caseByQuoteId]);
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, ...quotePayload } = payload;
@@ -158,8 +177,16 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
 
       <div className="flex items-center gap-2">
         <input value={query} onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜尋客戶、電話、車型或需求…" className="flex-1 text-sm" />
+          placeholder="搜尋 #案件編號、客戶、電話、車型或需求…" className="flex-1 text-sm" />
         <span className="text-xs text-ink-3 shrink-0">{rows.length} 張</span>
+      </div>
+      <div className="flex gap-2 overflow-x-auto pb-1" aria-label="報價種類篩選">
+        {[
+          ['all', '全部', quoteDrafts.length],
+          ['purchase', '🚛 購車', typeCounts.purchase],
+          ['modification', '🛠️ 改車', typeCounts.modification],
+          ['unlinked', '未歸入案件', typeCounts.unlinked],
+        ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setTypeFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${typeFilter === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
 
       {saveNotice && (
@@ -184,6 +211,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           {rows.map((quote) => {
             const linked = clientMap.get(quote.clientId);
             const customer = quote.customerName || linked?.name || '未填客戶';
+            const linkedCase = linkedCaseFor(quote);
+            const quoteType = linkedCase?.type || inferCaseType(quote);
             const pending = pendingCount(quote);
             const pendingRequirements = requirementPendingCount(quote);
             return (
@@ -191,6 +220,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {linkedCase?.caseNumber && <span className="badge bg-s3 font-mono font-bold text-ink">#{linkedCase.caseNumber}</span>}
+                      <span className={`badge ${quoteType === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
+                      {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
                       {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
                       {pending > 0

@@ -125,7 +125,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onQuickCreate }) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-ink leading-snug">{row.title}</p>
-                    {(row.caseNumber || row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.caseNumber ? `#${row.caseNumber}` : '', row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
+                    {(row.caseNumber || row.caseNumbers?.length || row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.caseNumber ? `#${row.caseNumber}` : row.caseNumbers?.length ? `案件 ${row.caseNumbers.map((value) => `#${value}`).join('、')}` : '', row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
                   </div>
                   <span className={`badge shrink-0 ${row.group === 'overdue' ? 'bg-danger/12 text-danger' : row.group === 'waiting' ? 'bg-gold/12 text-gold' : 'bg-accent/10 text-accent'}`}>{dueText(row)}</span>
                 </div>

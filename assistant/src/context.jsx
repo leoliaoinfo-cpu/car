@@ -63,6 +63,7 @@ const initialState = {
   receptionSessions: [],
   suppliers: [],
   cases: [],
+  deletedCases: [],
   workItems: [],
   activities: [],
   tasks: [],
@@ -169,6 +170,10 @@ function reducer(state, action) {
     }
     case 'DELETE_CASE':
       return { ...state, cases: state.cases.filter((row) => row.id !== action.id) };
+    case 'ARCHIVE_CASE':
+      return { ...state, cases: state.cases.filter((row) => row.id !== action.payload.id), deletedCases: [...state.deletedCases.filter((row) => row.id !== action.payload.id), action.payload] };
+    case 'RESTORE_CASE':
+      return { ...state, deletedCases: state.deletedCases.filter((row) => row.id !== action.payload.id), cases: [...state.cases.filter((row) => row.id !== action.payload.id), action.payload] };
     case 'UPSERT_WORK_ITEM': {
       const idx = state.workItems.findIndex((row) => row.id === action.payload.id);
       const next = [...state.workItems];
@@ -311,17 +316,18 @@ export function AppProvider({ children }) {
         const changedCaseIds = new Set(numberedCases.changedIds);
         for (const item of numberedCases.cases) if (changedCaseIds.has(item.id)) await db.put('cases', item);
         caseNumberNextRef.current = numberedCases.nextNumber;
-        casesRef.current = numberedCases.cases;
+        const visibleCases = numberedCases.cases.filter((row) => !row.deletedAt);
+        casesRef.current = visibleCases;
         if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
           await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
         }
-        const resolvedCases = numberedCases.cases;
+        const resolvedCases = visibleCases;
         dispatch({
           type: 'LOAD_INIT',
           payload: {
             clients: canonical.clients, cats: resolvedCats, stages: resolvedStages, customFields,
             deals, dealFields: resolvedDealFields, pricingRecords, quoteDrafts: canonical.quoteDrafts, receptionSessions, suppliers,
-            cases: resolvedCases, workItems, activities, tasks, events, timers,
+            cases: resolvedCases, deletedCases: numberedCases.cases.filter((row) => row.deletedAt), workItems, activities, tasks, events, timers,
             thresholds: thresholdRow ? normalizeThresholds(thresholdRow) : DEFAULT_THRESHOLDS,
             heightConfig: normalizeHeightConfig(heightConfigRow),
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
@@ -490,7 +496,7 @@ export function AppProvider({ children }) {
   const saveDeal = useCallback(async (deal) => {
     const now = new Date().toISOString();
     let full = { createdAt: now, ...deal, updatedAt: now };
-    const allCases = await db.getAll('cases').catch(() => []);
+    const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
     const quote = full.quoteId ? await db.get('quoteDrafts', full.quoteId).catch(() => null) : null;
     const caseType = inferCaseType(quote);
     const candidates = allCases.filter((row) => row.clientId && row.clientId === (full.clientId || quote?.clientId)
@@ -550,7 +556,7 @@ export function AppProvider({ children }) {
   const saveQuoteDraft = useCallback(async (quote) => {
     const now = new Date().toISOString();
     let full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
-    const allCases = await db.getAll('cases').catch(() => []);
+    const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
     const caseType = inferCaseType(full);
     const previousLinked = allCases.find((row) => (row.quoteIds || []).includes(full.id));
     const candidates = allCases.filter((row) => row.clientId && row.clientId === full.clientId
@@ -558,8 +564,10 @@ export function AppProvider({ children }) {
     const linked = allCases.find((row) => row.id === full.caseId)
       || previousLinked
       || (candidates.length === 1 ? candidates[0] : null);
+    const keepDetached = Boolean(full.caseArchivedAt && !full.caseId);
+    if (full.caseId && full.caseArchivedAt) full = { ...full, caseArchivedAt: null };
     let caseRow = null;
-    if (linked || full.clientId || full.customerName) {
+    if (!keepDetached && (linked || full.clientId || full.customerName)) {
       caseRow = {
         ...(linked || {}), id: linked?.id || `case:quote:${full.id}`,
         clientId: full.clientId || linked?.clientId || null,
@@ -655,8 +663,28 @@ export function AppProvider({ children }) {
   }, []);
 
   const deleteCase = useCallback(async (id) => {
-    dispatch({ type: 'DELETE_CASE', id });
-    await db.delete('cases', id);
+    const current = casesRef.current.find((row) => row.id === id);
+    if (!current) return null;
+    const linkedDeals = (await db.getAll('deals').catch(() => [])).filter((row) => row.caseId === id || current.dealId === row.id);
+    if (linkedDeals.length) throw new Error('已成交或進入施工的案件不能直接刪除。');
+
+    const now = new Date().toISOString();
+    const archived = { ...current, deletedAt: now, updatedAt: now };
+    await db.put('cases', archived);
+    casesRef.current = casesRef.current.filter((row) => row.id !== id);
+    dispatch({ type: 'ARCHIVE_CASE', payload: archived });
+    return archived;
+  }, []);
+
+  const restoreCase = useCallback(async (id) => {
+    const archived = await db.get('cases', id).catch(() => null);
+    if (!archived?.deletedAt) throw new Error('找不到可恢復的案件。');
+    const { deletedAt, ...rest } = archived;
+    const restored = { ...rest, updatedAt: new Date().toISOString() };
+    await db.put('cases', restored);
+    casesRef.current = [...casesRef.current.filter((row) => row.id !== id), restored];
+    dispatch({ type: 'RESTORE_CASE', payload: restored });
+    return restored;
   }, []);
 
   const saveWorkItem = useCallback(async (item) => {
@@ -795,7 +823,8 @@ export function AppProvider({ children }) {
     const changedCaseIds = new Set(numberedCases.changedIds);
     for (const item of numberedCases.cases) if (changedCaseIds.has(item.id)) await db.put('cases', item);
     caseNumberNextRef.current = numberedCases.nextNumber;
-    casesRef.current = numberedCases.cases;
+    const visibleCases = numberedCases.cases.filter((row) => !row.deletedAt);
+    casesRef.current = visibleCases;
     if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
       await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
     }
@@ -812,7 +841,8 @@ export function AppProvider({ children }) {
         quoteDrafts: canonical.quoteDrafts,
         receptionSessions,
         suppliers,
-        cases: numberedCases.cases,
+        cases: visibleCases,
+        deletedCases: numberedCases.cases.filter((row) => row.deletedAt),
         workItems,
         activities,
         tasks,
@@ -853,6 +883,7 @@ export function AppProvider({ children }) {
     deleteSupplier,
     saveCase,
     deleteCase,
+    restoreCase,
     saveWorkItem,
     deleteWorkItem,
     saveActivity,

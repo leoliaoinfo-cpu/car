@@ -101,6 +101,8 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
   }
 
   for (const quote of quotes) {
+    if (quote.caseArchivedAt) continue;
+    if (quote.caseId && existingIds.has(quote.caseId)) continue;
     const id = `case:quote:${quote.id}`;
     if (linkedQuoteIds.has(quote.id) || existingIds.has(id)) continue;
     const client = clientMap.get(quote.clientId);
@@ -145,13 +147,15 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     const list = activeCasesByClient.get(clientId) || [];
     return list.length === 1 ? list[0].id : null;
   };
+  const caseNumbersForClient = (clientId) => (activeCasesByClient.get(clientId) || [])
+    .map((row) => row.caseNumber).filter(Boolean).sort((a, b) => a - b);
   const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn) });
 
-  workItems.filter((row) => row.state !== 'done').forEach((row) => {
+  workItems.filter((row) => row.state !== 'done' && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const linkedCase = caseMap.get(row.caseId);
     push({ ...row, sourceType: 'workItem', sourceId: row.id, clientName: row.clientName || linkedCase?.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: linkedCase?.title || '', caseNumber: linkedCase?.caseNumber });
   });
-  tasks.filter((row) => !row.done).forEach((row) => {
+  tasks.filter((row) => !row.done && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const caseId = row.caseId || onlyCaseForClient(row.clientId);
     push({
       id: `task:${row.id}`, sourceType: 'task', sourceId: row.id, title: row.title || row.text || '待辦事項',
@@ -162,10 +166,11 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   clients.forEach((client) => {
     const caseId = onlyCaseForClient(client.id);
     const caseNumber = caseMap.get(caseId)?.caseNumber;
-    if (client.nextDate) push({ id: `client-next:${client.id}`, sourceType: 'client-next', sourceId: client.id, title: '聯繫客戶', due: client.nextDate, state: 'todo', caseId, caseNumber, clientId: client.id, clientName: client.name });
+    const caseNumbers = caseNumbersForClient(client.id);
+    if (client.nextDate) push({ id: `client-next:${client.id}`, sourceType: 'client-next', sourceId: client.id, title: '聯繫客戶', due: client.nextDate, state: 'todo', caseId, caseNumber, caseNumbers, clientId: client.id, clientName: client.name });
     (client.todos || []).filter((row) => !row.done).forEach((row) => push({
       id: `client-todo:${client.id}:${row.id}`, sourceType: 'client-todo', sourceId: row.id,
-      title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, caseNumber: caseMap.get(row.caseId || caseId)?.caseNumber, clientId: client.id, clientName: client.name,
+      title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, caseNumber: caseMap.get(row.caseId || caseId)?.caseNumber, caseNumbers, clientId: client.id, clientName: client.name,
     }));
   });
   deals.forEach((deal) => {

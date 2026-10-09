@@ -63,6 +63,28 @@ test('案件相容轉換使用固定 id，可安全重跑', () => {
   assert.deepEqual(second, []);
 });
 
+test('已刪除案件的舊報價不會在重新載入時自動建立案件', () => {
+  const cases = buildLegacyCaseSeeds({
+    quotes: [{ id: 'quote-archived', clientId: 'client-1', caseId: 'case-archived' }],
+    clients: [{ id: 'client-1', name: '王先生' }],
+    existingCases: [{ id: 'case-archived', deletedAt: '2026-10-09T00:00:00.000Z' }],
+  });
+  assert.equal(cases.length, 0);
+});
+
+test('客戶工作會帶出所有進行中案件編號，已刪案件工作不顯示', () => {
+  const rows = buildWorkQueue({
+    cases: [
+      { id: 'case-103', caseNumber: 103, clientId: 'client-1', status: 'active' },
+      { id: 'case-104', caseNumber: 104, clientId: 'client-1', status: 'active' },
+    ],
+    clients: [{ id: 'client-1', name: '展間客戶', nextDate: '2099-01-01' }],
+    workItems: [{ id: 'deleted-work', caseId: 'case-deleted', title: '不應顯示', state: 'todo' }],
+  });
+  assert.deepEqual(rows.find((row) => row.sourceType === 'client-next').caseNumbers, [103, 104]);
+  assert.equal(rows.some((row) => row.sourceId === 'deleted-work'), false);
+});
+
 test('工作佇列會合併案件工作、中央待辦與客戶追蹤', () => {
   const rows = buildWorkQueue({
     cases: [{ id: 'case-1', caseNumber: 100, clientName: '王先生', title: '購車案件' }],

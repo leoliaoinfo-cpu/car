@@ -9,15 +9,17 @@ import { formatMoney, generateId } from '../../utils/crm';
 import { buildDeliverySchedule, getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from '../../utils/delivery';
 import { ClientPicker } from '../ui';
 
-const STATUS_FILTERS = [['active', '進行中'], ['waiting', '等待中'], ['completed', '已完成'], ['all', '全部']];
+const STATUS_FILTERS = [['active', '進行中'], ['waiting', '等待中'], ['completed', '已完成'], ['all', '全部'], ['deleted', '已刪除']];
 const CASE_PIPELINE = ['新案件', '報價', '成交', '施工', '交車'];
 
 export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
-  const { cases, workItems, activities, tasks, clients, deals, quoteDrafts, cats, stages, saveCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
+  const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, cats, stages, saveCase, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
   const [filter, setFilter] = useState('active');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showNew, setShowNew] = useState(false);
+  const [restoringId, setRestoringId] = useState(null);
+  const [restoreError, setRestoreError] = useState('');
 
   useEffect(() => {
     if (focusId) { setSelectedId(focusId); onFocusConsumed?.(); }
@@ -28,8 +30,9 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return [...cases]
-      .filter((row) => filter === 'all' || row.status === filter)
+    const source = filter === 'deleted' ? deletedCases : cases;
+    return [...source]
+      .filter((row) => filter === 'all' || filter === 'deleted' || row.status === filter)
       .filter((row) => {
         if (!needle) return true;
         const client = clients.find((item) => item.id === row.clientId);
@@ -41,7 +44,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
           .some((value) => String(value || '').toLowerCase().includes(needle));
       })
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
-  }, [cases, clients, deals, filter, query, quoteDrafts]);
+  }, [cases, deletedCases, clients, deals, filter, query, quoteDrafts]);
   const workQueue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
   const selected = cases.find((row) => row.id === selectedId);
 
@@ -61,21 +64,36 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋 #案件編號、姓名、電話、車牌或車型…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {STATUS_FILTERS.map(([key, label]) => {
-          const count = key === 'all' ? cases.length : cases.filter((row) => row.status === key).length;
+          const count = key === 'all' ? cases.length : key === 'deleted' ? deletedCases.length : cases.filter((row) => row.status === key).length;
           return <button key={key} type="button" onClick={() => setFilter(key)} className={`shrink-0 min-h-10 rounded-full border px-3 text-sm ${filter === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>;
         })}
       </div>
 
+      {restoreError && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger">{restoreError}</p>}
+
       {rows.length === 0 ? (
         <section className="card p-9 text-center">
           <div className="text-4xl">📁</div>
-          <h2 className="font-bold text-ink mt-3">這裡還沒有案件</h2>
-          <p className="text-sm text-ink-3 mt-1">新增後，只要從案件處理下一步即可。</p>
-          <button type="button" onClick={() => setShowNew(true)} className="btn-primary mt-4">＋ 建立第一筆案件</button>
+          <h2 className="font-bold text-ink mt-3">{filter === 'deleted' ? '回收筒目前是空的' : '這裡還沒有案件'}</h2>
+          <p className="text-sm text-ink-3 mt-1">{filter === 'deleted' ? '刪除的廢棄案件會保留在這裡，避免誤刪。' : '新增後，只要從案件處理下一步即可。'}</p>
+          {filter !== 'deleted' && <button type="button" onClick={() => setShowNew(true)} className="btn-primary mt-4">＋ 建立第一筆案件</button>}
         </section>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {rows.map((item) => {
+            if (filter === 'deleted') return (
+              <article key={item.id} className="card border-danger/25 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5"><span className="badge bg-s3 font-mono text-ink">#{item.caseNumber}</span><span className="badge bg-danger/10 text-danger">已刪除</span><span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span></div>
+                    <h2 className="mt-2 truncate font-bold text-ink">{item.clientName || '未命名客戶'}</h2>
+                    <p className="truncate text-sm text-ink-2">{item.title || '未命名案件'}</p>
+                    <p className="mt-1 text-[11px] text-ink-3">刪除於 {dayjs(item.deletedAt).format('YYYY/MM/DD HH:mm')}</p>
+                  </div>
+                  <button type="button" disabled={restoringId === item.id} onClick={async () => { setRestoringId(item.id); setRestoreError(''); try { await restoreCase(item.id); } catch (cause) { setRestoreError(cause?.message || '案件恢復失敗。'); } finally { setRestoringId(null); } }} className="btn-outline min-h-11 shrink-0 text-xs">{restoringId === item.id ? '恢復中…' : '↶ 恢復'}</button>
+                </div>
+              </article>
+            );
             const caseActions = workQueue.filter((row) => row.caseId === item.id);
             const action = caseActions.find((row) => row.state !== 'waiting') || caseActions[0];
             const pipelineStage = getCasePipelineStage(item, { deals, quotes: quoteDrafts });
@@ -108,7 +126,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       )}
 
       {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id) => { setShowNew(false); onNewClosed?.(); setSelectedId(id); }} />}
-      {selected && <CaseDetail item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
+      {selected && <CaseDetail item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
     </div>
   );
 }
@@ -237,7 +255,7 @@ function CasePipeline({ current }) {
   );
 }
 
-function CaseEditSheet({ item, workItems = [], onClose, onSaveCase, onSaveWorkItem, onSaveActivity }) {
+function CaseEditSheet({ item, workItems = [], canDelete = true, onClose, onDeleted, onSaveCase, onDeleteCase, onSaveWorkItem, onSaveActivity }) {
   const [title, setTitle] = useState(item.title || '');
   const [type, setType] = useState(item.type || 'purchase');
   const [status, setStatus] = useState(item.status || 'active');
@@ -248,6 +266,8 @@ function CaseEditSheet({ item, workItems = [], onClose, onSaveCase, onSaveWorkIt
   const [followUpUnit, setFollowUpUnit] = useState('days');
   const [followUpBaseDate, setFollowUpBaseDate] = useState(today());
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState('');
   const nextFollowUpDate = resolveCaseFollowUpTarget({
     mode: followUpMode, date: followUpDate, amount: followUpAmount, unit: followUpUnit, baseDate: followUpBaseDate,
@@ -279,6 +299,20 @@ function CaseEditSheet({ item, workItems = [], onClose, onSaveCase, onSaveWorkIt
     onClose();
   }
 
+  async function removeCase() {
+    if (deleting || !canDelete) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await onDeleteCase(item.id);
+      onDeleted?.();
+    } catch (cause) {
+      setError(cause?.message || '案件刪除失敗，請稍後再試。');
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 backdrop-blur-sm md:items-center md:p-4" role="dialog" aria-modal="true" aria-labelledby="case-edit-title">
       <form onSubmit={save} className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl">
@@ -294,13 +328,31 @@ function CaseEditSheet({ item, workItems = [], onClose, onSaveCase, onSaveWorkIt
           {status !== 'completed' && <section><p className="text-xs font-bold text-ink-2">下次追蹤日</p><p className="mt-1 text-xs text-ink-3">安排下一次聯絡或處理時間。</p><FollowUpTargetChooser mode={followUpMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && followUpMode !== 'relative') setFollowUpBaseDate(today()); setFollowUpMode(nextMode); }} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} /></section>}
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
           <div className="grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="btn-outline min-h-12">取消</button><button type="submit" disabled={saving} className="btn-primary min-h-12">{saving ? '儲存中…' : '確認儲存案件'}</button></div>
+          <section className="rounded-2xl border border-danger/30 bg-danger/5 p-3">
+            <p className="text-sm font-bold text-danger">刪除廢棄案件</p>
+            <p className="mt-1 text-xs leading-relaxed text-ink-3">案件會移到「已刪除」；客戶、報價、工作與紀錄都會保留，可隨時恢復。</p>
+            {!canDelete ? (
+              <p className="mt-3 rounded-xl bg-s2 px-3 py-2 text-xs font-semibold text-ink-2">此案件已成交或進入施工，為避免施工資料斷線，不能從這裡刪除。</p>
+            ) : !confirmDelete ? (
+              <button type="button" onClick={() => setConfirmDelete(true)} className="mt-3 min-h-11 w-full rounded-xl border border-danger/50 text-sm font-bold text-danger">刪除案件</button>
+            ) : (
+              <div role="alert" className="mt-3 rounded-xl border border-danger/45 bg-s1 p-3">
+                <p className="text-sm font-bold text-danger">確定刪除案件 #{item.caseNumber}？</p>
+                <p className="mt-1 text-xs text-ink-3">刪除後會先從案件清單與工作台隱藏，可在「已刪除」恢復。</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} className="btn-outline min-h-11">先不要</button>
+                  <button type="button" onClick={removeCase} disabled={deleting} className="btn-danger min-h-11">{deleting ? '刪除中…' : '確定刪除'}</button>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </form>
     </div>
   );
 }
 
-function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
+function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onDeleteCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
   const [newTitle, setNewTitle] = useState('');
   const [due, setDue] = useState('');
   const [section, setSection] = useState('overview');
@@ -404,7 +456,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
         </div>
-        {showEdit && <CaseEditSheet item={item} workItems={caseWork} onClose={() => setShowEdit(false)} onSaveCase={onSaveCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
+        {showEdit && <CaseEditSheet item={item} workItems={caseWork} canDelete={!linkedDeal} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
       </div>
     </div>
   );
