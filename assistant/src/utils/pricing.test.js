@@ -585,18 +585,45 @@ test('adds body-build categories with vendor-quote placeholders', () => {
   const section = QUOTE_ADDON_SECTIONS.find((row) => row.label === '車體打造');
   assert.deepEqual(section.categories, ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
   assert.deepEqual(section.categories.map((category) => {
-    const item = resolved.addons.find((addon) => addon.cat === category);
-    return [category, item?.name, item?.pendingPrice];
+    const list = resolved.addons.filter((addon) => addon.cat === category);
+    return [category, list.length, list.some((item) => item.pendingPrice)];
   }), [
-    ['客製帆布', '客製帆布', true],
-    ['冷凍冷藏箱', '冷凍冷藏箱', true],
-    ['電動歐翼', '電動歐翼', true],
-    ['露營箱體', '露營箱體', true],
+    ['客製帆布', 10, true],
+    ['冷凍冷藏箱', 1, true],
+    ['電動歐翼', 1, true],
+    ['露營箱體', 1, true],
   ]);
   assert.deepEqual(
     resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 5),
     section.categories,
   );
+});
+
+test('prices confirmed canvas options at supplier cost plus three thousand and keeps large cab pending', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v22',
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
+    models: [], addons: [], subsidies: [],
+  });
+  const expected = {
+    'qa-canvas-single-standard': [14500, 17500],
+    'qa-canvas-single-lowered': [15500, 18500],
+    'qa-canvas-single-raised': [18000, 21000],
+    'qa-canvas-double-standard': [9500, 12500],
+    'qa-canvas-double-lowered': [10500, 13500],
+    'qa-canvas-double-raised': [13500, 16500],
+  };
+  const catalog = normalizeCostCatalog({ key: 'costCatalog', version: 8, models: {}, addons: {} });
+  for (const [id, [cost, sale]] of Object.entries(expected)) {
+    const addon = resolved.addons.find((item) => item.id === id);
+    assert.equal(addon?.price, sale);
+    assert.equal(addon?.pendingPrice, undefined);
+    assert.equal(catalog.addons[id]?.cost, cost);
+    assert.equal(sale - cost, 3000);
+  }
+  const largeCab = resolved.addons.filter((item) => item.id.startsWith('qa-canvas-large-'));
+  assert.equal(largeCab.length, 3);
+  assert.ok(largeCab.every((item) => item.pendingPrice === true && item.price === 0));
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {

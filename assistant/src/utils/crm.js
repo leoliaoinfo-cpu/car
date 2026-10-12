@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v22';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v23';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -306,9 +306,18 @@ const PAINT_ACCESSORY_ADDONS = [
 ];
 
 const BODY_BUILD_ADDONS = [
+  { id: 'qa-canvas-single-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 17500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-single-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 18500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-single-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂加高 1 台尺', price: 21000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-large-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂標準高', price: 0, pendingPrice: true, desc: '大單廂尚未取得廠商報價，不套用單廂價格' },
+  { id: 'qa-canvas-large-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂降低版', price: 0, pendingPrice: true, desc: '大單廂尚未取得廠商報價，不套用單廂價格' },
+  { id: 'qa-canvas-large-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂加高 1 台尺', price: 0, pendingPrice: true, desc: '大單廂尚未取得廠商報價，不套用單廂價格' },
+  { id: 'qa-canvas-double-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂標準高', price: 12500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-double-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂降低版', price: 13500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-double-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂加高 1 台尺', price: 16500, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
   {
-    id: 'qa-custom-canvas', cat: '客製帆布', name: '客製帆布', price: 0, pendingPrice: true,
-    desc: '依車型、帆布尺寸、高度、材質、開門方式與施工內容確認後報價',
+    id: 'qa-custom-canvas', cat: '客製帆布', group: 'g-custom-canvas', name: '特殊訂製帆布', price: 0, pendingPrice: true,
+    desc: '特殊高度、材質、開門方式或施工內容需另向廠商詢價',
   },
   {
     id: 'qa-refrigerated-box', cat: '冷凍冷藏箱', name: '冷凍冷藏箱', price: 0, pendingPrice: true,

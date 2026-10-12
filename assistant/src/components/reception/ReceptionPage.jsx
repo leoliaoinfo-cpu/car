@@ -164,7 +164,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     onOpenClient?.(client.id);
   }
 
-  function findCatalogItem(name, detail) {
+  function findCatalogItem(name, detail, variant = null) {
     const addons = quotePresets.addons || [];
     if (name === '貨斗底板') {
       if (detail.material === '橡膠') return addons.find((x) => x.id === 'qa-floor-rubber');
@@ -175,6 +175,12 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     if (name === '升降尾門') {
       const ids = { '2.5': 'qa-tailgate-25', '3': 'qa-tailgate-30', '3.5': 'qa-tailgate-35', '4': 'qa-tailgate-40', '4.5': 'qa-tailgate-45', '5': 'qa-tailgate-50', '5.5': 'qa-tailgate-55', '6': 'qa-tailgate-60-special' };
       return addons.find((x) => x.id === ids[detail.size]);
+    }
+    if (name === '帆布') {
+      const cab = { 單廂: 'single', 大單廂: 'large', 雙廂: 'double' }[variant?.cab];
+      const height = { 標準高: 'standard', 標準降低: 'lowered', 標準加高: 'raised' }[detail.canvasSpec];
+      const matched = cab && height ? addons.find((x) => x.id === `qa-canvas-${cab}-${height}`) : null;
+      return matched || addons.find((x) => x.id === 'qa-custom-canvas');
     }
     return addons.find((x) => x.cat === name || x.name.includes(name));
   }
@@ -188,7 +194,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     if (variant && session.customerMode === '新車＋改裝') items.push({ id: generateId('qi'), kind: 'vehicle', catalogId: variant.id, name: '車輛售價', price: variant.msrpTwd, pending: false, discounts: [] });
     for (const [name, detail] of Object.entries(session.requirements || {})) {
       if (!detail?.selected) continue;
-      const catalog = findCatalogItem(name, detail);
+      const catalog = findCatalogItem(name, detail, variant);
       if (!catalog) continue;
       const heightStatus = plan.itemStatus[name];
       items.push({

@@ -94,7 +94,7 @@ function isPackageAddon(addon) {
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
-  allAddons,
+  allAddons, selectedItemForAddon, updateVendorInquiryNote,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -245,6 +245,23 @@ function AddonCategoryCard({
               })}
             </div>
           )}
+          {list.filter((addon) => addon.pendingPrice && isPicked(addon)).map((addon) => {
+            const selectedItem = selectedItemForAddon(addon);
+            if (!selectedItem) return null;
+            return (
+              <div key={`${addon.id}-inquiry`} className="rounded-lg border border-warn/35 bg-warn/10 p-2.5">
+                <label className="block text-[11px] font-semibold text-warn" htmlFor={`vendor-inquiry-${selectedItem.id}`}>
+                  詢價需求－{addon.name}
+                </label>
+                <textarea id={`vendor-inquiry-${selectedItem.id}`} rows={3}
+                  value={selectedItem.vendorInquiryNote || ''}
+                  onChange={(event) => updateVendorInquiryNote(selectedItem.id, event.target.value)}
+                  placeholder="例如：車型、尺寸、高度、材質、開啟方式、載重、安裝位置或其他特殊施工需求…"
+                  className="mt-1.5 w-full text-xs" />
+                <p className="mt-1 text-[10px] text-ink-3">僅供內部向廠商詢價，不會顯示在客戶報價圖片。</p>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -467,6 +484,15 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const reviewedAddonCount = addonGroups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
     || list.some((addon) => isPicked(addon))).length;
 
+  function setSectionNoOptions(section, noOptions) {
+    const sectionCategories = section.groups.map(([cat]) => cat);
+    setNoOptionCategories((current) => {
+      const canonical = canonicalAddonCategories(current, quotePresets.addonCategoryAliases);
+      if (noOptions) return [...new Set([...canonical, ...sectionCategories])];
+      return canonical.filter((category) => !sectionCategories.includes(category));
+    });
+  }
+
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
   function toggleLine(addon) {
     const { id: catalogId, name, price, group, cat, desc = '', pendingPrice = false } = addon;
@@ -509,6 +535,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         catalogId,
         description: desc,
         note: '',
+        vendorInquiryNote: '',
         discounts: [],
       };
       if (emptyIdx !== -1) return base.map((it, i) => (i === emptyIdx ? { ...it, ...value } : it));
@@ -607,6 +634,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
         note: String(it.note || '').trim(),
         requirementStatus: it.requirementStatus || null,
+        vendorInquiryNote: String(it.vendorInquiryNote || '').trim(),
         bundlePricingMode: it.bundlePricingMode || null,
         bundleIncludedIds: Array.isArray(it.bundleIncludedIds) ? [...it.bundleIncludedIds] : null,
         bundleExcludedIds: Array.isArray(it.bundleExcludedIds) ? [...it.bundleExcludedIds] : [],
@@ -937,7 +965,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                       setExpandedAddonCategories={setExpandedAddonCategories}
                       setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
-                      bundleLocks={bundleLocks} allAddons={quotePresets.addons} />;
+                      bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                      selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
+                      updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />;
                   }
                   const expanded = !!expandedAddonSections[section.key];
                   const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
@@ -946,6 +976,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   const reviewedCount = section.groups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
                     || list.some((addon) => isPicked(addon))).length;
                   const complete = reviewedCount === section.groups.length;
+                  const sectionCategories = section.groups.map(([cat]) => cat);
+                  const sectionNoOptions = pickedCount === 0
+                    && sectionCategories.every((cat) => reviewedNoOptionCategories.includes(cat));
+                  const partiallyMarkedNoOptions = !sectionNoOptions && pickedCount === 0
+                    && sectionCategories.some((cat) => reviewedNoOptionCategories.includes(cat));
                   const color = catColor(section.label);
                   return (
                     <div key={section.key} className="rounded-xl border-2 border-bdr/70 bg-s1/45 overflow-hidden">
@@ -960,6 +995,20 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                         </span>
                         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
                       </button>
+                      <label className={`mx-2 mb-2 flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs ${pickedCount > 0 ? 'cursor-not-allowed border-bdr bg-s2 text-ink-3 opacity-70' : 'cursor-pointer border-accent/30 bg-accent/5 text-ink-2'}`}>
+                        <input type="checkbox" checked={sectionNoOptions} disabled={pickedCount > 0}
+                          onChange={(event) => setSectionNoOptions(section, event.target.checked)} />
+                        <span className="min-w-0 flex-1">
+                          <strong className="block text-ink">整個「{section.label}」沒有選配</strong>
+                          <span className="block text-[10px] text-ink-3">
+                            {pickedCount > 0
+                              ? `已有 ${pickedCount} 項選配，先取消選配後才能整組標記`
+                              : partiallyMarkedNoOptions
+                                ? '目前只有部分子分類已標記；勾選後會一次完成全部'
+                                : `一次完成下方 ${section.groups.length} 個分類`}
+                          </span>
+                        </span>
+                      </label>
                       {expanded && (
                         <div className="border-t border-bdr/60 bg-s2/45 p-2 space-y-2">
                           {section.groups.map(([cat, list]) => (
@@ -968,7 +1017,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
                               setExpandedAddonCategories={setExpandedAddonCategories}
                               setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
-                              bundleLocks={bundleLocks} allAddons={quotePresets.addons} />
+                              bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                              selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
+                              updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />
                           ))}
                         </div>
                       )}
