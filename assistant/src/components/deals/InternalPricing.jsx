@@ -506,14 +506,23 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
             <button onClick={addOtherCost} className="btn-outline text-xs">＋ 其他成本</button>
           </div>
 
-          <div className="card p-3 mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="mt-4 rounded-xl border-2 border-accent/35 bg-accent/10 p-4">
+            <p className="text-[11px] font-semibold text-accent">客戶優惠後報價</p>
+            <p className="mt-1 text-2xl font-extrabold text-ink tabular-nums">
+              NT$ {formatMoney(preview.saleTotal)}
+            </p>
+            <p className="mt-1 text-[10px] text-ink-3">
+              原始售價 NT$ {formatMoney(preview.originalTotal)} − 總優惠 NT$ {formatMoney(preview.itemDiscountTotal + preview.generalDiscountTotal)}
+            </p>
+          </div>
+
+          <div className="card p-3 mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
             <Metric label="原始售價" value={preview.originalTotal} />
             <Metric label="單項優惠" value={preview.itemDiscountTotal} tone="ok" prefix="−" />
             <Metric label="優惠折扣" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
             <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
             <Metric label={preview.costComplete ? '配件／其他成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
             <Metric label="目前試算利潤" value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
-            <Metric label="折扣後剩餘利潤" value={preview.profit == null ? null : Math.max(0, preview.profit)} tone="accent" />
           </div>
           {missingLines.length > 0 && (
             <div className="mt-3 rounded-xl border border-warn/35 bg-warn/10 p-3 space-y-2">
