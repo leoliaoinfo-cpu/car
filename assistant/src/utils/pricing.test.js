@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  applicableSupplierCosts, includedQuoteItems, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost,
+  applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost,
   synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
 import { bundledAddonIds, canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, removeBundledQuoteItems, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
@@ -80,6 +80,37 @@ test('moves legacy negative rows to whole-quote discounts', () => {
   ]);
   assert.equal(result.items.length, 1);
   assert.equal(result.legacyDiscounts[0].amount, 50000);
+});
+
+test('repairs old positive campaign rows as whole-quote discounts without double counting', () => {
+  const normalized = normalizeQuoteItems([
+    { id: 'v', name: '車輛售價', price: 888000 },
+    { id: 'campaign', name: '10月預購', price: 20000 },
+    { id: 'discount', name: '優惠折扣', price: 45000, kind: 'other' },
+    { id: 'addon', name: '雙缸油壓缸（800～1,000kg）', price: 8000, kind: 'addon' },
+  ]);
+  assert.deepEqual(normalized.items.map((row) => row.id), ['v', 'addon']);
+  assert.deepEqual(normalized.legacyDiscounts.map((row) => [row.name, row.amount]), [
+    ['10月預購', 20000], ['優惠折扣', 45000],
+  ]);
+  assert.deepEqual(mergeQuoteDiscounts(
+    [{ id: 'saved', name: '優惠折扣', amount: 45000 }],
+    normalized.legacyDiscounts,
+  ).map((row) => [row.name, row.amount]), [
+    ['優惠折扣', 45000], ['10月預購', 20000],
+  ]);
+
+  const record = buildPricingRecord({
+    quote: { id: 'legacy-campaign', items: [
+      { id: 'v', name: '車輛售價', price: 888000 },
+      { id: 'campaign', name: '10月預購', price: 20000 },
+      { id: 'discount', name: '優惠折扣', price: 45000 },
+    ] },
+    costCatalog: { models: {}, addons: {} },
+  });
+  assert.equal(record.originalTotal, 888000);
+  assert.equal(record.generalDiscountTotal, 65000);
+  assert.equal(record.saleTotal, 823000);
 });
 
 test('uses vehicle commission plus accessory margin and detects an over-discounted quote', () => {
@@ -550,6 +581,28 @@ test('adds tailgate accessories and costs while preserving a manually edited tai
   assert.equal(costs.addons['qa-tailgate-remote'].cost, 2000);
 });
 
+test('single-fold and double-fold tailgates share the same size-based cost', () => {
+  const catalog = normalizeCostCatalog({
+    key: 'costCatalog', version: 10, models: {}, addons: {
+      'qa-tailgate-35': {
+        cost: 35000,
+        supplierCosts: [{ id: 'tailgate-vendor', supplier: '尾門廠商', modelId: '', cost: 34000 }],
+      },
+    },
+  });
+  assert.equal(resolveAddonCost(catalog, 'qa-tailgate-35', null).cost, 34000);
+  assert.equal(resolveAddonCost(catalog, 'qa-tailgate-double-fold-35', null).cost, 34000);
+  assert.equal(applicableSupplierCosts(catalog, 'qa-tailgate-double-fold-35', null)[0].supplier, '尾門廠商');
+
+  const migrated = normalizeCostCatalog({
+    key: 'costCatalog', version: 9, models: {}, addons: {
+      'qa-tailgate-double-fold-40': { cost: 39000 },
+    },
+  });
+  assert.equal(migrated.addons['qa-tailgate-40'].cost, 39000);
+  assert.equal(resolveAddonCost(migrated, 'qa-tailgate-double-fold-40', null).cost, 39000);
+});
+
 test('separates regular and double-fold liftgates and restores the accessory section', () => {
   const resolved = resolveQuotePresets({
     ...DEFAULT_QUOTE_PRESETS,
@@ -723,13 +776,13 @@ test('splits cargo floors and liftgates into quote categories with special order
     ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'],
   );
   assert.equal(addons.some((item) => (item.desc || '').includes('單缸油壓')), false);
-  for (const [id, size] of [['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6']]) {
+  for (const [id, size, price] of [['35', '3.5', 40000], ['40', '4', 43000], ['45', '4.5', 43000], ['50', '5', 48000], ['55', '5.5', 48000], ['60', '6', 0]]) {
     const doubleFold = addons.find((item) => item.id === `qa-tailgate-double-fold-${id}`);
     assert.equal(doubleFold.name, `雙折尾門（${size}尺）`);
     assert.equal(doubleFold.cat, '雙折尾門');
     assert.equal(doubleFold.group, 'g-tailgate-double-fold-size');
-    assert.equal(doubleFold.pendingPrice, true);
-    assert.equal(doubleFold.price, 0);
+    assert.equal(doubleFold.pendingPrice, id === '60');
+    assert.equal(doubleFold.price, price);
   }
   assert.equal(addons.some((item) => item.id === 'qa-tailgate-double-fold-30'), false);
   assert.equal(addons.find((item) => item.id === 'qa-truck-air-deflector').price, 3500);
@@ -756,7 +809,10 @@ test('moves saved tailgates into size and cylinder categories without restoring 
   const upgraded = resolveQuotePresets(old);
   assert.equal(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-')).length, 6);
   assert.ok(upgraded.addons.filter((item) => item.id.startsWith('qa-tailgate-double-fold-'))
-    .every((item) => item.cat === '雙折尾門' && item.pendingPrice && item.price === 0));
+    .every((item) => item.cat === '雙折尾門'));
+  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-double-fold-35').price, 40000);
+  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-double-fold-35').pendingPrice, false);
+  assert.equal(upgraded.addons.find((item) => item.id === 'qa-tailgate-double-fold-60').pendingPrice, true);
   assert.equal(upgraded.addonCategories.includes('升降尾門'), false);
   assert.equal(upgraded.addonCategories.includes('尾門其他配備'), false);
   assert.equal(upgraded.addonCategories.includes('升降尾門的油壓缸'), true);

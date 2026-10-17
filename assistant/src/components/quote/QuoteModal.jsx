@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 import { Field } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
-  buildPricingRecord, calculateQuoteTotals, includedQuoteItems, normalizeDiscount, normalizeQuoteItems,
+  buildPricingRecord, calculateQuoteTotals, includedQuoteItems, mergeQuoteDiscounts, normalizeDiscount, normalizeQuoteItems,
   synchronizeQuoteDiscounts,
 } from '../../utils/pricing';
 import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteText';
@@ -314,10 +314,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       })
       : [{ id: generateId('qi'), name: '車輛售價', price: '', pending: false, gift: false, kind: 'vehicle', catalogId: null, discounts: [] }]
   );
-  const [generalDiscounts, setGeneralDiscounts] = useState(() => [
-    ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
-    ...normalizedInitial.legacyDiscounts,
-  ].map((row) => {
+  const [generalDiscounts, setGeneralDiscounts] = useState(() =>
+    mergeQuoteDiscounts(synchronizedQuote?.generalDiscounts || quote?.generalDiscounts, normalizedInitial.legacyDiscounts).map((row) => {
     const normalized = normalizeDiscount(row);
     return { ...normalized, amount: String(normalized.amount) };
   }));

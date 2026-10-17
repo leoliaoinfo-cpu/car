@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v23';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v24';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -204,6 +204,13 @@ const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
 const BODY_BUILD_CATEGORIES = ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
+const TAILGATE_PRICE_BY_SIZE_ID = {
+  '35': 40000,
+  '40': 43000,
+  '45': 43000,
+  '50': 48000,
+  '55': 48000,
+};
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
@@ -242,8 +249,11 @@ const VENDOR_QUOTE_ADDONS = [
     ['35', '3.5'], ['40', '4'], ['45', '4.5'], ['50', '5'], ['55', '5.5'], ['60', '6'],
   ].map(([id, size]) => ({
     id: `qa-tailgate-double-fold-${id}`, cat: DOUBLE_FOLD_TAILGATE_CATEGORY, group: 'g-tailgate-double-fold-size',
-    name: `雙折尾門（${size}尺）`, price: 0, pendingPrice: true,
-    desc: '實際尺寸、施工規格與價格待廠商確認',
+    name: `雙折尾門（${size}尺）`, price: TAILGATE_PRICE_BY_SIZE_ID[id] || 0,
+    pendingPrice: !TAILGATE_PRICE_BY_SIZE_ID[id],
+    desc: TAILGATE_PRICE_BY_SIZE_ID[id]
+      ? '單折／雙折同尺寸同價；價格只依尾門尺寸區分，實際承重與施工規格仍需確認'
+      : '6尺屬特殊規格，需依車型、載重、平台尺寸與施工內容向廠商確認價格',
   })),
   { id: 'qa-truck-air-deflector', cat: '客製車體', name: '貨車導流板', price: 3500, pendingPrice: false, desc: '依車型、車頭與車體尺寸安裝；售價 3,500 元' },
   { id: 'qa-h-rack-single', cat: '客製車體', name: 'H架（一支）', price: 5000, pendingPrice: false, desc: '單支 H 架；實際高度與固定方式依載運需求確認' },
@@ -616,6 +626,16 @@ export function resolveQuotePresets(row) {
     if (tailgateDefault && migrated.id.startsWith('qa-tailgate-double-fold-')
       && ['升降尾門', previousTailgateCategory, SWIFT_TAILGATE_CATEGORY].includes(migrated.cat)) {
       migrated = { ...migrated, cat: tailgateDefault.cat, group: tailgateDefault.group };
+    }
+    if (tailgateDefault && migrated.id.startsWith('qa-tailgate-double-fold-')
+      && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0
+      && migrated.desc === '實際尺寸、施工規格與價格待廠商確認') {
+      migrated = {
+        ...migrated,
+        price: tailgateDefault.price,
+        pendingPrice: tailgateDefault.pendingPrice,
+        desc: tailgateDefault.desc,
+      };
     }
     if (tailgateDefault && ['qa-tailgate-double-cylinder', 'qa-tailgate-four-cylinder'].includes(migrated.id)
       && ['升降尾門', previousTailgateCategory, '客製車體'].includes(migrated.cat)) {

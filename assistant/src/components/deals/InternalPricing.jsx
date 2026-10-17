@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
   applicableSupplierCosts, applyPricingDiscountsToQuote, buildPricingRecord,
-  normalizeCostCatalog, resolveAddonCost, updatePricingCosts,
+  normalizeCostCatalog, resolveAddonCost, sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
 
 export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSearch = '' }) {
@@ -17,27 +17,29 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   useEffect(() => { if (initialSearch) setSearch(initialSearch); }, [initialSearch]);
 
   function setCost(section, id, value) {
+    const targetId = section === 'addons' ? sharedAddonCostId(id) : id;
     setDraft((current) => {
       const next = { ...current, [section]: { ...current[section] } };
-      const entry = { ...(next[section][id] || {}) };
+      const entry = { ...(next[section][targetId] || {}) };
       const key = section === 'models' ? 'commission' : 'cost';
       if (value === '') delete entry[key];
       else entry[key] = Math.max(0, Number(value) || 0);
       if (section === 'models') delete entry.cost;
-      if (Object.keys(entry).length) next[section][id] = entry;
-      else delete next[section][id];
+      if (Object.keys(entry).length) next[section][targetId] = entry;
+      else delete next[section][targetId];
       return next;
     });
   }
 
   function changeSupplierCost(addonId, supplierCostId, patch) {
+    const targetId = sharedAddonCostId(addonId);
     setDraft((current) => ({
       ...current,
       addons: {
         ...current.addons,
-        [addonId]: {
-          ...(current.addons[addonId] || {}),
-          supplierCosts: (current.addons[addonId]?.supplierCosts || [])
+        [targetId]: {
+          ...(current.addons[targetId] || {}),
+          supplierCosts: (current.addons[targetId]?.supplierCosts || [])
             .map((row) => row.id === supplierCostId ? { ...row, ...patch } : row),
         },
       },
@@ -45,14 +47,15 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   }
 
   function addSupplierCost(addonId) {
+    const targetId = sharedAddonCostId(addonId);
     setDraft((current) => ({
       ...current,
       addons: {
         ...current.addons,
-        [addonId]: {
-          ...(current.addons[addonId] || {}),
+        [targetId]: {
+          ...(current.addons[targetId] || {}),
           supplierCosts: [
-            ...(current.addons[addonId]?.supplierCosts || []),
+            ...(current.addons[targetId]?.supplierCosts || []),
             { id: generateId('supplier-cost'), supplier: '', modelId: '', cost: '' },
           ],
         },
@@ -62,13 +65,14 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   }
 
   function removeSupplierCost(addonId, supplierCostId) {
+    const targetId = sharedAddonCostId(addonId);
     setDraft((current) => ({
       ...current,
       addons: {
         ...current.addons,
-        [addonId]: {
-          ...(current.addons[addonId] || {}),
-          supplierCosts: (current.addons[addonId]?.supplierCosts || [])
+        [targetId]: {
+          ...(current.addons[targetId] || {}),
+          supplierCosts: (current.addons[targetId]?.supplierCosts || [])
             .filter((row) => row.id !== supplierCostId),
         },
       },
@@ -103,10 +107,14 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
     .sort((a, b) => Number(draft.models?.[a.id]?.commission != null) - Number(draft.models?.[b.id]?.commission != null));
   const addons = allAddons.filter((row) => !needle || row.name.toLowerCase().includes(needle));
   const missingModelCount = allModels.filter((item) => draft.models?.[item.id]?.commission == null).length;
-  const missingAddonCount = allAddons.filter((item) => draft.addons?.[item.id]?.cost == null
-    && !(draft.addons?.[item.id]?.supplierCosts || []).length).length;
-  const isAddonMissing = (item) => draft.addons?.[item.id]?.cost == null
-    && !(draft.addons?.[item.id]?.supplierCosts || []).length;
+  const missingAddonCount = allAddons.filter((item) => {
+    const entry = draft.addons?.[sharedAddonCostId(item.id)];
+    return entry?.cost == null && !(entry?.supplierCosts || []).length;
+  }).length;
+  const isAddonMissing = (item) => {
+    const entry = draft.addons?.[sharedAddonCostId(item.id)];
+    return entry?.cost == null && !(entry?.supplierCosts || []).length;
+  };
   const categoryOrder = quotePresets.addonCategories || [];
   const addonGroups = [...addons.reduce((groups, item) => {
     const category = item.cat || '其他';
@@ -133,15 +141,18 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
 
   const row = (item, section) => {
     const isVehicle = section === 'models';
-    const cost = isVehicle ? draft[section]?.[item.id]?.commission : draft[section]?.[item.id]?.cost;
+    const costId = isVehicle ? item.id : sharedAddonCostId(item.id);
+    const sharesTailgateCost = !isVehicle && costId !== item.id;
+    const cost = isVehicle ? draft[section]?.[costId]?.commission : draft[section]?.[costId]?.cost;
     const profit = cost == null ? null : isVehicle ? cost : (Number(item.price) || 0) - cost;
-    const supplierCosts = section === 'addons' ? (draft.addons?.[item.id]?.supplierCosts || []) : [];
+    const supplierCosts = section === 'addons' ? (draft.addons?.[costId]?.supplierCosts || []) : [];
     return (
       <div key={item.id} className="border-b border-bdr/50 last:border-0">
         <div className={`grid grid-cols-[minmax(0,1fr)_100px] md:grid-cols-[minmax(0,1fr)_110px_110px] gap-2 items-center px-3 py-2 ${cost == null && !supplierCosts.length ? 'bg-warn/5' : ''}`}>
           <div className="min-w-0">
             <p className="text-xs text-ink truncate">{item.name}</p>
             <p className="text-[10px] text-ink-3">對外售價 NT$ {formatMoney(item.price)}</p>
+            {sharesTailgateCost && <p className="text-[10px] text-accent">與同尺寸單折尾門共用成本</p>}
           </div>
           <input type="number" min="0" value={cost ?? ''}
             onChange={(e) => setCost(section, item.id, e.target.value)}

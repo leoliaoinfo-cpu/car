@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 9;
+const COST_CATALOG_VERSION = 10;
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -95,6 +95,31 @@ const V9_ADDON_COSTS = {
   'qa-canvas-double-raised': { cost: 13500 },
 };
 
+const DOUBLE_FOLD_TAILGATE_COST_IDS = {
+  'qa-tailgate-double-fold-35': 'qa-tailgate-35',
+  'qa-tailgate-double-fold-40': 'qa-tailgate-40',
+  'qa-tailgate-double-fold-45': 'qa-tailgate-45',
+  'qa-tailgate-double-fold-50': 'qa-tailgate-50',
+  'qa-tailgate-double-fold-55': 'qa-tailgate-55',
+  'qa-tailgate-double-fold-60': 'qa-tailgate-60-special',
+};
+
+/** 單折／雙折尾門同尺寸共用同一筆成本，避免兩邊設定後產生價差。 */
+export function sharedAddonCostId(addonId) {
+  return DOUBLE_FOLD_TAILGATE_COST_IDS[addonId] || addonId;
+}
+
+function migrateV10TailgateCosts(addons) {
+  const next = { ...(addons || {}) };
+  for (const [doubleFoldId, regularId] of Object.entries(DOUBLE_FOLD_TAILGATE_COST_IDS)) {
+    if (!Object.prototype.hasOwnProperty.call(next, regularId)
+      && Object.prototype.hasOwnProperty.call(next, doubleFoldId)) {
+      next[regularId] = next[doubleFoldId];
+    }
+  }
+  return next;
+}
+
 // 最新「2026 卡旺配件清單」成本＝建議售價－獎金。
 // from 為舊內建成本；只有仍等於舊值才更新，避免覆蓋業務手動調整。
 // to: null 表示清單的獎金為「＊」，無法可靠反推成本，應改回待補成本。
@@ -173,6 +198,17 @@ export const EMPTY_COST_CATALOG = {
 
 const money = (value) => Math.max(0, Math.round(Number(value) || 0));
 
+const LEGACY_DISCOUNT_ITEM_SUFFIX = /(?:優惠(?:折扣)?|折扣|補助|減免|折抵|預購)$/u;
+
+function isLegacyDiscountItem(row, price) {
+  const kind = String(row?.kind || '').toLowerCase();
+  const catalogId = String(row?.catalogId || '');
+  const name = String(row?.name || '').trim();
+  if (price < 0 || kind === 'discount' || kind === 'subsidy' || catalogId.startsWith('qs-')) return true;
+  // 早期版本把整單優惠存成正數的普通列；只修復沒有型錄 id、名稱明確以優惠語意結尾的舊資料。
+  return price > 0 && !catalogId && (!kind || kind === 'other') && LEGACY_DISCOUNT_ITEM_SUFFIX.test(name);
+}
+
 export function normalizeDiscount(row, fallbackName = '專案優惠') {
   const normalizedName = String(row?.name || fallbackName).trim() || fallbackName;
   return {
@@ -187,7 +223,7 @@ export function normalizeQuoteItems(items = []) {
   const legacyDiscounts = [];
   for (const row of Array.isArray(items) ? items : []) {
     const price = Number(row?.price) || 0;
-    if (price < 0) {
+    if (isLegacyDiscountItem(row, price)) {
       legacyDiscounts.push(normalizeDiscount(row, row?.name || '優惠折抵'));
       continue;
     }
@@ -201,6 +237,24 @@ export function normalizeQuoteItems(items = []) {
     });
   }
   return { items: positive, legacyDiscounts };
+}
+
+/**
+ * 明確儲存的整單優惠優先；舊版優惠列只有在名稱與金額未重複時才補入，避免同一筆折扣重算兩次。
+ */
+export function mergeQuoteDiscounts(explicitRows = [], legacyRows = []) {
+  const explicit = (Array.isArray(explicitRows) ? explicitRows : [])
+    .map((row) => normalizeDiscount(row)).filter((row) => row.amount > 0);
+  const seen = new Set(explicit.map((row) => `${row.name}\u0000${row.amount}`));
+  const legacy = (Array.isArray(legacyRows) ? legacyRows : [])
+    .map((row) => normalizeDiscount(row)).filter((row) => {
+      if (row.amount <= 0) return false;
+      const key = `${row.name}\u0000${row.amount}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return [...explicit, ...legacy];
 }
 
 export function includedQuoteItems(items = [], excludeVehiclePrice = false) {
@@ -274,10 +328,7 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}, lineGift
       discounts: pricingDiscount,
     };
   });
-  const generalDiscounts = [
-    ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
-    ...normalized.legacyDiscounts,
-  ].map((row) => normalizeDiscount(row)).filter((row) => row.amount > 0);
+  const generalDiscounts = mergeQuoteDiscounts(quote?.generalDiscounts, normalized.legacyDiscounts);
   const totals = calculateQuoteTotals(items, generalDiscounts);
   return {
     ...quote,
@@ -329,12 +380,13 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 9 ? V9_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
+  const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
   return {
     ...EMPTY_COST_CATALOG,
     ...(row || {}),
     version: COST_CATALOG_VERSION,
     models,
-    addons: row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons,
+    addons: row && previousVersion < 10 ? migrateV10TailgateCosts(migratedAddons) : migratedAddons,
   };
 }
 
@@ -383,7 +435,8 @@ function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleT
 
 /** 同供應商有指定車型成本時，該車型優先於其「全部車型」成本。 */
 export function applicableSupplierCosts(costCatalog, addonId, modelId) {
-  const entries = costCatalog?.addons?.[addonId]?.supplierCosts;
+  const costId = sharedAddonCostId(addonId);
+  const entries = (costCatalog?.addons?.[costId] || costCatalog?.addons?.[addonId])?.supplierCosts;
   if (!Array.isArray(entries)) return [];
   const valid = entries.filter((row) => {
     const cost = Number(row?.cost);
@@ -399,9 +452,10 @@ export function applicableSupplierCosts(costCatalog, addonId, modelId) {
 
 /** 未指定供應商先採適用成本最高者；有供應商資料卻沒有適用車型時視為缺成本。 */
 export function resolveAddonCost(costCatalog, addonId, modelId, supplierId = null) {
-  const entry = costCatalog?.addons?.[addonId];
+  const costId = sharedAddonCostId(addonId);
+  const entry = costCatalog?.addons?.[costId] || costCatalog?.addons?.[addonId];
   if (Array.isArray(entry?.supplierCosts) && entry.supplierCosts.length > 0) {
-    const options = applicableSupplierCosts(costCatalog, addonId, modelId);
+    const options = applicableSupplierCosts(costCatalog, costId, modelId);
     const selected = options.find((row) => row.id === supplierId);
     const conservative = options.reduce((highest, row) => (!highest || row.cost > highest.cost ? row : highest), null);
     const chosen = selected || conservative;
@@ -413,7 +467,13 @@ export function resolveAddonCost(costCatalog, addonId, modelId, supplierId = nul
       options,
     };
   }
-  return { cost: ownCost(costCatalog?.addons, addonId), supplierId: null, supplierName: null, source: 'catalog', options: [] };
+  return {
+    cost: ownCost(costCatalog?.addons, costId) ?? ownCost(costCatalog?.addons, addonId),
+    supplierId: null,
+    supplierName: null,
+    source: costId === addonId ? 'catalog' : 'catalog-shared',
+    options: [],
+  };
 }
 
 export function buildPricingRecord({ quote, costCatalog, existing = null, kind = 'quote', dealId = null }) {
@@ -421,10 +481,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
   const normalized = normalizeQuoteItems(quote?.items || []);
   // 待廠商報價項目尚未形成售價或成本，不納入目前金額與安全底線判斷。
   const items = normalized.items.filter((item) => !item.pending && (money(item.price) > 0 || item.gift));
-  const generalDiscounts = [
-    ...(Array.isArray(quote?.generalDiscounts) ? quote.generalDiscounts : []),
-    ...normalized.legacyDiscounts,
-  ].map((row) => normalizeDiscount(row));
+  const generalDiscounts = mergeQuoteDiscounts(quote?.generalDiscounts, normalized.legacyDiscounts);
   const totals = calculateQuoteTotals(items, generalDiscounts);
   const existingCosts = existing?.lineCosts || {};
   const existingSources = existing?.lineCostSources || {};
