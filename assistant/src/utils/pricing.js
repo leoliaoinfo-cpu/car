@@ -433,6 +433,56 @@ function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleT
   };
 }
 
+/** 已成交的舊快照可能仍把預購／優惠列當成商品；開啟時轉回整單優惠並重算。 */
+export function normalizePricingRecord(record) {
+  if (!record || !Array.isArray(record.lines)) return record;
+  const legacyDiscountLines = record.lines.filter((line) => isLegacyDiscountItem({
+    ...line,
+    price: line.salePrice,
+  }, Number(line.salePrice) || 0));
+  if (legacyDiscountLines.length === 0) return record;
+
+  const legacyDiscountTotal = legacyDiscountLines.reduce((sum, line) => sum + money(line.salePrice), 0);
+  const removedIds = new Set(legacyDiscountLines.map((line) => line.id));
+  const lines = record.lines.filter((line) => !removedIds.has(line.id));
+  const otherCosts = (record.otherCosts || []).map((row) => ({
+    ...row,
+    name: String(row.name || '其他成本'),
+    amount: money(row.amount),
+  }));
+  const originalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
+  const itemDiscountTotal = lines.reduce((sum, line) => (
+    sum + Math.max(0, money(line.salePrice) - money(line.netPrice))
+  ), 0);
+  // 若新版欄位已經有整單優惠，取較大值避免同一筆優惠再加一次。
+  const generalDiscountTotal = Math.max(money(record.generalDiscountTotal), legacyDiscountTotal);
+  const discountTotal = itemDiscountTotal + generalDiscountTotal;
+  const saleTotal = Math.max(0, originalTotal - discountTotal);
+  const snapshot = calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal);
+  const keepKnownLineEntries = (source = {}) => Object.fromEntries(
+    Object.entries(source || {}).filter(([id]) => !removedIds.has(id)),
+  );
+  return {
+    ...record,
+    lines,
+    lineCosts: keepKnownLineEntries(record.lineCosts),
+    lineCostSources: keepKnownLineEntries(record.lineCostSources),
+    supplierSelections: keepKnownLineEntries(record.supplierSelections),
+    otherCosts,
+    originalTotal,
+    itemDiscountTotal,
+    generalDiscountTotal,
+    discountTotal,
+    saleTotal,
+    costComplete: snapshot.complete,
+    knownCostTotal: snapshot.knownCostTotal,
+    costTotal: snapshot.costTotal,
+    commissionTotal: snapshot.commissionTotal,
+    profit: snapshot.profit,
+    belowCost: snapshot.profit != null && snapshot.profit < 0,
+  };
+}
+
 /** 同供應商有指定車型成本時，該車型優先於其「全部車型」成本。 */
 export function applicableSupplierCosts(costCatalog, addonId, modelId) {
   const costId = sharedAddonCostId(addonId);
@@ -585,6 +635,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
 }
 
 export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], lineDiscounts = null) {
+  record = normalizePricingRecord(record);
   const lines = (record?.lines || []).map((line) => {
     const has = Object.prototype.hasOwnProperty.call(lineCosts, line.id);
     const cost = has ? money(lineCosts[line.id]) : null;

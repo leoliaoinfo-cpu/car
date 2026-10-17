@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { FIELD_COLORS, formatMoney, sumDeals } from '../../utils/crm';
-import { updatePricingCosts } from '../../utils/pricing';
+import { normalizePricingRecord, updatePricingCosts } from '../../utils/pricing';
 import DealModal from './DealModal';
 import DeliveryWorkflowPanel from './DeliveryWorkflowPanel';
 import SupplierPanel from './SupplierPanel';
@@ -109,7 +109,7 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
   function openDealPricing(deal) {
     const existing = pricingById.get(`deal:${deal.id}`);
     if (existing) {
-      setEditingPricing(existing);
+      setEditingPricing(normalizePricingRecord(existing));
       return;
     }
     setEditingPricing(updatePricingCosts({

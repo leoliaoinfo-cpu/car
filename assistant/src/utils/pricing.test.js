@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
-  applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, pricingSafetyStatus, resolveAddonCost,
+  applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, normalizePricingRecord, pricingSafetyStatus, resolveAddonCost,
   synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
 import { bundledAddonIds, canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, removeBundledQuoteItems, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
@@ -111,6 +111,27 @@ test('repairs old positive campaign rows as whole-quote discounts without double
   assert.equal(record.originalTotal, 888000);
   assert.equal(record.generalDiscountTotal, 65000);
   assert.equal(record.saleTotal, 823000);
+});
+
+test('repairs an existing deal pricing snapshot that counted discount rows as products', () => {
+  const repaired = normalizePricingRecord({
+    id: 'deal:hong', kind: 'deal', generalDiscountTotal: 0,
+    lines: [
+      { id: 'vehicle', kind: 'vehicle', name: '車輛售價', salePrice: 888000, netPrice: 888000, cost: 35000, costKnown: true },
+      { id: 'addon', kind: 'addon', name: '抗震優力膠', salePrice: 7800, netPrice: 7800, cost: 6800, costKnown: true },
+      { id: 'campaign', kind: 'other', name: '10月預購', salePrice: 20000, netPrice: 20000, cost: null, costKnown: false },
+      { id: 'discount', kind: 'other', name: '優惠折扣', salePrice: 45000, netPrice: 45000, cost: null, costKnown: false },
+    ],
+    lineCosts: { vehicle: 35000, addon: 6800 },
+    lineCostSources: { vehicle: 'commission-catalog', addon: 'catalog' },
+    supplierSelections: {}, otherCosts: [],
+  });
+  assert.deepEqual(repaired.lines.map((line) => line.id), ['vehicle', 'addon']);
+  assert.equal(repaired.originalTotal, 895800);
+  assert.equal(repaired.generalDiscountTotal, 65000);
+  assert.equal(repaired.saleTotal, 830800);
+  assert.equal(repaired.costComplete, true);
+  assert.equal(repaired.profit, -29000);
 });
 
 test('uses vehicle commission plus accessory margin and detects an over-discounted quote', () => {
