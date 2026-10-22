@@ -69,6 +69,70 @@ test('keeps fixed vehicle commission intact and only charges sales-funded discou
   assert.equal(record.profit, 31500);
 });
 
+test('repairs customer discounts that old pricing records stored as other costs', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-liu', modelId: 'm1', model: '大單廂3人座 5速手自排',
+      items: [
+        { id: 'v', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 888000 },
+        { id: 'pkg', kind: 'addon', catalogId: 'pkg', name: '特仕版套件', price: 30000 },
+        { id: 'safe', kind: 'addon', catalogId: 'safe', name: '安全科技版', price: 40000 },
+        { id: 'gate', kind: 'addon', catalogId: 'gate', name: '升降尾門', price: 37000 },
+        { id: 'remote', kind: 'addon', catalogId: 'remote', name: '尾門遙控', price: 2000 },
+        { id: 'step', kind: 'addon', catalogId: 'step', name: '尾門腳踏', price: 1000 },
+        { id: 'leaf', kind: 'addon', catalogId: 'leaf', name: '彈簧鋼板', price: 5500 },
+        { id: 'gift', kind: 'addon', catalogId: 'gift', name: '抗震優力膠', price: 7800, gift: true },
+      ],
+    },
+    costCatalog: {
+      models: { m1: { commission: 35000 } },
+      addons: {
+        pkg: { cost: 11000 }, safe: { cost: 29000 }, gate: { cost: 32000 },
+        remote: { cost: 2000 }, step: { cost: 1000 }, leaf: { cost: 4000 }, gift: { cost: 6800 },
+      },
+    },
+    existing: {
+      otherCosts: [
+        { id: 'old-oct', name: '10月預購優惠', amount: 20000 },
+        { id: 'old-discount', name: '優惠折扣', amount: 33500 },
+      ],
+    },
+  });
+  assert.deepEqual(record.otherCosts, []);
+  assert.deepEqual(record.generalDiscounts.map((row) => [row.name, row.amount, row.funding]), [
+    ['10月預購優惠', 20000, 'company'],
+    ['優惠折扣', 33500, 'company'],
+  ]);
+  assert.equal(record.saleTotal, 950000);
+  assert.equal(record.commissionTotal, 35000);
+  assert.equal(record.accessoryProfitTotal, 29700);
+  assert.equal(record.companyFundedDiscountTotal, 53500);
+  assert.equal(record.otherCostTotal, 0);
+  assert.equal(record.profit, 64700);
+});
+
+test('normalizes a saved pricing snapshot whose only legacy discounts are in other costs', () => {
+  const repaired = normalizePricingRecord({
+    id: 'quote:legacy-cost-discounts', kind: 'quote', generalDiscountTotal: 0,
+    lines: [
+      { id: 'vehicle', kind: 'vehicle', name: '車輛售價', salePrice: 888000, netPrice: 888000, cost: 35000, costKnown: true },
+      { id: 'addon', kind: 'addon', name: '抗震優力膠', salePrice: 7800, netPrice: 7800, cost: 6800, costKnown: true },
+    ],
+    lineCosts: { vehicle: 35000, addon: 6800 },
+    lineCostSources: { vehicle: 'commission-catalog', addon: 'catalog' },
+    supplierSelections: {},
+    otherCosts: [
+      { id: 'campaign', name: '10月預購優惠', amount: 20000 },
+      { id: 'discount', name: '優惠折扣', amount: 33500 },
+    ],
+  });
+  assert.deepEqual(repaired.otherCosts, []);
+  assert.equal(repaired.generalDiscountTotal, 53500);
+  assert.equal(repaired.companyFundedDiscountTotal, 53500);
+  assert.equal(repaired.saleTotal, 842300);
+  assert.equal(repaired.profit, 36000);
+});
+
 test('excludes vehicle sale from an accessory-only quote without losing its model or accessory costs', () => {
   const items = [
     { id: 'v', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 800000 },

@@ -211,8 +211,8 @@ function isLegacyDiscountItem(row, price) {
 
 export function normalizeDiscount(row, fallbackName = '專案優惠') {
   const normalizedName = String(row?.name || fallbackName).trim() || fallbackName;
-  const inferredFunding = /(?:公司|活動|預購|補助|減免|汰舊換新|貨物稅)/u.test(normalizedName)
-    ? 'company' : 'sales';
+  const inferredFunding = /(?:業務|去尾數|自行吸收|自付)/u.test(normalizedName)
+    ? 'sales' : 'company';
   const funding = row?.funding === 'company' || row?.funding === 'sales'
     ? row.funding
     : row?.affectsProfit === false ? 'company'
@@ -228,6 +228,25 @@ export function normalizeDiscount(row, fallbackName = '專案優惠') {
 /** 公司活動／補助不扣業務固定傭金；只有業務自行讓利才影響內部利潤。 */
 export function discountAffectsProfit(row) {
   return normalizeDiscount(row).funding === 'sales';
+}
+
+/** 舊版曾把客戶優惠誤存進其他成本；辨識後移回優惠，不再重複侵蝕利潤。 */
+function partitionOtherCosts(rows = []) {
+  const otherCosts = [];
+  const legacyDiscounts = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const amount = money(row?.amount);
+    if (isLegacyDiscountItem({ ...row, price: amount, kind: 'other' }, amount)) {
+      legacyDiscounts.push(normalizeDiscount(row, row?.name || '優惠折扣'));
+    } else {
+      otherCosts.push({
+        id: row?.id,
+        name: String(row?.name || '其他成本'),
+        amount,
+      });
+    }
+  }
+  return { otherCosts, legacyDiscounts };
 }
 
 export function normalizeQuoteItems(items = []) {
@@ -445,17 +464,17 @@ function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleT
   const commissionTotal = lines.reduce((sum, line) => (
     line.kind === 'vehicle' && line.costKnown ? sum + (line.cost ?? 0) : sum
   ), 0);
+  const accessoryProfitTotal = lines.reduce((sum, line) => (
+    line.kind !== 'vehicle' && line.costKnown
+      ? sum + money(line.netPrice) - money(line.cost) : sum
+  ), 0);
+  const otherCostTotal = otherCosts.reduce((sum, row) => sum + row.amount, 0);
   const calculatedSaleTotal = Math.max(0,
     lines.reduce((sum, line) => sum + money(line.netPrice), 0) - money(generalDiscountTotal));
   const resolvedSaleTotal = saleTotal == null ? calculatedSaleTotal : money(saleTotal);
-  const knownProfit = lines.reduce((sum, line) => {
-    if (!line.costKnown) return sum;
-    if (line.kind === 'vehicle') {
-      // 公司公告的是每台固定傭金；牌價、活動價與客戶成交價的差額不再反扣傭金。
-      return sum + money(line.cost);
-    }
-    return sum + money(line.netPrice) - money(line.cost);
-  }, 0) - money(profitDiscountTotal) - otherCosts.reduce((sum, row) => sum + row.amount, 0);
+  // 公司公告的是每台固定傭金；牌價、活動價與客戶成交價的差額不再反扣傭金。
+  const knownProfit = commissionTotal + accessoryProfitTotal
+    - money(profitDiscountTotal) - otherCostTotal;
   // 成交金額若後續被手動修改，差額同樣會直接增減整台利潤。
   const saleAdjustment = resolvedSaleTotal - calculatedSaleTotal;
   return {
@@ -463,6 +482,8 @@ function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleT
     knownCostTotal,
     costTotal: complete ? knownCostTotal : null,
     commissionTotal,
+    accessoryProfitTotal,
+    otherCostTotal,
     saleTotal: resolvedSaleTotal,
     profit: complete ? knownProfit + saleAdjustment : null,
   };
@@ -475,25 +496,29 @@ export function normalizePricingRecord(record) {
     ...line,
     price: line.salePrice,
   }, Number(line.salePrice) || 0));
-  if (legacyDiscountLines.length === 0) return record;
+  const partitionedCosts = partitionOtherCosts(record.otherCosts);
+  if (legacyDiscountLines.length === 0 && partitionedCosts.legacyDiscounts.length === 0) return record;
 
   const legacyDiscountTotal = legacyDiscountLines.reduce((sum, line) => sum + money(line.salePrice), 0);
   const removedIds = new Set(legacyDiscountLines.map((line) => line.id));
   const lines = record.lines.filter((line) => !removedIds.has(line.id));
-  const otherCosts = (record.otherCosts || []).map((row) => ({
-    ...row,
-    name: String(row.name || '其他成本'),
-    amount: money(row.amount),
-  }));
+  const otherCosts = partitionedCosts.otherCosts;
   const originalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
   const itemDiscountTotal = lines.reduce((sum, line) => (
     sum + Math.max(0, money(line.salePrice) - money(line.netPrice))
   ), 0);
   // 若新版欄位已經有整單優惠，取較大值避免同一筆優惠再加一次。
-  const generalDiscountTotal = Math.max(money(record.generalDiscountTotal), legacyDiscountTotal);
+  const generalDiscounts = mergeQuoteDiscounts(
+    record.generalDiscounts,
+    [...legacyDiscountLines.map((line) => normalizeDiscount(line)), ...partitionedCosts.legacyDiscounts],
+  );
+  const namedDiscountTotal = generalDiscounts.reduce((sum, row) => sum + money(row.amount), 0);
+  const generalDiscountTotal = Math.max(money(record.generalDiscountTotal), legacyDiscountTotal, namedDiscountTotal);
   const discountTotal = itemDiscountTotal + generalDiscountTotal;
   const saleTotal = Math.max(0, originalTotal - discountTotal);
-  const profitDiscountTotal = money(record.profitDiscountTotal ?? generalDiscountTotal);
+  const profitDiscountTotal = generalDiscounts.length > 0
+    ? generalDiscounts.filter(discountAffectsProfit).reduce((sum, row) => sum + money(row.amount), 0)
+    : money(record.profitDiscountTotal ?? generalDiscountTotal);
   const snapshot = calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal, profitDiscountTotal);
   const keepKnownLineEntries = (source = {}) => Object.fromEntries(
     Object.entries(source || {}).filter(([id]) => !removedIds.has(id)),
@@ -505,6 +530,7 @@ export function normalizePricingRecord(record) {
     lineCostSources: keepKnownLineEntries(record.lineCostSources),
     supplierSelections: keepKnownLineEntries(record.supplierSelections),
     otherCosts,
+    generalDiscounts,
     originalTotal,
     itemDiscountTotal,
     generalDiscountTotal,
@@ -516,6 +542,8 @@ export function normalizePricingRecord(record) {
     knownCostTotal: snapshot.knownCostTotal,
     costTotal: snapshot.costTotal,
     commissionTotal: snapshot.commissionTotal,
+    accessoryProfitTotal: snapshot.accessoryProfitTotal,
+    otherCostTotal: snapshot.otherCostTotal,
     profit: snapshot.profit,
     belowCost: snapshot.profit != null && snapshot.profit < 0,
   };
@@ -569,7 +597,12 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
   const normalized = normalizeQuoteItems(quote?.items || []);
   // 待廠商報價項目尚未形成售價或成本，不納入目前金額與安全底線判斷。
   const items = normalized.items.filter((item) => !item.pending && (money(item.price) > 0 || item.gift));
-  const generalDiscounts = mergeQuoteDiscounts(quote?.generalDiscounts, normalized.legacyDiscounts);
+  const partitionedCosts = partitionOtherCosts(existing?.otherCosts);
+  const existingDiscounts = mergeQuoteDiscounts(existing?.generalDiscounts, partitionedCosts.legacyDiscounts);
+  const generalDiscounts = mergeQuoteDiscounts(
+    mergeQuoteDiscounts(quote?.generalDiscounts, normalized.legacyDiscounts),
+    existingDiscounts,
+  );
   const totals = calculateQuoteTotals(items, generalDiscounts);
   const existingCosts = existing?.lineCosts || {};
   const existingSources = existing?.lineCostSources || {};
@@ -637,11 +670,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       supplierName,
     };
   });
-  const otherCosts = (existing?.otherCosts || []).map((row) => ({
-    id: row.id,
-    name: String(row.name || '其他成本'),
-    amount: money(row.amount),
-  }));
+  const otherCosts = partitionedCosts.otherCosts;
   const snapshot = calculatePricingSnapshot(
     lines, otherCosts, totals.generalDiscountTotal, totals.total, totals.profitDiscountTotal,
   );
@@ -673,6 +702,8 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     costTotal: snapshot.costTotal,
     knownCostTotal: snapshot.knownCostTotal,
     commissionTotal: snapshot.commissionTotal,
+    accessoryProfitTotal: snapshot.accessoryProfitTotal,
+    otherCostTotal: snapshot.otherCostTotal,
     profit: snapshot.profit,
     belowCost: snapshot.profit != null && snapshot.profit < 0,
     capturedAt: existing?.capturedAt || new Date().toISOString(),
@@ -745,6 +776,8 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     knownCostTotal: snapshot.knownCostTotal,
     costTotal: snapshot.costTotal,
     commissionTotal: snapshot.commissionTotal,
+    accessoryProfitTotal: snapshot.accessoryProfitTotal,
+    otherCostTotal: snapshot.otherCostTotal,
     profit: snapshot.profit,
     belowCost: snapshot.profit != null && snapshot.profit < 0,
     updatedAt: new Date().toISOString(),

@@ -365,7 +365,10 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
     })),
   };
   const preview = updatePricingCosts(previewBase, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
-  const updatedQuote = quote ? applyPricingDiscountsToQuote(quote, cleanLineDiscounts, lineGifts) : null;
+  const updatedQuote = quote ? applyPricingDiscountsToQuote({
+    ...quote,
+    generalDiscounts: record.generalDiscounts || quote.generalDiscounts || [],
+  }, cleanLineDiscounts, lineGifts) : null;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
 
@@ -504,6 +507,17 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           </div>
 
           <div className="mt-3 space-y-2">
+            {(record.generalDiscounts || []).length > 0 && (
+              <div className="rounded-xl border border-ok/30 bg-ok/5 p-3 space-y-1.5">
+                <p className="text-[11px] font-semibold text-ok">客戶優惠（不是成本）</p>
+                {(record.generalDiscounts || []).map((row) => (
+                  <div key={row.id || `${row.name}-${row.amount}`} className="flex justify-between gap-3 text-[11px]">
+                    <span className="text-ink-2">{row.name}</span>
+                    <span className="text-right text-ok">−{formatMoney(row.amount)}・{row.funding === 'sales' ? '業務讓利' : '公司／活動負擔'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {otherCosts.map((row) => (
               <div key={row.id} className="flex gap-2">
                 <input value={row.name} onChange={(e) => setOtherCosts((list) => list.map((item) => item.id === row.id ? { ...item, name: e.target.value } : item))}
@@ -533,9 +547,18 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
             <Metric label="公司／活動優惠" value={preview.companyFundedDiscountTotal} tone="ok" prefix="−" />
             <Metric label="業務讓利" value={preview.profitDiscountTotal} tone="ok" prefix="−" />
             <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
+            <Metric label="配件淨利（含贈品成本）" value={preview.accessoryProfitTotal} tone={preview.accessoryProfitTotal < 0 ? 'danger' : 'ok'} />
+            <Metric label="其他實際成本" value={preview.otherCostTotal} prefix="−" />
             <Metric label={preview.costComplete ? '配件／其他成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
             <Metric label="目前試算利潤" value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />
           </div>
+          {preview.costComplete && (
+            <p className="mt-2 rounded-lg bg-s2 px-3 py-2 text-[11px] text-ink-2 leading-relaxed">
+              利潤計算：車輛傭金 {formatMoney(preview.commissionTotal)} ＋ 配件淨利 {formatMoney(preview.accessoryProfitTotal)}
+              {' '}− 業務讓利 {formatMoney(preview.profitDiscountTotal)} − 其他實際成本 {formatMoney(preview.otherCostTotal)}
+              {' '}＝ {formatMoney(preview.profit)}
+            </p>
+          )}
           {missingLines.length > 0 && (
             <div className="mt-3 rounded-xl border border-warn/35 bg-warn/10 p-3 space-y-2">
               <p className="text-xs font-semibold text-warn">⚠️ 尚有 {missingLines.length} 個項目沒有傭金／成本，總利潤暫不成立。</p>
