@@ -2,9 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatVehiclePrice } from './vehicles.js';
 import {
-  dependencyReminders, heightAssessment, heightPlanning, heightPlanSummary,
+  addonHeightImpact, dependencyReminders, heightAssessment, heightPlanning, heightPlanSummary,
   requirementPendingItems, requirementSummary,
 } from './reception.js';
+
+test('quote options show configurable vehicle-height impact for suspension upgrades and bundles', () => {
+  const config = { shockLiftCm: 5, leafLiftCm: 2 };
+  assert.deepEqual(addonHeightImpact('qa-ts', config), {
+    totalCm: 5,
+    parts: [{ key: 'shock', label: '改避震', cm: 5 }],
+    shortLabel: '預估車高 +5 cm',
+    detail: '車高規劃：改避震 +5 cm。實際完工高度仍須依車況、安裝調整與載重後實測。',
+  });
+  assert.equal(addonHeightImpact('qa-spring', config).totalCm, 2);
+  assert.equal(addonHeightImpact('qa-leaf', config).totalCm, 2);
+  assert.equal(addonHeightImpact({ id: 'package', includes: ['qa-ts'] }, config).totalCm, 5);
+  assert.equal(addonHeightImpact({ id: 'package', includes: ['qa-ts', 'qa-leaf'] }, config).totalCm, 7);
+  assert.equal(addonHeightImpact('qa-block', config), null);
+});
 
 test('eight K2500 variants use the current single-source prices', () => {
   assert.equal(VEHICLE_VARIANTS.length, 8);

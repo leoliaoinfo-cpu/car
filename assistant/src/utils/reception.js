@@ -43,6 +43,37 @@ export function normalizeHeightConfig(row = {}) {
   };
 }
 
+const SHOCK_LIFT_ADDON_IDS = new Set(['qa-ts']);
+const LEAF_LIFT_ADDON_IDS = new Set(['qa-spring', 'qa-leaf']);
+
+/**
+ * 報價選配使用的車高提醒。數值沿用「設定 → 車高參數」，避免選配文字與接待計算不同步。
+ * 套裝若內含相關配件，也會回報相同影響；這只是規劃值，不能取代完工實測。
+ */
+export function addonHeightImpact(addon, rawConfig = DEFAULT_HEIGHT_CONFIG) {
+  if (!addon) return null;
+  const config = normalizeHeightConfig(rawConfig);
+  const ids = new Set([
+    typeof addon === 'string' ? addon : addon.id,
+    ...(Array.isArray(addon?.includes) ? addon.includes : []),
+  ].filter(Boolean));
+  const parts = [];
+  if ([...ids].some((id) => SHOCK_LIFT_ADDON_IDS.has(id))) {
+    parts.push({ key: 'shock', label: '改避震', cm: config.shockLiftCm });
+  }
+  if ([...ids].some((id) => LEAF_LIFT_ADDON_IDS.has(id))) {
+    parts.push({ key: 'leaf', label: '加葉片', cm: config.leafLiftCm });
+  }
+  if (parts.length === 0) return null;
+  const totalCm = Math.round(parts.reduce((sum, part) => sum + part.cm, 0) * 10) / 10;
+  return {
+    totalCm,
+    parts,
+    shortLabel: `預估車高 +${totalCm} cm`,
+    detail: `車高規劃：${parts.map((part) => `${part.label} +${part.cm} cm`).join('、')}。實際完工高度仍須依車況、安裝調整與載重後實測。`,
+  };
+}
+
 export const HEIGHT_TRIGGER_REQUIREMENTS = ['帆布', '箱體', '伸縮箱體', '升降尾門'];
 export const TAILGATE_CANVAS_CHECKS = [
   ['tailgateSize', '尾門尺寸'],

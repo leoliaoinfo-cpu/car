@@ -11,6 +11,7 @@ import {
   synchronizeQuoteDiscounts,
 } from '../../utils/pricing';
 import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteText';
+import { addonHeightImpact } from '../../utils/reception';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -94,7 +95,7 @@ function isPackageAddon(addon) {
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
-  allAddons, selectedItemForAddon, updateVendorInquiryNote,
+  allAddons, selectedItemForAddon, updateVendorInquiryNote, heightConfig,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -151,12 +152,18 @@ function AddonCategoryCard({
               統一說明：本分類所有貨斗底板材質厚度均為 5mm。
             </p>
           )}
+          {cat === '底盤強化' && (
+            <p className="rounded-md border border-warn/35 bg-warn/10 px-2 py-1.5 text-[11px] font-semibold text-warn leading-relaxed">
+              ⚠️ 車高規劃值：改避震約 +{heightConfig.shockLiftCm} cm、加葉片約 +{heightConfig.leafLiftCm} cm；實際完工高度仍須實測。
+            </p>
+          )}
           {showDesc ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {list.map((addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
                 const packageAddon = isPackageAddon(addon);
+                const heightImpact = addonHeightImpact(addon, heightConfig);
                 const descriptionLines = numberedDescription(addon);
                 const bundleParts = (Array.isArray(addon.includes) ? addon.includes : [])
                   .map((id) => allAddons.find((candidate) => candidate.id === id))
@@ -208,6 +215,11 @@ function AddonCategoryCard({
                         <p className="text-[11px] text-black mt-1.5 leading-relaxed">{addon.desc}</p>
                       )
                     )}
+                    {heightImpact && (
+                      <p className="mt-1.5 rounded-md border border-warn/35 bg-warn/10 px-2 py-1.5 text-[10px] font-semibold text-warn leading-relaxed">
+                        ⚠️ {heightImpact.detail}
+                      </p>
+                    )}
                     {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 已含於「{lockedBy.name}」，不可重複加入</p>}
                     <button type="button" onClick={() => toggleLine(addon)} disabled={!!lockedBy}
                       className={`text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors ${lockedBy ? 'cursor-not-allowed' : ''}`}
@@ -224,6 +236,7 @@ function AddonCategoryCard({
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
                 const packageAddon = isPackageAddon(addon);
+                const heightImpact = addonHeightImpact(addon, heightConfig);
                 return (
                   <button key={addon.id} type="button" disabled={!!lockedBy}
                     title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
@@ -240,6 +253,7 @@ function AddonCategoryCard({
                     <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
                       {lockedBy ? '套裝已含' : addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                     </span>
+                    {heightImpact && <span className={`text-[9px] font-bold ${picked ? '' : 'text-warn'}`}>⚠️ {heightImpact.shortLabel}</span>}
                   </button>
                 );
               })}
@@ -282,7 +296,7 @@ function shortHash(str) {
  * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
 export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onClose }) {
-  const { quotePresets, costCatalog, pricingRecords, cases } = useApp();
+  const { quotePresets, costCatalog, pricingRecords, cases, heightConfig } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const existingPricingRecord = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
@@ -969,6 +983,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       setExpandedAddonCategories={setExpandedAddonCategories}
                       setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
                       bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                      heightConfig={heightConfig}
                       selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
                       updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />;
                   }
@@ -1021,6 +1036,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               setExpandedAddonCategories={setExpandedAddonCategories}
                               setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
                               bundleLocks={bundleLocks} allAddons={quotePresets.addons}
+                              heightConfig={heightConfig}
                               selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
                               updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />
                           ))}
@@ -1080,6 +1096,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
+              const catalogAddon = quotePresets.addons.find((addon) => addon.id === it.catalogId);
+              const heightImpact = addonHeightImpact(catalogAddon || it.catalogId, heightConfig);
               return (
                 <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
                   <div className="flex gap-2">
@@ -1092,6 +1110,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                     <button onClick={() => removeItem(it.id)}
                       className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
                   </div>
+                  {heightImpact && (
+                    <p className="rounded-lg border border-warn/35 bg-warn/10 px-2.5 py-2 text-[11px] font-semibold text-warn leading-relaxed">
+                      ⚠️ {heightImpact.detail}
+                    </p>
+                  )}
                   {needsColorNote && (
                     <div className="rounded-lg border border-accent/25 bg-accent/5 p-2">
                       <label className="block text-[10px] font-medium text-ink-2 mb-1">🎨 車色備註</label>
