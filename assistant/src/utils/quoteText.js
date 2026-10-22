@@ -9,6 +9,25 @@ export function formatWan(value) {
   return `${Number(amount.toFixed(2))}萬`;
 }
 
+function formatLineWan(value) {
+  return formatWan(value).replace('萬', ' 萬');
+}
+
+function formatTwd(value) {
+  return money(value).toLocaleString('zh-TW');
+}
+
+export function formatVehicleSpec(value) {
+  return String(value || '').trim()
+    .replace(/^(?:2WD\s*)/iu, '')
+    .replace(/(?:2027\s*年式\s*)?(?:KIA\s*)?(?:卡旺\s*)?(?:K2500\s*)?/iu, '')
+    .replace(/(大單廂|單廂|雙廂)\s*(\d+)\s*人座/gu, '$1 $2 人座')
+    .replace(/(\d+)\s*速\s*(手自排|手排)/gu, '$1 速$2')
+    .replace(/人座\s+(?=\d+\s*速)/u, '人座｜')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** 把型錄用的長名稱縮成 LINE 讀起來自然的版本。 */
 export function compactQuoteItemName(value) {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
@@ -44,20 +63,20 @@ export function buildQuoteMessage({
 
   const vehicle = selectedItems.find((item) => item.kind === 'vehicle' && !item.pending);
   if (vehicle) {
-    const yearText = String(modelYear || '').trim();
-    const modelText = String(model || '').trim() || '車輛';
-    const prefixedModel = yearText && !modelText.includes('年式') ? `${yearText}年式 ${modelText}` : modelText;
-    lines.push(`${prefixedModel}　${formatWan(vehicle.price)}`);
+    const yearText = String(modelYear || DEFAULT_QUOTE_MODEL_YEAR).trim();
+    const modelSpec = formatVehicleSpec(model);
+    lines.push(`${yearText} 年式 KIA 卡旺 K2500`);
+    if (modelSpec) lines.push(modelSpec);
+    lines.push('', `車輛售價：${formatLineWan(vehicle.price)}`);
   }
 
   for (const item of selectedItems.filter((row) => row.kind !== 'vehicle')) {
     const name = compactQuoteItemName(item.name);
-    if (item.pending) lines.push(`${name}　+待廠商報價`);
-    else if (item.gift) lines.push(`${name}　🎁贈送${money(item.price) > 0 ? `（價值${formatWan(item.price)}）` : ''}`);
-    else lines.push(`${name}　+${formatWan(item.price)}`);
+    if (item.pending) lines.push(`${name}：待廠商報價`);
+    else if (!item.gift) lines.push(`${name}：+${formatLineWan(item.price)}`);
   }
 
-  lines.push('----------', '', `原價總計：${formatWan(totals.originalTotal)}`);
+  lines.push('----------', `原價總計：${formatLineWan(totals.originalTotal)}`, '----------');
 
   for (const item of pricedItems) {
     if (item.gift) continue;
@@ -66,12 +85,23 @@ export function buildQuoteMessage({
       if (!amount) continue;
       const discountName = String(row?.name || '優惠').trim() || '優惠';
       const label = discountName === '優惠' ? `${compactQuoteItemName(item.name)}優惠` : discountName;
-      lines.push(`${label}-${formatWan(amount)}`);
+      lines.push(`${label}：-${formatLineWan(amount)}`);
     }
   }
-  for (const row of discounts) lines.push(`${String(row.name).trim()}-${formatWan(row.amount)}`);
+  for (const row of discounts) lines.push(`${String(row.name).trim()}：-${formatLineWan(row.amount)}`);
 
-  const discountLabel = selectedItems.some((item) => item.gift) ? '優惠／贈送合計' : '優惠合計';
-  lines.push('-------', '', `${discountLabel}：${formatWan(totals.discountTotal)}`, `專案成交價：${formatWan(totals.total)}`);
+  lines.push('', `✅ 最終優惠成交價：${formatLineWan(totals.total)}元`);
+
+  const giftItems = pricedItems.filter((item) => item.gift);
+  if (giftItems.length > 0) {
+    lines.push('----------', '', '另外再為您爭取以下贈品：', '');
+    giftItems.forEach((item) => {
+      const value = money(item.price);
+      lines.push(`🎁 ${compactQuoteItemName(item.name)}${value > 0 ? `（價值 ${formatTwd(value)} 元）` : ''}`);
+      const description = String(item.description || '').trim();
+      if (description) lines.push(description);
+    });
+    lines.push('', `車價折扣加上贈品，總優惠 ${formatTwd(totals.customerBenefitTotal)} 元`);
+  }
   return lines.join('\n');
 }

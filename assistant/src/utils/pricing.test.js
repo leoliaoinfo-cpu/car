@@ -27,12 +27,14 @@ test('calculates item and whole-quote discounts', () => {
   assert.equal(result.itemTotals.addon.net, 25000);
 });
 
-test('treats a gift as a full line discount while retaining its cost internally', () => {
+test('keeps gifts outside sale and discount totals while retaining value and internal cost', () => {
   const totals = calculateQuoteTotals([
     { id: 'gift', kind: 'addon', price: 3000, gift: true, discounts: [] },
   ]);
-  assert.equal(totals.originalTotal, 3000);
-  assert.equal(totals.itemDiscountTotal, 3000);
+  assert.equal(totals.originalTotal, 0);
+  assert.equal(totals.itemDiscountTotal, 0);
+  assert.equal(totals.giftValueTotal, 3000);
+  assert.equal(totals.customerBenefitTotal, 3000);
   assert.equal(totals.itemTotals.gift.net, 0);
   assert.equal(totals.total, 0);
 
@@ -45,6 +47,26 @@ test('treats a gift as a full line discount while retaining its cost internally'
   assert.equal(record.lines.length, 1);
   assert.equal(record.lines[0].netPrice, 0);
   assert.equal(record.profit, -1200);
+});
+
+test('keeps fixed vehicle commission intact and only charges sales-funded discounts to profit', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-funded-discounts', modelId: 'm1',
+      items: [{ id: 'v', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 888000 }],
+      generalDiscounts: [
+        { id: 'oct', name: '10 月訂車預購優惠', amount: 20000 },
+        { id: 'company', name: '公司優惠折扣', amount: 30000 },
+        { id: 'rounding', name: '另外再幫您去尾數', amount: 3500 },
+      ],
+    },
+    costCatalog: { models: { m1: { commission: 35000 } }, addons: {} },
+  });
+  assert.equal(record.saleTotal, 834500);
+  assert.equal(record.commissionTotal, 35000);
+  assert.equal(record.companyFundedDiscountTotal, 50000);
+  assert.equal(record.profitDiscountTotal, 3500);
+  assert.equal(record.profit, 31500);
 });
 
 test('excludes vehicle sale from an accessory-only quote without losing its model or accessory costs', () => {
@@ -142,7 +164,7 @@ test('uses vehicle commission plus accessory margin and detects an over-discount
         { id: 'v', kind: 'vehicle', catalogId: 'm1', price: 800000 },
         { id: 'a', kind: 'addon', catalogId: 'a1', price: 20000 },
       ],
-      generalDiscounts: [{ amount: 50000 }],
+      generalDiscounts: [{ name: '業務讓利', amount: 50000, funding: 'sales' }],
     },
     costCatalog: { models: { m1: { commission: 40000 } }, addons: { a1: { cost: 15000 } } },
   });

@@ -593,9 +593,10 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   }
 
   function addGeneralDiscount(row = null) {
-    const value = row ? normalizeDiscount(row) : { name: '優惠折扣', amount: 0 };
+    const value = row ? normalizeDiscount(row) : { name: '優惠折扣', amount: 0, funding: 'company' };
     setGeneralDiscounts((list) => [...list, {
       id: generateId('discount'), name: value.name, amount: value.amount ? String(value.amount) : '',
+      funding: value.funding || 'company',
     }]);
   }
 
@@ -642,11 +643,15 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       })),
       generalDiscounts: validGeneralDiscounts.map((row) => ({
         id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0,
+        funding: row.funding === 'sales' ? 'sales' : 'company',
       })),
       originalTotal: totals.originalTotal,
       itemDiscountTotal: totals.itemDiscountTotal,
       generalDiscountTotal: totals.generalDiscountTotal,
+      profitDiscountTotal: totals.profitDiscountTotal,
       discountTotal: totals.discountTotal,
+      giftValueTotal: totals.giftValueTotal,
+      customerBenefitTotal: totals.customerBenefitTotal,
       total,
       requirements: requirements.trim(),
       note: note.trim(),
@@ -1145,15 +1150,22 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   className="btn-outline text-[11px] shrink-0">＋ 新增優惠折扣</button>
               </div>
               {generalDiscounts.map((discount) => (
-                <div key={discount.id} className="flex gap-2 items-center">
+                <div key={discount.id} className="grid grid-cols-[minmax(0,1fr)_7rem_1.5rem] sm:grid-cols-[minmax(0,1fr)_7rem_13rem_1.5rem] gap-2 items-center">
                   <input value={discount.name}
                     onChange={(e) => setGeneralDiscount(discount.id, { name: e.target.value })}
                     placeholder="優惠名稱" className="flex-1 text-xs min-w-0" />
                   <input type="number" min="0" value={discount.amount}
                     onChange={(e) => setGeneralDiscount(discount.id, { amount: e.target.value })}
-                    placeholder="折扣金額" className="w-28 text-xs" />
+                    placeholder="折扣金額" className="w-full text-xs" />
+                  <select value={discount.funding || 'company'}
+                    onChange={(e) => setGeneralDiscount(discount.id, { funding: e.target.value })}
+                    aria-label={`${discount.name || '優惠'}負擔來源`}
+                    className="col-span-2 sm:col-span-1 text-xs">
+                    <option value="company">公司／活動負擔（不扣傭金）</option>
+                    <option value="sales">業務讓利（扣利潤）</option>
+                  </select>
                   <button type="button" onClick={() => removeGeneralDiscount(discount.id)}
-                    className="text-danger/50 hover:text-danger px-1">✕</button>
+                    className="text-danger/50 hover:text-danger px-1 col-start-3 row-start-1 sm:col-start-4">✕</button>
                 </div>
               ))}
               {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入優惠折扣。</p>}
@@ -1422,7 +1434,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div style={{ borderTop: '1px solid #e8ecef', marginTop: 14, paddingTop: 10 }}>
                 {[
                   ['售價', totals.originalTotal],
-                  [selectedItems.some((item) => item.gift) ? '優惠／贈送' : '優惠折扣', -totals.discountTotal],
+                  ['優惠折扣', -totals.discountTotal],
+                  ...(totals.giftValueTotal > 0 ? [['另贈價值', totals.giftValueTotal]] : []),
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', color: value < 0 ? '#6f957a' : '#8b98a1', fontSize: 10.5, padding: '2px 2px' }}>
                     <span>{label}</span><span>{value < 0 ? '−' : ''}{formatMoney(Math.abs(value))}</span>

@@ -436,7 +436,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 : null;
               const previewLine = preview.lines.find((item) => item.id === line.id) || line;
               const contribution = lineCost == null ? null : line.kind === 'vehicle'
-                ? lineCost - Math.max(0, previewLine.salePrice - previewLine.netPrice)
+                ? lineCost
                 : previewLine.netPrice - lineCost;
               return (
               <div key={line.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
@@ -530,7 +530,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           <div className="card p-3 mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
             <Metric label="原始售價" value={preview.originalTotal} />
             <Metric label="單項優惠" value={preview.itemDiscountTotal} tone="ok" prefix="−" />
-            <Metric label="優惠折扣" value={preview.generalDiscountTotal} tone="ok" prefix="−" />
+            <Metric label="公司／活動優惠" value={preview.companyFundedDiscountTotal} tone="ok" prefix="−" />
+            <Metric label="業務讓利" value={preview.profitDiscountTotal} tone="ok" prefix="−" />
             <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
             <Metric label={preview.costComplete ? '配件／其他成本' : '已填成本小計'} value={preview.costComplete ? preview.costTotal : preview.knownCostTotal} />
             <Metric label="目前試算利潤" value={preview.profit} tone={preview.profit != null && preview.profit < 0 ? 'danger' : 'ok'} />

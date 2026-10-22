@@ -211,11 +211,23 @@ function isLegacyDiscountItem(row, price) {
 
 export function normalizeDiscount(row, fallbackName = '專案優惠') {
   const normalizedName = String(row?.name || fallbackName).trim() || fallbackName;
+  const inferredFunding = /(?:公司|活動|預購|補助|減免|汰舊換新|貨物稅)/u.test(normalizedName)
+    ? 'company' : 'sales';
+  const funding = row?.funding === 'company' || row?.funding === 'sales'
+    ? row.funding
+    : row?.affectsProfit === false ? 'company'
+      : row?.affectsProfit === true ? 'sales' : inferredFunding;
   return {
     id: row?.id || '',
     name: normalizedName === '業務優惠' ? '優惠' : normalizedName,
     amount: money(row?.amount ?? Math.abs(Number(row?.price) || 0)),
+    funding,
   };
+}
+
+/** 公司活動／補助不扣業務固定傭金；只有業務自行讓利才影響內部利潤。 */
+export function discountAffectsProfit(row) {
+  return normalizeDiscount(row).funding === 'sales';
 }
 
 export function normalizeQuoteItems(items = []) {
@@ -264,12 +276,24 @@ export function includedQuoteItems(items = [], excludeVehiclePrice = false) {
 export function calculateQuoteTotals(items = [], generalDiscounts = []) {
   let originalTotal = 0;
   let itemDiscountTotal = 0;
+  let giftValueTotal = 0;
   const itemTotals = {};
   const overDiscountedItemIds = [];
 
   for (const item of items) {
     const price = money(item?.price);
-    const requestedDiscount = item?.gift ? price : (item?.discounts || [])
+    if (item?.gift) {
+      giftValueTotal += price;
+      itemTotals[item.id] = {
+        original: price,
+        requestedDiscount: 0,
+        discount: 0,
+        net: 0,
+        giftValue: price,
+      };
+      continue;
+    }
+    const requestedDiscount = (item?.discounts || [])
       .reduce((sum, row) => sum + money(row?.amount), 0);
     const appliedDiscount = Math.min(price, requestedDiscount);
     originalTotal += price;
@@ -280,17 +304,24 @@ export function calculateQuoteTotals(items = [], generalDiscounts = []) {
       requestedDiscount,
       discount: appliedDiscount,
       net: Math.max(0, price - appliedDiscount),
+      giftValue: 0,
     };
   }
 
   const generalDiscountTotal = generalDiscounts
     .reduce((sum, row) => sum + money(row?.amount), 0);
+  const profitDiscountTotal = generalDiscounts
+    .filter(discountAffectsProfit)
+    .reduce((sum, row) => sum + money(row?.amount), 0);
   const discountTotal = itemDiscountTotal + generalDiscountTotal;
   return {
     originalTotal,
+    giftValueTotal,
     itemDiscountTotal,
     generalDiscountTotal,
+    profitDiscountTotal,
     discountTotal,
+    customerBenefitTotal: discountTotal + giftValueTotal,
     total: Math.max(0, originalTotal - discountTotal),
     itemTotals,
     overDiscountedItemIds,
@@ -337,7 +368,10 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}, lineGift
     originalTotal: totals.originalTotal,
     itemDiscountTotal: totals.itemDiscountTotal,
     generalDiscountTotal: totals.generalDiscountTotal,
+    profitDiscountTotal: totals.profitDiscountTotal,
     discountTotal: totals.discountTotal,
+    giftValueTotal: totals.giftValueTotal,
+    customerBenefitTotal: totals.customerBenefitTotal,
     total: totals.total,
   };
 }
@@ -402,7 +436,8 @@ function ownCommission(map, key) {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
 }
 
-function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal = null) {
+function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal = null,
+  profitDiscountTotal = generalDiscountTotal) {
   const complete = lines.length > 0 && lines.every((line) => line.costKnown);
   const knownCostTotal = lines.reduce((sum, line) => (
     line.kind === 'vehicle' ? sum : sum + (line.cost ?? 0)
@@ -416,11 +451,11 @@ function calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleT
   const knownProfit = lines.reduce((sum, line) => {
     if (!line.costKnown) return sum;
     if (line.kind === 'vehicle') {
-      const lineDiscount = Math.max(0, money(line.salePrice) - money(line.netPrice));
-      return sum + money(line.cost) - lineDiscount;
+      // 公司公告的是每台固定傭金；牌價、活動價與客戶成交價的差額不再反扣傭金。
+      return sum + money(line.cost);
     }
     return sum + money(line.netPrice) - money(line.cost);
-  }, 0) - money(generalDiscountTotal) - otherCosts.reduce((sum, row) => sum + row.amount, 0);
+  }, 0) - money(profitDiscountTotal) - otherCosts.reduce((sum, row) => sum + row.amount, 0);
   // 成交金額若後續被手動修改，差額同樣會直接增減整台利潤。
   const saleAdjustment = resolvedSaleTotal - calculatedSaleTotal;
   return {
@@ -458,7 +493,8 @@ export function normalizePricingRecord(record) {
   const generalDiscountTotal = Math.max(money(record.generalDiscountTotal), legacyDiscountTotal);
   const discountTotal = itemDiscountTotal + generalDiscountTotal;
   const saleTotal = Math.max(0, originalTotal - discountTotal);
-  const snapshot = calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal);
+  const profitDiscountTotal = money(record.profitDiscountTotal ?? generalDiscountTotal);
+  const snapshot = calculatePricingSnapshot(lines, otherCosts, generalDiscountTotal, saleTotal, profitDiscountTotal);
   const keepKnownLineEntries = (source = {}) => Object.fromEntries(
     Object.entries(source || {}).filter(([id]) => !removedIds.has(id)),
   );
@@ -472,6 +508,8 @@ export function normalizePricingRecord(record) {
     originalTotal,
     itemDiscountTotal,
     generalDiscountTotal,
+    profitDiscountTotal,
+    companyFundedDiscountTotal: Math.max(0, generalDiscountTotal - profitDiscountTotal),
     discountTotal,
     saleTotal,
     costComplete: snapshot.complete,
@@ -585,6 +623,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       catalogId: item.catalogId || null,
       kind: item.kind || 'other',
       name: item.name || '',
+      gift: !!item.gift,
       salePrice: money(item.price),
       netPrice: totals.itemTotals[item.id]?.net || 0,
       discounts,
@@ -603,7 +642,9 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     name: String(row.name || '其他成本'),
     amount: money(row.amount),
   }));
-  const snapshot = calculatePricingSnapshot(lines, otherCosts, totals.generalDiscountTotal, totals.total);
+  const snapshot = calculatePricingSnapshot(
+    lines, otherCosts, totals.generalDiscountTotal, totals.total, totals.profitDiscountTotal,
+  );
   const id = kind === 'deal' ? `deal:${dealId}` : `quote:${quote?.id}`;
   return {
     id,
@@ -622,6 +663,11 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     originalTotal: totals.originalTotal,
     itemDiscountTotal: totals.itemDiscountTotal,
     generalDiscountTotal: totals.generalDiscountTotal,
+    profitDiscountTotal: totals.profitDiscountTotal,
+    companyFundedDiscountTotal: totals.generalDiscountTotal - totals.profitDiscountTotal,
+    giftValueTotal: totals.giftValueTotal,
+    customerBenefitTotal: totals.customerBenefitTotal,
+    generalDiscounts,
     discountTotal: totals.discountTotal,
     costComplete: snapshot.complete,
     costTotal: snapshot.costTotal,
@@ -664,17 +710,24 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     name: String(row.name || '其他成本'),
     amount: money(row.amount),
   }));
-  const calculatedOriginalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
-  const calculatedItemDiscountTotal = lines.reduce((sum, line) => sum + Math.max(0, money(line.salePrice) - money(line.netPrice)), 0);
+  const calculatedOriginalTotal = lines.reduce((sum, line) => (
+    line.gift ? sum : sum + money(line.salePrice)
+  ), 0);
+  const calculatedItemDiscountTotal = lines.reduce((sum, line) => (
+    line.gift ? sum : sum + Math.max(0, money(line.salePrice) - money(line.netPrice))
+  ), 0);
   const editingQuoteDiscounts = lineDiscounts != null;
   const originalTotal = editingQuoteDiscounts ? calculatedOriginalTotal : money(record?.originalTotal ?? calculatedOriginalTotal);
   const itemDiscountTotal = editingQuoteDiscounts ? calculatedItemDiscountTotal : money(record?.itemDiscountTotal);
   const generalDiscountTotal = money(record?.generalDiscountTotal);
+  const profitDiscountTotal = money(record?.profitDiscountTotal ?? generalDiscountTotal);
   const discountTotal = itemDiscountTotal + generalDiscountTotal;
   const saleTotal = editingQuoteDiscounts
     ? Math.max(0, originalTotal - discountTotal)
     : money(record?.saleTotal);
-  const snapshot = calculatePricingSnapshot(lines, normalizedOther, generalDiscountTotal, saleTotal);
+  const snapshot = calculatePricingSnapshot(
+    lines, normalizedOther, generalDiscountTotal, saleTotal, profitDiscountTotal,
+  );
   return {
     ...record,
     lines,
@@ -685,6 +738,8 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     originalTotal,
     itemDiscountTotal,
     discountTotal,
+    profitDiscountTotal,
+    companyFundedDiscountTotal: Math.max(0, generalDiscountTotal - profitDiscountTotal),
     saleTotal,
     costComplete: snapshot.complete,
     knownCostTotal: snapshot.knownCostTotal,

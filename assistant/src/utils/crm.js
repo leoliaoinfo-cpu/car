@@ -450,8 +450,8 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
   subsidies: [
-    { id: 'qs-1', name: '汰舊換新補助', amount: 50000 },
-    { id: 'qs-2', name: '貨物稅減免', amount: 50000 },
+    { id: 'qs-1', name: '汰舊換新補助', amount: 50000, funding: 'company' },
+    { id: 'qs-2', name: '貨物稅減免', amount: 50000, funding: 'company' },
   ],
 };
 
