@@ -69,8 +69,8 @@ export function addonHeightImpact(addon, rawConfig = DEFAULT_HEIGHT_CONFIG) {
   return {
     totalCm,
     parts,
-    shortLabel: `預估車高 +${totalCm} cm`,
-    detail: `車高規劃：${parts.map((part) => `${part.label} +${part.cm} cm`).join('、')}。實際完工高度仍須依車況、安裝調整與載重後實測。`,
+    shortLabel: `車尾貨斗基準約 +${totalCm} cm`,
+    detail: `底盤規劃：${parts.map((part) => `${part.label}使車尾貨斗基準約 +${part.cm} cm`).join('、')}。未加裝帆布、箱體或 H 架等上裝時，不等於整車最高點增加同樣高度；有上裝或限高需求時才須納入斗上可用高度計算。實際高度仍須依車況、安裝調整與載重後實測。`,
   };
 }
 
@@ -207,8 +207,8 @@ export function heightPlanSummary(session, variant, config) {
     limitedCalculation,
     '',
     '【底盤與斗上可用高度】',
-    `避震：${plan.shockLiftCm ? `有（+${plan.shockLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
-    `葉片：${plan.leafLiftCm ? `有（+${plan.leafLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
+    `避震：${plan.shockLiftCm ? `有（車尾貨斗基準約 +${plan.shockLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
+    `葉片：${plan.leafLiftCm ? `有（車尾貨斗基準約 +${plan.leafLiftCm} cm）` : session?.suspensionPlan ? '無' : '待確認'}`,
     `底盤方案：${session?.suspensionPlan || '待確認'}`,
     `原始貨斗離地：${formatCm(plan.baseBedCm, true)}（地面 → 貨斗）`,
     `改裝後貨斗離地：${formatCm(plan.adjustedBedCm, true)}（地面 → 貨斗）`,

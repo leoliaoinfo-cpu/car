@@ -768,8 +768,8 @@ function HeightConfigEditor({ value, onSave }) {
   const fields = [
     ['bedHeight2wdCm', 'K2500 2WD 貨斗離地', '77'],
     ['bedHeight4wdCm', 'K2500 4WD 貨斗離地', '85.5'],
-    ['shockLiftCm', '改避震升高量', '5'],
-    ['leafLiftCm', '加葉片升高量', '2'],
+    ['shockLiftCm', '改避震後車尾貨斗基準升高量', '5'],
+    ['leafLiftCm', '加葉片後車尾貨斗基準升高量', '2'],
     ['generalControlCm', '一般規劃控制總高', '270'],
     ['basementReserveCm', '地下室預設安全預留', '10'],
     ['nearLimitCm', '接近限制警示範圍', '5'],

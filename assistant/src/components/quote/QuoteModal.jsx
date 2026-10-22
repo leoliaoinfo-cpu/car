@@ -154,7 +154,7 @@ function AddonCategoryCard({
           )}
           {cat === '底盤強化' && (
             <p className="rounded-md border border-warn/35 bg-warn/10 px-2 py-1.5 text-[11px] font-semibold text-warn leading-relaxed">
-              ⚠️ 車高規劃值：改避震約 +{heightConfig.shockLiftCm} cm、加葉片約 +{heightConfig.leafLiftCm} cm；實際完工高度仍須實測。
+              ⚠️ 車尾貨斗基準：改避震約 +{heightConfig.shockLiftCm} cm、加葉片約 +{heightConfig.leafLiftCm} cm。未加裝帆布、箱體或 H 架等上裝時，通常不影響由車頭決定的整車最高點；實際高度仍須實測。
             </p>
           )}
           {showDesc ? (

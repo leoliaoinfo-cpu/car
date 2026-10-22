@@ -11,8 +11,8 @@ test('quote options show configurable vehicle-height impact for suspension upgra
   assert.deepEqual(addonHeightImpact('qa-ts', config), {
     totalCm: 5,
     parts: [{ key: 'shock', label: '改避震', cm: 5 }],
-    shortLabel: '預估車高 +5 cm',
-    detail: '車高規劃：改避震 +5 cm。實際完工高度仍須依車況、安裝調整與載重後實測。',
+    shortLabel: '車尾貨斗基準約 +5 cm',
+    detail: '底盤規劃：改避震使車尾貨斗基準約 +5 cm。未加裝帆布、箱體或 H 架等上裝時，不等於整車最高點增加同樣高度；有上裝或限高需求時才須納入斗上可用高度計算。實際高度仍須依車況、安裝調整與載重後實測。',
   });
   assert.equal(addonHeightImpact('qa-spring', config).totalCm, 2);
   assert.equal(addonHeightImpact('qa-leaf', config).totalCm, 2);
