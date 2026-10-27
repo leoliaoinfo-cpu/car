@@ -82,8 +82,9 @@ test('adds backend custom quote items without exposing cost and includes their m
   assert.equal(customQuoteItem.backendCustom, true);
   assert.equal(Object.hasOwn(customQuoteItem, 'cost'), false);
 
+  const discountedQuote = applyPricingDiscountsToQuote(quote, { 'custom-1': 3000 });
   const record = buildPricingRecord({
-    quote,
+    quote: discountedQuote,
     costCatalog: { models: { m1: { commission: 40000 } }, addons: {} },
     existing: {
       modelId: 'm1',
@@ -94,11 +95,13 @@ test('adds backend custom quote items without exposing cost and includes their m
     },
   });
   assert.equal(record.originalTotal, 820000);
-  assert.equal(record.saleTotal, 820000);
+  assert.equal(record.itemDiscountTotal, 3000);
+  assert.equal(record.saleTotal, 817000);
   assert.equal(record.lines.find((line) => line.id === 'custom-1').backendCustom, true);
   assert.equal(record.lines.find((line) => line.id === 'custom-1').cost, 12000);
-  assert.equal(record.accessoryProfitTotal, 8000);
-  assert.equal(record.profit, 48000);
+  assert.equal(record.lines.find((line) => line.id === 'custom-1').netPrice, 17000);
+  assert.equal(record.accessoryProfitTotal, 5000);
+  assert.equal(record.profit, 45000);
 
   const removed = replaceBackendCustomQuoteItems(quote, []);
   assert.deepEqual(removed.items.map((item) => item.id), ['vehicle']);

@@ -354,6 +354,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       name: line.name || '',
       salePrice: line.salePrice == null ? '' : String(line.salePrice),
       cost: line.costKnown ? String(line.cost) : '',
+      discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
     })));
   const [customError, setCustomError] = useState('');
 
@@ -394,8 +395,15 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   };
   const cleanOtherCosts = otherCosts.filter((row) => row.name.trim() && Number(row.amount) >= 0)
     .map((row) => ({ ...row, name: row.name.trim(), amount: Math.max(0, Number(row.amount) || 0) }));
-  const cleanLineDiscounts = Object.fromEntries(Object.entries(lineDiscounts)
-    .map(([id, value]) => [id, Math.max(0, Number(value) || 0)]));
+  const cleanLineDiscounts = {
+    ...Object.fromEntries(Object.entries(lineDiscounts)
+      .filter(([id]) => !customLineIds.has(id))
+      .map(([id, value]) => [id, Math.max(0, Number(value) || 0)])),
+    ...Object.fromEntries(customItems.map((row) => [
+      row.id,
+      Math.min(Math.max(0, Number(row.salePrice) || 0), Math.max(0, Number(row.discount) || 0)),
+    ])),
+  };
   const previewBase = {
     ...record,
     lineCostSources: {
@@ -426,7 +434,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
 
   function addCustomItem() {
     setCustomItems((list) => [...list, {
-      id: generateId('qi'), name: '', salePrice: '', cost: '',
+      id: generateId('qi'), name: '', salePrice: '', cost: '', discount: '',
     }]);
     setCustomError('');
   }
@@ -581,13 +589,20 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                   <p className="text-[10px] text-ink-3 mt-0.5">填入售價與成本後，即時計算此項利潤。</p>
                 </div>
                 {customItems.map((row) => {
+                  const salePrice = Math.max(0, Number(row.salePrice) || 0);
+                  const discount = Math.min(salePrice, Math.max(0, Number(row.discount) || 0));
+                  const netPrice = Math.max(0, salePrice - discount);
                   const contribution = row.salePrice === '' || row.cost === ''
-                    ? null : (Number(row.salePrice) || 0) - (Number(row.cost) || 0);
+                    ? null : netPrice - (Number(row.cost) || 0);
                   return (
                     <div key={row.id} className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
-                      <input value={row.name} onChange={(e) => updateCustomItem(row.id, { name: e.target.value })}
-                        className="w-full text-xs" placeholder="客製項目名稱，例如：加裝工具箱" aria-label="客製項目名稱" />
-                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] gap-2 items-end">
+                      <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
+                        <input value={row.name} onChange={(e) => updateCustomItem(row.id, { name: e.target.value })}
+                          className="w-full text-xs" placeholder="客製項目名稱，例如：加裝工具箱" aria-label="客製項目名稱" />
+                        <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
+                          className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 items-end">
                         <label className="block min-w-0">
                           <span className="block text-[9px] text-ink-3 mb-0.5">對客售價</span>
                           <input type="number" inputMode="numeric" min="0" value={row.salePrice}
@@ -595,13 +610,21 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                             className="w-full text-xs" placeholder="售價" />
                         </label>
                         <label className="block min-w-0">
+                          <span className="block text-[9px] text-ink-3 mb-0.5">給客戶優惠</span>
+                          <input type="number" inputMode="numeric" min="0" max={salePrice} value={row.discount}
+                            onChange={(e) => updateCustomItem(row.id, { discount: e.target.value })}
+                            className="w-full text-xs" placeholder="優惠金額" />
+                        </label>
+                        <label className="block min-w-0">
                           <span className="block text-[9px] text-ink-3 mb-0.5">內部成本</span>
                           <input type="number" inputMode="numeric" min="0" value={row.cost}
                             onChange={(e) => updateCustomItem(row.id, { cost: e.target.value })}
                             className="w-full text-xs" placeholder="成本" />
                         </label>
-                        <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
-                          className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
+                        <div className="min-h-11 rounded-lg border border-bdr bg-s2 px-2.5 py-1.5">
+                          <span className="block text-[9px] text-ink-3">折後售價</span>
+                          <span className="block text-xs font-semibold text-ink tabular-nums">NT$ {formatMoney(netPrice)}</span>
+                        </div>
                       </div>
                       <p className={`text-[10px] text-right ${contribution == null ? 'text-ink-3' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
                         {contribution == null ? '填入售價與成本後即時計算' : `此項利潤 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
