@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
   applicableSupplierCosts, applyPricingDiscountsToQuote, buildPricingRecord,
-  normalizeCostCatalog, replaceBackendCustomQuoteItems, resolveAddonCost,
+  normalizeCostCatalog, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
 
@@ -357,6 +357,18 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
     })));
   const [customError, setCustomError] = useState('');
+  const [generalDiscounts, setGeneralDiscounts] = useState(() => (
+    (record.generalDiscounts?.length ? record.generalDiscounts : quote?.generalDiscounts || [])
+      .map((row) => {
+        const normalized = normalizeDiscount(row);
+        return {
+          ...normalized,
+          id: normalized.id || generateId('discount'),
+          amount: normalized.amount ? String(normalized.amount) : '',
+        };
+      })
+  ));
+  const [discountError, setDiscountError] = useState('');
 
   const customLineIds = new Set([
     ...(record.lines || []).filter((line) => line.backendCustom).map((line) => line.id),
@@ -404,8 +416,25 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       Math.min(Math.max(0, Number(row.salePrice) || 0), Math.max(0, Number(row.discount) || 0)),
     ])),
   };
+  const cleanGeneralDiscounts = generalDiscounts
+    .filter((row) => row.name.trim() && Number(row.amount) > 0)
+    .map((row) => ({
+      id: row.id,
+      name: row.name.trim(),
+      amount: Math.max(0, Number(row.amount) || 0),
+      funding: row.funding === 'sales' ? 'sales' : 'company',
+    }));
+  const generalDiscountTotal = cleanGeneralDiscounts
+    .reduce((sum, row) => sum + row.amount, 0);
+  const profitDiscountTotal = cleanGeneralDiscounts
+    .filter((row) => row.funding === 'sales')
+    .reduce((sum, row) => sum + row.amount, 0);
   const previewBase = {
     ...record,
+    generalDiscounts: cleanGeneralDiscounts,
+    generalDiscountTotal,
+    profitDiscountTotal,
+    companyFundedDiscountTotal: Math.max(0, generalDiscountTotal - profitDiscountTotal),
     lineCostSources: {
       ...lineCostSources,
       ...Object.fromEntries(customItems.map((row) => [row.id, 'manual'])),
@@ -421,7 +450,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   const preview = updatePricingCosts(previewBase, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
   const customQuote = quote ? replaceBackendCustomQuoteItems({
     ...quote,
-    generalDiscounts: record.generalDiscounts || quote.generalDiscounts || [],
+    generalDiscounts: cleanGeneralDiscounts,
   }, customItems) : null;
   const updatedQuote = customQuote
     ? applyPricingDiscountsToQuote(customQuote, cleanLineDiscounts, lineGifts) : null;
@@ -442,6 +471,18 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   function updateCustomItem(id, patch) {
     setCustomItems((list) => list.map((row) => row.id === id ? { ...row, ...patch } : row));
     setCustomError('');
+  }
+
+  function addGeneralDiscount() {
+    setGeneralDiscounts((list) => [...list, {
+      id: generateId('discount'), name: '專案優惠', amount: '', funding: 'company',
+    }]);
+    setDiscountError('');
+  }
+
+  function updateGeneralDiscount(id, patch) {
+    setGeneralDiscounts((list) => list.map((row) => row.id === id ? { ...row, ...patch } : row));
+    setDiscountError('');
   }
 
   function selectSupplier(line, supplierId) {
@@ -481,6 +522,11 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       || row.cost === '' || Number(row.cost) < 0);
     if (incompleteCustom) {
       setCustomError('請補齊每個客製項目的名稱、對客售價與內部成本；不需要的空白列請刪除。');
+      return;
+    }
+    const incompleteDiscount = generalDiscounts.some((row) => !row.name.trim() || Number(row.amount) <= 0);
+    if (incompleteDiscount) {
+      setDiscountError('請補齊每筆中央優惠的名稱與金額；不需要的空白列請刪除。');
       return;
     }
     if (preview.belowCost && !window.confirm('⚠️ 此報價的優惠已超過車輛傭金與配件利潤，確定仍要儲存嗎？')) return;
@@ -636,16 +682,47 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 <button type="button" onClick={addCustomItem} className="btn-outline text-xs w-full min-h-11">＋ 新增客製化項目</button>
               </section>
             )}
-            {(record.generalDiscounts || []).length > 0 && (
-              <div className="rounded-xl border border-ok/30 bg-ok/5 p-3 space-y-1.5">
-                <p className="text-[11px] font-semibold text-ok">客戶優惠（不是成本）</p>
-                {(record.generalDiscounts || []).map((row) => (
-                  <div key={row.id || `${row.name}-${row.amount}`} className="flex justify-between gap-3 text-[11px]">
-                    <span className="text-ink-2">{row.name}</span>
-                    <span className="text-right text-ok">−{formatMoney(row.amount)}・{row.funding === 'sales' ? '業務讓利' : '公司／活動負擔'}</span>
+            {quote && (
+              <section className="rounded-xl border border-ok/30 bg-ok/5 p-3 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-ink">中央優惠</p>
+                    <p className="text-[10px] text-ink-3 mt-0.5">整張報價的優惠，儲存後同步到前台報價。</p>
+                  </div>
+                  <button type="button" onClick={addGeneralDiscount}
+                    className="btn-outline text-[11px] shrink-0 min-h-11">＋ 新增中央優惠</button>
+                </div>
+                {generalDiscounts.map((row) => (
+                  <div key={row.id} className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
+                    <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
+                      <input value={row.name}
+                        onChange={(e) => updateGeneralDiscount(row.id, { name: e.target.value })}
+                        className="w-full text-xs" placeholder="優惠名稱，例如：公司優惠" aria-label="中央優惠名稱" />
+                      <button type="button" onClick={() => setGeneralDiscounts((list) => list.filter((item) => item.id !== row.id))}
+                        className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '中央優惠'}`}>✕</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block min-w-0">
+                        <span className="block text-[9px] text-ink-3 mb-0.5">優惠金額</span>
+                        <input type="number" inputMode="numeric" min="0" value={row.amount}
+                          onChange={(e) => updateGeneralDiscount(row.id, { amount: e.target.value })}
+                          className="w-full text-xs" placeholder="折扣金額" />
+                      </label>
+                      <label className="block min-w-0">
+                        <span className="block text-[9px] text-ink-3 mb-0.5">負擔來源</span>
+                        <select value={row.funding || 'company'}
+                          onChange={(e) => updateGeneralDiscount(row.id, { funding: e.target.value })}
+                          className="w-full text-xs" aria-label={`${row.name || '中央優惠'}負擔來源`}>
+                          <option value="company">公司／活動負擔</option>
+                          <option value="sales">業務讓利（扣利潤）</option>
+                        </select>
+                      </label>
+                    </div>
                   </div>
                 ))}
-              </div>
+                {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入中央優惠。</p>}
+                {discountError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {discountError}</p>}
+              </section>
             )}
             <section className="rounded-xl border border-bdr bg-s2/40 p-3 space-y-2">
               <div>

@@ -107,6 +107,38 @@ test('adds backend custom quote items without exposing cost and includes their m
   assert.deepEqual(removed.items.map((item) => item.id), ['vehicle']);
 });
 
+test('combines backend central discounts with a custom item discount and syncs quote totals', () => {
+  const quote = replaceBackendCustomQuoteItems({
+    id: 'q-backend-central-discount', modelId: 'm1',
+    items: [{ id: 'vehicle', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 800000 }],
+    generalDiscounts: [
+      { id: 'company', name: '公司優惠', amount: 10000, funding: 'company' },
+      { id: 'sales', name: '業務讓利', amount: 2000, funding: 'sales' },
+    ],
+  }, [{ id: 'custom-1', name: '客製工具箱', salePrice: 20000, cost: 12000 }]);
+  const discountedQuote = applyPricingDiscountsToQuote(quote, { 'custom-1': 3000 });
+  const record = buildPricingRecord({
+    quote: discountedQuote,
+    costCatalog: { models: { m1: { commission: 40000 } }, addons: {} },
+    existing: {
+      modelId: 'm1',
+      lines: [{ id: 'custom-1', catalogId: null, kind: 'addon', backendCustom: true }],
+      lineCosts: { 'custom-1': 12000 },
+      lineCostSources: { 'custom-1': 'manual' },
+      otherCosts: [],
+    },
+  });
+
+  assert.equal(discountedQuote.originalTotal, 820000);
+  assert.equal(discountedQuote.itemDiscountTotal, 3000);
+  assert.equal(discountedQuote.generalDiscountTotal, 12000);
+  assert.equal(discountedQuote.customerBenefitTotal, 15000);
+  assert.equal(discountedQuote.total, 805000);
+  assert.equal(record.companyFundedDiscountTotal, 10000);
+  assert.equal(record.profitDiscountTotal, 2000);
+  assert.equal(record.profit, 43000);
+});
+
 test('keeps fixed vehicle commission intact and only charges sales-funded discounts to profit', () => {
   const record = buildPricingRecord({
     quote: {
