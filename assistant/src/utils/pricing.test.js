@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, normalizePricingRecord, pricingSafetyStatus, resolveAddonCost,
-  synchronizeQuoteDiscounts, updatePricingCosts,
+  replaceBackendCustomQuoteItems, synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
 import { bundledAddonIds, canonicalAddonCategories, DEFAULT_QUOTE_PRESETS, formatChineseTwd, QUOTE_ADDON_SECTIONS, removeBundledQuoteItems, renameAddonCategory, resolveLoanTerms, resolveQuotePresets } from './crm.js';
 
@@ -47,6 +47,61 @@ test('keeps gifts outside sale and discount totals while retaining value and int
   assert.equal(record.lines.length, 1);
   assert.equal(record.lines[0].netPrice, 0);
   assert.equal(record.profit, -1200);
+});
+
+test('recalculates total customer benefit when backend gift approval changes', () => {
+  const record = buildPricingRecord({
+    quote: {
+      id: 'q-gift-live',
+      items: [{ id: 'gift', kind: 'addon', catalogId: 'gift-addon', name: '抗震優力膠', price: 7800, gift: false }],
+      generalDiscounts: [{ id: 'campaign', name: '公司優惠', amount: 2000, funding: 'company' }],
+    },
+    costCatalog: { models: {}, addons: { 'gift-addon': { cost: 6800 } } },
+  });
+  const gifted = updatePricingCosts({
+    ...record,
+    lines: record.lines.map((line) => ({ ...line, gift: true })),
+  }, record.lineCosts, [], { gift: 7800 });
+  assert.equal(gifted.originalTotal, 0);
+  assert.equal(gifted.itemDiscountTotal, 0);
+  assert.equal(gifted.generalDiscountTotal, 2000);
+  assert.equal(gifted.giftValueTotal, 7800);
+  assert.equal(gifted.customerBenefitTotal, 9800);
+  assert.equal(gifted.saleTotal, 0);
+  assert.equal(gifted.profit, -6800);
+});
+
+test('adds backend custom quote items without exposing cost and includes their margin in profit', () => {
+  const customRows = [{ id: 'custom-1', name: '客製工具箱', salePrice: 20000, cost: 12000 }];
+  const quote = replaceBackendCustomQuoteItems({
+    id: 'q-custom-backend', modelId: 'm1',
+    items: [{ id: 'vehicle', kind: 'vehicle', catalogId: 'm1', name: '車輛售價', price: 800000 }],
+  }, customRows);
+  const customQuoteItem = quote.items.find((item) => item.id === 'custom-1');
+  assert.equal(customQuoteItem.price, 20000);
+  assert.equal(customQuoteItem.backendCustom, true);
+  assert.equal(Object.hasOwn(customQuoteItem, 'cost'), false);
+
+  const record = buildPricingRecord({
+    quote,
+    costCatalog: { models: { m1: { commission: 40000 } }, addons: {} },
+    existing: {
+      modelId: 'm1',
+      lines: [{ id: 'custom-1', catalogId: null, kind: 'addon', backendCustom: true }],
+      lineCosts: { 'custom-1': 12000 },
+      lineCostSources: { 'custom-1': 'manual' },
+      otherCosts: [],
+    },
+  });
+  assert.equal(record.originalTotal, 820000);
+  assert.equal(record.saleTotal, 820000);
+  assert.equal(record.lines.find((line) => line.id === 'custom-1').backendCustom, true);
+  assert.equal(record.lines.find((line) => line.id === 'custom-1').cost, 12000);
+  assert.equal(record.accessoryProfitTotal, 8000);
+  assert.equal(record.profit, 48000);
+
+  const removed = replaceBackendCustomQuoteItems(quote, []);
+  assert.deepEqual(removed.items.map((item) => item.id), ['vehicle']);
 });
 
 test('keeps fixed vehicle commission intact and only charges sales-funded discounts to profit', () => {

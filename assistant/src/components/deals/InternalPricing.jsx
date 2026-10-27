@@ -3,7 +3,8 @@ import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
   applicableSupplierCosts, applyPricingDiscountsToQuote, buildPricingRecord,
-  normalizeCostCatalog, resolveAddonCost, sharedAddonCostId, updatePricingCosts,
+  normalizeCostCatalog, replaceBackendCustomQuoteItems, resolveAddonCost,
+  sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
 
 export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSearch = '' }) {
@@ -346,34 +347,93 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
     (quote?.items || []).map((item) => [item.id, !!item.gift]),
   ));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
+  const [customItems, setCustomItems] = useState(() => (record.lines || [])
+    .filter((line) => line.backendCustom)
+    .map((line) => ({
+      id: line.id,
+      name: line.name || '',
+      salePrice: line.salePrice == null ? '' : String(line.salePrice),
+      cost: line.costKnown ? String(line.cost) : '',
+    })));
+  const [customError, setCustomError] = useState('');
 
-  const cleanLineCosts = Object.fromEntries(Object.entries(lineCosts)
-    .filter(([, value]) => value !== '')
-    .map(([id, value]) => [id, Math.max(0, Number(value) || 0)]));
+  const customLineIds = new Set([
+    ...(record.lines || []).filter((line) => line.backendCustom).map((line) => line.id),
+    ...customItems.map((row) => row.id),
+  ]);
+  const regularLines = (record.lines || []).filter((line) => !line.backendCustom);
+  const customLines = customItems.map((row) => {
+    const salePrice = Math.max(0, Number(row.salePrice) || 0);
+    return {
+      id: row.id,
+      catalogId: null,
+      kind: 'addon',
+      name: row.name.trim() || '未命名客製項目',
+      gift: false,
+      salePrice,
+      netPrice: salePrice,
+      discounts: [],
+      baseDiscountTotal: 0,
+      pricingDiscount: 0,
+      cost: row.cost === '' ? null : Math.max(0, Number(row.cost) || 0),
+      costKnown: row.cost !== '',
+      costSource: 'manual',
+      valueType: 'cost',
+      supplierId: null,
+      supplierName: null,
+      backendCustom: true,
+    };
+  });
+  const cleanLineCosts = {
+    ...Object.fromEntries(Object.entries(lineCosts)
+      .filter(([id, value]) => !customLineIds.has(id) && value !== '')
+      .map(([id, value]) => [id, Math.max(0, Number(value) || 0)])),
+    ...Object.fromEntries(customItems
+      .filter((row) => row.cost !== '')
+      .map((row) => [row.id, Math.max(0, Number(row.cost) || 0)])),
+  };
   const cleanOtherCosts = otherCosts.filter((row) => row.name.trim() && Number(row.amount) >= 0)
     .map((row) => ({ ...row, name: row.name.trim(), amount: Math.max(0, Number(row.amount) || 0) }));
   const cleanLineDiscounts = Object.fromEntries(Object.entries(lineDiscounts)
     .map(([id, value]) => [id, Math.max(0, Number(value) || 0)]));
   const previewBase = {
     ...record,
-    lineCostSources,
+    lineCostSources: {
+      ...lineCostSources,
+      ...Object.fromEntries(customItems.map((row) => [row.id, 'manual'])),
+    },
     supplierSelections,
-    lines: (record.lines || []).map((line) => ({
+    lines: [...regularLines, ...customLines].map((line) => ({
       ...line,
+      gift: quote ? !!lineGifts[line.id] : !!line.gift,
       supplierName: applicableSupplierCosts(costCatalog, line.catalogId, record.modelId)
         .find((option) => option.id === supplierSelections[line.id])?.supplier || null,
     })),
   };
   const preview = updatePricingCosts(previewBase, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
-  const updatedQuote = quote ? applyPricingDiscountsToQuote({
+  const customQuote = quote ? replaceBackendCustomQuoteItems({
     ...quote,
     generalDiscounts: record.generalDiscounts || quote.generalDiscounts || [],
-  }, cleanLineDiscounts, lineGifts) : null;
+  }, customItems) : null;
+  const updatedQuote = customQuote
+    ? applyPricingDiscountsToQuote(customQuote, cleanLineDiscounts, lineGifts) : null;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
 
   function addOtherCost() {
     setOtherCosts((list) => [...list, { id: generateId('cost'), name: '其他成本', amount: '' }]);
+  }
+
+  function addCustomItem() {
+    setCustomItems((list) => [...list, {
+      id: generateId('qi'), name: '', salePrice: '', cost: '',
+    }]);
+    setCustomError('');
+  }
+
+  function updateCustomItem(id, patch) {
+    setCustomItems((list) => list.map((row) => row.id === id ? { ...row, ...patch } : row));
+    setCustomError('');
   }
 
   function selectSupplier(line, supplierId) {
@@ -408,6 +468,13 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   }
 
   function saveInternalPricing() {
+    const incompleteCustom = customItems.some((row) => !row.name.trim()
+      || row.salePrice === '' || Number(row.salePrice) <= 0
+      || row.cost === '' || Number(row.cost) < 0);
+    if (incompleteCustom) {
+      setCustomError('請補齊每個客製項目的名稱、對客售價與內部成本；不需要的空白列請刪除。');
+      return;
+    }
     if (preview.belowCost && !window.confirm('⚠️ 此報價的優惠已超過車輛傭金與配件利潤，確定仍要儲存嗎？')) return;
     if (!preview.costComplete && preview.lines.length > 0
       && !window.confirm('⚠️ 傭金或成本尚未填齊，無法完成利潤安全檢查，確定仍要儲存嗎？')) return;
@@ -428,7 +495,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           </div>
 
           <div className="space-y-2">
-            {(record.lines || []).map((line) => {
+            {regularLines.map((line) => {
               const supplierOptions = line.kind === 'addon'
                 ? applicableSupplierCosts(costCatalog, line.catalogId, record.modelId).sort((a, b) => a.cost - b.cost) : [];
               const cheapestSupplier = supplierOptions[0] || null;
@@ -507,6 +574,45 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           </div>
 
           <div className="mt-3 space-y-2">
+            {quote && (
+              <section className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2.5">
+                <div>
+                  <p className="text-xs font-bold text-ink">＋ 額外客製化報價</p>
+                  <p className="text-[10px] text-ink-3 mt-0.5">填入售價與成本後，即時計算此項利潤。</p>
+                </div>
+                {customItems.map((row) => {
+                  const contribution = row.salePrice === '' || row.cost === ''
+                    ? null : (Number(row.salePrice) || 0) - (Number(row.cost) || 0);
+                  return (
+                    <div key={row.id} className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
+                      <input value={row.name} onChange={(e) => updateCustomItem(row.id, { name: e.target.value })}
+                        className="w-full text-xs" placeholder="客製項目名稱，例如：加裝工具箱" aria-label="客製項目名稱" />
+                      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px] gap-2 items-end">
+                        <label className="block min-w-0">
+                          <span className="block text-[9px] text-ink-3 mb-0.5">對客售價</span>
+                          <input type="number" inputMode="numeric" min="0" value={row.salePrice}
+                            onChange={(e) => updateCustomItem(row.id, { salePrice: e.target.value })}
+                            className="w-full text-xs" placeholder="售價" />
+                        </label>
+                        <label className="block min-w-0">
+                          <span className="block text-[9px] text-ink-3 mb-0.5">內部成本</span>
+                          <input type="number" inputMode="numeric" min="0" value={row.cost}
+                            onChange={(e) => updateCustomItem(row.id, { cost: e.target.value })}
+                            className="w-full text-xs" placeholder="成本" />
+                        </label>
+                        <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
+                          className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
+                      </div>
+                      <p className={`text-[10px] text-right ${contribution == null ? 'text-ink-3' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
+                        {contribution == null ? '填入售價與成本後即時計算' : `此項利潤 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
+                      </p>
+                    </div>
+                  );
+                })}
+                {customError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {customError}</p>}
+                <button type="button" onClick={addCustomItem} className="btn-outline text-xs w-full min-h-11">＋ 新增客製化項目</button>
+              </section>
+            )}
             {(record.generalDiscounts || []).length > 0 && (
               <div className="rounded-xl border border-ok/30 bg-ok/5 p-3 space-y-1.5">
                 <p className="text-[11px] font-semibold text-ok">客戶優惠（不是成本）</p>
@@ -518,17 +624,23 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 ))}
               </div>
             )}
-            {otherCosts.map((row) => (
-              <div key={row.id} className="flex gap-2">
-                <input value={row.name} onChange={(e) => setOtherCosts((list) => list.map((item) => item.id === row.id ? { ...item, name: e.target.value } : item))}
-                  className="flex-1 text-xs" placeholder="其他成本名稱" />
-                <input type="number" min="0" value={row.amount}
-                  onChange={(e) => setOtherCosts((list) => list.map((item) => item.id === row.id ? { ...item, amount: e.target.value } : item))}
-                  className="w-28 text-xs" placeholder="金額" />
-                <button onClick={() => setOtherCosts((list) => list.filter((item) => item.id !== row.id))} className="text-danger/50">✕</button>
+            <section className="rounded-xl border border-bdr bg-s2/40 p-3 space-y-2">
+              <div>
+                <p className="text-xs font-semibold text-ink-2">其他內部成本</p>
               </div>
-            ))}
-            <button onClick={addOtherCost} className="btn-outline text-xs">＋ 其他成本</button>
+              {otherCosts.map((row) => (
+                <div key={row.id} className="flex gap-2">
+                  <input value={row.name} onChange={(e) => setOtherCosts((list) => list.map((item) => item.id === row.id ? { ...item, name: e.target.value } : item))}
+                    className="flex-1 text-xs" placeholder="其他成本名稱" />
+                  <input type="number" min="0" value={row.amount}
+                    onChange={(e) => setOtherCosts((list) => list.map((item) => item.id === row.id ? { ...item, amount: e.target.value } : item))}
+                    className="w-28 text-xs" placeholder="金額" />
+                  <button type="button" onClick={() => setOtherCosts((list) => list.filter((item) => item.id !== row.id))}
+                    className="min-h-11 min-w-11 text-danger/70" aria-label={`刪除${row.name || '其他成本'}`}>✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={addOtherCost} className="btn-outline text-xs">＋ 其他成本</button>
+            </section>
           </div>
 
           <div className="mt-4 rounded-xl border-2 border-accent/35 bg-accent/10 p-4">
@@ -537,7 +649,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
               NT$ {formatMoney(preview.saleTotal)}
             </p>
             <p className="mt-1 text-[10px] text-ink-3">
-              原始售價 NT$ {formatMoney(preview.originalTotal)} − 總優惠 NT$ {formatMoney(preview.itemDiscountTotal + preview.generalDiscountTotal)}
+              原始售價 NT$ {formatMoney(preview.originalTotal)} − 價格折扣 NT$ {formatMoney(preview.discountTotal)}
+              {preview.giftValueTotal > 0 ? `；另贈價值 NT$ ${formatMoney(preview.giftValueTotal)}` : ''}
             </p>
           </div>
 
@@ -546,6 +659,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
             <Metric label="單項優惠" value={preview.itemDiscountTotal} tone="ok" prefix="−" />
             <Metric label="公司／活動優惠" value={preview.companyFundedDiscountTotal} tone="ok" prefix="−" />
             <Metric label="業務讓利" value={preview.profitDiscountTotal} tone="ok" prefix="−" />
+            <Metric label="贈品價值" value={preview.giftValueTotal} tone="ok" />
+            <Metric label="總優惠（折扣＋贈品）" value={preview.customerBenefitTotal} tone="ok" />
             <Metric label="車輛傭金" value={preview.commissionTotal} tone="accent" />
             <Metric label="配件淨利（含贈品成本）" value={preview.accessoryProfitTotal} tone={preview.accessoryProfitTotal < 0 ? 'danger' : 'ok'} />
             <Metric label="其他實際成本" value={preview.otherCostTotal} prefix="−" />

@@ -651,6 +651,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         bundlePricingMode: it.bundlePricingMode || null,
         bundleIncludedIds: Array.isArray(it.bundleIncludedIds) ? [...it.bundleIncludedIds] : null,
         bundleExcludedIds: Array.isArray(it.bundleExcludedIds) ? [...it.bundleExcludedIds] : [],
+        backendCustom: !!it.backendCustom,
         discounts: it.pending || it.gift ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
@@ -1457,8 +1458,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div style={{ borderTop: '1px solid #e8ecef', marginTop: 14, paddingTop: 10 }}>
                 {[
                   ['售價', totals.originalTotal],
-                  ['優惠折扣', -totals.discountTotal],
-                  ...(totals.giftValueTotal > 0 ? [['另贈價值', totals.giftValueTotal]] : []),
+                  ['價格折扣', -totals.discountTotal],
+                  ...(totals.giftValueTotal > 0 ? [
+                    ['贈品價值', totals.giftValueTotal],
+                    ['總優惠（折扣＋贈品）', totals.customerBenefitTotal],
+                  ] : []),
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', color: value < 0 ? '#6f957a' : '#8b98a1', fontSize: 10.5, padding: '2px 2px' }}>
                     <span>{label}</span><span>{value < 0 ? '−' : ''}{formatMoney(Math.abs(value))}</span>

@@ -271,6 +271,31 @@ export function normalizeQuoteItems(items = []) {
 }
 
 /**
+ * 後台新增的客製報價品項以 quote 為唯一客戶端來源。
+ * 成本不寫進 quote，只靠相同 id 留在 pricing record，避免客戶輸出洩漏內部成本。
+ */
+export function replaceBackendCustomQuoteItems(quote, rows = []) {
+  const normalized = normalizeQuoteItems(quote?.items || []);
+  const regularItems = normalized.items.filter((item) => !item.backendCustom);
+  const customItems = (Array.isArray(rows) ? rows : [])
+    .filter((row) => row?.id && String(row.name || '').trim() && Number(row.salePrice) > 0)
+    .map((row) => ({
+      id: row.id,
+      catalogId: null,
+      kind: 'addon',
+      name: String(row.name).trim(),
+      price: money(row.salePrice),
+      pending: false,
+      gift: false,
+      description: String(row.description || '').trim(),
+      note: String(row.note || '').trim(),
+      discounts: [],
+      backendCustom: true,
+    }));
+  return { ...quote, items: [...regularItems, ...customItems] };
+}
+
+/**
  * 明確儲存的整單優惠優先；舊版優惠列只有在名稱與金額未重複時才補入，避免同一筆折扣重算兩次。
  */
 export function mergeQuoteDiscounts(explicitRows = [], legacyRows = []) {
@@ -503,9 +528,14 @@ export function normalizePricingRecord(record) {
   const removedIds = new Set(legacyDiscountLines.map((line) => line.id));
   const lines = record.lines.filter((line) => !removedIds.has(line.id));
   const otherCosts = partitionedCosts.otherCosts;
-  const originalTotal = lines.reduce((sum, line) => sum + money(line.salePrice), 0);
+  const originalTotal = lines.reduce((sum, line) => (
+    line.gift ? sum : sum + money(line.salePrice)
+  ), 0);
   const itemDiscountTotal = lines.reduce((sum, line) => (
-    sum + Math.max(0, money(line.salePrice) - money(line.netPrice))
+    line.gift ? sum : sum + Math.max(0, money(line.salePrice) - money(line.netPrice))
+  ), 0);
+  const giftValueTotal = lines.reduce((sum, line) => (
+    line.gift ? sum + money(line.salePrice) : sum
   ), 0);
   // 若新版欄位已經有整單優惠，取較大值避免同一筆優惠再加一次。
   const generalDiscounts = mergeQuoteDiscounts(
@@ -536,6 +566,8 @@ export function normalizePricingRecord(record) {
     generalDiscountTotal,
     profitDiscountTotal,
     companyFundedDiscountTotal: Math.max(0, generalDiscountTotal - profitDiscountTotal),
+    giftValueTotal,
+    customerBenefitTotal: discountTotal + giftValueTotal,
     discountTotal,
     saleTotal,
     costComplete: snapshot.complete,
@@ -668,6 +700,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       valueType: item.kind === 'vehicle' ? 'commission' : 'cost',
       supplierId,
       supplierName,
+      backendCustom: !!item.backendCustom,
     };
   });
   const otherCosts = partitionedCosts.otherCosts;
@@ -753,6 +786,9 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
   const generalDiscountTotal = money(record?.generalDiscountTotal);
   const profitDiscountTotal = money(record?.profitDiscountTotal ?? generalDiscountTotal);
   const discountTotal = itemDiscountTotal + generalDiscountTotal;
+  const giftValueTotal = lines.reduce((sum, line) => (
+    line.gift ? sum + money(line.salePrice) : sum
+  ), 0);
   const saleTotal = editingQuoteDiscounts
     ? Math.max(0, originalTotal - discountTotal)
     : money(record?.saleTotal);
@@ -769,6 +805,8 @@ export function updatePricingCosts(record, lineCosts = {}, otherCosts = [], line
     originalTotal,
     itemDiscountTotal,
     discountTotal,
+    giftValueTotal,
+    customerBenefitTotal: discountTotal + giftValueTotal,
     profitDiscountTotal,
     companyFundedDiscountTotal: Math.max(0, generalDiscountTotal - profitDiscountTotal),
     saleTotal,
