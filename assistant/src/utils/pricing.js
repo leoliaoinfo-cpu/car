@@ -380,8 +380,8 @@ function isPricingDiscount(row) {
 }
 
 /**
- * 把中央利潤試算的單項優惠寫回客戶報價。
- * 每個品項只保留一筆中央優惠，避免前台與後台各自折扣後被重複加總。
+ * 把後台利潤試算的單項優惠寫回客戶報價。
+ * 每個品項只保留一筆單項優惠，避免前台與後台各自折扣後被重複加總。
  */
 export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}, lineGifts = {}) {
   const normalized = normalizeQuoteItems(quote?.items || []);
@@ -422,7 +422,7 @@ export function applyPricingDiscountsToQuote(quote, lineDiscounts = {}, lineGift
 
 /**
  * 後台 pricing record 是單項優惠的主資料；沒有舊紀錄的品項才採用報價上既有優惠總額。
- * 這也會把舊版多筆單項優惠安全合併為同一筆中央優惠。
+ * 這也會把舊版多筆單項優惠安全合併為同一筆單項優惠。
  */
 export function synchronizeQuoteDiscounts(quote, pricingRecord = null) {
   if (!quote) return quote;
@@ -681,7 +681,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     }
     const discounts = (item.discounts || []).map((row) => normalizeDiscount(row));
     const totalDiscount = totals.itemTotals[item.id]?.discount || 0;
-    // 所有單項優惠都併入中央優惠；前台與後台不再各自保留一套折扣。
+    // 所有舊版單項優惠都併為一筆；前台與後台不再各自保留一套折扣。
     const pricingDiscount = totalDiscount;
     return {
       id: item.id,

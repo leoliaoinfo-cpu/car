@@ -369,6 +369,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       })
   ));
   const [discountError, setDiscountError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const customLineIds = new Set([
     ...(record.lines || []).filter((line) => line.backendCustom).map((line) => line.id),
@@ -454,6 +456,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   }, customItems) : null;
   const updatedQuote = customQuote
     ? applyPricingDiscountsToQuote(customQuote, cleanLineDiscounts, lineGifts) : null;
+  const payableBeforeCentralDiscount = Math.max(0, preview.originalTotal - preview.itemDiscountTotal);
+  const centralDiscountTooHigh = !!quote && generalDiscountTotal > payableBeforeCentralDiscount;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
 
@@ -482,6 +486,13 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
 
   function updateGeneralDiscount(id, patch) {
     setGeneralDiscounts((list) => list.map((row) => row.id === id ? { ...row, ...patch } : row));
+    setDiscountError('');
+  }
+
+  function removeGeneralDiscount(row) {
+    if (Number(row.amount) > 0
+      && !window.confirm(`確定移除「${row.name || '中央優惠'}」？儲存後前台報價也會取消這筆優惠。`)) return;
+    setGeneralDiscounts((list) => list.filter((item) => item.id !== row.id));
     setDiscountError('');
   }
 
@@ -516,7 +527,8 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
     }));
   }
 
-  function saveInternalPricing() {
+  async function saveInternalPricing() {
+    setSaveError('');
     const incompleteCustom = customItems.some((row) => !row.name.trim()
       || row.salePrice === '' || Number(row.salePrice) <= 0
       || row.cost === '' || Number(row.cost) < 0);
@@ -524,29 +536,100 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       setCustomError('請補齊每個客製項目的名稱、對客售價與內部成本；不需要的空白列請刪除。');
       return;
     }
-    const incompleteDiscount = generalDiscounts.some((row) => !row.name.trim() || Number(row.amount) <= 0);
+    const incompleteDiscount = quote
+      && generalDiscounts.some((row) => !row.name.trim() || Number(row.amount) <= 0);
     if (incompleteDiscount) {
       setDiscountError('請補齊每筆中央優惠的名稱與金額；不需要的空白列請刪除。');
+      return;
+    }
+    if (centralDiscountTooHigh) {
+      setDiscountError(`中央優惠不可超過折扣前可收金額 NT$ ${formatMoney(payableBeforeCentralDiscount)}。`);
       return;
     }
     if (preview.belowCost && !window.confirm('⚠️ 此報價的優惠已超過車輛傭金與配件利潤，確定仍要儲存嗎？')) return;
     if (!preview.costComplete && preview.lines.length > 0
       && !window.confirm('⚠️ 傭金或成本尚未填齊，無法完成利潤安全檢查，確定仍要儲存嗎？')) return;
-    onSave(preview, updatedQuote);
+    setIsSaving(true);
+    try {
+      await onSave(preview, updatedQuote);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '儲存失敗，請稍後再試。');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
     <>
-      <div className="overlay" onClick={onClose} />
+      <div className="overlay" onClick={isSaving ? undefined : onClose} />
       <div className="modal">
-        <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-lg p-5 anim-scale-in z-50 max-h-[88vh] overflow-y-auto">
+        <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-lg anim-scale-in z-50 max-h-[88vh] overflow-hidden flex flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-4">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
               <h3 className="font-bold text-lg text-ink">🔒 單車利潤試算</h3>
               <p className="text-xs text-ink-3">{record.model || '未填車型'}・折後售價 NT$ {formatMoney(preview.saleTotal)}</p>
             </div>
-            <button onClick={onClose} className="btn-ghost text-xl">✕</button>
+            <button onClick={onClose} disabled={isSaving} className="btn-ghost text-xl" aria-label="關閉利潤試算">✕</button>
           </div>
+
+          {quote && (
+            <section className="rounded-xl border-2 border-ok/35 bg-ok/5 p-3 mb-3 space-y-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-ink">中央優惠</p>
+                  <p className="text-[10px] text-ink-3 mt-0.5">整張報價的優惠，儲存後同步到前台報價。</p>
+                </div>
+                <button type="button" onClick={addGeneralDiscount}
+                  className="btn-outline text-[11px] shrink-0 min-h-11">＋ 新增中央優惠</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-s1 border border-bdr p-2.5">
+                  <p className="text-[9px] text-ink-3">整張優惠</p>
+                  <p className="text-sm font-bold text-ok tabular-nums">− NT$ {formatMoney(generalDiscountTotal)}</p>
+                </div>
+                <div className="rounded-lg bg-s1 border border-bdr p-2.5">
+                  <p className="text-[9px] text-ink-3">目前專案價</p>
+                  <p className="text-sm font-bold text-accent tabular-nums">NT$ {formatMoney(preview.saleTotal)}</p>
+                </div>
+              </div>
+              {generalDiscounts.map((row) => (
+                <div key={row.id} className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
+                    <input value={row.name}
+                      onChange={(e) => updateGeneralDiscount(row.id, { name: e.target.value })}
+                      className="w-full text-xs" placeholder="優惠名稱，例如：公司優惠" aria-label="中央優惠名稱" />
+                    <button type="button" onClick={() => removeGeneralDiscount(row)}
+                      className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '中央優惠'}`}>✕</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block min-w-0">
+                      <span className="block text-[9px] text-ink-3 mb-0.5">優惠金額</span>
+                      <input type="number" inputMode="numeric" min="0" max={payableBeforeCentralDiscount} value={row.amount}
+                        onChange={(e) => updateGeneralDiscount(row.id, { amount: e.target.value })}
+                        className="w-full text-xs" placeholder="折扣金額" />
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="block text-[9px] text-ink-3 mb-0.5">負擔來源</span>
+                      <select value={row.funding || 'company'}
+                        onChange={(e) => updateGeneralDiscount(row.id, { funding: e.target.value })}
+                        className="w-full text-xs" aria-label={`${row.name || '中央優惠'}負擔來源`}>
+                        <option value="company">公司／活動負擔</option>
+                        <option value="sales">業務讓利（扣利潤）</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              ))}
+              {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入中央優惠。</p>}
+              {centralDiscountTooHigh && (
+                <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 p-2 text-[11px] text-danger font-semibold">
+                  ⚠️ 中央優惠已超過折扣前可收金額 NT$ {formatMoney(payableBeforeCentralDiscount)}，請調低後再儲存。
+                </p>
+              )}
+              {discountError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {discountError}</p>}
+            </section>
+          )}
 
           <div className="space-y-2">
             {regularLines.map((line) => {
@@ -602,7 +685,7 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                   </label>
                   {quote && (
                     <label className="block">
-                      <span className="block text-[9px] text-ink-3 mb-0.5">中央優惠（與報價同步）</span>
+                      <span className="block text-[9px] text-ink-3 mb-0.5">單項優惠（與報價同步）</span>
                       <input type="number" min="0" max={Math.max(0, line.salePrice)}
                         value={lineDiscounts[line.id] ?? ''}
                         onChange={(e) => {
@@ -682,48 +765,6 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
                 <button type="button" onClick={addCustomItem} className="btn-outline text-xs w-full min-h-11">＋ 新增客製化項目</button>
               </section>
             )}
-            {quote && (
-              <section className="rounded-xl border border-ok/30 bg-ok/5 p-3 space-y-2.5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold text-ink">中央優惠</p>
-                    <p className="text-[10px] text-ink-3 mt-0.5">整張報價的優惠，儲存後同步到前台報價。</p>
-                  </div>
-                  <button type="button" onClick={addGeneralDiscount}
-                    className="btn-outline text-[11px] shrink-0 min-h-11">＋ 新增中央優惠</button>
-                </div>
-                {generalDiscounts.map((row) => (
-                  <div key={row.id} className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
-                    <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2">
-                      <input value={row.name}
-                        onChange={(e) => updateGeneralDiscount(row.id, { name: e.target.value })}
-                        className="w-full text-xs" placeholder="優惠名稱，例如：公司優惠" aria-label="中央優惠名稱" />
-                      <button type="button" onClick={() => setGeneralDiscounts((list) => list.filter((item) => item.id !== row.id))}
-                        className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '中央優惠'}`}>✕</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <label className="block min-w-0">
-                        <span className="block text-[9px] text-ink-3 mb-0.5">優惠金額</span>
-                        <input type="number" inputMode="numeric" min="0" value={row.amount}
-                          onChange={(e) => updateGeneralDiscount(row.id, { amount: e.target.value })}
-                          className="w-full text-xs" placeholder="折扣金額" />
-                      </label>
-                      <label className="block min-w-0">
-                        <span className="block text-[9px] text-ink-3 mb-0.5">負擔來源</span>
-                        <select value={row.funding || 'company'}
-                          onChange={(e) => updateGeneralDiscount(row.id, { funding: e.target.value })}
-                          className="w-full text-xs" aria-label={`${row.name || '中央優惠'}負擔來源`}>
-                          <option value="company">公司／活動負擔</option>
-                          <option value="sales">業務讓利（扣利潤）</option>
-                        </select>
-                      </label>
-                    </div>
-                  </div>
-                ))}
-                {generalDiscounts.length === 0 && <p className="text-[11px] text-ink-3">尚未加入中央優惠。</p>}
-                {discountError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {discountError}</p>}
-              </section>
-            )}
             <section className="rounded-xl border border-bdr bg-s2/40 p-3 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-ink-2">其他內部成本</p>
@@ -792,11 +833,18 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
             </div>
           )}
           {preview.belowCost && <p className="text-xs text-danger mt-2 font-semibold">⚠️ 優惠已超過車輛傭金與配件利潤。</p>}
+          {saveError && (
+            <p role="alert" className="mt-2 rounded-lg border border-danger/30 bg-danger/10 p-2 text-xs text-danger font-semibold">
+              ⚠️ 儲存失敗：{saveError}
+            </p>
+          )}
+          </div>
 
-          <div className="flex gap-2 mt-4">
-            <button onClick={onClose} className="btn-outline flex-1">取消</button>
-            <button onClick={saveInternalPricing} className="btn-primary flex-1">
-              {quote ? '儲存試算與折扣' : '儲存利潤試算'}
+          <div className="flex shrink-0 gap-2 border-t border-bdr bg-s1 p-3">
+            <button onClick={onClose} disabled={isSaving} className="btn-outline flex-1 min-h-11">取消</button>
+            <button onClick={saveInternalPricing} disabled={isSaving || centralDiscountTooHigh}
+              className="btn-primary flex-1 min-h-11">
+              {isSaving ? '儲存中…' : quote ? '儲存試算與折扣' : '儲存利潤試算'}
             </button>
           </div>
         </div>

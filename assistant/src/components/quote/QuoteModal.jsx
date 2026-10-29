@@ -1150,8 +1150,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   {selected && !it.pending && !it.gift && (
                     <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 p-2">
                       <label htmlFor={`central-discount-${it.id}`} className="flex-1 min-w-0">
-                        <span className="block text-[11px] font-semibold text-ink-2">中央優惠</span>
-                        <span className="block text-[10px] text-ink-3">與後台利潤試算同步，只會保留一筆</span>
+                        <span className="block text-[11px] font-semibold text-ink-2">單項優惠</span>
+                        <span className="block text-[10px] text-ink-3">與後台利潤試算同步，此品項只保留一筆</span>
                       </label>
                       <input id={`central-discount-${it.id}`} type="number" min="0" max={Math.max(0, Number(it.price) || 0)}
                         value={(it.discounts || [])[0]?.amount || ''}
