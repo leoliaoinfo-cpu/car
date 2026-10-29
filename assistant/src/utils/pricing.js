@@ -336,6 +336,17 @@ function sameCustomHistoryValue(left, right) {
     && left?.cost === right?.cost;
 }
 
+export function normalizeCustomItemHistory(rows = []) {
+  const unique = new Map();
+  for (const raw of Array.isArray(rows) ? rows : []) {
+    const row = customHistoryEntry(raw);
+    if (!row) continue;
+    const key = row.id || `${row.sourceRecordId}\u0000${row.sourceItemId}\u0000${row.recordedAt}`;
+    unique.set(key, row);
+  }
+  return [...unique.values()].sort((a, b) => String(b.recordedAt).localeCompare(String(a.recordedAt)));
+}
+
 /**
  * 客製項目採追加快照：重開同一張報價且內容沒有變時不重複寫入；
  * 售價、優惠或成本有變時，保留舊值並新增一筆紀錄。
@@ -369,15 +380,16 @@ export function appendCustomItemHistory(record, rows = [], metadata = {}) {
 
 /** 彙整所有案件的客製快照；舊資料沒有快照時，以當前已儲存的客製列補一筆。 */
 export function collectCustomItemHistory(records = []) {
-  const result = [];
-  for (const record of Array.isArray(records) ? records : []) {
-    const stored = (Array.isArray(record?.customItemHistory) ? record.customItemHistory : [])
-      .map((row) => customHistoryEntry(row)).filter(Boolean);
-    result.push(...stored);
-    const storedSources = new Set(stored.map((row) => `${row.sourceRecordId}\u0000${row.sourceItemId}`));
+  const sourceRecords = Array.isArray(records) ? records : [];
+  const result = sourceRecords.flatMap((record) => (
+    Array.isArray(record?.customItemHistory) ? record.customItemHistory : []
+  )).map((row) => customHistoryEntry(row)).filter(Boolean);
+  const latestStoredBySource = new Map();
+  [...result].sort((a, b) => String(a.recordedAt).localeCompare(String(b.recordedAt)))
+    .forEach((row) => latestStoredBySource.set(`${row.sourceRecordId}\u0000${row.sourceItemId}`, row));
+  for (const record of sourceRecords) {
     for (const line of (record?.lines || []).filter((row) => row.backendCustom)) {
       const sourceKey = `${record.id || ''}\u0000${line.id || ''}`;
-      if (storedSources.has(sourceKey)) continue;
       const fallback = customHistoryEntry(line, {
         sourceRecordId: record?.id || '',
         sourceItemId: line.id,
@@ -386,7 +398,10 @@ export function collectCustomItemHistory(records = []) {
         model: record?.model,
         recordedAt: record?.updatedAt || record?.capturedAt || '',
       });
-      if (fallback) result.push(fallback);
+      if (fallback && !sameCustomHistoryValue(latestStoredBySource.get(sourceKey), fallback)) {
+        result.push(fallback);
+        latestStoredBySource.set(sourceKey, fallback);
+      }
     }
   }
   const unique = new Map();
@@ -394,7 +409,7 @@ export function collectCustomItemHistory(records = []) {
     const key = `${row.sourceRecordId}\u0000${row.sourceItemId}\u0000${row.recordedAt}\u0000${row.name}\u0000${row.salePrice}\u0000${row.discount}\u0000${row.cost}`;
     unique.set(key, row);
   }
-  return [...unique.values()].sort((a, b) => String(b.recordedAt).localeCompare(String(a.recordedAt)));
+  return normalizeCustomItemHistory([...unique.values()]);
 }
 
 /**

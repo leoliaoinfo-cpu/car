@@ -3,8 +3,7 @@ import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
   applicableSupplierCosts, appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord,
-  collectCustomItemHistory,
-  normalizeCostCatalog, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
+  normalizeCostCatalog, normalizeCustomItemHistory, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
 
@@ -14,6 +13,8 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   const [message, setMessage] = useState('');
   const [expandedAddon, setExpandedAddon] = useState(null);
   const [expandedCostCategories, setExpandedCostCategories] = useState(() => new Set());
+  const [missingOnly, setMissingOnly] = useState(false);
+  const [missingPanelOpen, setMissingPanelOpen] = useState(true);
 
   useEffect(() => { setDraft(normalizeCostCatalog(costCatalog)); }, [costCatalog]);
   useEffect(() => { if (initialSearch) setSearch(initialSearch); }, [initialSearch]);
@@ -105,18 +106,21 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   const needle = search.trim().toLowerCase();
   const allModels = quotePresets.models || [];
   const allAddons = quotePresets.addons || [];
-  const models = allModels.filter((row) => !needle || row.name.toLowerCase().includes(needle))
-    .sort((a, b) => Number(draft.models?.[a.id]?.commission != null) - Number(draft.models?.[b.id]?.commission != null));
-  const addons = allAddons.filter((row) => !needle || row.name.toLowerCase().includes(needle));
-  const missingModelCount = allModels.filter((item) => draft.models?.[item.id]?.commission == null).length;
-  const missingAddonCount = allAddons.filter((item) => {
-    const entry = draft.addons?.[sharedAddonCostId(item.id)];
-    return entry?.cost == null && !(entry?.supplierCosts || []).length;
-  }).length;
+  const isModelMissing = (item) => draft.models?.[item.id]?.commission == null;
   const isAddonMissing = (item) => {
     const entry = draft.addons?.[sharedAddonCostId(item.id)];
     return entry?.cost == null && !(entry?.supplierCosts || []).length;
   };
+  const missingModels = allModels.filter(isModelMissing);
+  const missingAddons = allAddons.filter(isAddonMissing);
+  const missingModelCount = missingModels.length;
+  const missingAddonCount = missingAddons.length;
+  const missingTotal = missingModelCount + missingAddonCount;
+  const models = allModels.filter((row) => (!missingOnly || isModelMissing(row))
+    && (!needle || row.name.toLowerCase().includes(needle)))
+    .sort((a, b) => Number(!isModelMissing(a)) - Number(!isModelMissing(b)));
+  const addons = allAddons.filter((row) => (!missingOnly || isAddonMissing(row))
+    && (!needle || row.name.toLowerCase().includes(needle)));
   const categoryOrder = quotePresets.addonCategories || [];
   const addonGroups = [...addons.reduce((groups, item) => {
     const category = item.cat || '其他';
@@ -139,6 +143,12 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
       else next.add(category);
       return next;
     });
+  }
+
+  function focusMissingItem(item, type) {
+    setSearch(item.name);
+    setMissingOnly(false);
+    if (type === 'addon') setExpandedCostCategories(new Set([item.cat || '其他']));
   }
 
   const row = (item, section) => {
@@ -218,13 +228,60 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         <div>
           <h2 className="font-bold text-ink">🧮 傭金與成本設定</h2>
         </div>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
-        {(missingModelCount > 0 || missingAddonCount > 0) && (
-          <p className="text-xs text-warn bg-warn/10 border border-warn/25 rounded-lg px-3 py-2">
-            ⚠️ 尚有 {missingModelCount} 個車型未設定傭金、{missingAddonCount} 個配件未設定成本；使用到這些項目時，報價利潤試算會提醒補填。
-          </p>
-        )}
+        <div className="flex gap-2">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜尋車型或改裝配件…" className="w-full text-sm" />
+          <button type="button" onClick={() => { setMissingOnly((value) => !value); setSearch(''); }}
+            className={`btn-outline text-xs min-h-11 shrink-0 ${missingOnly ? 'border-warn bg-warn/10 text-warn' : ''}`}>
+            {missingOnly ? '顯示全部' : `只看待補 ${missingTotal}`}
+          </button>
+        </div>
       </div>
+
+      <section className={`rounded-xl border-2 ${missingTotal ? 'border-warn/35 bg-warn/5' : 'border-ok/25 bg-ok/5'} overflow-hidden`}>
+        <button type="button" onClick={() => setMissingPanelOpen((open) => !open)}
+          className="w-full p-3 flex items-center justify-between gap-3 text-left min-h-14">
+          <div>
+            <h3 className="text-sm font-bold text-ink">{missingTotal ? '⚠️ 待補成本工作區' : '✓ 成本資料已補齊'}</h3>
+            <p className="text-[10px] text-ink-3 mt-0.5">
+              {missingTotal ? `${missingModelCount} 個車型傭金・${missingAddonCount} 個配件成本尚未設定` : '目前車型傭金與配件成本都有資料'}
+            </p>
+          </div>
+          <span className={`badge shrink-0 ${missingTotal ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok'}`}>
+            {missingTotal} 項 {missingPanelOpen ? '▲' : '▼'}
+          </span>
+        </button>
+        {missingPanelOpen && missingTotal > 0 && (
+          <div className="border-t border-warn/20 p-3 space-y-3">
+            <p className="text-[10px] text-ink-3">點一下項目會直接定位到對應設定，不必逐類尋找。</p>
+            {missingModels.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-ink-2 mb-1.5">車型傭金（{missingModels.length}）</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {missingModels.map((item) => (
+                    <button type="button" key={item.id} onClick={() => focusMissingItem(item, 'model')}
+                      className="rounded-full border border-warn/30 bg-s1 px-2.5 py-1.5 text-[11px] text-warn hover:bg-warn/10">
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {missingAddons.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold text-ink-2 mb-1.5">配件成本（{missingAddons.length}）</p>
+                <div className="max-h-52 overflow-y-auto flex flex-wrap content-start gap-1.5 pr-1">
+                  {missingAddons.map((item) => (
+                    <button type="button" key={item.id} onClick={() => focusMissingItem(item, 'addon')}
+                      className="rounded-full border border-warn/30 bg-s1 px-2.5 py-1.5 text-[11px] text-warn hover:bg-warn/10">
+                      {item.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       <section className="card overflow-hidden">
         <div className="px-3 py-2.5 bg-s2 border-b border-bdr">
@@ -269,19 +326,163 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   );
 }
 
+export function CustomPricingHistoryPanel({ entries = [], onSave }) {
+  const [draft, setDraft] = useState(() => normalizeCustomItemHistory(entries));
+  const [search, setSearch] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => { setDraft(normalizeCustomItemHistory(entries)); }, [entries]);
+
+  const needle = search.trim().toLowerCase();
+  const visibleRows = draft.filter((row) => !needle
+    || [row.name, row.customerName, row.model].some((value) => String(value || '').toLowerCase().includes(needle)));
+  const uniqueItemCount = new Set(draft.map((row) => row.name.trim().toLowerCase()).filter(Boolean)).size;
+
+  function updateRow(id, patch) {
+    setDraft((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
+    setMessage('');
+    setError('');
+  }
+
+  function addRow() {
+    const now = new Date().toISOString();
+    const sourceItemId = generateId('custom-template');
+    const row = {
+      id: `custom-history:central:${sourceItemId}:${now}`,
+      sourceRecordId: 'central', sourceItemId, quoteId: null, clientId: null,
+      customerName: '', model: '', name: '', salePrice: '', discount: '',
+      netPrice: 0, cost: '', costKnown: false, profit: null, recordedAt: now,
+    };
+    setDraft((rows) => [row, ...rows]);
+    setEditingId(row.id);
+    setMessage('');
+  }
+
+  function removeRow(row) {
+    if (!window.confirm(`確定刪除「${row.name || '這筆客製紀錄'}」？刪除後將無法從報價中帶入。`)) return;
+    setDraft((rows) => rows.filter((item) => item.id !== row.id));
+    if (editingId === row.id) setEditingId(null);
+    setMessage('尚未儲存，請按下方「儲存中央客製資料」。');
+  }
+
+  async function save() {
+    setError('');
+    const incomplete = draft.some((row) => !String(row.name || '').trim()
+      || row.salePrice === '' || Number(row.salePrice) <= 0);
+    if (incomplete) {
+      setError('請補齊每筆紀錄的項目名稱與當時售價；不需要的空白紀錄請刪除。');
+      return;
+    }
+    const normalized = normalizeCustomItemHistory(draft.map((row) => ({
+      ...row,
+      salePrice: Math.max(0, Number(row.salePrice) || 0),
+      discount: Math.max(0, Number(row.discount) || 0),
+      cost: row.cost === '' || row.cost == null ? null : Math.max(0, Number(row.cost) || 0),
+      costKnown: row.cost !== '' && row.cost != null,
+    })));
+    await onSave(normalized);
+    setDraft(normalized);
+    setEditingId(null);
+    setMessage('✅ 中央客製資料已儲存，所有報價都會使用這份價格庫。');
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="card p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-ink">🗃️ 客製價格庫</h2>
+            <p className="text-xs text-ink-3 mt-1">集中管理過去客製項目的售價、成本與優惠；建立報價時可直接搜尋帶入。</p>
+          </div>
+          <button type="button" onClick={addRow} className="btn-primary text-xs min-h-11 shrink-0">＋ 新增紀錄</button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg bg-s2 p-2.5"><p className="text-[10px] text-ink-3">歷史價格</p><p className="text-lg font-bold text-accent">{draft.length} 筆</p></div>
+          <div className="rounded-lg bg-s2 p-2.5"><p className="text-[10px] text-ink-3">客製項目</p><p className="text-lg font-bold text-ink">{uniqueItemCount} 種</p></div>
+        </div>
+        <input value={search} onChange={(event) => setSearch(event.target.value)}
+          placeholder="搜尋客製項目、客戶或車型…" className="w-full text-sm min-h-11" />
+      </section>
+
+      <section className="card overflow-hidden">
+        {visibleRows.length === 0 && (
+          <p className="text-center text-sm text-ink-3 py-10">{draft.length ? '找不到符合的客製紀錄' : '尚無客製價格，新增或從報價儲存後會出現在這裡。'}</p>
+        )}
+        {visibleRows.map((row) => {
+          const salePrice = Math.max(0, Number(row.salePrice) || 0);
+          const discount = Math.min(salePrice, Math.max(0, Number(row.discount) || 0));
+          const netPrice = Math.max(0, salePrice - discount);
+          const costKnown = row.cost !== '' && row.cost != null && row.costKnown !== false;
+          const profit = costKnown ? netPrice - (Number(row.cost) || 0) : null;
+          const editing = editingId === row.id;
+          return (
+            <article key={row.id} className="border-b border-bdr/60 last:border-0 p-3 space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink break-words">{row.name || '未命名客製項目'}</p>
+                  <p className="text-[10px] text-ink-3 mt-0.5">
+                    {row.recordedAt ? dayjs(row.recordedAt).format('YYYY/MM/DD') : '日期未記錄'}
+                    {row.customerName ? `・${row.customerName}` : ''}{row.model ? `・${row.model}` : ''}
+                  </p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button type="button" onClick={() => setEditingId(editing ? null : row.id)} className="btn-outline text-[11px] min-h-11">{editing ? '收合' : '調整'}</button>
+                  <button type="button" onClick={() => removeRow(row)} className="min-h-11 min-w-11 rounded-lg border border-danger/25 text-danger" aria-label={`刪除${row.name || '客製紀錄'}`}>✕</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[10px]">
+                <span className="text-ink-3">售價 <strong className="block text-ink text-xs">NT$ {formatMoney(salePrice)}</strong></span>
+                <span className="text-ink-3">優惠 <strong className="block text-ok text-xs">− {formatMoney(discount)}</strong></span>
+                <span className="text-ink-3">折後 <strong className="block text-accent text-xs">NT$ {formatMoney(netPrice)}</strong></span>
+                <span className="text-ink-3">成本 <strong className="block text-ink text-xs">{costKnown ? `NT$ ${formatMoney(row.cost)}` : '未記錄'}</strong></span>
+                <span className="text-ink-3">利潤 <strong className={`block text-xs ${profit == null ? 'text-ink-3' : profit < 0 ? 'text-danger' : 'text-ok'}`}>{profit == null ? '未記錄' : `NT$ ${profit < 0 ? '−' : ''}${formatMoney(Math.abs(profit))}`}</strong></span>
+              </div>
+              {editing && (
+                <div className="rounded-xl border border-accent/25 bg-accent/5 p-3 space-y-2">
+                  <input value={row.name} onChange={(event) => updateRow(row.id, { name: event.target.value })}
+                    placeholder="客製項目名稱" aria-label="中央客製項目名稱" className="w-full text-xs" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-[9px] text-ink-3">當時售價<input type="number" inputMode="numeric" min="0" value={row.salePrice}
+                      onChange={(event) => updateRow(row.id, { salePrice: event.target.value })} className="mt-0.5 w-full text-xs" /></label>
+                    <label className="text-[9px] text-ink-3">當時優惠<input type="number" inputMode="numeric" min="0" value={row.discount}
+                      onChange={(event) => updateRow(row.id, { discount: event.target.value })} className="mt-0.5 w-full text-xs" /></label>
+                    <label className="text-[9px] text-ink-3">當時成本<input type="number" inputMode="numeric" min="0" value={row.cost ?? ''}
+                      onChange={(event) => updateRow(row.id, { cost: event.target.value, costKnown: event.target.value !== '' })} placeholder="可暫時空白" className="mt-0.5 w-full text-xs" /></label>
+                    <label className="text-[9px] text-ink-3">紀錄日期<input type="date" value={row.recordedAt ? dayjs(row.recordedAt).format('YYYY-MM-DD') : ''}
+                      onChange={(event) => updateRow(row.id, { recordedAt: event.target.value ? `${event.target.value}T00:00:00.000Z` : '' })} className="mt-0.5 w-full text-xs" /></label>
+                    <label className="text-[9px] text-ink-3">客戶／來源<input value={row.customerName || ''}
+                      onChange={(event) => updateRow(row.id, { customerName: event.target.value })} placeholder="選填" className="mt-0.5 w-full text-xs" /></label>
+                    <label className="text-[9px] text-ink-3">車型<input value={row.model || ''}
+                      onChange={(event) => updateRow(row.id, { model: event.target.value })} placeholder="選填" className="mt-0.5 w-full text-xs" /></label>
+                  </div>
+                </div>
+              )}
+            </article>
+          );
+        })}
+      </section>
+      {error && <p role="alert" className="text-xs text-danger bg-danger/10 border border-danger/25 rounded-lg px-3 py-2">⚠️ {error}</p>}
+      {message && <p role="status" className="text-xs text-ok bg-ok/10 rounded-lg px-3 py-2">{message}</p>}
+      <button type="button" onClick={save} className="btn-primary w-full min-h-11">儲存中央客製資料</button>
+    </div>
+  );
+}
+
 export function QuotePricingPanel({
-  clients, quoteDrafts = [], pricingRecords, costCatalog,
-  onSavePricing, onSaveQuote, onOpenCostSettings,
+  clients, quoteDrafts = [], pricingRecords, costCatalog, customPricingHistory = [],
+  onSavePricing, onSaveQuote, onSaveCustomHistory, onOpenCostSettings,
 }) {
   const [editing, setEditing] = useState(null);
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
   const customHistory = useMemo(() => {
     const clientNames = new Map(clients.map((client) => [client.id, client.name || '']));
-    return collectCustomItemHistory(pricingRecords).map((row) => ({
+    return normalizeCustomItemHistory(customPricingHistory).map((row) => ({
       ...row,
       customerName: row.customerName || clientNames.get(row.clientId) || '',
     }));
-  }, [clients, pricingRecords]);
+  }, [clients, customPricingHistory, pricingRecords]);
   const quotes = useMemo(() => {
     const clientMap = new Map(clients.map((client) => [client.id, client]));
     return quoteDrafts.map((quote) => ({
@@ -330,9 +531,10 @@ export function QuotePricingPanel({
         <PricingEditorModal record={editing.record} quote={editing.quote} costCatalog={costCatalog}
           customHistory={customHistory} customerName={editing.client.name || ''} onClose={() => setEditing(null)}
           onOpenCostSettings={onOpenCostSettings}
-          onSave={async (record, quote) => {
+          onSave={async (record, quote, history) => {
             if (quote && onSaveQuote) await onSaveQuote({ quote, client: editing.client, source: editing.source });
             await onSavePricing(record);
+            if (onSaveCustomHistory) await onSaveCustomHistory(history);
             setEditing(null);
           }} />
       )}
@@ -583,14 +785,13 @@ export function PricingEditorModal({
     setIsSaving(true);
     try {
       const savedAt = new Date().toISOString();
-      await onSave({
+      const nextHistory = appendCustomItemHistory({
         ...preview,
-        customItemHistory: appendCustomItemHistory(preview, customItems, {
-          customerName,
-          recordedAt: savedAt,
-        }),
-        updatedAt: savedAt,
-      }, updatedQuote);
+        customItemHistory: customHistory,
+      }, customItems, { customerName, recordedAt: savedAt });
+      const pricingRecord = { ...preview };
+      delete pricingRecord.customItemHistory;
+      await onSave({ ...pricingRecord, updatedAt: savedAt }, updatedQuote, nextHistory);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : '儲存失敗，請稍後再試。');
     } finally {

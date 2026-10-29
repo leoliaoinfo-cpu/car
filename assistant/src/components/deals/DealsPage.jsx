@@ -8,6 +8,7 @@ import DeliveryWorkflowPanel from './DeliveryWorkflowPanel';
 import SupplierPanel from './SupplierPanel';
 import {
   CostCatalogPanel,
+  CustomPricingHistoryPanel,
   PricingBadges,
   PricingEditorModal,
   QuotePricingPanel,
@@ -21,12 +22,14 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
     clients,
     quotePresets,
     costCatalog,
+    customPricingHistory,
     pricingRecords,
     quoteDrafts,
     suppliers,
     saveDeal,
     deleteDeal,
     saveCostCatalog,
+    saveCustomPricingHistory,
     savePricingRecord,
     saveQuoteDraft,
     saveSupplier,
@@ -52,6 +55,13 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
     () => new Map(pricingRecords.map((record) => [record.id, record])),
     [pricingRecords],
   );
+  const centralCustomHistory = useMemo(() => {
+    const clientNames = new Map(clients.map((client) => [client.id, client.name || '']));
+    return customPricingHistory.map((row) => ({
+      ...row,
+      customerName: row.customerName || clientNames.get(row.clientId) || '',
+    }));
+  }, [clients, customPricingHistory]);
   const monthDeals = useMemo(
     () => deals
       .filter((deal) => (deal.date || '').slice(0, 7) === monthKey)
@@ -156,13 +166,14 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
     ['performance', '業績與利潤'],
     ['quotes', '報價利潤試算'],
     ['costs', '傭金與成本設定'],
+    ['customPricing', '客製價格庫'],
     ['suppliers', '合作廠商'],
     ['fulfillment', '交車施工進度'],
   ];
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
-      <div className="card p-1 grid grid-cols-2 sm:grid-cols-5 gap-1">
+      <div className="card p-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
         {tabs.map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)}
             className={`flex-1 rounded-lg px-2 py-2 text-sm font-semibold ${section === key ? 'bg-accent text-on-accent' : 'text-ink-2 hover:bg-s2'}`}>
@@ -173,7 +184,8 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
 
       {section === 'quotes' && (
         <QuotePricingPanel clients={clients} quoteDrafts={quoteDrafts} pricingRecords={pricingRecords}
-          costCatalog={costCatalog} onSavePricing={savePricingRecord}
+          costCatalog={costCatalog} customPricingHistory={customPricingHistory}
+          onSavePricing={savePricingRecord} onSaveCustomHistory={saveCustomPricingHistory}
           onSaveQuote={saveQuoteFromPricing}
           onOpenCostSettings={openCostSettings} />
       )}
@@ -181,6 +193,10 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
       {section === 'costs' && (
         <CostCatalogPanel quotePresets={quotePresets} costCatalog={costCatalog}
           onSave={saveCostCatalog} initialSearch={costSearch} />
+      )}
+
+      {section === 'customPricing' && (
+        <CustomPricingHistoryPanel entries={centralCustomHistory} onSave={saveCustomPricingHistory} />
       )}
 
       {section === 'fulfillment' && (

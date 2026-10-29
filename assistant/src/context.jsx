@@ -10,7 +10,9 @@ import {
 import { today } from './utils/date';
 import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
-import { EMPTY_COST_CATALOG, normalizeCostCatalog } from './utils/pricing';
+import {
+  collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
+} from './utils/pricing';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 import { assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
@@ -71,6 +73,7 @@ const initialState = {
   todoTemplate: DEFAULT_TODO_TEMPLATE,
   quotePresets: DEFAULT_QUOTE_PRESETS,
   costCatalog: EMPTY_COST_CATALOG,
+  customPricingHistory: [],
   industries: INDUSTRY_SUGGESTIONS,
   timers: [],
   thresholds: DEFAULT_THRESHOLDS,
@@ -219,6 +222,8 @@ function reducer(state, action) {
       return { ...state, quotePresets: action.payload };
     case 'SET_COST_CATALOG':
       return { ...state, costCatalog: action.payload };
+    case 'SET_CUSTOM_PRICING_HISTORY':
+      return { ...state, customPricingHistory: action.payload };
     case 'SET_INDUSTRIES':
       return { ...state, industries: action.payload };
 
@@ -273,7 +278,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, customPricingHistoryRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -294,6 +299,7 @@ export function AppProvider({ children }) {
           db.get('settings', 'todoTemplate').catch(() => null),
           db.get('settings', 'quotePresets').catch(() => null),
           db.get('settings', 'costCatalog').catch(() => null),
+          db.get('settings', 'customPricingHistory').catch(() => null),
           db.get('settings', 'industries').catch(() => null),
           db.get('settings', 'heightConfig').catch(() => null),
           db.get('settings', 'caseNumberSequence').catch(() => null),
@@ -302,6 +308,18 @@ export function AppProvider({ children }) {
         const resolvedCats = cats.length > 0 ? cats : DEFAULT_CATS;
         const resolvedStages = stages.length > 0 ? stages : DEFAULT_STAGES;
         const resolvedDealFields = dealFields.length > 0 ? dealFields : DEFAULT_DEAL_FIELDS;
+        const storedCustomPricingHistory = normalizeCustomItemHistory(customPricingHistoryRow?.entries);
+        const resolvedCustomPricingHistory = customPricingHistoryRow?.legacyMigratedAt
+          ? storedCustomPricingHistory : collectCustomItemHistory([
+            { id: 'central-custom-pricing', customItemHistory: storedCustomPricingHistory },
+            ...pricingRecords,
+          ]);
+        if (!customPricingHistoryRow?.legacyMigratedAt) {
+          await db.put('settings', {
+            key: 'customPricingHistory', entries: resolvedCustomPricingHistory,
+            legacyMigratedAt: new Date().toISOString(),
+          });
+        }
 
         if (cats.length === 0) for (const c of DEFAULT_CATS) await db.put('cats', c).catch(() => {});
         if (stages.length === 0) for (const s of DEFAULT_STAGES) await db.put('stages', s).catch(() => {});
@@ -333,6 +351,7 @@ export function AppProvider({ children }) {
             todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
             quotePresets: resolveQuotePresets(presetsRow),
             costCatalog: normalizeCostCatalog(costCatalogRow),
+            customPricingHistory: resolvedCustomPricingHistory,
             industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
           },
         });
@@ -758,6 +777,15 @@ export function AppProvider({ children }) {
     return normalized;
   }, []);
 
+  const saveCustomPricingHistory = useCallback(async (entries) => {
+    const normalized = normalizeCustomItemHistory(entries);
+    dispatch({ type: 'SET_CUSTOM_PRICING_HISTORY', payload: normalized });
+    await db.put('settings', {
+      key: 'customPricingHistory', entries: normalized, legacyMigratedAt: new Date().toISOString(),
+    });
+    return normalized;
+  }, []);
+
   // ── 產業選項（設定頁可增刪排序；客戶表單下拉選單與側欄篩選共用）──────────
   const saveIndustries = useCallback(async (items) => {
     dispatch({ type: 'SET_INDUSTRIES', payload: items });
@@ -791,7 +819,7 @@ export function AppProvider({ children }) {
 
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
-    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
+    const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, customPricingHistoryRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
       db.getAll('clients'),
       db.getAll('cats'),
       db.getAll('stages'),
@@ -812,10 +840,23 @@ export function AppProvider({ children }) {
       db.get('settings', 'todoTemplate').catch(() => null),
       db.get('settings', 'quotePresets').catch(() => null),
       db.get('settings', 'costCatalog').catch(() => null),
+      db.get('settings', 'customPricingHistory').catch(() => null),
       db.get('settings', 'industries').catch(() => null),
       db.get('settings', 'heightConfig').catch(() => null),
       db.get('settings', 'caseNumberSequence').catch(() => null),
     ]);
+    const storedCustomPricingHistory = normalizeCustomItemHistory(customPricingHistoryRow?.entries);
+    const resolvedCustomPricingHistory = customPricingHistoryRow?.legacyMigratedAt
+      ? storedCustomPricingHistory : collectCustomItemHistory([
+        { id: 'central-custom-pricing', customItemHistory: storedCustomPricingHistory },
+        ...pricingRecords,
+      ]);
+    if (!customPricingHistoryRow?.legacyMigratedAt) {
+      await db.put('settings', {
+        key: 'customPricingHistory', entries: resolvedCustomPricingHistory,
+        legacyMigratedAt: new Date().toISOString(),
+      });
+    }
     const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
     const caseSeeds = buildLegacyCaseSeeds({ deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases });
     for (const item of caseSeeds) await db.put('cases', item);
@@ -853,6 +894,7 @@ export function AppProvider({ children }) {
         todoTemplate: Array.isArray(templateRow?.items) ? templateRow.items : DEFAULT_TODO_TEMPLATE,
         quotePresets: resolveQuotePresets(presetsRow),
         costCatalog: normalizeCostCatalog(costCatalogRow),
+        customPricingHistory: resolvedCustomPricingHistory,
         industries: Array.isArray(industriesRow?.items) ? industriesRow.items : INDUSTRY_SUGGESTIONS,
       },
     });
@@ -895,6 +937,7 @@ export function AppProvider({ children }) {
     saveTodoTemplate,
     saveQuotePresets,
     saveCostCatalog,
+    saveCustomPricingHistory,
     saveIndustries,
     saveThresholds,
     saveHeightConfig,

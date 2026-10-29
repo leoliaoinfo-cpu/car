@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals,
-  collectCustomItemHistory, normalizeQuoteItems,
+  collectCustomItemHistory, normalizeCustomItemHistory, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, normalizePricingRecord, pricingSafetyStatus, resolveAddonCost,
   replaceBackendCustomQuoteItems, synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
@@ -158,6 +158,26 @@ test('collects saved custom history and backfills legacy custom pricing rows', (
   assert.deepEqual(history.map((row) => row.name), ['五面帆布', '客製工具箱']);
   assert.equal(history[1].discount, 2000);
   assert.equal(history[1].profit, 6000);
+});
+
+test('central custom library prevents an unchanged quote from recreating a deleted-price duplicate', () => {
+  const central = normalizeCustomItemHistory([{
+    id: 'custom-history:quote:q1:item1:old', sourceRecordId: 'quote:q1', sourceItemId: 'item1',
+    name: '客製帆布', salePrice: 20000, discount: 1000, cost: 15000, costKnown: true,
+    recordedAt: '2026-10-20T00:00:00.000Z',
+  }]);
+  const combined = collectCustomItemHistory([
+    { id: 'central-custom-pricing', customItemHistory: central },
+    {
+      id: 'quote:q1', updatedAt: '2026-10-29T00:00:00.000Z',
+      lines: [{
+        id: 'item1', backendCustom: true, name: '客製帆布', salePrice: 20000,
+        netPrice: 19000, pricingDiscount: 1000, cost: 15000, costKnown: true,
+      }],
+    },
+  ]);
+  assert.equal(combined.length, 1);
+  assert.equal(combined[0].recordedAt, '2026-10-20T00:00:00.000Z');
 });
 
 test('combines backend central discounts with a custom item discount and syncs quote totals', () => {
