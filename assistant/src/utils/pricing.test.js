@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals, normalizeQuoteItems,
+  appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals,
+  collectCustomItemHistory, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, normalizePricingRecord, pricingSafetyStatus, resolveAddonCost,
   replaceBackendCustomQuoteItems, synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
@@ -105,6 +106,58 @@ test('adds backend custom quote items without exposing cost and includes their m
 
   const removed = replaceBackendCustomQuoteItems(quote, []);
   assert.deepEqual(removed.items.map((item) => item.id), ['vehicle']);
+});
+
+test('keeps append-only custom item price history without duplicating unchanged saves', () => {
+  const record = {
+    id: 'quote:q-history', quoteId: 'q-history', clientId: 'client-1', model: '大單廂',
+    customItemHistory: [],
+  };
+  const first = appendCustomItemHistory(record, [{
+    id: 'custom-1', name: '特殊電動升降帆布', salePrice: '137500', discount: '5000', cost: '127500',
+  }], { customerName: '柳老闆', recordedAt: '2026-10-29T01:00:00.000Z' });
+  assert.equal(first.length, 1);
+  assert.equal(first[0].netPrice, 132500);
+  assert.equal(first[0].profit, 5000);
+  assert.equal(first[0].customerName, '柳老闆');
+
+  const unchanged = appendCustomItemHistory({ ...record, customItemHistory: first }, [{
+    id: 'custom-1', name: '特殊電動升降帆布', salePrice: '137500', discount: '5000', cost: '127500',
+  }], { customerName: '柳老闆', recordedAt: '2026-10-30T01:00:00.000Z' });
+  assert.equal(unchanged.length, 1);
+
+  const changed = appendCustomItemHistory({ ...record, customItemHistory: unchanged }, [{
+    id: 'custom-1', name: '特殊電動升降帆布', salePrice: '140000', discount: '5000', cost: '128000',
+  }], { customerName: '柳老闆', recordedAt: '2026-10-31T01:00:00.000Z' });
+  assert.equal(changed.length, 2);
+  assert.deepEqual(changed.map((row) => row.salePrice), [137500, 140000]);
+  assert.deepEqual(changed.map((row) => row.cost), [127500, 128000]);
+});
+
+test('collects saved custom history and backfills legacy custom pricing rows', () => {
+  const history = collectCustomItemHistory([
+    {
+      id: 'quote:q-new', clientId: 'client-1', model: '雙廂',
+      customItemHistory: [{
+        id: 'custom-history:quote:q-new:c1:2026-10-29', sourceRecordId: 'quote:q-new',
+        sourceItemId: 'c1', name: '五面帆布', salePrice: 20500, discount: 500,
+        cost: 17500, costKnown: true, recordedAt: '2026-10-29T03:00:00.000Z',
+      }],
+      lines: [],
+    },
+    {
+      id: 'quote:q-legacy', quoteId: 'q-legacy', clientId: 'client-2', model: '單廂',
+      updatedAt: '2026-10-28T03:00:00.000Z',
+      lines: [{
+        id: 'legacy-custom', backendCustom: true, name: '客製工具箱', salePrice: 20000,
+        netPrice: 18000, cost: 12000, costKnown: true,
+      }],
+    },
+  ]);
+  assert.equal(history.length, 2);
+  assert.deepEqual(history.map((row) => row.name), ['五面帆布', '客製工具箱']);
+  assert.equal(history[1].discount, 2000);
+  assert.equal(history[1].profit, 6000);
 });
 
 test('combines backend central discounts with a custom item discount and syncs quote totals', () => {

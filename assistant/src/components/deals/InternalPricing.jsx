@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
-  applicableSupplierCosts, applyPricingDiscountsToQuote, buildPricingRecord,
+  applicableSupplierCosts, appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord,
+  collectCustomItemHistory,
   normalizeCostCatalog, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
@@ -274,6 +275,13 @@ export function QuotePricingPanel({
 }) {
   const [editing, setEditing] = useState(null);
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
+  const customHistory = useMemo(() => {
+    const clientNames = new Map(clients.map((client) => [client.id, client.name || '']));
+    return collectCustomItemHistory(pricingRecords).map((row) => ({
+      ...row,
+      customerName: row.customerName || clientNames.get(row.clientId) || '',
+    }));
+  }, [clients, pricingRecords]);
   const quotes = useMemo(() => {
     const clientMap = new Map(clients.map((client) => [client.id, client]));
     return quoteDrafts.map((quote) => ({
@@ -319,7 +327,8 @@ export function QuotePricingPanel({
         })}
       </div>
       {editing && (
-        <PricingEditorModal record={editing.record} quote={editing.quote} costCatalog={costCatalog} onClose={() => setEditing(null)}
+        <PricingEditorModal record={editing.record} quote={editing.quote} costCatalog={costCatalog}
+          customHistory={customHistory} customerName={editing.client.name || ''} onClose={() => setEditing(null)}
           onOpenCostSettings={onOpenCostSettings}
           onSave={async (record, quote) => {
             if (quote && onSaveQuote) await onSaveQuote({ quote, client: editing.client, source: editing.source });
@@ -331,7 +340,10 @@ export function QuotePricingPanel({
   );
 }
 
-export function PricingEditorModal({ record, quote = null, costCatalog = null, onSave, onClose, onOpenCostSettings }) {
+export function PricingEditorModal({
+  record, quote = null, costCatalog = null, customHistory = [], customerName = '',
+  onSave, onClose, onOpenCostSettings,
+}) {
   const [lineCosts, setLineCosts] = useState(() => Object.fromEntries(
     (record.lines || []).map((line) => [line.id, line.costKnown ? String(line.cost) : '']),
   ));
@@ -357,6 +369,9 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
     })));
   const [customError, setCustomError] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyMessage, setHistoryMessage] = useState('');
   const [generalDiscounts, setGeneralDiscounts] = useState(() => (
     (record.generalDiscounts?.length ? record.generalDiscounts : quote?.generalDiscounts || [])
       .map((row) => {
@@ -460,6 +475,9 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   const centralDiscountTooHigh = !!quote && generalDiscountTotal > payableBeforeCentralDiscount;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
+  const historyNeedle = historySearch.trim().toLowerCase();
+  const filteredCustomHistory = customHistory.filter((row) => !historyNeedle
+    || [row.name, row.customerName, row.model].some((value) => String(value || '').toLowerCase().includes(historyNeedle)));
 
   function addOtherCost() {
     setOtherCosts((list) => [...list, { id: generateId('cost'), name: '其他成本', amount: '' }]);
@@ -475,6 +493,19 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
   function updateCustomItem(id, patch) {
     setCustomItems((list) => list.map((row) => row.id === id ? { ...row, ...patch } : row));
     setCustomError('');
+  }
+
+  function reuseCustomHistory(row) {
+    setCustomItems((list) => [...list, {
+      id: generateId('qi'),
+      name: row.name,
+      salePrice: String(row.salePrice),
+      cost: row.costKnown ? String(row.cost) : '',
+      discount: row.discount ? String(row.discount) : '',
+    }]);
+    setCustomError('');
+    setHistoryMessage(`已帶入「${row.name}」，請依本次需求確認售價與成本。`);
+    setHistoryOpen(false);
   }
 
   function addGeneralDiscount() {
@@ -551,7 +582,15 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
       && !window.confirm('⚠️ 傭金或成本尚未填齊，無法完成利潤安全檢查，確定仍要儲存嗎？')) return;
     setIsSaving(true);
     try {
-      await onSave(preview, updatedQuote);
+      const savedAt = new Date().toISOString();
+      await onSave({
+        ...preview,
+        customItemHistory: appendCustomItemHistory(preview, customItems, {
+          customerName,
+          recordedAt: savedAt,
+        }),
+        updatedAt: savedAt,
+      }, updatedQuote);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : '儲存失敗，請稍後再試。');
     } finally {
@@ -713,10 +752,56 @@ export function PricingEditorModal({ record, quote = null, costCatalog = null, o
           <div className="mt-3 space-y-2">
             {quote && (
               <section className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2.5">
-                <div>
-                  <p className="text-xs font-bold text-ink">＋ 額外客製化報價</p>
-                  <p className="text-[10px] text-ink-3 mt-0.5">填入售價與成本後，即時計算此項利潤。</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-ink">＋ 額外客製化報價</p>
+                    <p className="text-[10px] text-ink-3 mt-0.5">填入售價與成本後，即時計算此項利潤並留下歷史價格。</p>
+                  </div>
+                  <button type="button" onClick={() => setHistoryOpen((open) => !open)}
+                    className={`btn-outline text-[11px] shrink-0 min-h-11 ${historyOpen ? 'border-accent text-accent bg-accent/10' : ''}`}>
+                    🕘 歷史客製化 {customHistory.length > 0 ? `(${customHistory.length})` : ''}
+                  </button>
                 </div>
+                {historyOpen && (
+                  <div className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
+                    <input value={historySearch} onChange={(event) => setHistorySearch(event.target.value)}
+                      placeholder="搜尋客製項目、客戶或車型…" aria-label="搜尋歷史客製化"
+                      className="w-full text-xs min-h-11" />
+                    {filteredCustomHistory.length === 0 ? (
+                      <p className="text-center text-[11px] text-ink-3 py-4">
+                        {customHistory.length === 0 ? '尚無歷史客製紀錄；第一次儲存後會自動建立。' : '找不到符合的歷史客製紀錄。'}
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {filteredCustomHistory.map((row) => (
+                          <div key={row.id} className="rounded-lg border border-bdr bg-s2/50 p-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-ink break-words">{row.name}</p>
+                                <p className="text-[9px] text-ink-3 mt-0.5">
+                                  {row.recordedAt ? dayjs(row.recordedAt).format('YYYY/MM/DD HH:mm') : '日期未記錄'}
+                                  {row.customerName ? `・${row.customerName}` : ''}{row.model ? `・${row.model}` : ''}
+                                </p>
+                              </div>
+                              <button type="button" onClick={() => reuseCustomHistory(row)}
+                                className="btn-primary text-[11px] min-h-11 shrink-0 px-3">帶入</button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+                              <span className="text-ink-3">當時售價 <strong className="text-ink">NT$ {formatMoney(row.salePrice)}</strong></span>
+                              <span className="text-ink-3">當時成本 <strong className="text-ink">{row.costKnown ? `NT$ ${formatMoney(row.cost)}` : '未記錄'}</strong></span>
+                              <span className="text-ink-3">當時優惠 <strong className="text-ok">− NT$ {formatMoney(row.discount)}</strong></span>
+                              <span className="text-ink-3">折後售價 <strong className="text-accent">NT$ {formatMoney(row.netPrice)}</strong></span>
+                              <span className="text-ink-3 col-span-2">當時利潤 <strong className={row.profit == null ? 'text-ink-3' : row.profit < 0 ? 'text-danger' : 'text-ok'}>
+                                {row.profit == null ? '未記錄' : `${row.profit < 0 ? '− ' : ''}NT$ ${formatMoney(Math.abs(row.profit))}`}
+                              </strong></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {historyMessage && <p role="status" className="text-[11px] text-ok font-semibold">✓ {historyMessage}</p>}
                 {customItems.map((row) => {
                   const salePrice = Math.max(0, Number(row.salePrice) || 0);
                   const discount = Math.min(salePrice, Math.max(0, Number(row.discount) || 0));

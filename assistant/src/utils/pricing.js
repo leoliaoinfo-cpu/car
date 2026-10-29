@@ -295,6 +295,108 @@ export function replaceBackendCustomQuoteItems(quote, rows = []) {
   return { ...quote, items: [...regularItems, ...customItems] };
 }
 
+function customHistoryEntry(row, defaults = {}) {
+  const name = String(row?.name || '').trim();
+  if (!name) return null;
+  const salePrice = money(row?.salePrice);
+  const inferredDiscount = row?.discount ?? row?.pricingDiscount
+    ?? Math.max(0, salePrice - money(row?.netPrice ?? salePrice));
+  const discount = Math.min(salePrice, money(inferredDiscount));
+  const costKnown = row?.costKnown != null
+    ? !!row.costKnown : row?.cost !== '' && row?.cost != null;
+  const cost = costKnown ? money(row.cost) : null;
+  const recordedAt = row?.recordedAt ?? defaults.recordedAt ?? '';
+  const sourceRecordId = row?.sourceRecordId || defaults.sourceRecordId || '';
+  const sourceItemId = row?.sourceItemId || row?.id || defaults.sourceItemId || '';
+  return {
+    id: row?.historyId || (String(row?.id || '').startsWith('custom-history:')
+      ? row.id : `custom-history:${sourceRecordId}:${sourceItemId}:${recordedAt}`),
+    sourceRecordId,
+    sourceItemId,
+    quoteId: row?.quoteId || defaults.quoteId || null,
+    clientId: row?.clientId || defaults.clientId || null,
+    customerName: String(row?.customerName || defaults.customerName || '').trim(),
+    model: String(row?.model || defaults.model || '').trim(),
+    name,
+    salePrice,
+    discount,
+    netPrice: Math.max(0, salePrice - discount),
+    cost,
+    costKnown,
+    profit: costKnown ? Math.max(0, salePrice - discount) - cost : null,
+    recordedAt,
+  };
+}
+
+function sameCustomHistoryValue(left, right) {
+  return left?.name === right?.name
+    && left?.salePrice === right?.salePrice
+    && left?.discount === right?.discount
+    && left?.costKnown === right?.costKnown
+    && left?.cost === right?.cost;
+}
+
+/**
+ * 客製項目採追加快照：重開同一張報價且內容沒有變時不重複寫入；
+ * 售價、優惠或成本有變時，保留舊值並新增一筆紀錄。
+ */
+export function appendCustomItemHistory(record, rows = [], metadata = {}) {
+  const existing = (Array.isArray(record?.customItemHistory) ? record.customItemHistory : [])
+    .map((row) => customHistoryEntry(row)).filter(Boolean);
+  const latestBySource = new Map();
+  [...existing].sort((a, b) => String(a.recordedAt).localeCompare(String(b.recordedAt)))
+    .forEach((row) => latestBySource.set(`${row.sourceRecordId}\u0000${row.sourceItemId}`, row));
+  const recordedAt = metadata.recordedAt || new Date().toISOString();
+  const additions = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row?.id || !String(row.name || '').trim() || Number(row.salePrice) <= 0) continue;
+    const next = customHistoryEntry(row, {
+      sourceRecordId: record?.id || '',
+      sourceItemId: row.id,
+      quoteId: record?.quoteId,
+      clientId: record?.clientId,
+      customerName: metadata.customerName,
+      model: record?.model,
+      recordedAt,
+    });
+    const key = `${next.sourceRecordId}\u0000${next.sourceItemId}`;
+    if (sameCustomHistoryValue(latestBySource.get(key), next)) continue;
+    additions.push(next);
+    latestBySource.set(key, next);
+  }
+  return [...existing, ...additions];
+}
+
+/** 彙整所有案件的客製快照；舊資料沒有快照時，以當前已儲存的客製列補一筆。 */
+export function collectCustomItemHistory(records = []) {
+  const result = [];
+  for (const record of Array.isArray(records) ? records : []) {
+    const stored = (Array.isArray(record?.customItemHistory) ? record.customItemHistory : [])
+      .map((row) => customHistoryEntry(row)).filter(Boolean);
+    result.push(...stored);
+    const storedSources = new Set(stored.map((row) => `${row.sourceRecordId}\u0000${row.sourceItemId}`));
+    for (const line of (record?.lines || []).filter((row) => row.backendCustom)) {
+      const sourceKey = `${record.id || ''}\u0000${line.id || ''}`;
+      if (storedSources.has(sourceKey)) continue;
+      const fallback = customHistoryEntry(line, {
+        sourceRecordId: record?.id || '',
+        sourceItemId: line.id,
+        quoteId: record?.quoteId,
+        clientId: record?.clientId,
+        model: record?.model,
+        recordedAt: record?.updatedAt || record?.capturedAt || '',
+      });
+      if (fallback) result.push(fallback);
+    }
+  }
+  const unique = new Map();
+  for (const row of result) {
+    const key = `${row.sourceRecordId}\u0000${row.sourceItemId}\u0000${row.recordedAt}\u0000${row.name}\u0000${row.salePrice}\u0000${row.discount}\u0000${row.cost}`;
+    unique.set(key, row);
+  }
+  return [...unique.values()].sort((a, b) => String(b.recordedAt).localeCompare(String(a.recordedAt)));
+}
+
 /**
  * 明確儲存的整單優惠優先；舊版優惠列只有在名稱與金額未重複時才補入，避免同一筆折扣重算兩次。
  */
@@ -730,6 +832,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
     giftValueTotal: totals.giftValueTotal,
     customerBenefitTotal: totals.customerBenefitTotal,
     generalDiscounts,
+    customItemHistory: Array.isArray(existing?.customItemHistory) ? existing.customItemHistory : [],
     discountTotal: totals.discountTotal,
     costComplete: snapshot.complete,
     costTotal: snapshot.costTotal,
