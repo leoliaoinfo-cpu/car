@@ -1220,31 +1220,27 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   </div>
                 )}
                 {heightEstimateSettings.mode === 'limited' && heightCapacity.controlTotalCm != null && (
-                  <div className="rounded-xl border-2 border-warn/45 bg-warn/10 p-3 text-center">
-                    <p className="text-[11px] font-bold text-warn">⚠️ 地下室預警高度</p>
-                    <p className="mt-1 text-lg font-black text-ink">整台車建議不要超過 {heightCapacity.controlTotalCm} cm</p>
-                    <p className="mt-1 text-xs text-ink-2">限高 {heightCapacity.clearanceCm} cm − 安全預留 {heightCapacity.reserveCm} cm；箱體／帆布從貨斗底板往上最多約 {heightCapacity.availableCm} cm。</p>
+                  <div className="rounded-xl border-2 border-warn/45 bg-warn/10 p-3">
+                    <p className="text-[11px] font-bold text-ink-2">地下室結果</p>
+                    <p className="mt-1 text-xl font-black text-warn">箱體／帆布建議做 {heightCapacity.recommendedCm} cm 以下</p>
+                    <p className="mt-2 text-xs font-semibold text-ink-2">地下室寫 {heightCapacity.clearanceCm} cm；車做完最多抓 {heightCapacity.controlTotalCm} cm；箱體／帆布最高可做 {heightCapacity.availableCm} cm。</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <QuoteHeightMetric label="車尾目前狀況" value={suspensionPlan} />
-                  <QuoteHeightMetric label="貨斗底板離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
-                  <QuoteHeightMetric label="車頭高度" value={heightCapacity.vehicleHeightCm == null ? '待補資料' : `${heightCapacity.vehicleHeightCm} cm`} />
-                  <QuoteHeightMetric label="要跟車頭一樣高，請做" value={heightCapacity.cabLevelBodyHeightCm == null ? '待補資料' : `${heightCapacity.cabLevelBodyHeightCm} cm`} emphasis />
-                  <QuoteHeightMetric label={`${heightCapacity.controlTotalCm || heightConfig.generalControlCm} cm 總高下最多可做`} value={heightCapacity.availableCm == null ? '待補資料' : `${heightCapacity.availableCm} cm`} emphasis />
-                  <QuoteHeightMetric label="建議保守抓在" value={heightCapacity.recommendedCm == null ? '待補資料' : `${heightCapacity.recommendedCm} cm 以下`} emphasis />
-                </div>
-                {heightCapacity.controlTotalCm != null && heightCapacity.adjustedBedCm != null && (
-                  <p className="rounded-lg bg-s1 px-3 py-2 text-xs leading-relaxed text-ink-2">
-                    白話說明：整台車不要超過 {heightCapacity.controlTotalCm} cm，扣掉貨斗底板離地 {heightCapacity.adjustedBedCm} cm，
-                    箱體／帆布從貨斗底板往上最多約 <strong className="text-accent">{heightCapacity.availableCm} cm</strong>。
-                  </p>
-                )}
-                {heightCapacity.vehicleHeightCm != null && heightCapacity.adjustedBedCm != null && (
-                  <p className="rounded-lg border border-bdr bg-s2 px-3 py-2 text-xs leading-relaxed text-ink-2">
-                    想跟車頭做齊：箱體／帆布從貨斗底板往上做約 <strong className="text-accent">{heightCapacity.cabLevelBodyHeightCm} cm</strong>。
-                  </p>
-                )}
+                {heightEstimateSettings.mode !== 'limited' && <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <QuoteHeightMetric label="車尾目前狀況" value={suspensionPlan} />
+                    <QuoteHeightMetric label="貨斗底板離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
+                    <QuoteHeightMetric label="車頭高度" value={heightCapacity.vehicleHeightCm == null ? '待補資料' : `${heightCapacity.vehicleHeightCm} cm`} />
+                    <QuoteHeightMetric label="要跟車頭一樣高，請做" value={heightCapacity.cabLevelBodyHeightCm == null ? '待補資料' : `${heightCapacity.cabLevelBodyHeightCm} cm`} emphasis />
+                    <QuoteHeightMetric label={`${heightCapacity.controlTotalCm || heightConfig.generalControlCm} cm 總高下最多可做`} value={heightCapacity.availableCm == null ? '待補資料' : `${heightCapacity.availableCm} cm`} emphasis />
+                    <QuoteHeightMetric label="建議保守抓在" value={heightCapacity.recommendedCm == null ? '待補資料' : `${heightCapacity.recommendedCm} cm 以下`} emphasis />
+                  </div>
+                  {heightCapacity.vehicleHeightCm != null && heightCapacity.adjustedBedCm != null && (
+                    <p className="rounded-lg border border-bdr bg-s2 px-3 py-2 text-xs leading-relaxed text-ink-2">
+                      想跟車頭做齊：箱體／帆布從貨斗底板往上做約 <strong className="text-accent">{heightCapacity.cabLevelBodyHeightCm} cm</strong>。
+                    </p>
+                  )}
+                </>}
                 <div className="space-y-2">
                   {selectedBodyPlans.map(({ item, presetCm, bodyHeightCm, estimate }) => (
                     <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-3 space-y-2">

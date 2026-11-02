@@ -892,36 +892,48 @@ function HeightCalculatorDialog({ value, onClose }) {
         </div>}
 
         {calculator.mode === 'limited' && estimate.controlTotalCm != null && (
-          <section className={`rounded-2xl border-2 p-4 text-center ${estimate.bodyHeightCm != null && estimate.kind === 'danger' ? 'border-danger/50 bg-danger/10' : 'border-warn/50 bg-warn/10'}`}>
-            <p className="text-xs font-bold text-warn">地下室預警高度</p>
-            <p className="mt-1 text-3xl font-black text-ink">整台車建議不要超過 {estimate.controlTotalCm} cm</p>
-            <p className="mt-2 text-xs text-ink-2">地下室限高 {estimate.clearanceCm} cm − 安全預留 {estimate.reserveCm} cm ＝ {estimate.controlTotalCm} cm。</p>
-            <p className="mt-3 rounded-xl bg-s1/70 px-3 py-2 text-sm font-bold text-ink">
-              扣掉目前貨斗高度後，{calculator.bodyType}從貨斗底板往上最多約 {estimate.availableCm} cm；建議抓 {estimate.recommendedCm} cm 以下。
-            </p>
+          <section className={`rounded-2xl border-2 p-4 ${estimate.bodyHeightCm != null && estimate.kind === 'danger' ? 'border-danger/50 bg-danger/10' : estimate.bodyHeightCm != null && estimate.kind === 'warning' ? 'border-warn/50 bg-warn/10' : 'border-ok/40 bg-ok/10'}`}>
+            <p className="text-xs font-bold text-ink-2">地下室結果</p>
+            {estimate.bodyHeightCm == null ? (
+              <p className="mt-1 text-3xl font-black text-ink">{calculator.bodyType}建議做 {estimate.recommendedCm} cm 以下</p>
+            ) : (
+              <>
+                <p className={`mt-1 text-3xl font-black ${estimate.kind === 'danger' ? 'text-danger' : estimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
+                  {estimate.kind === 'danger' ? `不能做，超高 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `風險高，只剩 ${estimate.marginCm} cm` : `高度有空間，還剩 ${estimate.marginCm} cm`}
+                </p>
+                <p className="mt-2 text-sm font-bold text-ink">做完這台車約 {estimate.estimatedTotalCm} cm；地下室建議上限 {estimate.controlTotalCm} cm。</p>
+              </>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">地下室寫</p><p className="text-lg font-black text-ink">{estimate.clearanceCm} cm</p></div>
+              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">車做完最多抓</p><p className="text-lg font-black text-ink">{estimate.controlTotalCm} cm</p></div>
+              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">{calculator.bodyType}最高可做</p><p className="text-lg font-black text-ink">{estimate.availableCm} cm</p></div>
+              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">建議做</p><p className="text-lg font-black text-accent">{estimate.recommendedCm} cm 以下</p></div>
+            </div>
+            {estimate.bodyHeightCm != null && estimate.kind !== 'ok' && <p className="mt-3 rounded-xl bg-s1/75 px-3 py-2 text-sm font-bold text-warn">不要直接跟客人保證進得去，還要看入口坡度與實車高度。</p>}
           </section>
         )}
 
-        <section className="rounded-2xl border-2 border-accent/45 bg-accent/10 p-4 text-center">
-          <p className="text-xs font-bold text-ink-2">如果箱體要跟車頭一樣高</p>
-          <p className="mt-1 text-3xl font-black text-accent">從貨斗底板往上做 {estimate.cabLevelBodyHeightCm} cm</p>
-          <p className="mt-2 text-xs text-ink-3">目前車頭約 {estimate.vehicleHeightCm} cm，改裝後貨斗離地約 {estimate.adjustedBedCm} cm。</p>
-        </section>
-
-        <div className="grid grid-cols-2 gap-2">
-          <HeightCalculatorMetric label={`${estimate.controlTotalCm || value?.generalControlCm || 270} cm 整車上限下最多可做`} value={estimate.availableCm} />
-          <HeightCalculatorMetric label="建議保守抓在" value={estimate.recommendedCm} emphasis />
-        </div>
-
-        {estimate.bodyHeightCm != null && estimate.controlTotalCm != null && (
-          <section className={`rounded-2xl border p-4 ${estimate.kind === 'danger' ? 'border-danger/40 bg-danger/10' : estimate.kind === 'warning' ? 'border-warn/40 bg-warn/10' : 'border-ok/35 bg-ok/10'}`}>
-            <p className="text-sm font-bold text-ink">照你輸入的 {estimate.bodyHeightCm} cm 去做：</p>
-            <p className="mt-1 text-xl font-black text-ink">整台車大約 {estimate.estimatedTotalCm} cm，{relation}。</p>
-            <p className={`mt-2 rounded-xl px-3 py-2 text-sm font-bold ${estimate.kind === 'danger' ? 'bg-danger/15 text-danger' : estimate.kind === 'warning' ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok'}`}>
-              {estimate.kind === 'danger' ? `⛔ 高度超過 ${estimate.controlTotalCm} cm 上限 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `⚠️ 只剩 ${estimate.marginCm} cm，太接近高度上限，不能直接保證進得去` : `✅ 高度預估未超過上限，還有 ${estimate.marginCm} cm；仍須確認入口坡度`}
-            </p>
+        {calculator.mode !== 'limited' && <>
+          <section className="rounded-2xl border-2 border-accent/45 bg-accent/10 p-4 text-center">
+            <p className="text-xs font-bold text-ink-2">如果箱體要跟車頭一樣高</p>
+            <p className="mt-1 text-3xl font-black text-accent">從貨斗底板往上做 {estimate.cabLevelBodyHeightCm} cm</p>
+            <p className="mt-2 text-xs text-ink-3">目前車頭約 {estimate.vehicleHeightCm} cm，改裝後貨斗離地約 {estimate.adjustedBedCm} cm。</p>
           </section>
-        )}
+          <div className="grid grid-cols-2 gap-2">
+            <HeightCalculatorMetric label={`${estimate.controlTotalCm || value?.generalControlCm || 270} cm 整車上限下最多可做`} value={estimate.availableCm} />
+            <HeightCalculatorMetric label="建議保守抓在" value={estimate.recommendedCm} emphasis />
+          </div>
+          {estimate.bodyHeightCm != null && estimate.controlTotalCm != null && (
+            <section className={`rounded-2xl border p-4 ${estimate.kind === 'danger' ? 'border-danger/40 bg-danger/10' : estimate.kind === 'warning' ? 'border-warn/40 bg-warn/10' : 'border-ok/35 bg-ok/10'}`}>
+              <p className="text-sm font-bold text-ink">照你輸入的 {estimate.bodyHeightCm} cm 去做：</p>
+              <p className="mt-1 text-xl font-black text-ink">整台車大約 {estimate.estimatedTotalCm} cm，{relation}。</p>
+              <p className={`mt-2 rounded-xl px-3 py-2 text-sm font-bold ${estimate.kind === 'danger' ? 'bg-danger/15 text-danger' : estimate.kind === 'warning' ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok'}`}>
+                {estimate.kind === 'danger' ? `⛔ 超過高度上限 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `⚠️ 只剩 ${estimate.marginCm} cm，太貼近` : `✅ 距離高度上限還有 ${estimate.marginCm} cm`}
+              </p>
+            </section>
+          )}
+        </>}
         <p className="rounded-xl bg-warn/10 p-3 text-[11px] leading-relaxed text-warn">這是快速估算，不是施工保證。正式下單前仍要量實車最高點，並讓車身廠確認完工高度。</p>
         <button type="button" onClick={onClose} className="btn-primary min-h-12 w-full">完成，關閉計算機</button>
       </div>
