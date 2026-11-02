@@ -879,6 +879,29 @@ function HeightCalculatorDialog({ value, onClose }) {
             className="mt-1 min-h-11 w-full text-sm" />
         </label>
 
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-s2 p-1">
+          <button type="button" onClick={() => set('mode', 'general')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'general' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>一般道路／車高控制</button>
+          <button type="button" onClick={() => set('mode', 'limited')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>客人要進地下室</button>
+        </div>
+        {calculator.mode === 'limited' && <div className="space-y-2 rounded-2xl border-2 border-warn/40 bg-warn/10 p-3">
+          <p className="text-sm font-bold text-warn">⚠️ 先輸入地下室資料，系統才會用地下室高度預警</p>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-semibold text-ink-2">地下室標示限高<input type="number" inputMode="decimal" min="0" value={calculator.clearanceCm} onChange={(e) => set('clearanceCm', e.target.value)} placeholder="例如 240" className="mt-1 min-h-11 w-full text-sm" /></label>
+            <label className="text-xs font-semibold text-ink-2">想多留多少安全空間<input type="number" inputMode="decimal" min="0" value={calculator.reserveCm} onChange={(e) => set('reserveCm', e.target.value)} placeholder={`建議 ${value?.basementReserveCm || 10}`} className="mt-1 min-h-11 w-full text-sm" /></label>
+          </div>
+        </div>}
+
+        {calculator.mode === 'limited' && estimate.controlTotalCm != null && (
+          <section className={`rounded-2xl border-2 p-4 text-center ${estimate.bodyHeightCm != null && estimate.kind === 'danger' ? 'border-danger/50 bg-danger/10' : 'border-warn/50 bg-warn/10'}`}>
+            <p className="text-xs font-bold text-warn">地下室預警高度</p>
+            <p className="mt-1 text-3xl font-black text-ink">整台車建議不要超過 {estimate.controlTotalCm} cm</p>
+            <p className="mt-2 text-xs text-ink-2">地下室限高 {estimate.clearanceCm} cm − 安全預留 {estimate.reserveCm} cm ＝ {estimate.controlTotalCm} cm。</p>
+            <p className="mt-3 rounded-xl bg-s1/70 px-3 py-2 text-sm font-bold text-ink">
+              扣掉目前貨斗高度後，{calculator.bodyType}從貨斗底板往上最多約 {estimate.availableCm} cm；建議抓 {estimate.recommendedCm} cm 以下。
+            </p>
+          </section>
+        )}
+
         <section className="rounded-2xl border-2 border-accent/45 bg-accent/10 p-4 text-center">
           <p className="text-xs font-bold text-ink-2">如果箱體要跟車頭一樣高</p>
           <p className="mt-1 text-3xl font-black text-accent">從貨斗底板往上做 {estimate.cabLevelBodyHeightCm} cm</p>
@@ -886,28 +909,19 @@ function HeightCalculatorDialog({ value, onClose }) {
         </section>
 
         <div className="grid grid-cols-2 gap-2">
-          <HeightCalculatorMetric label={`${value?.generalControlCm || 270} cm 總高下最多可做`} value={estimate.availableCm} />
+          <HeightCalculatorMetric label={`${estimate.controlTotalCm || value?.generalControlCm || 270} cm 整車上限下最多可做`} value={estimate.availableCm} />
           <HeightCalculatorMetric label="建議保守抓在" value={estimate.recommendedCm} emphasis />
         </div>
 
-        {estimate.bodyHeightCm != null && (
+        {estimate.bodyHeightCm != null && estimate.controlTotalCm != null && (
           <section className={`rounded-2xl border p-4 ${estimate.kind === 'danger' ? 'border-danger/40 bg-danger/10' : estimate.kind === 'warning' ? 'border-warn/40 bg-warn/10' : 'border-ok/35 bg-ok/10'}`}>
             <p className="text-sm font-bold text-ink">照你輸入的 {estimate.bodyHeightCm} cm 去做：</p>
             <p className="mt-1 text-xl font-black text-ink">整台車大約 {estimate.estimatedTotalCm} cm，{relation}。</p>
-            <p className={`mt-2 text-sm font-semibold ${estimate.kind === 'danger' ? 'text-danger' : estimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
-              {estimate.kind === 'danger' ? `⚠️ 超過 ${estimate.controlTotalCm} cm 控制高度 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `⚠️ 距離控制高度只剩 ${estimate.marginCm} cm` : `✅ 距離 ${estimate.controlTotalCm} cm 控制高度還有 ${estimate.marginCm} cm`}
+            <p className={`mt-2 rounded-xl px-3 py-2 text-sm font-bold ${estimate.kind === 'danger' ? 'bg-danger/15 text-danger' : estimate.kind === 'warning' ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok'}`}>
+              {estimate.kind === 'danger' ? `⛔ 高度超過 ${estimate.controlTotalCm} cm 上限 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `⚠️ 只剩 ${estimate.marginCm} cm，太接近高度上限，不能直接保證進得去` : `✅ 高度預估未超過上限，還有 ${estimate.marginCm} cm；仍須確認入口坡度`}
             </p>
           </section>
         )}
-
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-s2 p-1">
-          <button type="button" onClick={() => set('mode', 'general')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'general' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>一般道路／車高控制</button>
-          <button type="button" onClick={() => set('mode', 'limited')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>客人要進地下室</button>
-        </div>
-        {calculator.mode === 'limited' && <div className="grid grid-cols-2 gap-2">
-          <label className="text-xs font-semibold text-ink-2">地下室標示限高<input type="number" inputMode="decimal" min="0" value={calculator.clearanceCm} onChange={(e) => set('clearanceCm', e.target.value)} placeholder="例如 240" className="mt-1 min-h-11 w-full text-sm" /></label>
-          <label className="text-xs font-semibold text-ink-2">想多留多少安全空間<input type="number" inputMode="decimal" min="0" value={calculator.reserveCm} onChange={(e) => set('reserveCm', e.target.value)} placeholder={`建議 ${value?.basementReserveCm || 10}`} className="mt-1 min-h-11 w-full text-sm" /></label>
-        </div>}
         <p className="rounded-xl bg-warn/10 p-3 text-[11px] leading-relaxed text-warn">這是快速估算，不是施工保證。正式下單前仍要量實車最高點，並讓車身廠確認完工高度。</p>
         <button type="button" onClick={onClose} className="btn-primary min-h-12 w-full">完成，關閉計算機</button>
       </div>

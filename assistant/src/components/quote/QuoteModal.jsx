@@ -1219,6 +1219,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                     </label>
                   </div>
                 )}
+                {heightEstimateSettings.mode === 'limited' && heightCapacity.controlTotalCm != null && (
+                  <div className="rounded-xl border-2 border-warn/45 bg-warn/10 p-3 text-center">
+                    <p className="text-[11px] font-bold text-warn">⚠️ 地下室預警高度</p>
+                    <p className="mt-1 text-lg font-black text-ink">整台車建議不要超過 {heightCapacity.controlTotalCm} cm</p>
+                    <p className="mt-1 text-xs text-ink-2">限高 {heightCapacity.clearanceCm} cm − 安全預留 {heightCapacity.reserveCm} cm；箱體／帆布從貨斗底板往上最多約 {heightCapacity.availableCm} cm。</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   <QuoteHeightMetric label="車尾目前狀況" value={suspensionPlan} />
                   <QuoteHeightMetric label="貨斗底板離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
