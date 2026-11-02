@@ -1222,8 +1222,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 {heightEstimateSettings.mode === 'limited' && heightCapacity.controlTotalCm != null && (
                   <div className="rounded-xl border-2 border-warn/45 bg-warn/10 p-3">
                     <p className="text-[11px] font-bold text-ink-2">地下室結果</p>
-                    <p className="mt-1 text-xl font-black text-warn">箱體／帆布建議做 {heightCapacity.recommendedCm} cm 以下</p>
-                    <p className="mt-2 text-xs font-semibold text-ink-2">地下室寫 {heightCapacity.clearanceCm} cm；車做完最多抓 {heightCapacity.controlTotalCm} cm；箱體／帆布最高可做 {heightCapacity.availableCm} cm。</p>
+                    <p className="mt-1 text-xl font-black text-accent">扣掉貨斗後，箱體／帆布還能做 {heightCapacity.availableCm} cm 高</p>
+                    <p className="mt-2 text-xs font-semibold text-ink-2">貨斗離地 {heightCapacity.adjustedBedCm} cm；建議保守做 {heightCapacity.recommendedCm} cm 以下。</p>
                   </div>
                 )}
                 {heightEstimateSettings.mode !== 'limited' && <>
