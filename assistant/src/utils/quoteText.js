@@ -71,7 +71,8 @@ export function buildQuoteMessage({
   }
 
   for (const item of selectedItems.filter((row) => row.kind !== 'vehicle')) {
-    const name = compactQuoteItemName(item.name);
+    const option = String(item.optionValue || '').trim();
+    const name = `${compactQuoteItemName(item.name)}${option ? `（${option}）` : ''}`;
     if (item.pending) lines.push(`${name}：待廠商報價`);
     else if (!item.gift) lines.push(`${name}：+${formatLineWan(item.price)}`);
   }

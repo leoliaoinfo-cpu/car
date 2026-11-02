@@ -24,7 +24,7 @@ test('quote options show configurable vehicle-height impact for suspension upgra
 test('eight K2500 variants use the current single-source prices', () => {
   assert.equal(VEHICLE_VARIANTS.length, 8);
   assert.deepEqual(VEHICLE_VARIANTS.map((v) => v.msrpTwd), [818000, 858000, 848000, 888000, 988000, 1038000, 978000, 1078000]);
-  assert.deepEqual(VEHICLE_VARIANTS.map((v) => v.commissionTwd), [35000, 35000, 35000, 35000, 50000, 50000, 45000, 45000]);
+  assert.deepEqual(VEHICLE_VARIANTS.map((v) => v.commissionTwd), [32000, 32000, 32000, 32000, 48000, 50000, 45000, 45000]);
   assert.equal(formatVehiclePrice(858000), '85.8 萬');
 });
 

@@ -1,7 +1,15 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 10;
+const COST_CATALOG_VERSION = 11;
+
+export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
+  enabled: true,
+  effectiveFrom: '2026-11-01',
+  minUnits: 3,
+  bonusPerUnit: 3000,
+  mode: 'all-units',
+});
 
 // 來源：使用者提供的「2026 卡旺配件清單」與「商用車隔熱紙速查表 2025/11」。
 // 隔熱紙表的「業務價（含稅）」依使用者指示視為成本；成本只供內部區域使用。
@@ -95,6 +103,16 @@ const V9_ADDON_COSTS = {
   'qa-canvas-double-raised': { cost: 13500 },
 };
 
+const V11_ADDON_COSTS = {
+  'qa-travel-crossbar-single': { cost: 4000 },
+  'qa-travel-crossbar': { cost: 7000 },
+};
+
+const V10_MODEL_COMMISSIONS = {
+  'qm-1': 35000, 'qm-2': 35000, 'qm-3': 35000, 'qm-4': 35000,
+  'qm-5': 50000, 'qm-6': 50000, 'qm-7': 45000, 'qm-8': 45000,
+};
+
 const DOUBLE_FOLD_TAILGATE_COST_IDS = {
   'qa-tailgate-double-fold-35': 'qa-tailgate-35',
   'qa-tailgate-double-fold-40': 'qa-tailgate-40',
@@ -159,6 +177,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V6_ADDON_COSTS,
   ...V8_ADDON_COSTS,
   ...V9_ADDON_COSTS,
+  ...V11_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -194,7 +213,34 @@ export const EMPTY_COST_CATALOG = {
   version: COST_CATALOG_VERSION,
   models: DEFAULT_MODEL_COMMISSIONS,
   addons: DEFAULT_ADDON_COSTS,
+  commissionBonusRule: DEFAULT_COMMISSION_BONUS_RULE,
 };
+
+export function normalizeCommissionBonusRule(rule) {
+  return {
+    ...DEFAULT_COMMISSION_BONUS_RULE,
+    ...(rule || {}),
+    enabled: rule?.enabled !== false,
+    effectiveFrom: /^\d{4}-\d{2}-\d{2}$/.test(String(rule?.effectiveFrom || ''))
+      ? String(rule.effectiveFrom) : DEFAULT_COMMISSION_BONUS_RULE.effectiveFrom,
+    minUnits: Math.max(1, Math.round(Number(rule?.minUnits) || DEFAULT_COMMISSION_BONUS_RULE.minUnits)),
+    bonusPerUnit: Math.max(0, Math.round(Number(
+      rule?.bonusPerUnit === undefined || rule?.bonusPerUnit === null || rule?.bonusPerUnit === ''
+        ? DEFAULT_COMMISSION_BONUS_RULE.bonusPerUnit
+        : rule.bonusPerUnit,
+    ) || 0)),
+    mode: 'all-units',
+  };
+}
+
+/** 公告「3 台以上每台 3,000」：當月達門檻後，當月每台都計算獎金。 */
+export function calculateProgressiveCommissionBonus(unitCount, rule, monthKey = '') {
+  const normalized = normalizeCommissionBonusRule(rule);
+  const units = Math.max(0, Math.round(Number(unitCount) || 0));
+  if (!normalized.enabled || units < normalized.minUnits) return 0;
+  if (monthKey && `${monthKey}-01` < normalized.effectiveFrom.slice(0, 7) + '-01') return 0;
+  return units * normalized.bonusPerUnit;
+}
 
 const money = (value) => Math.max(0, Math.round(Number(value) || 0));
 
@@ -560,6 +606,9 @@ export function normalizeCostCatalog(row) {
   const models = { ...DEFAULT_MODEL_COMMISSIONS };
   for (const [id, entry] of Object.entries(savedModels)) {
     const normalized = typeof entry === 'object' && entry != null ? { ...entry } : {};
+    if (previousVersion < 11 && Number(normalized.commission) === V10_MODEL_COMMISSIONS[id]) {
+      normalized.commission = DEFAULT_MODEL_COMMISSIONS[id]?.commission;
+    }
     if (normalized.commission == null && DEFAULT_MODEL_COMMISSIONS[id]) {
       normalized.commission = DEFAULT_MODEL_COMMISSIONS[id].commission;
     }
@@ -573,6 +622,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 6 ? V6_ADDON_COSTS : {}),
     ...(row && previousVersion < 8 ? V8_ADDON_COSTS : {}),
     ...(row && previousVersion < 9 ? V9_ADDON_COSTS : {}),
+    ...(row && previousVersion < 11 ? V11_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
@@ -582,6 +632,7 @@ export function normalizeCostCatalog(row) {
     version: COST_CATALOG_VERSION,
     models,
     addons: row && previousVersion < 10 ? migrateV10TailgateCosts(migratedAddons) : migratedAddons,
+    commissionBonusRule: normalizeCommissionBonusRule(row?.commissionBonusRule),
   };
 }
 

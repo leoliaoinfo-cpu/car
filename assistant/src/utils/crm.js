@@ -191,7 +191,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v24';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v26';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -263,19 +263,19 @@ const VENDOR_QUOTE_ADDONS = [
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
-  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, desc: '中央置物盒另加 500 元；1 年保固' },
+  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, warrantyMonths: 12, desc: '中央置物盒另加 500 元；1 年保固' },
   { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
-  { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, desc: '1 年保固' },
-  { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, desc: '4 年保固' },
-  { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, desc: '4 年保固' },
-  { id: 'qa-audio-65', cat: '音響', name: '6.5吋音響升級', price: 5000, desc: '含專用線組；12 個月保固' },
-  { id: 'qa-tweeter', cat: '音響', name: '高音喇叭', price: 3000, desc: '含專用線組；12 個月保固' },
-  { id: 'qa-star-led-head', cat: '燈組', name: 'LED 頭燈組', price: 4000, desc: '6 個月保固' },
-  { id: 'qa-star-led-tail', cat: '燈組', name: 'LED 尾燈組', price: 2500, desc: '6 個月保固' },
-  { id: 'qa-star-led-fog', cat: '燈組', name: 'LED 霧燈', price: 1800, desc: '黃金／白光；6 個月保固' },
-  { id: 'qa-puddle-lamp', cat: '燈組', name: 'LED 側邊照地燈', price: 3500, desc: '有裝防水快速開關；6 個月保固' },
-  { id: 'qa-interior-led-single', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（單廂）', price: 500, desc: '6 個月保固' },
-  { id: 'qa-interior-led-double', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（雙廂）', price: 600, desc: '6 個月保固' },
+  { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, warrantyMonths: 12, desc: '1 年保固' },
+  { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, warrantyMonths: 48, desc: '4 年保固' },
+  { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, warrantyMonths: 48, desc: '4 年保固' },
+  { id: 'qa-audio-65', cat: '音響', name: '6.5吋音響升級', price: 5000, warrantyMonths: 12, desc: '含專用線組；12 個月保固' },
+  { id: 'qa-tweeter', cat: '音響', name: '高音喇叭', price: 3000, warrantyMonths: 12, desc: '含專用線組；12 個月保固' },
+  { id: 'qa-star-led-head', cat: '燈組', name: 'LED 頭燈組', price: 4000, warrantyMonths: 6, desc: '6 個月保固' },
+  { id: 'qa-star-led-tail', cat: '燈組', name: 'LED 尾燈組', price: 2500, warrantyMonths: 6, desc: '6 個月保固' },
+  { id: 'qa-star-led-fog', cat: '燈組', name: 'LED 霧燈', price: 1800, warrantyMonths: 6, choiceLabel: '燈光顏色', choices: ['黃金光', '白光'], desc: '黃金光／白光擇一；6 個月保固' },
+  { id: 'qa-puddle-lamp', cat: '燈組', name: 'LED 側邊照地燈', price: 3500, warrantyMonths: 6, desc: '含防水快速開關；6 個月保固' },
+  { id: 'qa-interior-led-single', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（單廂）', price: 500, warrantyMonths: 6, desc: '6 個月保固' },
+  { id: 'qa-interior-led-double', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（雙廂）', price: 600, warrantyMonths: 6, desc: '6 個月保固' },
   { id: 'qa-phone-basic', cat: '配件', name: '一般手機架組', price: 1300 },
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
@@ -296,8 +296,12 @@ const SUPPLIER_SHEET_ADDONS = [
 
 const LATEST_CATALOG_ADDONS = [
   {
-    id: 'qa-travel-crossbar', cat: '金屬製研', name: 'Travel 鋁合金行李橫桿', price: 12000,
-    desc: '法規認證合法變更；雙廂專用',
+    id: 'qa-travel-crossbar-single', cat: '金屬製研', name: 'Travel 鋁合金行李橫桿（單支）', price: 6500,
+    desc: '單支計價；適用車型與固定方式依實車確認',
+  },
+  {
+    id: 'qa-travel-crossbar', cat: '金屬製研', name: 'Travel 鋁合金行李橫桿（兩支一組）', price: 12000,
+    desc: '兩支一組；法規認證合法變更；雙廂專用',
   },
   {
     id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000,
@@ -354,6 +358,7 @@ const REQUIRED_QUOTE_ADDONS = [
 // v16 以前的內建值：只有仍等於舊預設的項目才自動套用最新版清單，
 // 使用者自行改過名稱或售價的項目一律保留。
 const V16_PREVIOUS_ADDON_DEFAULTS = {
+  'qa-travel-crossbar': [12000, 'Travel 鋁合金行李橫桿'],
   'qa-android-surround': [35000, '安卓＋四錄＆環景＋專用底座'],
   'qa-tpms-6': [5000, '6輪胎壓偵測器'],
   'qa-cruise': [8000, '定速巡航'],
@@ -378,6 +383,13 @@ const V16_PREVIOUS_ADDON_DEFAULTS = {
   'qa-skid': [12000, '4WD專用鋁合金下護板'],
   'qa-rear': [7000, '車尾防撞鋼樑（2WD專用）'],
   'qa-roof': [15000, '車頂行李架/籃（單廂/大單廂專用）'],
+};
+
+const V26_PREVIOUS_ADDON_DESCRIPTIONS = {
+  'qa-star-led-fog': '黃金／白光；6 個月保固',
+  'qa-puddle-lamp': '有裝防水快速開關；6 個月保固',
+  'qa-tail': '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固',
+  'qa-omega': 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤',
 };
 
 export const DEFAULT_QUOTE_PRESETS = {
@@ -405,26 +417,26 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件' },
     { id: 'qa-turn', cat: '外觀空力', name: '側邊霧白方向燈殼', price: 1200, desc: 'KDM 灣岸空力套件' },
     // 燈組
-    { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000,
+    { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000, warrantyMonths: 6,
       desc: '卡旺全車LED燈組（日行燈/大燈/遠燈/前後方向燈/後霧燈+倒車燈）、LED霧燈、LED室內燈+牌照燈（CANBUS解碼王）、極光側邊照地燈',
       includes: ['qa-star-led-head', 'qa-star-led-tail', 'qa-star-led-fog', 'qa-puddle-lamp'] },
-    { id: 'qa-gtr', cat: '燈組', name: 'GTR-plus 魚眼大燈（黑化）', price: 28900,
+    { id: 'qa-gtr', cat: '燈組', name: 'GTR-plus 魚眼大燈（黑化）', price: 28900, warrantyMonths: 12,
       desc: '精準照明、三階切線、完美無損。雙切驗車模式、日行燈換白光；安裝不破壞頭燈結構，12 個月保固' },
-    { id: 'qa-tail', cat: '燈組', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800,
-      desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
-    { id: 'qa-fog', cat: '燈組', name: 'X7 魚眼霧燈（黃金眼/6000K白光）', price: 5800,
+    { id: 'qa-tail', cat: '燈組', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800, warrantyMonths: 6,
+      desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型；前方向燈需一併更換 LED。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
+    { id: 'qa-fog', cat: '燈組', name: 'X7 魚眼霧燈（黃金眼/6000K白光）', price: 5800, warrantyMonths: 6, choiceLabel: '燈光顏色', choices: ['黃金眼', '6000K 白光'],
       desc: 'SD 次世代魚眼霧燈、光型集中且照射度廣。黃金眼色系／6000K 白光色系；6 個月保固' },
-    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
+    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, warrantyMonths: 6, desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
     { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '全視線後照鏡', price: 5000, desc: '塑料黑、整片全視線鏡片' },
     // 音響
-    { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500,
+    { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500, warrantyMonths: 12,
       desc: '6.5吋碳纖維中低音喇叭＋音質處理器＋專用線組、韓國原裝卡旺高音喇叭＋高音電容＋專用線組，組合含 4 顆喇叭；1 年保固',
       includes: ['qa-audio-65', 'qa-tweeter'] },
-    { id: 'qa-speaker', cat: '音響', name: 'GUDE 警示喇叭', price: 2800, desc: '6 個月保固' },
+    { id: 'qa-speaker', cat: '音響', name: 'GUDE 警示喇叭', price: 2800, warrantyMonths: 6, desc: '6 個月保固' },
     // 配件
     { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一', includes: ['qa-phone-basic', 'qa-phone-a-pillar'] },
     // 底盤強化
-    { id: 'qa-ts', cat: '底盤強化', name: 'TS 氮氣液壓避震器組', price: 29800,
+    { id: 'qa-ts', cat: '底盤強化', name: 'TS 氮氣液壓避震器組', price: 29800, warrantyMonths: 24,
       desc: '含四輪定位乙次；韓國原裝 11mm 專用強化版、16 段舒適阻尼調整；2 年保固' },
     { id: 'qa-spring', cat: '底盤強化', name: '彈簧鋼板', price: 5500, desc: '增加支撐力、防止車尾下垂' },
     { id: 'qa-block', cat: '底盤強化', name: '抗震優力膠', price: 7800, desc: '吸收鋼板間的撞擊震動、防止左右側傾與下垂' },
@@ -447,7 +459,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-rob2', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
     { id: 'qa-rob3', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
     // 鋁圈
-    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
+    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: '全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
   subsidies: [
     { id: 'qs-1', name: '汰舊換新補助', amount: 50000, funding: 'company' },
@@ -652,6 +664,9 @@ export function resolveQuotePresets(row) {
     }
     const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];
     const latestDefault = DEFAULT_QUOTE_PRESETS.addons.find((addon) => addon.id === migrated.id);
+    if (latestDefault && migrated.desc === V26_PREVIOUS_ADDON_DESCRIPTIONS[migrated.id]) {
+      migrated = { ...migrated, desc: latestDefault.desc };
+    }
     if (previousDefault && latestDefault
       && Number(migrated.price) === previousDefault[0]
       && migrated.name === previousDefault[1]) {
@@ -660,6 +675,15 @@ export function resolveQuotePresets(row) {
     // 套餐內含關係是防止重複計價的系統規則，不屬於可客製名稱／售價。
     if (Array.isArray(latestDefault?.includes)) {
       migrated = { ...migrated, includes: [...latestDefault.includes] };
+    }
+    // 保固與可選規格為系統結構資料；同名同價時可安全補上，不覆蓋使用者自訂名稱與價格。
+    if (latestDefault && migrated.name === latestDefault.name && Number(migrated.price) === Number(latestDefault.price)) {
+      if (latestDefault.warrantyMonths != null) migrated = { ...migrated, warrantyMonths: latestDefault.warrantyMonths };
+      if (Array.isArray(latestDefault.choices)) migrated = {
+        ...migrated,
+        choiceLabel: latestDefault.choiceLabel || '規格',
+        choices: [...latestDefault.choices],
+      };
     }
     return normalizeCurrentAddon(migrated);
   });

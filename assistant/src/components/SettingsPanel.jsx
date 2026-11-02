@@ -643,6 +643,26 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
                         <button type="button" onClick={() => setCustomCategoryId(null)} className="text-xs text-ink-3 shrink-0">取消</button>
                       </div>
                     )}
+                    <label className="block text-[10px] text-ink-3">備註／產品說明
+                      <textarea value={item.desc || ''} onChange={(event) => update(item.id, { desc: event.target.value })}
+                        rows={2} placeholder="施工限制、額外配件或注意事項"
+                        className="mt-1 w-full resize-y text-xs" />
+                    </label>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <label className="text-[10px] text-ink-3">保固月數
+                        <input type="number" min="0" inputMode="numeric" value={item.warrantyMonths ?? ''}
+                          onChange={(event) => update(item.id, { warrantyMonths: event.target.value === '' ? null : Math.max(0, Number(event.target.value) || 0) })}
+                          placeholder="未確認留空" className="mt-1 min-h-11 w-full text-xs" />
+                      </label>
+                      <label className="text-[10px] text-ink-3">可選規格（用、分開）
+                        <input value={Array.isArray(item.choices) ? item.choices.join('、') : ''}
+                          onChange={(event) => update(item.id, {
+                            choices: event.target.value.split(/[、,，/]/u).map((value) => value.trim()).filter(Boolean),
+                            choiceLabel: item.choiceLabel || '規格',
+                          })}
+                          placeholder="例如：黃金光、白光" className="mt-1 min-h-11 w-full text-xs" />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>

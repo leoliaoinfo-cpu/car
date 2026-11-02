@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord, calculateQuoteTotals,
-  collectCustomItemHistory, normalizeCustomItemHistory, normalizeQuoteItems,
+  calculateProgressiveCommissionBonus,
+  collectCustomItemHistory, normalizeCommissionBonusRule, normalizeCustomItemHistory, normalizeQuoteItems,
   applicableSupplierCosts, includedQuoteItems, mergeQuoteDiscounts, normalizeCostCatalog, normalizePricingRecord, pricingSafetyStatus, resolveAddonCost,
   replaceBackendCustomQuoteItems, synchronizeQuoteDiscounts, updatePricingCosts,
 } from './pricing.js';
@@ -607,8 +608,8 @@ test('classifies all three quote safety states', () => {
 
 test('seeds the latest supplier sheet costs from sale price minus bonus', () => {
   const catalog = normalizeCostCatalog(null);
-  assert.equal(catalog.models['qm-1'].commission, 35000);
-  assert.equal(catalog.models['qm-5'].commission, 50000);
+  assert.equal(catalog.models['qm-1'].commission, 32000);
+  assert.equal(catalog.models['qm-5'].commission, 48000);
   assert.equal(catalog.models['qm-7'].commission, 45000);
   assert.equal(catalog.addons['qa-pkg1'].cost, 11000);
   assert.equal(catalog.addons['qa-h-rack-single'].cost, 4000);
@@ -617,7 +618,8 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-tailgate-step'].cost, 1000);
   assert.equal(catalog.addons['qa-tailgate-remote'].cost, 2000);
   assert.equal(catalog.addons['qa-double-cab-package'].cost, 203500);
-  assert.equal(catalog.addons['qa-travel-crossbar'], undefined);
+  assert.equal(catalog.addons['qa-travel-crossbar-single'].cost, 4000);
+  assert.equal(catalog.addons['qa-travel-crossbar'].cost, 7000);
   assert.equal(catalog.addons['qa-android-console-box'].cost, 500);
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
@@ -650,7 +652,38 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-truck-air-deflector'].cost, 3000);
 });
 
-test('adds the double-cab package and keeps its unverified crossbar cost pending', () => {
+test('migrates unchanged October vehicle commissions to the November announcement and preserves manual overrides', () => {
+  const catalog = normalizeCostCatalog({
+    version: 10,
+    models: {
+      'qm-1': { commission: 35000 },
+      'qm-2': { commission: 39000 },
+      'qm-5': { commission: 50000 },
+    },
+    addons: {},
+  });
+  assert.equal(catalog.models['qm-1'].commission, 32000);
+  assert.equal(catalog.models['qm-2'].commission, 39000);
+  assert.equal(catalog.models['qm-5'].commission, 48000);
+  assert.equal(catalog.models['qm-6'].commission, 50000);
+});
+
+test('calculates the November progressive commission only after three vehicle sales', () => {
+  const rule = { enabled: true, effectiveFrom: '2026-11-01', minUnits: 3, bonusPerUnit: 3000 };
+  assert.equal(calculateProgressiveCommissionBonus(2, rule, '2026-11'), 0);
+  assert.equal(calculateProgressiveCommissionBonus(3, rule, '2026-11'), 9000);
+  assert.equal(calculateProgressiveCommissionBonus(4, rule, '2026-11'), 12000);
+  assert.equal(calculateProgressiveCommissionBonus(3, rule, '2026-10'), 0);
+  assert.equal(calculateProgressiveCommissionBonus(3, { ...rule, enabled: false }, '2026-11'), 0);
+});
+
+test('backfills the progressive bonus for legacy catalogs while allowing an explicit zero', () => {
+  assert.equal(normalizeCommissionBonusRule({}).bonusPerUnit, 3000);
+  assert.equal(normalizeCommissionBonusRule({ bonusPerUnit: '' }).bonusPerUnit, 3000);
+  assert.equal(normalizeCommissionBonusRule({ bonusPerUnit: 0 }).bonusPerUnit, 0);
+});
+
+test('adds the double-cab package and the confirmed one-piece and two-piece crossbar costs', () => {
   const resolved = resolveQuotePresets({
     ...DEFAULT_QUOTE_PRESETS,
     _catalog: 'kavan-2026-v17',
@@ -670,7 +703,8 @@ test('adds the double-cab package and keeps its unverified crossbar cost pending
 
   const costs = normalizeCostCatalog({ key: 'costCatalog', version: 7, models: {}, addons: {} });
   assert.equal(costs.addons['qa-double-cab-package'].cost, 203500);
-  assert.equal(costs.addons['qa-travel-crossbar'], undefined);
+  assert.equal(costs.addons['qa-travel-crossbar-single'].cost, 4000);
+  assert.equal(costs.addons['qa-travel-crossbar'].cost, 7000);
 });
 
 test('upgrades the safety package punctuation and USB capitalization', () => {
@@ -828,6 +862,27 @@ test('matches every known latest-sheet cost to sale price minus bonus', () => {
     assert.equal(DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === id)?.price, sale, `${id} sale`);
     assert.equal(costs[id]?.cost, sale - bonus, `${id} cost`);
   }
+  assert.equal(costs['qa-turn'], undefined);
+  assert.equal(costs['qa-interior-led-single'], undefined);
+  assert.equal(costs['qa-interior-led-double'], undefined);
+});
+
+test('upgrades warranty, lamp choices and supplier notes without replacing customized prices', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v25', models: [], subsidies: [],
+    addonCategories: ['燈組', '鋁圈'],
+    addons: [
+      { id: 'qa-star-led-fog', cat: '燈組', name: 'LED 霧燈', price: 1800, desc: '黃金／白光；6 個月保固' },
+      { id: 'qa-tail', cat: '燈組', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800,
+        desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
+      { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
+    ],
+  });
+  const ledFog = resolved.addons.find((item) => item.id === 'qa-star-led-fog');
+  assert.equal(ledFog.warrantyMonths, 6);
+  assert.deepEqual(ledFog.choices, ['黃金光', '白光']);
+  assert.match(resolved.addons.find((item) => item.id === 'qa-tail').desc, /前方向燈需一併更換 LED/);
+  assert.match(resolved.addons.find((item) => item.id === 'qa-omega').desc, /全銀輪圈／內黑配色/);
 });
 
 test('adds tailgate accessories and costs while preserving a manually edited tailgate cost', () => {

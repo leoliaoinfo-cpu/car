@@ -111,6 +111,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
   const [confirmDeleteQuoteId, setConfirmDeleteQuoteId] = useState(null);
   const [editingLog, setEditingLog] = useState(null); // { id, date, text, amount }
   const [confirmDeleteLogId, setConfirmDeleteLogId] = useState(null);
+  const [deliveryDealId, setDeliveryDealId] = useState('');
 
   const clientDeals = deals
     .filter((d) => d.clientId === client.id)
@@ -118,6 +119,13 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
   const clientCases = cases
     .filter((row) => row.clientId === client.id)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  const purchaseDeals = clientDeals.filter((deal) => {
+    const linkedCase = clientCases.find((row) => row.id === deal.caseId);
+    const pricing = pricingRecords.find((row) => row.id === `deal:${deal.id}`);
+    const hasVehicleLine = (pricing?.lines || []).some((line) => line.kind === 'vehicle');
+    return linkedCase ? linkedCase.type !== 'modification' : hasVehicleLine;
+  });
+  const pendingDeliveryDeals = purchaseDeals.filter((deal) => !deal.commissionRecognizedAt);
 
   // 已記錄下訂 / 交車但還沒歸檔業績 → 提示（避免賣了車卻忘了計入業績）
   const hasSaleEvent = (client.log || []).some((e) => e.type === 'order' || e.type === 'delivery');
@@ -205,16 +213,27 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     const annual = annualReminders;
     const isDelivery = type === 'delivery';
     const isSaleEvent = type === 'order' || isDelivery;
-    const activeDeal = clientDeals[0] || null;
+    const activeDeal = isDelivery
+      ? purchaseDeals.find((deal) => deal.id === deliveryDealId) || (pendingDeliveryDeals.length === 1 ? pendingDeliveryDeals[0] : null)
+      : clientDeals[0] || null;
+    if (isDelivery && purchaseDeals.length > 0 && pendingDeliveryDeals.length === 0) {
+      window.alert('這位客戶的購車案件都已完成交車薪資認列，不會重複計算。');
+      return;
+    }
+    if (isDelivery && pendingDeliveryDeals.length > 1 && !activeDeal) {
+      window.alert('這位客戶有多筆待交車案件，請先選擇本次要認列的購車案件。');
+      return;
+    }
     if (isDelivery) {
       const openTodos = (client.todos || []).filter((todo) => !todo.done).length;
       const activeWorkflow = activeDeal ? normalizeDeliveryWorkflow(activeDeal) : [];
       const unfinishedSop = activeWorkflow.length
         ? activeWorkflow.filter((step) => step.id !== 'delivery' && !['done', 'na'].includes(step.status)).length
         : 1;
-      if ((openTodos > 0 || unfinishedSop > 0) && !window.confirm(
-        `交車前仍有 ${openTodos} 項客戶待辦、${unfinishedSop} 項交車 SOP 尚未完成。確定仍要記錄交車嗎？`,
-      )) return;
+      const unfinishedWarning = openTodos > 0 || unfinishedSop > 0
+        ? `交車前仍有 ${openTodos} 項客戶待辦、${unfinishedSop} 項交車 SOP 尚未完成。\n\n`
+        : '';
+      if (!window.confirm(`${unfinishedWarning}確定已實際交車，並認列到 ${dayjs(t).format('YYYY 年 M 月')}薪資嗎？`)) return;
     }
 
     // 先關閉表單再儲存：避免連點重複記錄、避免儲存期間的輸入被清掉
@@ -265,6 +284,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
         date: t, amount: amount > 0 ? amount : Number(latestQuote?.total) || 0,
         note: latestQuote?.model || eventNote.trim() || def.label,
         fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '', caseId: linkedCase?.id || null,
+        ...(isDelivery ? { commissionRecognizedAt: t } : {}),
       };
       let createdWorkflow = generateDeliveryWorkflow({ deal: dealDraft, pricing: { lines: latestQuote?.items || [] } });
       createdWorkflow = updateWorkflowStepStatus(createdWorkflow, 'contract', 'done')
@@ -289,6 +309,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     } else if (isDelivery && deal) {
       deal = await saveDeal({
         ...deal,
+        commissionRecognizedAt: deal.commissionRecognizedAt || t,
         deliveryWorkflow: updateWorkflowStepStatus((normalizeDeliveryWorkflow(deal).length
           ? normalizeDeliveryWorkflow(deal)
           : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) })), 'delivery', 'done')
@@ -933,6 +954,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
                     setEventNote('');
                     setEventAmount('');
                     if (key === 'delivery' && !active) {
+                      setDeliveryDealId(pendingDeliveryDeals.length === 1 ? pendingDeliveryDeals[0].id : '');
                       const in11mo = dayjs().add(11, 'month').format('YYYY-MM-DD');
                       // 舊換新預測：車齡近 5 年前半年進場談換車
                       const in54mo = dayjs().add(54, 'month').format('YYYY-MM-DD');
@@ -977,8 +999,21 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
               )}
               {eventType === 'delivery' && (
                 <div className="space-y-2">
+                  {pendingDeliveryDeals.length > 0 && (
+                    <label className="block text-xs font-medium text-ink-2">
+                      本次交車案件
+                      <select value={deliveryDealId} onChange={(event) => setDeliveryDealId(event.target.value)}
+                        className="mt-1 min-h-11 w-full text-sm">
+                        <option value="">請選擇購車案件…</option>
+                        {pendingDeliveryDeals.map((deal) => {
+                          const linkedCase = clientCases.find((row) => row.id === deal.caseId);
+                          return <option key={deal.id} value={deal.id}>{linkedCase?.caseNumber ? `#${linkedCase.caseNumber}・` : ''}{deal.model || deal.note || '未命名車輛'}</option>;
+                        })}
+                      </select>
+                    </label>
+                  )}
                   <p className="text-xs text-ink-3">
-                    🔔 記錄交車後會自動建立 {DELIVERY_FOLLOWUP_DAYS.join(' / ')} 天售後回訪提醒
+                    🔔 記錄交車後會認列本月車輛佣金，並自動建立 {DELIVERY_FOLLOWUP_DAYS.join(' / ')} 天售後回訪提醒
                   </p>
                   <p className="text-xs font-medium text-ink-2">年度商機提醒（日期可調）：</p>
                   {[
@@ -1009,7 +1044,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
                 </div>
               )}
               <button onClick={handleAddEvent} className="btn-primary text-xs w-full">
-                {EVENT_TYPES[eventType].icon} 記錄「{EVENT_TYPES[eventType].label}」
+                {EVENT_TYPES[eventType].icon} {eventType === 'delivery' ? '確認交車並認列本月薪資' : `記錄「${EVENT_TYPES[eventType].label}」`}
               </button>
             </div>
           )}

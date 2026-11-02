@@ -82,6 +82,19 @@ function catColor(cat) {
   return CAT_COLORS_Q[h % CAT_COLORS_Q.length];
 }
 
+function warrantyText(addon) {
+  const months = Number(addon?.warrantyMonths);
+  if (!Number.isFinite(months) || months <= 0) return '';
+  return `保固 ${months % 12 === 0 ? `${months / 12} 年` : `${months} 個月`}`;
+}
+
+function withWarrantyDescription(addon, description = '') {
+  const base = String(description || addon?.desc || '').trim();
+  const warranty = warrantyText(addon);
+  if (!warranty || /保固/u.test(base)) return base;
+  return [base, warranty].filter(Boolean).join('；');
+}
+
 const PACKAGE_ADDON_IDS = new Set([
   'qa-double-cab-package', 'qa-pkg1', 'qa-pkg2', 'qa-pkg3',
   'qa-aero', 'qa-led', 'qa-tlsound', 'qa-phone',
@@ -182,6 +195,14 @@ function AddonCategoryCard({
                         {addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                       </span>
                     </div>
+                    {addon.warrantyMonths != null && (
+                      <span className="mt-1.5 self-start rounded-full border border-ok/30 bg-ok/10 px-2 py-0.5 text-[10px] font-semibold text-ok">
+                        保固 {Number(addon.warrantyMonths) % 12 === 0 ? `${Number(addon.warrantyMonths) / 12} 年` : `${addon.warrantyMonths} 個月`}
+                      </span>
+                    )}
+                    {Array.isArray(addon.choices) && addon.choices.length > 0 && (
+                      <p className="mt-1 text-[10px] font-semibold text-accent">需選{addon.choiceLabel || '規格'}：{addon.choices.join(' / ')}</p>
+                    )}
                     {descriptionLines.length > 0 && (
                       packageAddon ? (
                         <>
@@ -241,7 +262,7 @@ function AddonCategoryCard({
                   <button key={addon.id} type="button" disabled={!!lockedBy}
                     title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
-                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`flex min-h-11 items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={picked
                       ? { background: color, borderColor: packageAddon ? '#dc2626' : color, color: '#fff' }
                       : { borderColor: packageAddon ? '#dc2626' : color + '55' }}>
@@ -253,6 +274,16 @@ function AddonCategoryCard({
                     <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
                       {lockedBy ? '套裝已含' : addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
                     </span>
+                    {addon.warrantyMonths != null && (
+                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${picked ? 'bg-white/20 text-white' : 'bg-ok/10 text-ok'}`}>
+                        {warrantyText(addon)}
+                      </span>
+                    )}
+                    {Array.isArray(addon.choices) && addon.choices.length > 0 && (
+                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${picked ? 'bg-white/20 text-white' : 'bg-accent/10 text-accent'}`}>
+                        需選{addon.choiceLabel || '規格'}
+                      </span>
+                    )}
                     {heightImpact && <span className={`text-[9px] font-bold ${picked ? '' : 'text-warn'}`}>⚠️ {heightImpact.shortLabel}</span>}
                   </button>
                 );
@@ -547,6 +578,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         catalogId,
         description: desc,
         note: '',
+        optionLabel: addon.choiceLabel || '',
+        optionValue: '',
         vendorInquiryNote: '',
         discounts: [],
       };
@@ -644,8 +677,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         price: it.pending ? 0 : (Number(it.price) || 0),
         pending: !!it.pending,
         gift: !!it.gift,
-        description: String(it.description || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.desc || '').trim(),
+        description: withWarrantyDescription(
+          quotePresets.addons.find((addon) => addon.id === it.catalogId),
+          it.description,
+        ),
         note: String(it.note || '').trim(),
+        optionLabel: String(it.optionLabel || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.choiceLabel || '').trim(),
+        optionValue: String(it.optionValue || '').trim(),
         requirementStatus: it.requirementStatus || null,
         vendorInquiryNote: String(it.vendorInquiryNote || '').trim(),
         bundlePricingMode: it.bundlePricingMode || null,
@@ -682,6 +720,15 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   }
 
   function confirmAddonReview() {
+    const missingChoice = selectedItems.find((item) => {
+      const addon = quotePresets.addons.find((candidate) => candidate.id === item.catalogId);
+      return Array.isArray(addon?.choices) && addon.choices.length > 0 && !String(item.optionValue || '').trim();
+    });
+    if (missingChoice) {
+      const addon = quotePresets.addons.find((candidate) => candidate.id === missingChoice.catalogId);
+      window.alert(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
+      return false;
+    }
     const unreviewed = addonGroups
       .filter(([cat, list]) => !reviewedNoOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
     return unreviewed.length === 0 || window.confirm(
@@ -1116,6 +1163,21 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       ⚠️ {heightImpact.detail}
                     </p>
                   )}
+                  {Array.isArray(catalogAddon?.choices) && catalogAddon.choices.length > 0 && (
+                    <div className="rounded-lg border border-accent/30 bg-accent/5 p-2">
+                      <p className="mb-1.5 text-[10px] font-bold text-ink-2">{catalogAddon.choiceLabel || '規格'} <span className="text-danger">必選</span></p>
+                      <div className="flex flex-wrap gap-2">
+                        {catalogAddon.choices.map((choice) => (
+                          <button key={choice} type="button"
+                            onClick={() => setItem(it.id, { optionLabel: catalogAddon.choiceLabel || '規格', optionValue: choice })}
+                            className={`min-h-11 rounded-lg border px-3 text-xs font-semibold ${it.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
+                            {it.optionValue === choice ? '✓ ' : ''}{choice}
+                          </button>
+                        ))}
+                      </div>
+                      {!it.optionValue && <p className="mt-1.5 text-[10px] font-semibold text-warn">尚未選擇，儲存或輸出前必須確認。</p>}
+                    </div>
+                  )}
                   {needsColorNote && (
                     <div className="rounded-lg border border-accent/25 bg-accent/5 p-2">
                       <label className="block text-[10px] font-medium text-ink-2 mb-1">🎨 車色備註</label>
@@ -1350,9 +1412,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       const itemTotal = totals.itemTotals[item.id] || { original: 0, discount: 0, net: 0 };
                       const hasDiscount = itemTotal.discount > 0;
                       const itemName = splitQuoteItemName(item.name);
-                      const itemDescription = item.description
-                        || quotePresets.addons.find((addon) => addon.id === item.catalogId)?.desc
-                        || '';
+                      const catalogItem = quotePresets.addons.find((addon) => addon.id === item.catalogId);
+                      const itemDescription = withWarrantyDescription(catalogItem, item.description);
                       return (
                         <div key={item.id} style={{ padding: '10px 0', borderBottom: '1px solid #f0f3f5' }}>
                           <div style={{
@@ -1372,6 +1433,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               {itemDescription && (
                                 <span style={{ display: 'block', color: '#8b98a1', fontSize: 9.2, lineHeight: 1.55, marginTop: 3 }}>
                                   {itemDescription}
+                                </span>
+                              )}
+                              {item.optionValue && (
+                                <span style={{ display: 'block', color: '#9a6d3e', fontSize: 10, fontWeight: 700, marginTop: 3 }}>
+                                  {item.optionLabel || '規格'}：{item.optionValue}
                                 </span>
                               )}
                               {item.note && (

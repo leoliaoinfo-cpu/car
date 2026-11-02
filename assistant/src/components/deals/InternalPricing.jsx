@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
   applicableSupplierCosts, appendCustomItemHistory, applyPricingDiscountsToQuote, buildPricingRecord,
-  normalizeCostCatalog, normalizeCustomItemHistory, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
+  normalizeCommissionBonusRule, normalizeCostCatalog, normalizeCustomItemHistory, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
 
@@ -32,6 +32,13 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
       else delete next[section][targetId];
       return next;
     });
+  }
+
+  function setCommissionBonusRule(patch) {
+    setDraft((current) => ({
+      ...current,
+      commissionBonusRule: normalizeCommissionBonusRule({ ...current.commissionBonusRule, ...patch }),
+    }));
   }
 
   function changeSupplierCost(addonId, supplierCostId, patch) {
@@ -99,7 +106,13 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         cost: Math.max(0, Math.round(Number(row.cost))),
       })),
     }]));
-    await onSave({ ...draft, addons, key: 'costCatalog', updatedAt: new Date().toISOString() });
+    await onSave({
+      ...draft,
+      addons,
+      commissionBonusRule: normalizeCommissionBonusRule(draft.commissionBonusRule),
+      key: 'costCatalog',
+      updatedAt: new Date().toISOString(),
+    });
     setMessage('✅ 傭金與成本設定已儲存；之後建立或重新編輯的報價會凍結新的試算快照。');
   }
 
@@ -116,6 +129,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
   const missingModelCount = missingModels.length;
   const missingAddonCount = missingAddons.length;
   const missingTotal = missingModelCount + missingAddonCount;
+  const bonusRule = normalizeCommissionBonusRule(draft.commissionBonusRule);
   const models = allModels.filter((row) => (!missingOnly || isModelMissing(row))
     && (!needle || row.name.toLowerCase().includes(needle)))
     .sort((a, b) => Number(!isModelMissing(a)) - Number(!isModelMissing(b)));
@@ -164,6 +178,11 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
           <div className="min-w-0">
             <p className="text-xs text-ink truncate">{item.name}</p>
             <p className="text-[10px] text-ink-3">對外售價 NT$ {formatMoney(item.price)}</p>
+            {!isVehicle && (
+              <p className={`mt-0.5 text-[10px] font-semibold md:hidden ${profit == null ? 'text-warn' : profit < 0 ? 'text-danger' : 'text-ok'}`}>
+                獎金／利潤 {profit == null ? '待設定成本' : `NT$ ${formatMoney(profit)}`}
+              </p>
+            )}
             {sharesTailgateCost && <p className="text-[10px] text-accent">與同尺寸單折尾門共用成本</p>}
           </div>
           <input type="number" min="0" value={cost ?? ''}
@@ -237,6 +256,43 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         </div>
       </div>
 
+      <section className="card overflow-hidden">
+        <div className="border-b border-bdr bg-accent/5 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-ink">11 月車輛累進獎金</h3>
+              <p className="mt-0.5 text-[11px] text-ink-3">只計入當月已確認實際交車的購車案件，不會依成交日或預計交車日提前計算，也不會顯示在客戶報價。</p>
+            </div>
+            <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-ink-2">
+              <input type="checkbox" checked={bonusRule.enabled}
+                onChange={(event) => setCommissionBonusRule({ enabled: event.target.checked })} />
+              啟用
+            </label>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
+          <label className="text-[11px] text-ink-3">生效日期
+            <input type="date" value={bonusRule.effectiveFrom}
+              onChange={(event) => setCommissionBonusRule({ effectiveFrom: event.target.value })}
+              className="mt-1 min-h-11 w-full text-sm" />
+          </label>
+          <label className="text-[11px] text-ink-3">達標台數
+            <input type="number" min="1" inputMode="numeric" value={bonusRule.minUnits}
+              onChange={(event) => setCommissionBonusRule({ minUnits: event.target.value })}
+              className="mt-1 min-h-11 w-full text-sm" />
+          </label>
+          <label className="text-[11px] text-ink-3">達標後每台獎金
+            <input type="number" min="0" inputMode="numeric" value={bonusRule.bonusPerUnit}
+              onChange={(event) => setCommissionBonusRule({ bonusPerUnit: event.target.value })}
+              className="mt-1 min-h-11 w-full text-sm" />
+          </label>
+        </div>
+        <p className="mx-4 mb-4 rounded-lg bg-s2 px-3 py-2 text-xs text-ink-2">
+          目前規則：當月達 {bonusRule.minUnits} 台後，當月每台加 NT$ {formatMoney(bonusRule.bonusPerUnit)}；
+          {bonusRule.minUnits} 台時共 NT$ {formatMoney(bonusRule.minUnits * bonusRule.bonusPerUnit)}。
+        </p>
+      </section>
+
       <section className={`rounded-xl border-2 ${missingTotal ? 'border-warn/35 bg-warn/5' : 'border-ok/25 bg-ok/5'} overflow-hidden`}>
         <button type="button" onClick={() => setMissingPanelOpen((open) => !open)}
           className="w-full p-3 flex items-center justify-between gap-3 text-left min-h-14">
@@ -295,7 +351,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
         <div className="px-3 py-2.5 bg-s2 border-b border-bdr flex items-center justify-between gap-2">
           <div>
             <h3 className="font-semibold text-sm text-ink-2">🚚 專屬改裝配件成本</h3>
-            <p className="text-[10px] text-ink-3 mt-0.5">未填成本的分類與項目優先排列</p>
+            <p className="text-[10px] text-ink-3 mt-0.5">未填成本優先排列；獎金／利潤＝對外售價－成本</p>
           </div>
           <div className="flex gap-1 shrink-0">
             <button type="button" onClick={() => setExpandedCostCategories(new Set(addonGroups.map((group) => group.category)))} className="btn-outline text-[10px] px-2">全部展開</button>

@@ -73,6 +73,13 @@ test('shows gifts clearly in the LINE quote and excludes them from the payable t
   assert.doesNotMatch(message, /手機架優惠/);
 });
 
+test('includes the selected LED fog-light color in the customer message', () => {
+  const message = buildQuoteMessage({
+    items: [{ id: 'fog', kind: 'addon', name: 'LED 霧燈', price: 1800, optionValue: '黃金光' }],
+  });
+  assert.match(message, /LED 霧燈（黃金光）：\+0\.18 萬/);
+});
+
 test('builds the exact K2500 proposal math without adding gift value into the sale total', () => {
   const message = buildQuoteMessage({
     customerName: '柳老闆',

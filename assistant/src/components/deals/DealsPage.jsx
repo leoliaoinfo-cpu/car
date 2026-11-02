@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { FIELD_COLORS, formatMoney, sumDeals } from '../../utils/crm';
-import { normalizePricingRecord, updatePricingCosts } from '../../utils/pricing';
+import { calculateProgressiveCommissionBonus, normalizeCommissionBonusRule, normalizePricingRecord, updatePricingCosts } from '../../utils/pricing';
 import DealModal from './DealModal';
 import DeliveryWorkflowPanel from './DeliveryWorkflowPanel';
 import SupplierPanel from './SupplierPanel';
@@ -85,14 +85,54 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
 
   const shownDeals = view === 'month' ? monthDeals : deals;
   const totals = useMemo(() => sumDeals(shownDeals, sortedFields), [shownDeals, sortedFields]);
-  const profitSummary = useMemo(() => shownDeals.reduce((summary, deal) => {
-    const record = pricingById.get(`deal:${deal.id}`);
-    if (!record?.costComplete) return summary;
-    summary.complete += 1;
-    summary.cost += Number(record.costTotal) || 0;
-    summary.profit += Number(record.profit) || 0;
-    return summary;
-  }, { complete: 0, cost: 0, profit: 0 }), [shownDeals, pricingById]);
+  const commissionBonusRule = useMemo(
+    () => normalizeCommissionBonusRule(costCatalog?.commissionBonusRule),
+    [costCatalog],
+  );
+  const payrollData = useMemo(() => {
+    const caseById = new Map(cases.map((row) => [row.id, row]));
+    const vehicleDeals = deals.filter((deal) => {
+      const linkedCase = caseById.get(deal.caseId);
+      const pricing = pricingById.get(`deal:${deal.id}`);
+      const hasVehicleLine = (pricing?.lines || []).some((line) => line.kind === 'vehicle');
+      return linkedCase ? linkedCase.type !== 'modification' : hasVehicleLine;
+    });
+    const recognized = vehicleDeals.filter((deal) => {
+      if (!deal.commissionRecognizedAt) return false;
+      return view === 'all' || deal.commissionRecognizedAt.slice(0, 7) === monthKey;
+    });
+    const rows = recognized.map((deal) => {
+      const record = pricingById.get(`deal:${deal.id}`);
+      const useCurrentAnnouncement = deal.commissionRecognizedAt >= commissionBonusRule.effectiveFrom;
+      const announcedCommission = useCurrentAnnouncement
+        ? Number(costCatalog?.models?.[record?.modelId]?.commission) : null;
+      const commission = Number.isFinite(announcedCommission)
+        ? announcedCommission : Number(record?.commissionTotal) || 0;
+      const profit = record?.profit == null ? null
+        : Number(record.profit) - (Number(record.commissionTotal) || 0) + commission;
+      return { deal, record, commission, profit };
+    });
+    const monthlyUnits = new Map();
+    for (const row of rows) {
+      const key = row.deal.commissionRecognizedAt.slice(0, 7);
+      monthlyUnits.set(key, (monthlyUnits.get(key) || 0) + 1);
+    }
+    let bonus = 0;
+    for (const [key, count] of monthlyUnits.entries()) {
+      bonus += calculateProgressiveCommissionBonus(count, commissionBonusRule, key);
+    }
+    const completeRows = rows.filter((row) => row.record?.costComplete && row.profit != null);
+    return {
+      rows,
+      pending: vehicleDeals.filter((deal) => !deal.commissionRecognizedAt),
+      units: rows.length,
+      bonus,
+      complete: completeRows.length,
+      cost: completeRows.reduce((sum, row) => sum + (Number(row.record.costTotal) || 0), 0),
+      commission: rows.reduce((sum, row) => sum + row.commission, 0),
+      profit: completeRows.reduce((sum, row) => sum + row.profit, 0),
+    };
+  }, [deals, cases, pricingById, view, monthKey, costCatalog, commissionBonusRule]);
 
   function shiftMonth(amount) {
     setMonthKey(dayjs(`${monthKey}-01`).add(amount, 'month').format('YYYY-MM'));
@@ -241,13 +281,8 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
               {view === 'month' ? `${dayjs(`${monthKey}-01`).format('M 月')}成交` : '全部成交'}
               <strong className="text-ink ml-1">{totals.count} 筆</strong>
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <SummaryMetric label="成交金額" value={totals.amount} tone="accent" />
-              <SummaryMetric label={`配件／其他成本（${profitSummary.complete}/${totals.count}）`}
-                value={profitSummary.complete ? profitSummary.cost : null} />
-              <SummaryMetric label="已確認單車利潤合計"
-                value={profitSummary.complete ? profitSummary.profit : null}
-                tone={profitSummary.profit < 0 ? 'danger' : 'ok'} />
               {sortedFields.slice(0, 1).map((field) => (
                 <div key={field.id}>
                   <p className="text-[11px] text-ink-3">{field.name}</p>
@@ -258,6 +293,64 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
               ))}
             </div>
           </div>
+
+          <div className={`rounded-xl border px-4 py-3 ${payrollData.bonus > 0 ? 'border-ok/30 bg-ok/5' : 'border-bdr bg-s2/40'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-ink">交車月份薪資試算</p>
+                <p className="mt-0.5 text-[11px] text-ink-3">
+                  只計算已確認實際交車的購車案件；成交日、預計交車日與施工進度都不會提前計薪。
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5">
+              <SummaryMetric label="已交車認列" value={payrollData.units} tone="accent" unit=" 台" />
+              <SummaryMetric label="車輛佣金合計" value={payrollData.commission} tone="accent" />
+              <SummaryMetric label={`案件利潤（完整 ${payrollData.complete}/${payrollData.units}）`}
+                value={payrollData.complete ? payrollData.profit : null} tone={payrollData.profit < 0 ? 'danger' : 'ok'} />
+              <SummaryMetric label="累進獎金" value={payrollData.bonus} tone="accent" />
+              <SummaryMetric label="本月案件薪資" value={payrollData.complete ? payrollData.profit + payrollData.bonus : null}
+                tone={(payrollData.profit + payrollData.bonus) < 0 ? 'danger' : 'ok'} />
+            </div>
+            <p className="mt-3 text-[11px] text-ink-3">
+              {commissionBonusRule.effectiveFrom.replaceAll('-', '/')} 起；當月達 {commissionBonusRule.minUnits} 台，當月每台再加 NT$ {formatMoney(commissionBonusRule.bonusPerUnit)}。
+            </p>
+          </div>
+
+          {view === 'month' && (
+            <section className="card overflow-hidden">
+              <div className="border-b border-bdr bg-accent/5 px-4 py-3">
+                <h2 className="text-sm font-bold text-ink">交車薪資認列</h2>
+                <p className="mt-0.5 text-[11px] text-ink-3">只有實際按下「確認交車並認列本月薪資」的購車案件，才會進入這個月的車輛佣金與累進台數。</p>
+              </div>
+              <div className="grid gap-3 p-4 md:grid-cols-2">
+                <div className="rounded-xl border border-bdr bg-s2/40 p-3">
+                  <p className="text-xs font-bold text-ink">{dayjs(`${monthKey}-01`).format('M 月')}已認列 {payrollData.rows.length} 台</p>
+                  <div className="mt-2 space-y-2">
+                    {payrollData.rows.length === 0 && <p className="text-xs text-ink-3">尚未認列交車。</p>}
+                    {payrollData.rows.map(({ deal, commission }) => (
+                      <div key={deal.id} className="flex items-center justify-between gap-2 rounded-lg bg-s1 px-2.5 py-2 text-xs">
+                        <span className="min-w-0 truncate">{deal.clientName || '未命名客戶'}・{deal.model || deal.note || '車輛'}</span>
+                        <span className="shrink-0 font-semibold text-accent">{dayjs(deal.commissionRecognizedAt).format('MM/DD')}・NT$ {formatMoney(commission)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-warn/25 bg-warn/5 p-3">
+                  <p className="text-xs font-bold text-ink">待實際交車認列 {payrollData.pending.length} 台</p>
+                  <div className="mt-2 space-y-2">
+                    {payrollData.pending.length === 0 && <p className="text-xs text-ink-3">目前沒有待認列的購車案件。</p>}
+                    {payrollData.pending.map((deal) => (
+                      <div key={deal.id} className="flex items-center gap-2 rounded-lg bg-s1 px-2.5 py-2 text-xs">
+                        <span className="min-w-0 flex-1 truncate">{deal.clientName || '未命名客戶'}・{deal.model || deal.note || '車輛'}</span>
+                        {deal.clientId && <button type="button" onClick={() => onOpenClient(deal.clientId)} className="btn-outline min-h-9 shrink-0 px-2 text-[11px]">前往交車</button>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {view === 'month' ? (
             <div className="card overflow-hidden">
@@ -319,13 +412,13 @@ function EmptyDeals() {
   return <p className="text-center text-ink-3 text-sm py-10">尚無成交資料；建立成交案後會自動帶入當下的成本快照。</p>;
 }
 
-function SummaryMetric({ label, value, tone = 'ink' }) {
+function SummaryMetric({ label, value, tone = 'ink', unit = '' }) {
   const toneClass = tone === 'accent' ? 'text-accent' : tone === 'danger' ? 'text-danger' : tone === 'ok' ? 'text-ok' : 'text-ink';
   return (
     <div>
       <p className="text-[11px] text-ink-3">{label}</p>
       <p className={`text-lg font-bold ${value == null ? 'text-ink-3' : toneClass}`}>
-        {value == null ? '待補成本' : `NT$ ${formatMoney(value)}`}
+        {value == null ? '待補成本' : unit ? `${formatMoney(value)}${unit}` : `NT$ ${formatMoney(value)}`}
       </p>
     </div>
   );
