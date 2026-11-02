@@ -12,6 +12,8 @@ export const DEFAULT_HEIGHT_CONFIG = {
   key: 'heightConfig',
   bedHeight2wdCm: 77,
   bedHeight4wdCm: 85.5,
+  vehicleHeight2wdCm: 199.5,
+  vehicleHeight4wdCm: 210.5,
   shockLiftCm: 5,
   leafLiftCm: 2,
   generalControlCm: 270,
@@ -32,6 +34,8 @@ export function normalizeHeightConfig(row = {}) {
     key: 'heightConfig',
     bedHeight2wdCm: numberOr(row.bedHeight2wdCm, DEFAULT_HEIGHT_CONFIG.bedHeight2wdCm),
     bedHeight4wdCm: numberOr(row.bedHeight4wdCm, DEFAULT_HEIGHT_CONFIG.bedHeight4wdCm),
+    vehicleHeight2wdCm: numberOr(row.vehicleHeight2wdCm, DEFAULT_HEIGHT_CONFIG.vehicleHeight2wdCm),
+    vehicleHeight4wdCm: numberOr(row.vehicleHeight4wdCm, DEFAULT_HEIGHT_CONFIG.vehicleHeight4wdCm),
     shockLiftCm: numberOr(row.shockLiftCm, DEFAULT_HEIGHT_CONFIG.shockLiftCm),
     leafLiftCm: numberOr(row.leafLiftCm, DEFAULT_HEIGHT_CONFIG.leafLiftCm),
     generalControlCm: numberOr(row.generalControlCm, DEFAULT_HEIGHT_CONFIG.generalControlCm),
@@ -40,6 +44,54 @@ export function normalizeHeightConfig(row = {}) {
     canvasRaisedCm: optionalNumber(row.canvasRaisedCm),
     canvasStandardCm: optionalNumber(row.canvasStandardCm),
     canvasLoweredCm: optionalNumber(row.canvasLoweredCm),
+  };
+}
+
+/**
+ * 現場快速高度試算。只提供規劃值：一般模式以控制總高計算；限高模式會先扣安全預留。
+ * 回傳的 availableCm 是斗上理論上限，recommendedCm 再扣接近限制警示範圍。
+ */
+export function calculateHeightCapacity(input = {}, rawConfig = DEFAULT_HEIGHT_CONFIG) {
+  const config = normalizeHeightConfig(rawConfig);
+  const drive = ['2WD', '4WD'].includes(input.drive) ? input.drive : '';
+  const baseBedCm = drive === '4WD' ? config.bedHeight4wdCm : drive === '2WD' ? config.bedHeight2wdCm : null;
+  const suspensionPlan = input.suspensionPlan || '原廠高度';
+  const shockLiftCm = ['改避震', '避震＋葉片'].includes(suspensionPlan) ? config.shockLiftCm : 0;
+  const leafLiftCm = ['加葉片', '避震＋葉片'].includes(suspensionPlan) ? config.leafLiftCm : 0;
+  const adjustedBedCm = baseBedCm == null ? null
+    : Math.round((baseBedCm + shockLiftCm + leafLiftCm) * 10) / 10;
+  const configuredVehicleHeightCm = drive === '4WD' ? config.vehicleHeight4wdCm
+    : drive === '2WD' ? config.vehicleHeight2wdCm : null;
+  const vehicleHeightCm = Number(input.vehicleHeightCm) > 0
+    ? Number(input.vehicleHeightCm) : configuredVehicleHeightCm;
+  const cabLevelBodyHeightCm = vehicleHeightCm != null && adjustedBedCm != null
+    ? Math.max(0, Math.round((vehicleHeightCm - adjustedBedCm) * 10) / 10) : null;
+  const limited = input.mode === 'limited';
+  const clearanceCm = limited && Number(input.clearanceCm) > 0 ? Number(input.clearanceCm) : null;
+  const reserveValue = input.reserveCm === '' || input.reserveCm == null
+    ? config.basementReserveCm : Math.max(0, Number(input.reserveCm) || 0);
+  const reserveCm = limited ? reserveValue : 0;
+  const controlTotalCm = limited
+    ? (clearanceCm == null ? null : Math.round((clearanceCm - reserveCm) * 10) / 10)
+    : config.generalControlCm;
+  const availableCm = controlTotalCm != null && adjustedBedCm != null
+    ? Math.round((controlTotalCm - adjustedBedCm) * 10) / 10 : null;
+  const recommendedCm = availableCm == null ? null
+    : Math.max(0, Math.round((availableCm - config.nearLimitCm) * 10) / 10);
+  const bodyHeightCm = Number(input.bodyHeightCm) > 0 ? Number(input.bodyHeightCm) : null;
+  const estimatedTotalCm = bodyHeightCm != null && adjustedBedCm != null
+    ? Math.round((bodyHeightCm + adjustedBedCm) * 10) / 10 : null;
+  const marginCm = estimatedTotalCm != null && controlTotalCm != null
+    ? Math.round((controlTotalCm - estimatedTotalCm) * 10) / 10 : null;
+  const cabLevelDeltaCm = estimatedTotalCm != null && vehicleHeightCm != null
+    ? Math.round((estimatedTotalCm - vehicleHeightCm) * 10) / 10 : null;
+  const kind = drive === '' || controlTotalCm == null || bodyHeightCm == null
+    ? 'pending' : marginCm < 0 ? 'danger' : marginCm <= config.nearLimitCm ? 'warning' : 'ok';
+  return {
+    drive, suspensionPlan, limited, baseBedCm, shockLiftCm, leafLiftCm, adjustedBedCm,
+    vehicleHeightCm, cabLevelBodyHeightCm, cabLevelDeltaCm,
+    clearanceCm, reserveCm, controlTotalCm, availableCm, recommendedCm,
+    bodyHeightCm, estimatedTotalCm, marginCm, kind, nearLimitCm: config.nearLimitCm,
   };
 }
 

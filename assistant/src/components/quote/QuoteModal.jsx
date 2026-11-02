@@ -11,7 +11,8 @@ import {
   synchronizeQuoteDiscounts,
 } from '../../utils/pricing';
 import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteText';
-import { addonHeightImpact } from '../../utils/reception';
+import { addonHeightImpact, calculateHeightCapacity } from '../../utils/reception';
+import { getVehicleVariant } from '../../utils/vehicles';
 
 /** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
@@ -93,6 +94,29 @@ function withWarrantyDescription(addon, description = '') {
   const warranty = warrantyText(addon);
   if (!warranty || /保固/u.test(base)) return base;
   return [base, warranty].filter(Boolean).join('；');
+}
+
+const HEIGHT_BODY_CATEGORIES = new Set(['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+
+function isHeightBodyAddon(addon, item) {
+  return HEIGHT_BODY_CATEGORIES.has(addon?.cat)
+    || /(帆布|冷凍冷藏箱|電動歐翼|露營箱體)/u.test(String(item?.name || ''));
+}
+
+function presetBodyHeight(addon, config) {
+  const id = String(addon?.id || '');
+  if (!id.startsWith('qa-canvas-')) return null;
+  if (id.endsWith('-raised')) return Number(config?.canvasRaisedCm) || null;
+  if (id.endsWith('-standard')) return Number(config?.canvasStandardCm) || null;
+  if (id.endsWith('-lowered')) return Number(config?.canvasLoweredCm) || null;
+  return null;
+}
+
+function QuoteHeightMetric({ label, value, emphasis = false }) {
+  return <div className={`rounded-lg p-2.5 text-center ${emphasis ? 'bg-accent/10' : 'bg-s2'}`}>
+    <p className="text-[9px] text-ink-3">{label}</p>
+    <p className={`mt-1 text-xs font-bold ${emphasis ? 'text-accent' : 'text-ink'}`}>{value}</p>
+  </div>;
 }
 
 const PACKAGE_ADDON_IDS = new Set([
@@ -364,6 +388,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     const normalized = normalizeDiscount(row);
     return { ...normalized, amount: String(normalized.amount) };
   }));
+  const [heightEstimateSettings, setHeightEstimateSettings] = useState(() => ({
+    drive: quote?.heightEstimateSettings?.drive || '',
+    mode: quote?.heightEstimateSettings?.mode === 'limited' ? 'limited' : 'general',
+    clearanceCm: quote?.heightEstimateSettings?.clearanceCm ?? '',
+    reserveCm: quote?.heightEstimateSettings?.reserveCm ?? '',
+    vehicleHeightCm: quote?.heightEstimateSettings?.vehicleHeightCm ?? '',
+  }));
   const [note, setNote] = useState(quote?.note || '');
   const [requirements, setRequirements] = useState(quote?.requirements || '');
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
@@ -427,6 +458,45 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
 
   const selectedItems = includedQuoteItems(items, excludeVehiclePrice)
     .filter((it) => it.name.trim() && (it.pending || it.gift || Number(it.price) > 0));
+  const selectedBodyItems = selectedItems.map((item) => ({
+    item,
+    addon: quotePresets.addons.find((addon) => addon.id === item.catalogId) || null,
+  })).filter(({ item, addon }) => isHeightBodyAddon(addon, item));
+  const selectedAddonIds = new Set();
+  for (const item of selectedItems) {
+    if (!item.catalogId) continue;
+    selectedAddonIds.add(item.catalogId);
+    for (const includedId of bundledAddonIds(quotePresets.addons, item.catalogId)) selectedAddonIds.add(includedId);
+  }
+  const hasShock = selectedAddonIds.has('qa-ts');
+  const hasLeaf = selectedAddonIds.has('qa-leaf') || selectedAddonIds.has('qa-spring');
+  const suspensionPlan = hasShock && hasLeaf ? '避震＋葉片' : hasShock ? '改避震' : hasLeaf ? '加葉片' : '原廠高度';
+  const selectedModelName = quotePresets.models?.find((row) => row.id === modelId)?.name || model;
+  const selectedVehicleVariant = getVehicleVariant(modelId);
+  const inferredDrive = /4WD|四輪/u.test(selectedModelName) ? '4WD' : selectedModelName.trim() ? '2WD' : '';
+  const effectiveDrive = heightEstimateSettings.drive || inferredDrive;
+  const heightCapacity = calculateHeightCapacity({
+    ...heightEstimateSettings,
+    drive: effectiveDrive,
+    suspensionPlan,
+    vehicleHeightCm: Number(heightEstimateSettings.vehicleHeightCm) > 0
+      ? heightEstimateSettings.vehicleHeightCm : selectedVehicleVariant?.heightMm / 10,
+  }, heightConfig);
+  const selectedBodyPlans = selectedBodyItems.map(({ item, addon }) => {
+    const presetCm = presetBodyHeight(addon, heightConfig);
+    const bodyHeightCm = presetCm || (Number(item.bodyHeightCm) > 0 ? Number(item.bodyHeightCm) : null);
+    return {
+      item, addon, presetCm, bodyHeightCm,
+      estimate: calculateHeightCapacity({
+        ...heightEstimateSettings,
+        drive: effectiveDrive,
+        suspensionPlan,
+        vehicleHeightCm: Number(heightEstimateSettings.vehicleHeightCm) > 0
+          ? heightEstimateSettings.vehicleHeightCm : selectedVehicleVariant?.heightMm / 10,
+        bodyHeightCm,
+      }, heightConfig),
+    };
+  });
   const pricedItems = selectedItems.filter((it) => !it.pending && (it.gift || Number(it.price) > 0));
   const pendingItems = selectedItems.filter((it) => it.pending);
   const validGeneralDiscounts = generalDiscounts
@@ -580,6 +650,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         note: '',
         optionLabel: addon.choiceLabel || '',
         optionValue: '',
+        bodyHeightCm: '',
         vendorInquiryNote: '',
         discounts: [],
       };
@@ -684,6 +755,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         note: String(it.note || '').trim(),
         optionLabel: String(it.optionLabel || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.choiceLabel || '').trim(),
         optionValue: String(it.optionValue || '').trim(),
+        bodyHeightCm: Number(it.bodyHeightCm) > 0 ? Number(it.bodyHeightCm) : null,
         requirementStatus: it.requirementStatus || null,
         vendorInquiryNote: String(it.vendorInquiryNote || '').trim(),
         bundlePricingMode: it.bundlePricingMode || null,
@@ -706,6 +778,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       giftValueTotal: totals.giftValueTotal,
       customerBenefitTotal: totals.customerBenefitTotal,
       total,
+      heightEstimateSettings: {
+        drive: heightEstimateSettings.drive || '',
+        mode: heightEstimateSettings.mode === 'limited' ? 'limited' : 'general',
+        clearanceCm: Number(heightEstimateSettings.clearanceCm) > 0 ? Number(heightEstimateSettings.clearanceCm) : '',
+        reserveCm: heightEstimateSettings.reserveCm === '' ? '' : Math.max(0, Number(heightEstimateSettings.reserveCm) || 0),
+        vehicleHeightCm: heightEstimateSettings.vehicleHeightCm === '' ? '' : Math.max(0, Number(heightEstimateSettings.vehicleHeightCm) || 0),
+      },
       requirements: requirements.trim(),
       note: note.trim(),
       loan: { down: effectiveDown, months: selMonths, rate: annualRate },
@@ -1094,6 +1173,108 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   );
                 })}
               </div>
+            )}
+            {selectedBodyPlans.length > 0 && (
+              <section className="rounded-xl border-2 border-accent/30 bg-accent/5 p-3 space-y-3">
+                <div>
+                  <p className="text-sm font-bold text-ink">📏 帆布／箱體高度計算機</p>
+                  <p className="mt-0.5 text-[11px] text-ink-3">已連動目前車型、避震／葉片及帆布或箱體選項；只供業務快速估算。</p>
+                </div>
+                <div className="grid grid-cols-3 gap-1 rounded-xl bg-s2 p-1">
+                  {[['', `自動${inferredDrive ? `（${inferredDrive}）` : ''}`], ['2WD', '2WD'], ['4WD', '4WD']].map(([value, label]) => (
+                    <button key={value || 'auto'} type="button"
+                      onClick={() => setHeightEstimateSettings((current) => ({ ...current, drive: value }))}
+                      className={`min-h-11 rounded-lg px-1 text-xs font-semibold ${heightEstimateSettings.drive === value ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <label className="block text-[10px] text-ink-3">車頭實測總高（cm，可留空自動使用所選車型）
+                  <input type="number" inputMode="decimal" min="0" value={heightEstimateSettings.vehicleHeightCm}
+                    onChange={(event) => setHeightEstimateSettings((current) => ({ ...current, vehicleHeightCm: event.target.value }))}
+                    placeholder={selectedVehicleVariant ? `自動 ${selectedVehicleVariant.heightMm / 10} cm` : '請輸入實測高度'}
+                    className="mt-1 min-h-11 w-full text-sm" />
+                </label>
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-s2 p-1">
+                  <button type="button" onClick={() => setHeightEstimateSettings((current) => ({ ...current, mode: 'general' }))}
+                    className={`min-h-11 rounded-lg px-2 text-xs font-semibold ${heightEstimateSettings.mode !== 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                    一般控制 {heightConfig.generalControlCm} cm
+                  </button>
+                  <button type="button" onClick={() => setHeightEstimateSettings((current) => ({ ...current, mode: 'limited' }))}
+                    className={`min-h-11 rounded-lg px-2 text-xs font-semibold ${heightEstimateSettings.mode === 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
+                    地下室／限高場所
+                  </button>
+                </div>
+                {heightEstimateSettings.mode === 'limited' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="text-[10px] text-ink-3">場所限高（cm）
+                      <input type="number" inputMode="decimal" min="0" value={heightEstimateSettings.clearanceCm}
+                        onChange={(event) => setHeightEstimateSettings((current) => ({ ...current, clearanceCm: event.target.value }))}
+                        placeholder="例如 240" className="mt-1 min-h-11 w-full text-sm" />
+                    </label>
+                    <label className="text-[10px] text-ink-3">安全預留（cm）
+                      <input type="number" inputMode="decimal" min="0" value={heightEstimateSettings.reserveCm}
+                        onChange={(event) => setHeightEstimateSettings((current) => ({ ...current, reserveCm: event.target.value }))}
+                        placeholder={String(heightConfig.basementReserveCm)} className="mt-1 min-h-11 w-full text-sm" />
+                    </label>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <QuoteHeightMetric label="目前底盤" value={suspensionPlan} />
+                  <QuoteHeightMetric label="改裝後貨斗離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
+                  <QuoteHeightMetric label="車頭／原車總高" value={heightCapacity.vehicleHeightCm == null ? '待補資料' : `${heightCapacity.vehicleHeightCm} cm`} />
+                  <QuoteHeightMetric label="跟車頭等高斗上高度" value={heightCapacity.cabLevelBodyHeightCm == null ? '待補資料' : `${heightCapacity.cabLevelBodyHeightCm} cm`} emphasis />
+                  <QuoteHeightMetric label="斗上理論上限" value={heightCapacity.availableCm == null ? '待補資料' : `${heightCapacity.availableCm} cm`} emphasis />
+                  <QuoteHeightMetric label="建議規劃高度" value={heightCapacity.recommendedCm == null ? '待補資料' : `${heightCapacity.recommendedCm} cm 以下`} emphasis />
+                </div>
+                {heightCapacity.controlTotalCm != null && heightCapacity.adjustedBedCm != null && (
+                  <p className="rounded-lg bg-s1 px-3 py-2 text-xs leading-relaxed text-ink-2">
+                    {heightCapacity.controlTotalCm} cm 控制總高 − {heightCapacity.adjustedBedCm} cm 貨斗離地
+                    ＝ <strong className="text-accent">{heightCapacity.availableCm} cm 斗上理論上限</strong>。
+                  </p>
+                )}
+                {heightCapacity.vehicleHeightCm != null && heightCapacity.adjustedBedCm != null && (
+                  <p className="rounded-lg border border-bdr bg-s2 px-3 py-2 text-xs leading-relaxed text-ink-2">
+                    跟車頭等高：{heightCapacity.vehicleHeightCm} cm 車頭總高 − {heightCapacity.adjustedBedCm} cm 改裝後貨斗離地
+                    ＝ <strong className="text-accent">{heightCapacity.cabLevelBodyHeightCm} cm 斗上高度</strong>。
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {selectedBodyPlans.map(({ item, presetCm, bodyHeightCm, estimate }) => (
+                    <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-ink">{item.name}</p>
+                        {presetCm != null && <span className="badge shrink-0 bg-accent/10 text-accent">預設約 {presetCm} cm</span>}
+                      </div>
+                      {presetCm == null && (
+                        <label className="block text-[10px] text-ink-3">預計斗上高度（cm）
+                          <input type="number" inputMode="decimal" min="0" value={item.bodyHeightCm ?? ''}
+                            onChange={(event) => setItem(item.id, { bodyHeightCm: event.target.value })}
+                            placeholder="輸入廠商預計高度" className="mt-1 min-h-11 w-full text-sm" />
+                        </label>
+                      )}
+                      {bodyHeightCm == null ? (
+                        <p className="text-xs font-semibold text-warn">尚未輸入斗上高度，目前只能顯示可用上限。</p>
+                      ) : estimate.estimatedTotalCm == null ? (
+                        <p className="text-xs font-semibold text-warn">請先確認 2WD／4WD 與限高條件。</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className={`rounded-lg px-3 py-2 text-xs font-semibold ${estimate.kind === 'danger' ? 'bg-danger/10 text-danger' : estimate.kind === 'warning' ? 'bg-warn/10 text-warn' : 'bg-ok/10 text-ok'}`}>
+                            預估完工總高約 {estimate.estimatedTotalCm} cm；
+                            {estimate.kind === 'danger' ? `超過控制值 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `只剩 ${estimate.marginCm} cm，接近上限` : `尚有 ${estimate.marginCm} cm 空間`}。
+                          </p>
+                          {estimate.cabLevelDeltaCm != null && (
+                            <p className="text-[11px] font-semibold text-ink-2">
+                              相對車頭：{estimate.cabLevelDeltaCm === 0 ? '約與車頭等高' : estimate.cabLevelDeltaCm > 0 ? `約高出車頭 ${estimate.cabLevelDeltaCm} cm` : `約低於車頭 ${Math.abs(estimate.cabLevelDeltaCm)} cm`}。
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] leading-relaxed text-warn">⚠️ 理論上限不是施工保證值；仍須實車量測、確認最高突出物、空載／載重差異，並由合法車身廠及監理檢驗確認。</p>
+              </section>
             )}
             {/* 優惠折扣範本：加入後才出現可編輯欄位 */}
             {quotePresets.subsidies.length > 0 && (

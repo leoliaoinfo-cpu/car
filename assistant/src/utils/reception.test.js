@@ -2,9 +2,51 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VEHICLE_VARIANTS, convertMmToTaiwaneseChi, formatVehiclePrice } from './vehicles.js';
 import {
+  calculateHeightCapacity,
   addonHeightImpact, dependencyReminders, heightAssessment, heightPlanning, heightPlanSummary,
   requirementPendingItems, requirementSummary,
 } from './reception.js';
+
+test('height calculator returns theoretical and recommended body height', () => {
+  const config = { bedHeight2wdCm: 80, bedHeight4wdCm: 85.5, shockLiftCm: 5, leafLiftCm: 2,
+    generalControlCm: 270, basementReserveCm: 10, nearLimitCm: 5 };
+  const original = calculateHeightCapacity({ drive: '2WD', suspensionPlan: '原廠高度' }, config);
+  assert.equal(original.adjustedBedCm, 80);
+  assert.equal(original.vehicleHeightCm, 199.5);
+  assert.equal(original.cabLevelBodyHeightCm, 119.5);
+  assert.equal(original.availableCm, 190);
+  assert.equal(original.recommendedCm, 185);
+  const lifted = calculateHeightCapacity({ drive: '2WD', suspensionPlan: '避震＋葉片' }, config);
+  assert.equal(lifted.adjustedBedCm, 87);
+  assert.equal(lifted.cabLevelBodyHeightCm, 112.5);
+  assert.equal(lifted.availableCm, 183);
+  assert.equal(lifted.recommendedCm, 178);
+});
+
+test('height calculator accepts a measured cab height and compares the body with the cab roof', () => {
+  const result = calculateHeightCapacity({
+    drive: '4WD', suspensionPlan: '改避震', vehicleHeightCm: 212, bodyHeightCm: 121.5,
+  }, { bedHeight4wdCm: 85.5, shockLiftCm: 5, generalControlCm: 270, nearLimitCm: 5 });
+  assert.equal(result.adjustedBedCm, 90.5);
+  assert.equal(result.vehicleHeightCm, 212);
+  assert.equal(result.cabLevelBodyHeightCm, 121.5);
+  assert.equal(result.estimatedTotalCm, 212);
+  assert.equal(result.cabLevelDeltaCm, 0);
+});
+
+test('height calculator applies a limited-place reserve and evaluates selected height', () => {
+  const config = { bedHeight2wdCm: 80, bedHeight4wdCm: 85.5, shockLiftCm: 5, leafLiftCm: 2,
+    generalControlCm: 270, basementReserveCm: 10, nearLimitCm: 5 };
+  const result = calculateHeightCapacity({
+    drive: '4WD', suspensionPlan: '改避震', mode: 'limited', clearanceCm: 250, reserveCm: 10,
+    bodyHeightCm: 150,
+  }, config);
+  assert.equal(result.controlTotalCm, 240);
+  assert.equal(result.adjustedBedCm, 90.5);
+  assert.equal(result.availableCm, 149.5);
+  assert.equal(result.estimatedTotalCm, 240.5);
+  assert.equal(result.kind, 'danger');
+});
 
 test('quote options show configurable vehicle-height impact for suspension upgrades and bundles', () => {
   const config = { shockLiftCm: 5, leafLiftCm: 2 };
