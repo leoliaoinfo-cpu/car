@@ -67,6 +67,7 @@ export default function SettingsPanel({ onClose }) {
     saveTodoTemplate, saveQuotePresets, saveIndustries, saveHeightConfig, reloadAll,
   } = useApp();
   const [activeSection, setActiveSection] = useState('sync');
+  const [showHeightCalculator, setShowHeightCalculator] = useState(false);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.theme) || 'dark'; } catch { return 'dark'; }
   });
@@ -84,12 +85,18 @@ export default function SettingsPanel({ onClose }) {
           <button type="button" onClick={onClose} className="btn-ghost text-sm lg:hidden">← 返回</button>
           <div>
             <p className="text-[10px] tracking-[0.18em] text-ink-3">SYSTEM SETTINGS</p>
-            <h1 className="text-xl font-bold text-ink">⚙️ 系統設定</h1>
+            <h1 className="whitespace-nowrap text-xl font-bold text-ink">⚙️ 系統設定</h1>
           </div>
         </div>
-        <button onClick={toggleTheme} className="btn-outline text-xs" title="切換深/淺色主題">
-          {theme === 'dark' ? '🌙 深色' : '☀️ 淺色'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setShowHeightCalculator(true)}
+            className="btn-primary min-h-11 whitespace-nowrap px-3 text-xs" title="快速計算箱體或帆布高度">
+            📏 高度試算
+          </button>
+          <button onClick={toggleTheme} className="btn-outline min-h-11 min-w-11 px-2 text-xs" title="切換深/淺色主題">
+            {theme === 'dark' ? <><span>🌙</span><span className="hidden sm:inline"> 深色</span></> : <><span>☀️</span><span className="hidden sm:inline"> 淺色</span></>}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -253,6 +260,7 @@ export default function SettingsPanel({ onClose }) {
             </div>
           )}
       </div>
+      {showHeightCalculator && <HeightCalculatorDialog value={heightConfig} onClose={() => setShowHeightCalculator(false)} />}
     </div>
   );
 }
@@ -785,10 +793,6 @@ function StringListEditor({ title, desc, items, newItemText, onChange }) {
 function HeightConfigEditor({ value, onSave }) {
   const [draft, setDraft] = useState(value);
   const [saved, setSaved] = useState('');
-  const [calculator, setCalculator] = useState({
-    drive: '2WD', suspensionPlan: '原廠高度', mode: 'general',
-    clearanceCm: '', reserveCm: '', bodyType: '帆布', bodyHeightCm: '', vehicleHeightCm: '',
-  });
   useEffect(() => setDraft(value), [value]);
   const fields = [
     ['bedHeight2wdCm', 'K2500 2WD 貨斗離地', '77'],
@@ -807,8 +811,6 @@ function HeightConfigEditor({ value, onSave }) {
     ['canvasLoweredCm', '標準降低（斗上高度）'],
   ];
   const set = (key, next) => { setDraft((current) => ({ ...current, [key]: next })); setSaved(''); };
-  const setCalculatorValue = (key, next) => setCalculator((current) => ({ ...current, [key]: next }));
-  const estimate = calculateHeightCapacity(calculator, draft);
   async function commit() {
     const clean = await onSave(draft);
     setDraft(clean);
@@ -826,86 +828,90 @@ function HeightConfigEditor({ value, onSave }) {
       <div><h3 className="font-semibold">帆布常用規格</h3><p className="text-xs text-ink-3 mt-1">尚未取得公司固定尺寸可留空；留空時案件會保持「待確認」，不會誤判可施工。</p></div>
       <div className="grid sm:grid-cols-3 gap-3">{canvasFields.map(([key, label]) => <label key={key} className="space-y-1"><span className="text-xs text-ink-3">{label}</span><input type="number" inputMode="decimal" min="0" value={draft?.[key] ?? ''} placeholder="待設定" onChange={(e) => set(key, e.target.value)} className="w-full" /></label>)}</div>
     </div>
-    <div className="card p-4 space-y-4">
-      <div>
-        <h3 className="font-semibold text-ink">📏 現場高度計算機</h3>
-        <p className="mt-1 text-xs text-ink-3">快速試算帆布或箱體大約可做多高；數值會即時使用上方車高參數。</p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <label className="text-xs text-ink-3">驅動
-          <select value={calculator.drive} onChange={(e) => setCalculatorValue('drive', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
-            <option value="2WD">2WD</option><option value="4WD">4WD</option>
-          </select>
-        </label>
-        <label className="text-xs text-ink-3">底盤配置
-          <select value={calculator.suspensionPlan} onChange={(e) => setCalculatorValue('suspensionPlan', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
-            {['原廠高度', '改避震', '加葉片', '避震＋葉片'].map((option) => <option key={option}>{option}</option>)}
-          </select>
-        </label>
-        <label className="text-xs text-ink-3">上裝類型
-          <select value={calculator.bodyType} onChange={(e) => setCalculatorValue('bodyType', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
-            {['帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].map((option) => <option key={option}>{option}</option>)}
-          </select>
-        </label>
-        <label className="text-xs text-ink-3">預計斗上高度
-          <input type="number" inputMode="decimal" min="0" value={calculator.bodyHeightCm}
-            onChange={(e) => setCalculatorValue('bodyHeightCm', e.target.value)} placeholder="可先留空" className="mt-1 min-h-11 w-full text-sm" />
-        </label>
-      </div>
-      <label className="block text-xs text-ink-3">車頭實測總高（cm，可留空使用上方車型基準）
-        <input type="number" inputMode="decimal" min="0" value={calculator.vehicleHeightCm}
-          onChange={(e) => setCalculatorValue('vehicleHeightCm', e.target.value)}
-          placeholder={`自動 ${calculator.drive === '4WD' ? draft?.vehicleHeight4wdCm || 210.5 : draft?.vehicleHeight2wdCm || 199.5} cm`}
-          className="mt-1 min-h-11 w-full text-sm" />
-      </label>
-      <div className="grid grid-cols-2 gap-2 rounded-xl bg-s2 p-1">
-        <button type="button" onClick={() => setCalculatorValue('mode', 'general')}
-          className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'general' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
-          一般控制 {draft?.generalControlCm || 270} cm
-        </button>
-        <button type="button" onClick={() => setCalculatorValue('mode', 'limited')}
-          className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>
-          地下室／限高場所
-        </button>
-      </div>
-      {calculator.mode === 'limited' && (
-        <div className="grid grid-cols-2 gap-2">
-          <label className="text-xs text-ink-3">場所限高（cm）<input type="number" inputMode="decimal" min="0" value={calculator.clearanceCm}
-            onChange={(e) => setCalculatorValue('clearanceCm', e.target.value)} placeholder="例如 240" className="mt-1 min-h-11 w-full text-sm" /></label>
-          <label className="text-xs text-ink-3">安全預留（cm）<input type="number" inputMode="decimal" min="0" value={calculator.reserveCm}
-            onChange={(e) => setCalculatorValue('reserveCm', e.target.value)} placeholder={String(draft?.basementReserveCm || 10)} className="mt-1 min-h-11 w-full text-sm" /></label>
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <HeightCalculatorMetric label="改裝後貨斗離地" value={estimate.adjustedBedCm} />
-        <HeightCalculatorMetric label="車頭／原車總高" value={estimate.vehicleHeightCm} />
-        <HeightCalculatorMetric label="跟車頭等高斗上高度" value={estimate.cabLevelBodyHeightCm} emphasis />
-        <HeightCalculatorMetric label="整車控制總高" value={estimate.controlTotalCm} />
-        <HeightCalculatorMetric label="斗上理論上限" value={estimate.availableCm} emphasis />
-        <HeightCalculatorMetric label="建議規劃高度" value={estimate.recommendedCm} emphasis />
-      </div>
-      {estimate.vehicleHeightCm != null && estimate.adjustedBedCm != null && (
-        <p className="rounded-xl border border-bdr bg-s2 p-3 text-sm text-ink-2">
-          跟車頭等高：<strong>{estimate.vehicleHeightCm}</strong> cm 車頭總高 − <strong>{estimate.adjustedBedCm}</strong> cm 改裝後貨斗離地
-          ＝ 箱體／帆布斗上約 <strong className="text-accent">{estimate.cabLevelBodyHeightCm} cm</strong>。
-        </p>
-      )}
-      {estimate.controlTotalCm != null && estimate.adjustedBedCm != null && (
-        <p className="rounded-xl border border-accent/25 bg-accent/5 p-3 text-sm text-ink-2">
-          <strong>{estimate.controlTotalCm}</strong> cm 整車控制總高 − <strong>{estimate.adjustedBedCm}</strong> cm 改裝後貨斗離地
-          ＝ <strong className="text-accent">{estimate.availableCm} cm</strong> 斗上理論上限；建議先抓 <strong>{estimate.recommendedCm} cm 以下</strong>。
-        </p>
-      )}
-      {estimate.bodyHeightCm != null && (
-        <p className={`rounded-xl border p-3 text-sm font-semibold ${estimate.kind === 'danger' ? 'border-danger/35 bg-danger/10 text-danger' : estimate.kind === 'warning' ? 'border-warn/35 bg-warn/10 text-warn' : 'border-ok/30 bg-ok/10 text-ok'}`}>
-          {calculator.bodyType}預估完工總高約 {estimate.estimatedTotalCm} cm；
-          {estimate.kind === 'danger' ? `超過控制值 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `只剩 ${estimate.marginCm} cm，太接近上限` : `剩餘 ${estimate.marginCm} cm`}。
-        </p>
-      )}
-      <p className="text-[11px] leading-relaxed text-warn">此為業務規劃估算；實際須量實車最高點、空載／載重差異，並由合法車身廠及監理檢驗確認。</p>
-    </div>
     {saved && <p className="text-sm text-ok">{saved}</p>}
     <button type="button" onClick={commit} className="btn-primary w-full min-h-11">儲存車高參數</button>
+  </div>;
+}
+
+function HeightCalculatorDialog({ value, onClose }) {
+  const [calculator, setCalculator] = useState({
+    drive: '2WD', suspensionPlan: '原廠高度', mode: 'general',
+    clearanceCm: '', reserveCm: '', bodyType: '箱體', bodyHeightCm: '', vehicleHeightCm: '',
+  });
+  const set = (key, next) => setCalculator((current) => ({ ...current, [key]: next }));
+  const estimate = calculateHeightCapacity(calculator, value);
+  const relation = estimate.cabLevelDeltaCm == null ? ''
+    : estimate.cabLevelDeltaCm === 0 ? '剛好跟車頭一樣高'
+      : estimate.cabLevelDeltaCm > 0 ? `會比車頭高 ${estimate.cabLevelDeltaCm} cm`
+        : `會比車頭低 ${Math.abs(estimate.cabLevelDeltaCm)} cm`;
+  return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="高度試算">
+    <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-3xl border border-bdr bg-s1 shadow-panel sm:max-w-2xl sm:rounded-3xl">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-bdr bg-s1/95 px-4 py-3 backdrop-blur">
+        <div><p className="text-[10px] font-bold tracking-wider text-accent">現場快速試算</p><h2 className="text-lg font-bold text-ink">📏 箱體／帆布要做多高？</h2></div>
+        <button type="button" onClick={onClose} className="min-h-11 min-w-11 rounded-xl border border-bdr text-xl text-ink-2" aria-label="關閉高度試算">×</button>
+      </div>
+      <div className="space-y-4 p-4">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs font-semibold text-ink-2">1. 這台車是哪一種？
+            <select value={calculator.drive} onChange={(e) => set('drive', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+              <option value="2WD">2WD 一般車型</option><option value="4WD">4WD 四輪傳動</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-ink-2">2. 車尾有墊高嗎？
+            <select value={calculator.suspensionPlan} onChange={(e) => set('suspensionPlan', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+              <option value="原廠高度">沒有，原廠高度</option><option value="改避震">有改避震</option><option value="加葉片">有加葉片</option><option value="避震＋葉片">避震、葉片都有</option>
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-ink-2">3. 要做什麼？
+            <select value={calculator.bodyType} onChange={(e) => set('bodyType', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+              {['箱體', '帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].map((option) => <option key={option}>{option}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-ink-2">4. 想做的高度（從斗底往上）
+            <input type="number" inputMode="decimal" min="0" value={calculator.bodyHeightCm}
+              onChange={(e) => set('bodyHeightCm', e.target.value)} placeholder="不知道可留空" className="mt-1 min-h-11 w-full text-sm" />
+          </label>
+        </div>
+        <label className="block text-xs font-semibold text-ink-2">有量車頭總高嗎？沒有就留空，系統會自動帶入
+          <input type="number" inputMode="decimal" min="0" value={calculator.vehicleHeightCm}
+            onChange={(e) => set('vehicleHeightCm', e.target.value)}
+            placeholder={`自動使用 ${calculator.drive === '4WD' ? value?.vehicleHeight4wdCm || 210.5 : value?.vehicleHeight2wdCm || 199.5} cm`}
+            className="mt-1 min-h-11 w-full text-sm" />
+        </label>
+
+        <section className="rounded-2xl border-2 border-accent/45 bg-accent/10 p-4 text-center">
+          <p className="text-xs font-bold text-ink-2">如果箱體要跟車頭一樣高</p>
+          <p className="mt-1 text-3xl font-black text-accent">從貨斗底板往上做 {estimate.cabLevelBodyHeightCm} cm</p>
+          <p className="mt-2 text-xs text-ink-3">目前車頭約 {estimate.vehicleHeightCm} cm，改裝後貨斗離地約 {estimate.adjustedBedCm} cm。</p>
+        </section>
+
+        <div className="grid grid-cols-2 gap-2">
+          <HeightCalculatorMetric label={`${value?.generalControlCm || 270} cm 總高下最多可做`} value={estimate.availableCm} />
+          <HeightCalculatorMetric label="建議保守抓在" value={estimate.recommendedCm} emphasis />
+        </div>
+
+        {estimate.bodyHeightCm != null && (
+          <section className={`rounded-2xl border p-4 ${estimate.kind === 'danger' ? 'border-danger/40 bg-danger/10' : estimate.kind === 'warning' ? 'border-warn/40 bg-warn/10' : 'border-ok/35 bg-ok/10'}`}>
+            <p className="text-sm font-bold text-ink">照你輸入的 {estimate.bodyHeightCm} cm 去做：</p>
+            <p className="mt-1 text-xl font-black text-ink">整台車大約 {estimate.estimatedTotalCm} cm，{relation}。</p>
+            <p className={`mt-2 text-sm font-semibold ${estimate.kind === 'danger' ? 'text-danger' : estimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
+              {estimate.kind === 'danger' ? `⚠️ 超過 ${estimate.controlTotalCm} cm 控制高度 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `⚠️ 距離控制高度只剩 ${estimate.marginCm} cm` : `✅ 距離 ${estimate.controlTotalCm} cm 控制高度還有 ${estimate.marginCm} cm`}
+            </p>
+          </section>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-s2 p-1">
+          <button type="button" onClick={() => set('mode', 'general')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'general' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>一般道路／車高控制</button>
+          <button type="button" onClick={() => set('mode', 'limited')} className={`min-h-11 rounded-lg text-xs font-semibold ${calculator.mode === 'limited' ? 'bg-accent text-on-accent' : 'text-ink-2'}`}>客人要進地下室</button>
+        </div>
+        {calculator.mode === 'limited' && <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs font-semibold text-ink-2">地下室標示限高<input type="number" inputMode="decimal" min="0" value={calculator.clearanceCm} onChange={(e) => set('clearanceCm', e.target.value)} placeholder="例如 240" className="mt-1 min-h-11 w-full text-sm" /></label>
+          <label className="text-xs font-semibold text-ink-2">想多留多少安全空間<input type="number" inputMode="decimal" min="0" value={calculator.reserveCm} onChange={(e) => set('reserveCm', e.target.value)} placeholder={`建議 ${value?.basementReserveCm || 10}`} className="mt-1 min-h-11 w-full text-sm" /></label>
+        </div>}
+        <p className="rounded-xl bg-warn/10 p-3 text-[11px] leading-relaxed text-warn">這是快速估算，不是施工保證。正式下單前仍要量實車最高點，並讓車身廠確認完工高度。</p>
+        <button type="button" onClick={onClose} className="btn-primary min-h-12 w-full">完成，關閉計算機</button>
+      </div>
+    </div>
   </div>;
 }
 

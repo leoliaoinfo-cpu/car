@@ -1177,8 +1177,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             {selectedBodyPlans.length > 0 && (
               <section className="rounded-xl border-2 border-accent/30 bg-accent/5 p-3 space-y-3">
                 <div>
-                  <p className="text-sm font-bold text-ink">📏 帆布／箱體高度計算機</p>
-                  <p className="mt-0.5 text-[11px] text-ink-3">已連動目前車型、避震／葉片及帆布或箱體選項；只供業務快速估算。</p>
+                  <p className="text-sm font-bold text-ink">📏 這台車的箱體／帆布能做多高？</p>
+                  <p className="mt-0.5 text-[11px] text-ink-3">車型和底盤配件已自動帶入，直接看下面答案即可。</p>
                 </div>
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-s2 p-1">
                   {[['', `自動${inferredDrive ? `（${inferredDrive}）` : ''}`], ['2WD', '2WD'], ['4WD', '4WD']].map(([value, label]) => (
@@ -1220,23 +1220,22 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  <QuoteHeightMetric label="目前底盤" value={suspensionPlan} />
-                  <QuoteHeightMetric label="改裝後貨斗離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
-                  <QuoteHeightMetric label="車頭／原車總高" value={heightCapacity.vehicleHeightCm == null ? '待補資料' : `${heightCapacity.vehicleHeightCm} cm`} />
-                  <QuoteHeightMetric label="跟車頭等高斗上高度" value={heightCapacity.cabLevelBodyHeightCm == null ? '待補資料' : `${heightCapacity.cabLevelBodyHeightCm} cm`} emphasis />
-                  <QuoteHeightMetric label="斗上理論上限" value={heightCapacity.availableCm == null ? '待補資料' : `${heightCapacity.availableCm} cm`} emphasis />
-                  <QuoteHeightMetric label="建議規劃高度" value={heightCapacity.recommendedCm == null ? '待補資料' : `${heightCapacity.recommendedCm} cm 以下`} emphasis />
+                  <QuoteHeightMetric label="車尾目前狀況" value={suspensionPlan} />
+                  <QuoteHeightMetric label="貨斗底板離地" value={heightCapacity.adjustedBedCm == null ? '待選車型' : `${heightCapacity.adjustedBedCm} cm`} />
+                  <QuoteHeightMetric label="車頭高度" value={heightCapacity.vehicleHeightCm == null ? '待補資料' : `${heightCapacity.vehicleHeightCm} cm`} />
+                  <QuoteHeightMetric label="要跟車頭一樣高，請做" value={heightCapacity.cabLevelBodyHeightCm == null ? '待補資料' : `${heightCapacity.cabLevelBodyHeightCm} cm`} emphasis />
+                  <QuoteHeightMetric label={`${heightCapacity.controlTotalCm || heightConfig.generalControlCm} cm 總高下最多可做`} value={heightCapacity.availableCm == null ? '待補資料' : `${heightCapacity.availableCm} cm`} emphasis />
+                  <QuoteHeightMetric label="建議保守抓在" value={heightCapacity.recommendedCm == null ? '待補資料' : `${heightCapacity.recommendedCm} cm 以下`} emphasis />
                 </div>
                 {heightCapacity.controlTotalCm != null && heightCapacity.adjustedBedCm != null && (
                   <p className="rounded-lg bg-s1 px-3 py-2 text-xs leading-relaxed text-ink-2">
-                    {heightCapacity.controlTotalCm} cm 控制總高 − {heightCapacity.adjustedBedCm} cm 貨斗離地
-                    ＝ <strong className="text-accent">{heightCapacity.availableCm} cm 斗上理論上限</strong>。
+                    白話說明：整台車不要超過 {heightCapacity.controlTotalCm} cm，扣掉貨斗底板離地 {heightCapacity.adjustedBedCm} cm，
+                    箱體／帆布從貨斗底板往上最多約 <strong className="text-accent">{heightCapacity.availableCm} cm</strong>。
                   </p>
                 )}
                 {heightCapacity.vehicleHeightCm != null && heightCapacity.adjustedBedCm != null && (
                   <p className="rounded-lg border border-bdr bg-s2 px-3 py-2 text-xs leading-relaxed text-ink-2">
-                    跟車頭等高：{heightCapacity.vehicleHeightCm} cm 車頭總高 − {heightCapacity.adjustedBedCm} cm 改裝後貨斗離地
-                    ＝ <strong className="text-accent">{heightCapacity.cabLevelBodyHeightCm} cm 斗上高度</strong>。
+                    想跟車頭做齊：箱體／帆布從貨斗底板往上做約 <strong className="text-accent">{heightCapacity.cabLevelBodyHeightCm} cm</strong>。
                   </p>
                 )}
                 <div className="space-y-2">
@@ -1247,14 +1246,14 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                         {presetCm != null && <span className="badge shrink-0 bg-accent/10 text-accent">預設約 {presetCm} cm</span>}
                       </div>
                       {presetCm == null && (
-                        <label className="block text-[10px] text-ink-3">預計斗上高度（cm）
+                        <label className="block text-[10px] text-ink-3">廠商預計做的高度（從貨斗底板往上量）
                           <input type="number" inputMode="decimal" min="0" value={item.bodyHeightCm ?? ''}
                             onChange={(event) => setItem(item.id, { bodyHeightCm: event.target.value })}
                             placeholder="輸入廠商預計高度" className="mt-1 min-h-11 w-full text-sm" />
                         </label>
                       )}
                       {bodyHeightCm == null ? (
-                        <p className="text-xs font-semibold text-warn">尚未輸入斗上高度，目前只能顯示可用上限。</p>
+                        <p className="text-xs font-semibold text-warn">還沒填廠商要做的高度，目前只能先看最多能做多高。</p>
                       ) : estimate.estimatedTotalCm == null ? (
                         <p className="text-xs font-semibold text-warn">請先確認 2WD／4WD 與限高條件。</p>
                       ) : (
