@@ -497,6 +497,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       }, heightConfig),
     };
   });
+  const undergroundBodyEstimate = selectedBodyPlans.find(({ bodyHeightCm }) => bodyHeightCm != null)?.estimate || null;
   const pricedItems = selectedItems.filter((it) => !it.pending && (it.gift || Number(it.price) > 0));
   const pendingItems = selectedItems.filter((it) => it.pending);
   const validGeneralDiscounts = generalDiscounts
@@ -1222,8 +1223,23 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 {heightEstimateSettings.mode === 'limited' && heightCapacity.controlTotalCm != null && (
                   <div className="rounded-xl border-2 border-warn/45 bg-warn/10 p-3">
                     <p className="text-[11px] font-bold text-ink-2">地下室結果</p>
-                    <p className="mt-1 text-xl font-black text-accent">扣掉貨斗後，箱體／帆布還能做 {heightCapacity.availableCm} cm 高</p>
-                    <p className="mt-2 text-xs font-semibold text-ink-2">貨斗離地 {heightCapacity.adjustedBedCm} cm；建議保守做 {heightCapacity.recommendedCm} cm 以下。</p>
+                    <div className="mt-2 space-y-2">
+                      <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2">
+                        <span className="text-xs font-bold text-ink-2">1. 最高能做</span>
+                        <strong className="text-lg text-accent">{heightCapacity.availableCm} cm</strong>
+                      </div>
+                      <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2">
+                        <span className="text-xs font-bold text-ink-2">2. 建議下單</span>
+                        <strong className="text-lg text-ink">{heightCapacity.recommendedCm} cm 以下</strong>
+                      </div>
+                      <div className="flex min-h-11 items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2">
+                        <span className="text-xs font-bold text-ink-2">3. 做完還剩</span>
+                        <strong className={`text-lg ${undergroundBodyEstimate == null ? 'text-ink-3' : undergroundBodyEstimate.kind === 'danger' ? 'text-danger' : undergroundBodyEstimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
+                          {undergroundBodyEstimate == null ? '先填預計高度' : undergroundBodyEstimate.marginCm < 0 ? `超高 ${Math.abs(undergroundBodyEstimate.marginCm)} cm` : `${undergroundBodyEstimate.marginCm} cm`}
+                        </strong>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold text-ink-3">限高 {heightCapacity.clearanceCm} cm｜貨斗 {heightCapacity.adjustedBedCm} cm｜安全預留 {heightCapacity.reserveCm} cm</p>
                   </div>
                 )}
                 {heightEstimateSettings.mode !== 'limited' && <>

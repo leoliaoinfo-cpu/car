@@ -894,23 +894,26 @@ function HeightCalculatorDialog({ value, onClose }) {
         {calculator.mode === 'limited' && estimate.controlTotalCm != null && (
           <section className={`rounded-2xl border-2 p-4 ${estimate.bodyHeightCm != null && estimate.kind === 'danger' ? 'border-danger/50 bg-danger/10' : estimate.bodyHeightCm != null && estimate.kind === 'warning' ? 'border-warn/50 bg-warn/10' : 'border-ok/40 bg-ok/10'}`}>
             <p className="text-xs font-bold text-ink-2">地下室結果</p>
-            {estimate.bodyHeightCm == null ? (
-              <p className="mt-1 text-3xl font-black text-accent">扣掉貨斗後，還能做 {estimate.availableCm} cm 高</p>
-            ) : (
-              <>
-                <p className={`mt-1 text-3xl font-black ${estimate.kind === 'danger' ? 'text-danger' : estimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
-                  {estimate.kind === 'danger' ? `不能做，超高 ${Math.abs(estimate.marginCm)} cm` : estimate.kind === 'warning' ? `風險高，只剩 ${estimate.marginCm} cm` : `高度有空間，還剩 ${estimate.marginCm} cm`}
-                </p>
-                <p className="mt-2 text-sm font-bold text-ink">你填 {estimate.bodyHeightCm} cm；目前最多能做 {estimate.availableCm} cm。</p>
-              </>
-            )}
-            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">地下室寫</p><p className="text-lg font-black text-ink">{estimate.clearanceCm} cm</p></div>
-              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">貨斗離地固定</p><p className="text-lg font-black text-ink">{estimate.adjustedBedCm} cm</p></div>
-              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">扣掉後還能做</p><p className="text-lg font-black text-accent">{estimate.availableCm} cm</p></div>
-              <div className="rounded-xl bg-s1/75 p-2"><p className="text-[10px] text-ink-3">建議保守做</p><p className="text-lg font-black text-ink">{estimate.recommendedCm} cm 以下</p></div>
+            <div className="mt-3 space-y-2">
+              <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-s1/80 px-3 py-2">
+                <span className="text-sm font-bold text-ink-2">1. 最高能做</span>
+                <strong className="text-xl text-accent">{estimate.availableCm} cm</strong>
+              </div>
+              <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-s1/80 px-3 py-2">
+                <span className="text-sm font-bold text-ink-2">2. 建議下單</span>
+                <strong className="text-xl text-ink">{estimate.recommendedCm} cm 以下</strong>
+              </div>
+              <div className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-s1/80 px-3 py-2">
+                <span className="text-sm font-bold text-ink-2">3. 做完還剩</span>
+                <strong className={`text-xl ${estimate.bodyHeightCm == null ? 'text-ink-3' : estimate.kind === 'danger' ? 'text-danger' : estimate.kind === 'warning' ? 'text-warn' : 'text-ok'}`}>
+                  {estimate.bodyHeightCm == null ? '先填預計高度' : estimate.marginCm < 0 ? `超高 ${Math.abs(estimate.marginCm)} cm` : `${estimate.marginCm} cm`}
+                </strong>
+              </div>
             </div>
-            {estimate.bodyHeightCm != null && estimate.kind !== 'ok' && <p className="mt-3 rounded-xl bg-s1/75 px-3 py-2 text-sm font-bold text-warn">不要直接跟客人保證進得去，還要看入口坡度與實車高度。</p>}
+            <p className="mt-3 text-xs font-semibold text-ink-3">地下室 {estimate.clearanceCm} cm｜貨斗 {estimate.adjustedBedCm} cm｜安全預留 {estimate.reserveCm} cm</p>
+            {estimate.bodyHeightCm != null && <p className={`mt-3 rounded-xl px-3 py-2 text-sm font-bold ${estimate.kind === 'danger' ? 'bg-danger/15 text-danger' : estimate.kind === 'warning' ? 'bg-warn/15 text-warn' : 'bg-ok/15 text-ok'}`}>
+              {estimate.kind === 'danger' ? '⛔ 不能下單，會超高' : estimate.kind === 'warning' ? '⚠️ 空間太少，先量實車' : '✅ 高度有空間，正式下單前再量實車'}
+            </p>}
           </section>
         )}
 
