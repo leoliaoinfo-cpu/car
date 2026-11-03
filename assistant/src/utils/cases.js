@@ -123,7 +123,13 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
   return seeds;
 }
 
-function dueGroup(due, state, waitingOn) {
+function dueGroup(due, state, waitingOn, followUpReminder = false) {
+  if (followUpReminder && due) {
+    const value = dayjs(due).startOf('day');
+    const current = dayjs().startOf('day');
+    if (value.isBefore(current)) return 'overdue';
+    if (value.isSame(current)) return 'today';
+  }
   if (state === 'waiting' || waitingOn) return 'waiting';
   if (!due) return 'next';
   const value = dayjs(due).startOf('day');
@@ -149,7 +155,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   };
   const caseNumbersForClient = (clientId) => (activeCasesByClient.get(clientId) || [])
     .map((row) => row.caseNumber).filter(Boolean).sort((a, b) => a - b);
-  const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn) });
+  const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn, row.followUpReminder) });
 
   workItems.filter((row) => row.state !== 'done' && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const linkedCase = caseMap.get(row.caseId);
@@ -182,9 +188,13 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
       const calculatedDue = step.activatedAt && timing.elapsedDays != null
         ? dayjs(step.activatedAt).add(timing.plannedDays - 1, 'day').format('YYYY-MM-DD')
         : '';
+      const blockedFollowUpDate = step.status === 'blocked' ? step.blockedFollowUpDate || '' : '';
       push({
         id: `delivery:${deal.id}:${step.id}`, sourceType: 'delivery', sourceId: step.id, dealId: deal.id,
-        title: step.label, due: step.plannedDate || calculatedDue, state: waitingOn || step.status === 'blocked' ? 'waiting' : 'todo', waitingOn: waitingOn?.label || (step.status === 'blocked' ? '階段已標記卡住' : ''),
+        title: step.label, due: blockedFollowUpDate || step.plannedDate || calculatedDue,
+        state: waitingOn || step.status === 'blocked' ? 'waiting' : 'todo',
+        waitingOn: waitingOn?.label || (step.status === 'blocked' ? [step.blockedReason || '階段已標記卡住', step.blockedOwner ? `等待 ${step.blockedOwner}` : ''].filter(Boolean).join('・') : ''),
+        followUpReminder: Boolean(blockedFollowUpDate),
         caseId: linkedCase?.id || onlyCaseForClient(deal.clientId), clientId: deal.clientId || null, clientName: clientMap.get(deal.clientId)?.name || deal.clientName || '',
         caseTitle: deal.model || deal.note || '交車案件', caseNumber: linkedCase?.caseNumber,
       });

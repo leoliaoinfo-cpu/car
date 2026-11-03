@@ -153,10 +153,17 @@ test('normalization preserves stage planning and timing fields', () => {
     const workflow = normalizeDeliveryWorkflow({ deliveryWorkflow: [{
       id: 'paint-body', label: '烤漆', status: 'done', plannedDays: 5,
       activatedAt: '2026-10-01', completedAt: '2026-10-04', statusChangedAt: '2026-10-04',
+      blockedReason: '等待色號', blockedOwner: '烤漆廠', blockedFollowUpDate: '2026-10-03',
     }] });
     assert.deepEqual(
-      { plannedDays: workflow[0].plannedDays, activatedAt: workflow[0].activatedAt, completedAt: workflow[0].completedAt },
-      { plannedDays: 5, activatedAt: '2026-10-01', completedAt: '2026-10-04' },
+      {
+        plannedDays: workflow[0].plannedDays, activatedAt: workflow[0].activatedAt, completedAt: workflow[0].completedAt,
+        blockedReason: workflow[0].blockedReason, blockedOwner: workflow[0].blockedOwner, blockedFollowUpDate: workflow[0].blockedFollowUpDate,
+      },
+      {
+        plannedDays: 5, activatedAt: '2026-10-01', completedAt: '2026-10-04',
+        blockedReason: '等待色號', blockedOwner: '烤漆廠', blockedFollowUpDate: '2026-10-03',
+      },
     );
 });
 

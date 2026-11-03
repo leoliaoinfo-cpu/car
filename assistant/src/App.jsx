@@ -159,7 +159,7 @@ function AppInner() {
 
       <main className="pb-20 lg:pb-0">
         <div className="anim-fade-in" key={tab}>
-          {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onQuickCreate={() => setShowQuickCreate(true)} />}
+          {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
           {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
           {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setTab('settings')} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}

@@ -6,7 +6,7 @@ import {
 } from '../../utils/cases';
 import { today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
-import { buildDeliverySchedule, getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from '../../utils/delivery';
+import { buildDeliverySchedule, getCurrentWorkflowStep, getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from '../../utils/delivery';
 import { ClientPicker } from '../ui';
 
 const STATUS_FILTERS = [['active', '進行中'], ['waiting', '等待中'], ['completed', '已完成'], ['all', '全部'], ['deleted', '已刪除']];
@@ -361,7 +361,8 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
   const pipelineStage = getCasePipelineStage(item, { deals, quotes });
   const caseWork = workItems.filter((row) => row.caseId === item.id);
-  const pending = caseQueue;
+  // 施工工作由下方的案件施工卡統一處理，避免在「下一步」出現第二套完成入口。
+  const pending = caseQueue.filter((row) => row.sourceType !== 'delivery');
   const actionablePending = pending.filter((row) => row.state !== 'waiting');
   const waitingPending = pending.filter((row) => row.state === 'waiting');
   const completed = caseWork.filter((row) => row.state === 'done');
@@ -369,9 +370,16 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const workflow = normalizeDeliveryWorkflow(linkedDeal);
   const schedule = buildDeliverySchedule(workflow);
   const completedStages = workflow.filter((step) => ['done', 'na'].includes(step.status)).length;
-  const currentStage = workflow.find((step) => !['done', 'na'].includes(step.status) && !getWaitingOn(step, workflow))
-    || workflow.find((step) => !['done', 'na'].includes(step.status)) || null;
+  const currentStage = getCurrentWorkflowStep(workflow);
   const currentTiming = currentStage ? getStageTiming(currentStage, workflow) : null;
+  const blockedStages = workflow.filter((step) => step.status === 'blocked');
+  const blockedStage = blockedStages[0] || null;
+  const directNextStage = currentStage
+    ? workflow.find((step) => !['done', 'na'].includes(step.status) && step.dependsOn === currentStage.id)
+    : null;
+  const nextStage = directNextStage || [...schedule.rows]
+    .sort((a, b) => a.startOffset - b.startOffset)
+    .find((step) => !['done', 'na'].includes(step.status) && step.id !== currentStage?.id && step.status !== 'blocked') || null;
   const workflowPercent = workflow.length ? Math.round(completedStages / workflow.length * 100) : 0;
   const workflowStart = linkedDeal?.deliveryWorkflowStartDate || linkedDeal?.date || '';
   const targetDate = workflowStart && schedule.totalDays ? dayjs(workflowStart).add(schedule.totalDays - 1, 'day').format('YYYY/MM/DD') : '';
@@ -439,8 +447,8 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
             </section>
           )}
 
-          {(section === 'overview' || section === 'work') && <section className="card p-4">
-            <h2 className="font-bold text-ink">下一步</h2>
+          {(section === 'work' || (section === 'overview' && pending.length > 0)) && <section className="card p-4">
+            <h2 className="font-bold text-ink">{workflow.length ? '其他待辦' : '下一步'}</h2>
             {pending.length === 0 ? <p className="text-sm text-ink-3 mt-3">尚未安排工作。</p> : <div className="space-y-2 mt-3">{actionablePending.map((row) => <div key={row.id} className="rounded-xl border border-bdr bg-s2 p-3 flex items-center gap-3"><button type="button" onClick={() => finishWork(row)} className={`w-11 h-11 rounded-full border-2 font-bold shrink-0 ${row.sourceType === 'delivery' ? 'border-copper text-copper' : 'border-ok text-ok'}`} aria-label={row.sourceType === 'delivery' ? `前往施工進度處理 ${row.title}` : `完成 ${row.title}`}>{row.sourceType === 'delivery' ? '→' : '✓'}</button><div className="min-w-0 flex-1"><p className="font-medium text-ink">{row.title}</p><p className="text-xs text-ink-3 mt-0.5">{row.sourceType === 'delivery' ? '前往施工進度確認後再變更狀態' : (row.due ? dayjs(row.due).format('YYYY/MM/DD') : '未排日期')}</p></div></div>)}{actionablePending.length === 0 && <p className="rounded-xl bg-s2 p-3 text-sm text-ink-3">目前工作都在等待前置階段。</p>}{waitingPending.length > 0 && <details className="rounded-xl border border-bdr bg-s2/50"><summary className="cursor-pointer px-3 py-3 text-xs font-bold text-ink-2">等待中的後續 {waitingPending.length} 項</summary><div className="space-y-2 border-t border-bdr px-3 py-3">{waitingPending.map((row) => <div key={row.id}><p className="text-sm text-ink">{row.title}</p><p className="text-[11px] text-ink-3">{row.waitingOn || '等待前置工作'}</p></div>)}</div></details>}</div>}
             <form onSubmit={addWork} className="mt-3 grid grid-cols-[1fr_auto] gap-2">
               <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="新增下一步…" className="min-h-11" />
@@ -449,7 +457,37 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
             </form>
           </section>}
 
-          {section === 'overview' && workflow.length > 0 && <section className="card overflow-hidden"><div className="p-4"><div className="flex items-center justify-between gap-2"><div><h2 className="font-bold text-ink">施工控制塔</h2><p className="mt-0.5 text-[11px] text-ink-3">這筆案件的成交後進度</p></div><button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="btn-outline min-h-10 text-xs">管理／設定</button></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className="h-full rounded-full bg-ok" style={{ width: `${workflowPercent}%` }} /></div><div className="mt-3 grid grid-cols-3 gap-2 text-center"><div className="rounded-lg bg-s2 p-2"><p className="text-[10px] text-ink-3">進度</p><p className="font-bold text-ok">{workflowPercent}%</p></div><div className="rounded-lg bg-s2 p-2"><p className="text-[10px] text-ink-3">總工期</p><p className="font-bold text-accent">{schedule.totalDays} 天</p></div><div className="rounded-lg bg-s2 p-2"><p className="text-[10px] text-ink-3">預計完成</p><p className="text-xs font-bold text-ink">{targetDate || '未設定'}</p></div></div>{currentStage && <div className={`mt-3 rounded-xl border p-3 ${currentTiming?.urgency === 'overdue' ? 'border-danger/40 bg-danger/5' : 'border-accent/35 bg-accent/5'}`}><p className="text-[10px] font-bold text-accent">目前階段</p><p className="mt-0.5 font-bold text-ink">{currentStage.label}</p><p className={`mt-1 text-xs ${currentTiming?.urgency === 'overdue' ? 'font-bold text-danger' : 'text-ink-3'}`}>{currentTiming?.elapsedDays ? `已停留 ${currentTiming.elapsedDays} 天／分配 ${currentTiming.plannedDays} 天${currentTiming.overDays ? `・超過 ${currentTiming.overDays} 天` : ''}` : '尚未開始計時'}</p><button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="btn-primary mt-3 min-h-11 w-full text-sm">前往施工進度處理</button></div>}</div><details className="border-t border-bdr"><summary className="cursor-pointer px-4 py-3 text-xs font-bold text-ink-2">查看全部 {workflow.length} 個階段</summary><div className="space-y-2 px-4 pb-4">{workflow.map((step, index) => { const waiting = getWaitingOn(step, workflow); return <div key={step.id} className="flex gap-3"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${['done', 'na'].includes(step.status) ? 'bg-ok text-on-accent' : waiting ? 'bg-gold/15 text-gold' : 'bg-accent/12 text-accent'}`}>{['done', 'na'].includes(step.status) ? '✓' : index + 1}</div><div className="min-w-0 pb-2"><p className="text-sm font-medium text-ink">{step.label}</p><p className="text-[11px] text-ink-3">{waiting ? `等待：${waiting.label}` : `${getStageTiming(step, workflow).plannedDays} 天`}</p></div></div>; })}</div></details></section>}
+          {section === 'overview' && workflow.length > 0 && (
+            <section className="card overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-bold text-ink">施工進度</h2>
+                    <p className="mt-0.5 text-[11px] text-ink-3">完成 {completedStages}/{workflow.length}・預計 {targetDate || '尚未設定'}</p>
+                  </div>
+                  <span className="rounded-full bg-ok/12 px-3 py-1 text-xs font-bold text-ok">{workflowPercent}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className="h-full rounded-full bg-ok" style={{ width: `${workflowPercent}%` }} /></div>
+
+                <div className="mt-4 divide-y divide-bdr overflow-hidden rounded-2xl border border-bdr bg-s2/45">
+                  <div className="grid grid-cols-[3.5rem_1fr] gap-3 p-3">
+                    <p className="text-xs font-bold text-accent">現在</p>
+                    <div><p className="text-sm font-bold text-ink">{currentStage?.label || '施工階段已完成'}</p><p className={`mt-1 text-xs ${currentTiming?.urgency === 'overdue' ? 'font-bold text-danger' : 'text-ink-3'}`}>{currentStage ? (currentTiming?.elapsedDays ? `已 ${currentTiming.elapsedDays} 天／原訂 ${currentTiming.plannedDays} 天${currentTiming.overDays ? `・超過 ${currentTiming.overDays} 天` : ''}` : '尚未開始計時') : '可準備正式交車'}</p></div>
+                  </div>
+                  <div className="grid grid-cols-[3.5rem_1fr] gap-3 p-3">
+                    <p className={`text-xs font-bold ${blockedStage ? 'text-danger' : 'text-ok'}`}>卡點</p>
+                    <div><p className="text-sm font-bold text-ink">{blockedStage ? `${blockedStage.label}：${blockedStage.blockedReason || '目前卡住'}` : '目前沒有卡住'}</p>{blockedStage && <p className="mt-1 text-xs text-ink-3">{[blockedStage.blockedOwner ? `等待 ${blockedStage.blockedOwner}` : '', blockedStage.blockedFollowUpDate ? `${dayjs(blockedStage.blockedFollowUpDate).format('MM/DD')} 再追` : '尚未設定追蹤日', blockedStages.length > 1 ? `另有 ${blockedStages.length - 1} 項卡住` : ''].filter(Boolean).join('・')}</p>}</div>
+                  </div>
+                  <div className="grid grid-cols-[3.5rem_1fr] gap-3 p-3">
+                    <p className="text-xs font-bold text-copper">下一步</p>
+                    <div><p className="text-sm font-bold text-ink">{nextStage?.label || (currentStage ? '完成目前階段後準備交車' : '確認正式交車')}</p><p className="mt-1 text-xs text-ink-3">{nextStage ? (getWaitingOn(nextStage, workflow) ? `等待：${getWaitingOn(nextStage, workflow).label}` : `預計 ${getStageTiming(nextStage, workflow).plannedDays} 天`) : '沒有其他施工階段'}</p></div>
+                  </div>
+                </div>
+
+                <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="btn-primary mt-4 min-h-12 w-full text-sm">處理現在進度</button>
+              </div>
+            </section>
+          )}
 
           {(section === 'overview' || section === 'quotes') && <section className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{linkedQuotes.map((quote) => <button type="button" onClick={() => onOpenQuote?.(item, quote.id)} key={quote.id} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">報價・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
 

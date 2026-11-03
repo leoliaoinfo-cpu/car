@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import dayjs from 'dayjs';
 import {
   assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
 } from './cases.js';
@@ -111,4 +112,21 @@ test('施工階段依分配天數產生催辦期限，未解鎖階段維持等�
   assert.equal(active.due, '2026-10-02');
   assert.equal(waiting.state, 'waiting');
   assert.equal(waiting.waitingOn, '目前施工');
+});
+
+test('卡住的施工階段依再追日期回到今天工作並保留原因', () => {
+  const followUpDate = dayjs().format('YYYY-MM-DD');
+  const rows = buildWorkQueue({
+    deals: [{ id: 'd1', clientId: 'c1', caseId: 'case-1', deliveryWorkflow: [{
+      id: 'canvas', label: '聯繫帆布廠商', status: 'blocked', plannedDays: 2,
+      blockedReason: '等待確認施工日期', blockedOwner: '力新帆布', blockedFollowUpDate: followUpDate,
+    }] }],
+    cases: [{ id: 'case-1', caseNumber: 105, clientId: 'c1', dealId: 'd1', status: 'active' }],
+    clients: [{ id: 'c1', name: '測試客戶' }],
+  });
+  const reminder = rows.find((row) => row.sourceId === 'canvas');
+  assert.equal(reminder.group, 'today');
+  assert.equal(reminder.followUpReminder, true);
+  assert.equal(reminder.waitingOn, '等待確認施工日期・等待 力新帆布');
+  assert.equal(reminder.caseNumber, 105);
 });

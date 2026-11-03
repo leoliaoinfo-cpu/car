@@ -99,6 +99,8 @@ export function normalizeDeliveryWorkflow(deal = {}) {
       status: STATUS_VALUES.has(step.status) ? step.status : 'todo',
       supplierId: step.supplierId || '', plannedDate: step.plannedDate || '', cost: step.cost ?? '',
       note: step.note || '', updatedAt: step.updatedAt || null,
+      blockedReason: step.blockedReason || '', blockedOwner: step.blockedOwner || '',
+      blockedFollowUpDate: step.blockedFollowUpDate || '',
       plannedDays: Math.max(1, Number(step.plannedDays) || DELIVERY_DEFAULT_DAYS[step.id] || 1),
       activatedAt: step.activatedAt || null, completedAt: step.completedAt || null,
       statusChangedAt: step.statusChangedAt || step.updatedAt || null,

@@ -22,8 +22,10 @@ function cloneWorkflow(workflow) {
   return (workflow || []).map((step) => ({ ...step }));
 }
 
-function ConfirmActionDialog({ action, busy, onCancel, onConfirm }) {
+function ConfirmActionDialog({ action, busy, onCancel, onConfirm, onActionChange }) {
   if (!action) return null;
+  const missingBlockDetails = action.requiresBlockDetails
+    && (!String(action.blockReason || '').trim() || !action.blockFollowUpDate);
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="delivery-confirm-title">
       <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={busy ? undefined : onCancel} aria-label="取消並關閉" />
@@ -44,10 +46,18 @@ function ConfirmActionDialog({ action, busy, onCancel, onConfirm }) {
             </ol>
           </div>
         )}
+        {action.requiresBlockDetails && (
+          <div className="mt-4 space-y-3 rounded-xl border border-danger/35 bg-danger/5 p-3">
+            <div><p className="text-sm font-bold text-ink">卡在哪裡？</p><p className="mt-0.5 text-xs text-ink-3">留下原因與追蹤日，之後打開案件就能直接看到。</p></div>
+            <label className="block text-xs font-bold text-ink-2">卡住原因（必填）<textarea value={action.blockReason || ''} onChange={(event) => onActionChange({ blockReason: event.target.value })} rows={3} placeholder="例如：等待廠商確認施工日期" className="mt-1 w-full text-sm font-normal" /></label>
+            <label className="block text-xs font-bold text-ink-2">目前在等誰<input value={action.blockOwner || ''} onChange={(event) => onActionChange({ blockOwner: event.target.value })} placeholder="例如：力新帆布、客戶回覆" className="mt-1 min-h-11 w-full text-sm font-normal" /></label>
+            <label className="block text-xs font-bold text-ink-2">哪一天再追（必填）<input type="date" value={action.blockFollowUpDate || ''} onChange={(event) => onActionChange({ blockFollowUpDate: event.target.value })} className="mt-1 min-h-11 w-full text-sm font-normal" /></label>
+          </div>
+        )}
         {action.error && <p role="alert" className="mt-3 rounded-xl border border-danger/45 bg-danger/10 p-3 text-sm font-semibold text-danger">{action.error}</p>}
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button type="button" disabled={busy} onClick={onCancel} className="btn-outline min-h-12 disabled:opacity-50">取消</button>
-          <button type="button" disabled={busy} onClick={onConfirm} className={`${action.tone === 'danger' ? 'btn-danger' : 'btn-primary'} min-h-12 disabled:opacity-50`}>{busy ? '儲存中…' : action.confirmLabel || '確認'}</button>
+          <button type="button" disabled={busy || missingBlockDetails} onClick={onConfirm} className={`${action.tone === 'danger' ? 'btn-danger' : 'btn-primary'} min-h-12 disabled:opacity-50`}>{busy ? '儲存中…' : action.confirmLabel || '確認'}</button>
         </div>
       </section>
     </div>
@@ -254,6 +264,9 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
     if (FINISHED_STATUSES.has(step.status) && !FINISHED_STATUSES.has(nextStatus)) {
       effects.push('已經開始的後續工作不會被刪除或清空');
     }
+    if (nextStatus === 'blocked') {
+      effects.push('保存卡住原因、等待對象與下次追蹤日');
+    }
     setConfirmAction({
       title: `確認將「${step.label}」改為${nextLabel}？`,
       description: preview.newlyAvailable.length > 1 ? `此操作會同時啟動 ${preview.newlyAvailable.length} 個可並行工作。` : '確認後會更新案件進度。',
@@ -261,18 +274,33 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
       confirmLabel: nextStatus === 'done' ? '確認完成' : `確認${nextLabel}`,
       tone: nextStatus === 'na' || nextStatus === 'blocked' ? 'danger' : 'default',
       icon: nextStatus === 'done' ? '✓' : nextStatus === 'blocked' ? '!' : '→',
-      perform: async () => {
+      requiresBlockDetails: nextStatus === 'blocked',
+      blockReason: nextStatus === 'blocked' ? (step.blockedReason || '') : '',
+      blockOwner: nextStatus === 'blocked' ? (step.blockedOwner || supplierNames.get(step.supplierId) || '') : '',
+      blockFollowUpDate: nextStatus === 'blocked' ? (step.blockedFollowUpDate || dayjs().add(1, 'day').format('YYYY-MM-DD')) : '',
+      perform: async (confirmedAction) => {
         const currentWorkflow = latestWorkflow(deal);
         const currentStep = currentWorkflow.find((candidate) => candidate.id === stepId);
         if (!currentStep || currentStep.status === nextStatus) return true;
         const plan = planWorkflowStatusChange(currentWorkflow, stepId, nextStatus);
+        const nextWorkflow = nextStatus === 'blocked'
+          ? plan.nextWorkflow.map((candidate) => candidate.id === stepId ? {
+            ...candidate,
+            blockedReason: String(confirmedAction.blockReason || '').trim(),
+            blockedOwner: String(confirmedAction.blockOwner || '').trim(),
+            blockedFollowUpDate: confirmedAction.blockFollowUpDate || '',
+          } : candidate)
+          : plan.nextWorkflow;
+        const blockDetail = nextStatus === 'blocked'
+          ? [String(confirmedAction.blockReason || '').trim(), confirmedAction.blockOwner ? `等待 ${confirmedAction.blockOwner}` : '', confirmedAction.blockFollowUpDate ? `${confirmedAction.blockFollowUpDate} 再追` : ''].filter(Boolean).join('・')
+          : '';
         const event = workflowEvent({
           type: 'status', action: `將「${currentStep.label}」改為${nextLabel}`,
-          step: currentStep, beforeWorkflow: plan.beforeWorkflow, afterWorkflow: plan.nextWorkflow,
+          step: currentStep, beforeWorkflow: plan.beforeWorkflow, afterWorkflow: nextWorkflow,
           fromStatus: currentStep.status, toStatus: nextStatus,
-          detail: plan.newlyAvailable.length ? `啟動：${plan.newlyAvailable.map((candidate) => candidate.label).join('、')}` : '',
+          detail: [blockDetail, plan.newlyAvailable.length ? `啟動：${plan.newlyAvailable.map((candidate) => candidate.label).join('、')}` : ''].filter(Boolean).join('・'),
         });
-        const saved = await saveWorkflow(deal, plan.nextWorkflow, { event });
+        const saved = await saveWorkflow(deal, nextWorkflow, { event });
         if (!saved) return false;
         setUndoAction({ dealId: deal.id, eventId: event.id, message: event.action });
         if (FINISHED_STATUSES.has(nextStatus)) {
@@ -391,10 +419,14 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
   async function performConfirmedAction() {
     if (!confirmAction?.perform || confirmBusy) return;
     const action = confirmAction;
+    if (action.requiresBlockDetails && (!String(action.blockReason || '').trim() || !action.blockFollowUpDate)) {
+      setConfirmAction((current) => current ? { ...current, error: '請先填寫卡住原因與下次追蹤日。' } : current);
+      return;
+    }
     setConfirmAction((current) => current ? { ...current, error: null } : current);
     setConfirmBusy(true);
     try {
-      const completed = await action.perform();
+      const completed = await action.perform(action);
       if (completed !== false) setConfirmAction(null);
       else setConfirmAction((current) => current ? { ...current, error: '儲存失敗，尚未確認這次變更。請再試一次，或取消後查看錯誤內容。' } : current);
     } catch (error) {
@@ -453,6 +485,12 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
     if (requestedStepId && mode === 'plan') {
       setExpandedSteps((previous) => ({ ...previous, [`${deal.id}:${requestedStepId}`]: true }));
     }
+  }
+
+  function openStepEditor(deal, stepId) {
+    setWorkspaceModeByDeal((current) => ({ ...current, [deal.id]: 'plan' }));
+    setViewModeByDeal((current) => ({ ...current, [deal.id]: 'steps' }));
+    setExpandedSteps((current) => ({ ...current, [`${deal.id}:${stepId}`]: true }));
   }
 
   function toggleDeal(deal, workflow) {
@@ -614,6 +652,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
         const currentSupplierName = stats.current ? supplierNames.get(stats.current.supplierId) || '尚未指派廠商' : '';
         const unfinished = workflow.filter((step) => !FINISHED_STATUSES.has(step.status));
         const blockedSteps = unfinished.filter((step) => step.status === 'blocked');
+        const otherBlockedSteps = blockedSteps.filter((step) => step.id !== stats.current?.id);
         const parallelSteps = unfinished.filter((step) => step.id !== stats.current?.id && step.status !== 'blocked' && !getWaitingOn(step, workflow));
         const dependentNext = stats.current
           ? unfinished.filter((step) => step.dependsOn === stats.current.id)
@@ -709,25 +748,31 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                             <div className="rounded-xl bg-s1/75 p-3"><p className="text-[10px] text-ink-3">施工廠商</p><p className="mt-1 text-sm font-bold text-ink">{currentSupplierName}</p></div>
                           </div>
                           {stats.current.note && <p className="mt-3 rounded-xl bg-s1/75 px-3 py-2 text-xs leading-5 text-ink-2">{stats.current.note}</p>}
+                          {stats.current.status === 'blocked' && (
+                            <div className="mt-3 rounded-xl border border-danger/30 bg-s1/80 p-3">
+                              <p className="text-xs font-bold text-danger">{stats.current.blockedReason || '此階段目前卡住'}</p>
+                              <p className="mt-1 text-[11px] text-ink-3">{[stats.current.blockedOwner ? `等待 ${stats.current.blockedOwner}` : '', stats.current.blockedFollowUpDate ? `${dayjs(stats.current.blockedFollowUpDate).format('MM/DD')} 再追` : '尚未設定追蹤日'].filter(Boolean).join('・')}</p>
+                            </div>
+                          )}
                           <div className="mt-4 grid grid-cols-2 gap-2">
                             {stats.current.status !== 'doing' && <button type="button" onClick={() => requestStatusChange(deal, stats.current.id, 'doing')} className="btn-primary min-h-12 text-sm">{stats.current.status === 'blocked' ? '▶ 恢復處理' : '▶ 開始處理'}</button>}
                             <button type="button" onClick={() => completeStep(deal, stats.current.id)} className="min-h-12 rounded-xl bg-ok px-3 text-sm font-bold text-on-accent">✓ 完成階段</button>
                             {stats.current.status !== 'blocked' && <button type="button" onClick={() => requestStatusChange(deal, stats.current.id, 'blocked')} className="min-h-12 rounded-xl border border-danger/40 px-3 text-sm font-bold text-danger">! 卡住／延後</button>}
-                            <button type="button" onClick={() => { setWorkspaceModeByDeal((current) => ({ ...current, [deal.id]: 'plan' })); setViewModeByDeal((current) => ({ ...current, [deal.id]: 'steps' })); setExpandedSteps((current) => ({ ...current, [`${deal.id}:${stats.current.id}`]: true })); }} className={`btn-outline min-h-12 text-sm ${['doing', 'blocked'].includes(stats.current.status) ? 'col-span-2' : ''}`}>修改詳細資料</button>
+                            <button type="button" onClick={() => openStepEditor(deal, stats.current.id)} className={`btn-outline min-h-12 text-sm ${['doing', 'blocked'].includes(stats.current.status) ? 'col-span-2' : ''}`}>修改詳細資料</button>
                           </div>
                         </section>
 
-                        {blockedSteps.length > 0 && (
+                        {otherBlockedSteps.length > 0 && (
                           <section className="rounded-xl border border-danger/45 bg-danger/5 p-3">
                             <p className="text-xs font-bold text-danger">卡住，需要處理</p>
-                            <div className="mt-2 space-y-2">{blockedSteps.map((step) => <button type="button" key={step.id} onClick={() => { setWorkspaceModeByDeal((current) => ({ ...current, [deal.id]: 'plan' })); setViewModeByDeal((current) => ({ ...current, [deal.id]: 'steps' })); setExpandedSteps((current) => ({ ...current, [`${deal.id}:${step.id}`]: true })); }} className="flex min-h-11 w-full items-center justify-between rounded-lg bg-s1/80 px-3 text-left text-sm font-semibold text-ink"><span>{step.label}</span><span className="text-xs text-danger">查看原因 ›</span></button>)}</div>
+                            <div className="mt-2 space-y-2">{otherBlockedSteps.map((step) => <button type="button" key={step.id} onClick={() => openStepEditor(deal, step.id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2 text-left text-sm font-semibold text-ink"><span className="min-w-0"><span className="block truncate">{step.label}</span><span className="mt-0.5 block truncate text-[11px] font-normal text-ink-3">{step.blockedReason || '尚未填寫卡住原因'}{step.blockedFollowUpDate ? `・${dayjs(step.blockedFollowUpDate).format('MM/DD')} 再追` : ''}</span></span><span className="shrink-0 text-xs text-danger">查看 ›</span></button>)}</div>
                           </section>
                         )}
 
                         {parallelSteps.length > 0 && (
                           <section className="rounded-xl border border-teal/30 bg-teal/5 p-3">
                             <p className="text-xs font-bold text-teal">同時可以處理</p>
-                            <div className="mt-2 flex flex-wrap gap-2">{parallelSteps.slice(0, 4).map((step) => <span key={step.id} className="rounded-full bg-s1 px-3 py-1.5 text-xs font-semibold text-ink-2">{step.label}</span>)}</div>
+                            <div className="mt-2 space-y-2">{parallelSteps.slice(0, 4).map((step) => <button type="button" key={step.id} onClick={() => step.status === 'doing' ? openStepEditor(deal, step.id) : requestStatusChange(deal, step.id, 'doing')} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1 px-3 text-left"><span className="truncate text-xs font-semibold text-ink-2">{step.label}</span><span className="shrink-0 text-[11px] font-bold text-teal">{step.status === 'doing' ? '查看 ›' : '開始 ›'}</span></button>)}</div>
                           </section>
                         )}
 
@@ -905,7 +950,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
           </section>
         );
       })}
-      <ConfirmActionDialog action={confirmAction} busy={confirmBusy} onCancel={() => setConfirmAction(null)} onConfirm={performConfirmedAction} />
+      <ConfirmActionDialog action={confirmAction} busy={confirmBusy} onCancel={() => setConfirmAction(null)} onConfirm={performConfirmedAction} onActionChange={(patch) => setConfirmAction((current) => current ? { ...current, ...patch, error: null } : current)} />
       <UndoToast action={undoAction} busy={undoBusy} onUndo={performUndo} onDismiss={() => setUndoAction(null)} />
     </div>
   );
