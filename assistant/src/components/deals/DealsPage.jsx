@@ -14,7 +14,12 @@ import {
   QuotePricingPanel,
 } from './InternalPricing';
 
-export default function DealsPage({ onOpenClient, onBack, focusDealId = null }) {
+function sessionTimeLabel(seconds = 0) {
+  const minutes = Math.max(0, Math.ceil(seconds / 60));
+  return minutes > 0 ? `剩餘 ${minutes} 分鐘` : '即將自動上鎖';
+}
+
+export default function DealsPage({ onOpenClient, onBack, focusDealId = null, sessionRemainingSeconds = 0, onLock }) {
   const {
     deals,
     cases,
@@ -215,9 +220,16 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null }) 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
       {focusedWorkflow && (
-        <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-3 border-b border-bdr bg-bg/95 px-4 py-3 backdrop-blur">
+        <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-2 border-b border-bdr bg-bg/95 px-4 py-3 backdrop-blur">
           <button type="button" onClick={onBack} className="btn-outline min-h-11 shrink-0 px-3">← 返回案件</button>
-          <div className="min-w-0"><p className="font-bold text-ink">施工進度處理</p><p className="text-[11px] text-ink-3">只顯示目前案件</p></div>
+          <div className="min-w-0 flex-1"><p className="font-bold text-ink">施工進度處理</p><p className="text-[11px] text-ink-3">專注模式・{sessionTimeLabel(sessionRemainingSeconds)}</p></div>
+          {onLock && <button type="button" onClick={onLock} className="min-h-11 shrink-0 rounded-xl border border-danger/35 px-3 text-xs font-bold text-danger">立即上鎖</button>}
+        </div>
+      )}
+      {!focusedWorkflow && onLock && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-bdr bg-s2/60 px-3 py-2">
+          <p className="text-xs text-ink-3">後台已解鎖・{sessionTimeLabel(sessionRemainingSeconds)}</p>
+          <button type="button" onClick={onLock} className="min-h-10 rounded-lg border border-danger/35 px-3 text-xs font-bold text-danger">立即上鎖</button>
         </div>
       )}
       {!focusedWorkflow && <div className="card p-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
@@ -248,7 +260,7 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null }) 
 
       {(section === 'fulfillment' || focusedWorkflow) && (
         <DeliveryWorkflowPanel deals={deals} cases={cases} clients={clients} pricingById={pricingById}
-          suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} focusDealId={focusDealId} />
+          suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} onOpenClient={onOpenClient} focusDealId={focusDealId} />
       )}
 
       {!focusedWorkflow && section === 'suppliers' && (

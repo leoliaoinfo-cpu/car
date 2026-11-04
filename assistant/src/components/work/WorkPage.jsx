@@ -30,6 +30,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   const [filter, setFilter] = useState(firstActive);
   const [snoozing, setSnoozing] = useState(null);
   const visible = queue.filter((row) => row.group === filter);
+  const nextAvailableFilter = FILTERS.find(([key]) => key !== filter && counts[key] > 0);
 
   async function writeActivity(row, text) {
     if (!row.caseId && !row.clientId) return;
@@ -116,7 +117,8 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
         <section className="card px-5 py-10 text-center">
           <div className="text-4xl">✓</div>
           <h2 className="font-bold text-ink mt-3">這一區目前沒有工作</h2>
-          <p className="text-sm text-ink-3 mt-1">有新進度時會自動集中到這裡。</p>
+          <p className="text-sm text-ink-3 mt-1">{nextAvailableFilter ? `還有 ${counts[nextAvailableFilter[0]]} 件「${nextAvailableFilter[1]}」工作。` : '目前所有工作都已處理完畢。'}</p>
+          {nextAvailableFilter && <button type="button" onClick={() => setFilter(nextAvailableFilter[0])} className="btn-primary mt-4 min-h-11 px-5">前往{nextAvailableFilter[1]}工作</button>}
         </section>
       ) : (
         <div className="space-y-3">
@@ -135,7 +137,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : '✓ 完成'}</button>
                 <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
-                <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>
+                {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
               </div>
               {snoozing === row.id && (
                 <div className="grid grid-cols-3 gap-2 mt-2 rounded-xl bg-s2 p-2">

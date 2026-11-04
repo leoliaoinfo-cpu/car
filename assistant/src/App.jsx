@@ -58,6 +58,7 @@ function AppInner() {
   const [tab, setTab] = useState('work');
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
+  const [crmFocusIntent, setCrmFocusIntent] = useState(null);
   const [receptionStartToken, setReceptionStartToken] = useState(null);
   const [quoteStartToken, setQuoteStartToken] = useState(null);
   const [quoteFocusId, setQuoteFocusId] = useState(null);
@@ -79,8 +80,9 @@ function AppInner() {
     try { localStorage.setItem(STORAGE_KEYS.isolationNoticeDismissed, '1'); } catch { /* noop */ }
   }
 
-  function openClient(id) {
+  function openClient(id, intent = null) {
     setCrmFocusId(id);
+    setCrmFocusIntent(intent ? { ...intent, token: Date.now() } : null);
     setTab('crm');
   }
 
@@ -104,6 +106,8 @@ function AppInner() {
   function openCaseOperations(dealId = null, caseId = null) {
     setOperationsReturn({ tab, caseId: caseId || null });
     setOperationsFocusDealId(dealId);
+    setShowQuickCreate(false);
+    setShowCaseSearch(false);
     setTab('operations');
   }
 
@@ -148,6 +152,8 @@ function AppInner() {
     );
   }
 
+  const focusedOperations = tab === 'operations' && Boolean(operationsFocusDealId);
+
   return (
     <div className="app-shell min-h-screen bg-bg font-sans text-ink">
       {/* DB 不可用提示（隱私模式 / file:// 限制等真正的存取錯誤）*/}
@@ -158,7 +164,7 @@ function AppInner() {
         </div>
       )}
 
-      {showIsolationNotice && (
+      {showIsolationNotice && !focusedOperations && (
         <div className="bg-accent/10 border-b border-accent/30 px-4 py-2.5 text-xs text-ink-2 flex items-start gap-3">
           <div className="flex-1 leading-relaxed">
             <strong className="text-accent">✅ 汽車系統已改用獨立儲存空間。</strong>
@@ -169,9 +175,9 @@ function AppInner() {
         </div>
       )}
 
-      <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} />
+      {!focusedOperations && <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} />}
 
-      <main className="pb-20 lg:pb-0">
+      <main className={focusedOperations ? '' : 'pb-20 lg:pb-0'}>
         <div className="anim-fade-in" key={tab}>
           {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
           {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
@@ -179,7 +185,7 @@ function AppInner() {
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
-            <CrmPage focusId={crmFocusId} onFocusConsumed={() => setCrmFocusId(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
+            <CrmPage focusId={crmFocusId} focusIntent={crmFocusIntent} onFocusConsumed={() => setCrmFocusId(null)} onFocusIntentConsumed={() => setCrmFocusIntent(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
           {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} />}
           {tab === 'catalog' && <ProductCatalog />}
@@ -198,12 +204,12 @@ function AppInner() {
         ＋
       </button>}
 
-      <button type="button" onClick={() => setShowCaseSearch(true)}
+      {!focusedOperations && <button type="button" onClick={() => setShowCaseSearch(true)}
         className="lg:hidden fixed left-4 bottom-24 z-40 min-h-14 min-w-14 rounded-full border border-teal/40 bg-s1 text-teal shadow-panel flex items-center justify-center active:scale-95 transition-transform text-xl"
-        title="快速搜尋案件" aria-label="快速搜尋案件">🔎</button>
+        title="快速搜尋案件" aria-label="快速搜尋案件">🔎</button>}
 
       {/* Mobile bottom navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
+      {!focusedOperations && <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
         {[
           { key: 'work', icon: '✓', label: '工作', active: 'text-copper bg-copper/10' },
           { key: 'cases', icon: '📁', label: '案件', active: 'text-teal bg-teal/10' },
@@ -221,7 +227,7 @@ function AppInner() {
             <span className="text-[10px] font-medium">{item.label}</span>
           </button>
         ))}
-      </nav>
+      </nav>}
       {showQuickCreate && <QuickCreateSheet onClose={() => setShowQuickCreate(false)} onAction={quickCreate} />}
       {showCaseSearch && <CaseQuickSearch onClose={() => setShowCaseSearch(false)} onOpenCase={openCase} />}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}

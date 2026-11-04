@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   getClientStatus, STATUS_COLOR, STATUS_LABEL, CAT_COLORS, FIELD_COLORS, generateId,
   EVENT_TYPES, QUICK_EVENT_KEYS, DELIVERY_FOLLOWUP_DAYS, formatMoney,
@@ -34,14 +34,14 @@ function pickEditable(client) {
   return out;
 }
 
-export default function ClientDetail({ client, cats, stages, onClose, onDelete, onOpenCase, onCreateCase }) {
+export default function ClientDetail({ client, cats, stages, initialIntent = null, onIntentConsumed, onClose, onDelete, onOpenCase, onCreateCase }) {
   const {
     clients, customFields, saveTimer, timers, updateClient, thresholds,
     deals, dealFields, saveDeal, todoTemplate, industries,
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     events, saveEvent, deleteEvent, heightConfig, cases,
-    workItems, saveWorkItem, reassignClientRecords, saveCase,
+    workItems, saveWorkItem, reassignClientRecords, saveCase, saveActivity,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
   const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
@@ -87,12 +87,14 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
   const [eventType, setEventType] = useState(null);
   const [eventNote, setEventNote] = useState('');
   const [eventAmount, setEventAmount] = useState('');
+  const transactionSectionRef = useRef(null);
   // 交車年度商機提醒（保險續保 / 驗車 / 舊換新預測），日期可調
   const [annualReminders, setAnnualReminders] = useState({
     insurance: { on: true, date: '' },
     inspection: { on: true, date: '' },
     replace: { on: true, date: '' },
   });
+  const [handoffHighlight, setHandoffHighlight] = useState(false);
 
   async function copyHeightHandoff() {
     if (!demandHeightSummary) return;
@@ -126,6 +128,38 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
     return linkedCase ? linkedCase.type !== 'modification' : hasVehicleLine;
   });
   const pendingDeliveryDeals = purchaseDeals.filter((deal) => !deal.commissionRecognizedAt);
+
+  function prepareDeliveryEvent(preferredDealId = '') {
+    setEventType('delivery');
+    setEventNote('');
+    setEventAmount('');
+    const preferred = pendingDeliveryDeals.find((deal) => deal.id === preferredDealId);
+    setDeliveryDealId(preferred?.id || (pendingDeliveryDeals.length === 1 ? pendingDeliveryDeals[0].id : ''));
+    const in11mo = dayjs().add(11, 'month').format('YYYY-MM-DD');
+    const in54mo = dayjs().add(54, 'month').format('YYYY-MM-DD');
+    setAnnualReminders({
+      insurance: { on: true, date: in11mo },
+      inspection: { on: true, date: in11mo },
+      replace: { on: true, date: in54mo },
+    });
+  }
+
+  useEffect(() => {
+    if (initialIntent?.type !== 'delivery') return;
+    prepareDeliveryEvent(initialIntent.dealId || '');
+    setHandoffHighlight(true);
+    const timer = setTimeout(() => {
+      transactionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      onIntentConsumed?.();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [initialIntent?.token]);
+
+  useEffect(() => {
+    if (!handoffHighlight) return undefined;
+    const timer = setTimeout(() => setHandoffHighlight(false), 2200);
+    return () => clearTimeout(timer);
+  }, [handoffHighlight]);
 
   // 已記錄下訂 / 交車但還沒歸檔業績 → 提示（避免賣了車卻忘了計入業績）
   const hasSaleEvent = (client.log || []).some((e) => e.type === 'order' || e.type === 'delivery');
@@ -314,6 +348,27 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
           ? normalizeDeliveryWorkflow(deal)
           : generateDeliveryWorkflow({ deal, pricing: pricingRecords.find((row) => row.id === `deal:${deal.id}`) })), 'delivery', 'done')
           .map((step) => step.id === 'delivery' ? { ...step, note: '已記錄交車' } : step),
+      });
+    }
+
+    if (isDelivery && deal) {
+      const deliveryCase = clientCases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
+      if (deliveryCase) {
+        await saveCase({
+          ...deliveryCase,
+          dealId: deal.id,
+          status: 'completed',
+          nextFollowUpDate: '',
+          completedAt: new Date().toISOString(),
+        });
+      }
+      await saveActivity({
+        id: generateId('activity'),
+        clientId: client.id,
+        caseId: deliveryCase?.id || deal.caseId || null,
+        type: 'delivery',
+        text: `確認正式交車並認列 ${dayjs(t).format('YYYY 年 M 月')}薪資`,
+        date: t,
       });
     }
 
@@ -940,7 +995,7 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
         </section>
 
         {/* 業務流程事件 */}
-        <section className="card p-4 space-y-3">
+        <section ref={transactionSectionRef} className={`card p-4 space-y-3 transition-shadow ${handoffHighlight ? 'ring-2 ring-copper/55 shadow-panel' : ''}`}>
           <h3 className="font-semibold text-sm text-ink-2">🚛 互動與成交紀錄</h3>
           <div className="flex gap-1.5 flex-wrap">
             {QUICK_EVENT_KEYS.map((key) => {
@@ -950,19 +1005,12 @@ export default function ClientDetail({ client, cats, stages, onClose, onDelete, 
                 <button
                   key={key}
                   onClick={() => {
-                    setEventType(active ? null : key);
-                    setEventNote('');
-                    setEventAmount('');
-                    if (key === 'delivery' && !active) {
-                      setDeliveryDealId(pendingDeliveryDeals.length === 1 ? pendingDeliveryDeals[0].id : '');
-                      const in11mo = dayjs().add(11, 'month').format('YYYY-MM-DD');
-                      // 舊換新預測：車齡近 5 年前半年進場談換車
-                      const in54mo = dayjs().add(54, 'month').format('YYYY-MM-DD');
-                      setAnnualReminders({
-                        insurance: { on: true, date: in11mo },
-                        inspection: { on: true, date: in11mo },
-                        replace: { on: true, date: in54mo },
-                      });
+                    if (active) setEventType(null);
+                    else if (key === 'delivery') prepareDeliveryEvent();
+                    else {
+                      setEventType(key);
+                      setEventNote('');
+                      setEventAmount('');
                     }
                   }}
                   className={`btn text-xs px-2 py-1 border ${active ? 'text-white' : ''}`}

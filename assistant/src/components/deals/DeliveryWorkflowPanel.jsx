@@ -78,6 +78,34 @@ function UndoToast({ action, busy, onUndo, onDismiss }) {
   );
 }
 
+function StageSwitcher({ workflow, selectedStep, onSelect }) {
+  const complete = workflow.filter((step) => FINISHED_STATUSES.has(step.status)).length;
+  return (
+    <section className="rounded-2xl border border-bdr bg-s2/55 p-3" aria-label="施工階段切換">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-xs font-bold text-ink">階段切換</p><p className="mt-0.5 text-[10px] text-ink-3">點選可處理的階段，等待中的階段會先鎖住。</p></div>
+        <span className="shrink-0 rounded-full bg-s1 px-2.5 py-1 text-[10px] font-bold text-accent">完成 {complete}/{workflow.length}</span>
+      </div>
+      <div className="mt-3 flex snap-x gap-2 overflow-x-auto pb-1">
+        {workflow.map((step, index) => {
+          const finished = FINISHED_STATUSES.has(step.status);
+          const waiting = getWaitingOn(step, workflow);
+          const selected = selectedStep?.id === step.id;
+          const disabled = finished || Boolean(waiting);
+          const stateLabel = finished ? '已完成' : waiting ? `等待 ${waiting.label}` : selected ? '目前查看' : step.status === 'blocked' ? '卡住' : '可處理';
+          return (
+            <button key={step.id} type="button" disabled={disabled} onClick={() => onSelect(step.id)} aria-current={selected ? 'step' : undefined}
+              className={`min-h-16 min-w-[148px] snap-start rounded-xl border px-3 py-2 text-left transition ${selected ? 'border-accent bg-accent/12 ring-1 ring-accent/25' : finished ? 'border-ok/25 bg-ok/8' : waiting ? 'border-bdr bg-s1/45 opacity-55' : step.status === 'blocked' ? 'border-danger/35 bg-danger/5' : 'border-bdr bg-s1'}`}>
+              <span className={`block text-[10px] font-bold ${selected ? 'text-accent' : finished ? 'text-ok' : waiting ? 'text-ink-3' : step.status === 'blocked' ? 'text-danger' : 'text-copper'}`}>{index + 1}. {stateLabel}</span>
+              <span className="mt-1 block truncate text-xs font-bold text-ink">{step.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function progressStats(workflow, deal = {}) {
   const complete = workflow.filter((step) => FINISHED_STATUSES.has(step.status)).length;
   const active = workflow.filter((step) => !FINISHED_STATUSES.has(step.status));
@@ -94,7 +122,7 @@ function progressStats(workflow, deal = {}) {
   return { complete, current, timing, overdue, schedule, startedAt, runningDays, targetDate, percent: workflow.length ? Math.round(complete / workflow.length * 100) : 0 };
 }
 
-export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pricingById, suppliers, onSaveDeal, onOpenPricing, focusDealId = null }) {
+export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pricingById, suppliers, onSaveDeal, onOpenPricing, onOpenClient, focusDealId = null }) {
   const [openDealId, setOpenDealId] = useState(null);
   const [expandedSteps, setExpandedSteps] = useState({});
   const [addStepDealId, setAddStepDealId] = useState(null);
@@ -113,6 +141,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
   const [undoBusy, setUndoBusy] = useState(false);
   const [showCompletedByDeal, setShowCompletedByDeal] = useState({});
   const [showHistoryByDeal, setShowHistoryByDeal] = useState({});
+  const [activeStepByDeal, setActiveStepByDeal] = useState({});
   const [timelineEditKey, setTimelineEditKey] = useState(null);
   const sortDraftsRef = useRef({});
   const dragStateRef = useRef(null);
@@ -303,7 +332,15 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
         });
         const saved = await saveWorkflow(deal, nextWorkflow, { event });
         if (!saved) return false;
-        setUndoAction({ dealId: deal.id, eventId: event.id, message: event.action });
+        const nextFocus = FINISHED_STATUSES.has(nextStatus) ? getCurrentWorkflowStep(nextWorkflow) : nextWorkflow.find((candidate) => candidate.id === stepId);
+        setActiveStepByDeal((current) => ({ ...current, [deal.id]: nextFocus?.id || null }));
+        setUndoAction({
+          dealId: deal.id,
+          eventId: event.id,
+          message: FINISHED_STATUSES.has(nextStatus)
+            ? `「${currentStep.label}」已完成${nextFocus ? `，現在進入「${nextFocus.label}」` : '，施工階段全部完成'}`
+            : event.action,
+        });
         if (FINISHED_STATUSES.has(nextStatus)) {
           setExpandedSteps((current) => ({ ...current, [`${deal.id}:${stepId}`]: false }));
         }
@@ -447,6 +484,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
     });
     const saved = await saveWorkflow(deal, restoredWorkflow, { events: [restoreEvent, ...markedEvents].slice(0, 60) });
     if (!saved) return false;
+    setActiveStepByDeal((current) => ({ ...current, [deal.id]: getCurrentWorkflowStep(restoredWorkflow)?.id || null }));
     setUndoAction(null);
     return true;
   }
@@ -694,16 +732,19 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
         const workflowEvents = eventRefs.current[deal.id] || deal.deliveryWorkflowEvents || [];
         const saveStatus = saveStatusByDeal[deal.id];
         const caseNumber = caseNumbers.get(`deal:${deal.id}`) || caseNumbers.get(`case:${deal.caseId}`);
-        const currentSupplierName = stats.current ? supplierNames.get(stats.current.supplierId) || '尚未指派廠商' : '';
         const unfinished = workflow.filter((step) => !FINISHED_STATUSES.has(step.status));
+        const requestedDailyStep = unfinished.find((step) => step.id === activeStepByDeal[deal.id] && !getWaitingOn(step, workflow));
+        const dailyStep = requestedDailyStep || stats.current;
+        const dailyTiming = dailyStep ? getStageTiming(dailyStep, workflow) : null;
+        const dailySupplierName = dailyStep ? supplierNames.get(dailyStep.supplierId) || '尚未指派廠商' : '';
         const blockedSteps = unfinished.filter((step) => step.status === 'blocked');
-        const otherBlockedSteps = blockedSteps.filter((step) => step.id !== stats.current?.id);
-        const parallelSteps = unfinished.filter((step) => step.id !== stats.current?.id && step.status !== 'blocked' && !getWaitingOn(step, workflow));
-        const dependentNext = stats.current
-          ? unfinished.filter((step) => step.dependsOn === stats.current.id)
+        const otherBlockedSteps = blockedSteps.filter((step) => step.id !== dailyStep?.id);
+        const parallelSteps = unfinished.filter((step) => step.id !== dailyStep?.id && step.status !== 'blocked' && !getWaitingOn(step, workflow));
+        const dependentNext = dailyStep
+          ? unfinished.filter((step) => step.dependsOn === dailyStep.id)
           : [];
         const nextSteps = (dependentNext.length ? dependentNext : stats.schedule.rows
-          .filter((step) => !FINISHED_STATUSES.has(step.status) && step.id !== stats.current?.id)
+          .filter((step) => !FINISHED_STATUSES.has(step.status) && step.id !== dailyStep?.id)
           .sort((a, b) => a.startOffset - b.startOffset)).slice(0, 3);
         return (
           <section key={deal.id} className={`card overflow-hidden ${focusDealId === deal.id ? 'ring-2 ring-copper/40' : ''}`}>
@@ -772,39 +813,40 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
 
                 {workspaceMode === 'daily' && (
                   <div className="space-y-3">
+                    {workflow.length > 0 && <StageSwitcher workflow={workflow} selectedStep={dailyStep} onSelect={(stepId) => setActiveStepByDeal((current) => ({ ...current, [deal.id]: stepId }))} />}
                     {workflow.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-accent/40 bg-accent/5 p-4 text-center">
                         <p className="font-bold text-ink">這筆成交還沒有施工流程</p>
                         <p className="mt-1 text-xs leading-5 text-ink-3">系統可以依成交配備建立尾門、帆布、烤漆、箱體、洗車與交車步驟。</p>
                         <button type="button" onClick={() => saveWorkflow(deal, generateDeliveryWorkflow({ deal, pricing }))} className="btn-primary mt-4 min-h-12 w-full">依成交內容建立流程</button>
                       </div>
-                    ) : stats.current ? (
+                    ) : dailyStep ? (
                       <>
-                        <section className={`rounded-2xl border-2 p-4 ${stats.current.status === 'blocked' ? 'border-danger/45 bg-danger/5' : stats.timing?.urgency === 'overdue' ? 'border-warn/55 bg-warn/5' : 'border-accent/40 bg-accent/5'}`}>
+                        <section className={`rounded-2xl border-2 p-4 ${dailyStep.status === 'blocked' ? 'border-danger/45 bg-danger/5' : dailyTiming?.urgency === 'overdue' ? 'border-warn/55 bg-warn/5' : 'border-accent/40 bg-accent/5'}`}>
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
-                              <p className="text-[11px] font-bold tracking-[.12em] text-accent">目前階段</p>
-                              <h3 className="mt-1 text-xl font-bold text-ink">{stats.current.label}</h3>
+                              <p className="text-[11px] font-bold tracking-[.12em] text-accent">目前查看・第 {workflow.findIndex((step) => step.id === dailyStep.id) + 1} 階段</p>
+                              <h3 className="mt-1 text-xl font-bold text-ink">{dailyStep.label}</h3>
                             </div>
-                            <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[stats.current.status]}`}>{STATUS_LABELS.get(stats.current.status)}</span>
+                            <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${STATUS_STYLES[dailyStep.status]}`}>{STATUS_LABELS.get(dailyStep.status)}</span>
                           </div>
                           <div className="mt-4 grid grid-cols-2 gap-2">
-                            <div className="rounded-xl bg-s1/75 p-3"><p className="text-[10px] text-ink-3">進行時間</p><p className={`mt-1 text-sm font-bold ${stats.timing?.urgency === 'overdue' ? 'text-danger' : 'text-ink'}`}>{stats.timing?.elapsedDays ? `${stats.timing.elapsedDays} 天／原訂 ${stats.timing.plannedDays} 天` : '尚未開始'}</p>{stats.timing?.overDays > 0 && <p className="mt-1 text-[11px] font-bold text-danger">已超過 {stats.timing.overDays} 天</p>}</div>
-                            <div className="rounded-xl bg-s1/75 p-3"><p className="text-[10px] text-ink-3">施工廠商</p><p className="mt-1 text-sm font-bold text-ink">{currentSupplierName}</p></div>
+                            <div className="rounded-xl bg-s1/75 p-3"><p className="text-[10px] text-ink-3">進行時間</p><p className={`mt-1 text-sm font-bold ${dailyTiming?.urgency === 'overdue' ? 'text-danger' : 'text-ink'}`}>{dailyTiming?.elapsedDays ? `${dailyTiming.elapsedDays} 天／原訂 ${dailyTiming.plannedDays} 天` : '尚未開始'}</p>{dailyTiming?.overDays > 0 && <p className="mt-1 text-[11px] font-bold text-danger">已超過 {dailyTiming.overDays} 天</p>}</div>
+                            <div className="rounded-xl bg-s1/75 p-3"><p className="text-[10px] text-ink-3">施工廠商</p><p className="mt-1 text-sm font-bold text-ink">{dailySupplierName}</p></div>
                           </div>
-                          {stats.current.note && <p className="mt-3 rounded-xl bg-s1/75 px-3 py-2 text-xs leading-5 text-ink-2">{stats.current.note}</p>}
-                          {stats.current.status === 'blocked' && (
+                          {dailyStep.note && <p className="mt-3 rounded-xl bg-s1/75 px-3 py-2 text-xs leading-5 text-ink-2">{dailyStep.note}</p>}
+                          {dailyStep.status === 'blocked' && (
                             <div className="mt-3 rounded-xl border border-danger/30 bg-s1/80 p-3">
-                              <p className="text-xs font-bold text-danger">{stats.current.blockedReason || '此階段目前卡住'}</p>
-                              <p className="mt-1 text-[11px] text-ink-3">{[stats.current.blockedOwner ? `等待 ${stats.current.blockedOwner}` : '', stats.current.blockedFollowUpDate ? `${dayjs(stats.current.blockedFollowUpDate).format('MM/DD')} 再追` : '尚未設定追蹤日'].filter(Boolean).join('・')}</p>
-                              <button type="button" onClick={() => requestBlockedDetailsEdit(deal, stats.current.id)} className="mt-2 min-h-11 w-full rounded-lg border border-danger/35 text-xs font-bold text-danger">✎ 修改卡點／追蹤日</button>
+                              <p className="text-xs font-bold text-danger">{dailyStep.blockedReason || '此階段目前卡住'}</p>
+                              <p className="mt-1 text-[11px] text-ink-3">{[dailyStep.blockedOwner ? `等待 ${dailyStep.blockedOwner}` : '', dailyStep.blockedFollowUpDate ? `${dayjs(dailyStep.blockedFollowUpDate).format('MM/DD')} 再追` : '尚未設定追蹤日'].filter(Boolean).join('・')}</p>
+                              <button type="button" onClick={() => requestBlockedDetailsEdit(deal, dailyStep.id)} className="mt-2 min-h-11 w-full rounded-lg border border-danger/35 text-xs font-bold text-danger">✎ 修改卡點／追蹤日</button>
                             </div>
                           )}
                           <div className="mt-4 grid grid-cols-2 gap-2">
-                            {stats.current.status !== 'doing' && <button type="button" onClick={() => requestStatusChange(deal, stats.current.id, 'doing')} className="btn-primary min-h-12 text-sm">{stats.current.status === 'blocked' ? '▶ 恢復處理' : '▶ 開始處理'}</button>}
-                            <button type="button" onClick={() => completeStep(deal, stats.current.id)} className="min-h-12 rounded-xl bg-ok px-3 text-sm font-bold text-on-accent">✓ 完成階段</button>
-                            {stats.current.status !== 'blocked' && <button type="button" onClick={() => requestStatusChange(deal, stats.current.id, 'blocked')} className="min-h-12 rounded-xl border border-danger/40 px-3 text-sm font-bold text-danger">! 卡住／延後</button>}
-                            <button type="button" onClick={() => openStepEditor(deal, stats.current.id)} className={`btn-outline min-h-12 text-sm ${['doing', 'blocked'].includes(stats.current.status) ? 'col-span-2' : ''}`}>修改詳細資料</button>
+                            {dailyStep.status !== 'doing' && <button type="button" onClick={() => requestStatusChange(deal, dailyStep.id, 'doing')} className="btn-primary min-h-12 text-sm">{dailyStep.status === 'blocked' ? '▶ 恢復處理' : '▶ 開始處理'}</button>}
+                            <button type="button" onClick={() => completeStep(deal, dailyStep.id)} className="min-h-12 rounded-xl bg-ok px-3 text-sm font-bold text-on-accent">✓ 完成此階段</button>
+                            {dailyStep.status !== 'blocked' && <button type="button" onClick={() => requestStatusChange(deal, dailyStep.id, 'blocked')} className="min-h-12 rounded-xl border border-danger/40 px-3 text-sm font-bold text-danger">! 卡住／延後</button>}
+                            <button type="button" onClick={() => openStepEditor(deal, dailyStep.id)} className={`btn-outline min-h-12 text-sm ${['doing', 'blocked'].includes(dailyStep.status) ? 'col-span-2' : ''}`}>修改詳細資料</button>
                           </div>
                         </section>
 
@@ -817,8 +859,8 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
 
                         {parallelSteps.length > 0 && (
                           <section className="rounded-xl border border-teal/30 bg-teal/5 p-3">
-                            <p className="text-xs font-bold text-teal">同時可以處理</p>
-                            <div className="mt-2 space-y-2">{parallelSteps.slice(0, 4).map((step) => <button type="button" key={step.id} onClick={() => step.status === 'doing' ? openStepEditor(deal, step.id) : requestStatusChange(deal, step.id, 'doing')} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1 px-3 text-left"><span className="truncate text-xs font-semibold text-ink-2">{step.label}</span><span className="shrink-0 text-[11px] font-bold text-teal">{step.status === 'doing' ? '查看 ›' : '開始 ›'}</span></button>)}</div>
+                            <p className="text-xs font-bold text-teal">切換到其他可做階段</p>
+                            <div className="mt-2 space-y-2">{parallelSteps.slice(0, 4).map((step) => <button type="button" key={step.id} onClick={() => setActiveStepByDeal((current) => ({ ...current, [deal.id]: step.id }))} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1 px-3 text-left"><span className="truncate text-xs font-semibold text-ink-2">{step.label}</span><span className="shrink-0 text-[11px] font-bold text-teal">切換 ›</span></button>)}</div>
                           </section>
                         )}
 
@@ -830,7 +872,10 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                       </>
                     ) : (
                       <div className="rounded-2xl border border-ok/40 bg-ok/10 p-5 text-center">
-                        <p className="text-3xl">✓</p><p className="mt-2 text-lg font-bold text-ok">所有施工階段都已完成</p><p className="mt-1 text-xs text-ink-3">可到排程與設定查看紀錄，或確認正式交車。</p>
+                        <p className="text-3xl">✓</p><p className="mt-2 text-lg font-bold text-ok">所有施工階段都已完成</p>
+                        {deal.commissionRecognizedAt
+                          ? <p className="mt-2 rounded-xl bg-s1/75 px-3 py-2 text-sm font-bold text-ok">已於 {dayjs(deal.commissionRecognizedAt).format('YYYY/MM/DD')} 正式交車並認列薪資</p>
+                          : <><p className="mt-1 text-xs text-ink-3">下一步只剩正式交車確認；施工完成不會自動計入薪資。</p><button type="button" disabled={!deal.clientId} onClick={() => deal.clientId ? onOpenClient?.(deal.clientId, { type: 'delivery', dealId: deal.id }) : setSaveErrors((current) => ({ ...current, [deal.id]: '這筆成交尚未連結客戶，請先回案件補上客戶資料。' }))} className="btn-primary mt-4 min-h-12 w-full disabled:opacity-45">確認正式交車與薪資月份</button></>}
                       </div>
                     )}
                   </div>

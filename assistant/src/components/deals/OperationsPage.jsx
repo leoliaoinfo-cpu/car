@@ -21,6 +21,11 @@ function saveUnlockUntil(value) {
   catch { /* sessionStorage unavailable: keep only the current mounted page unlocked */ }
 }
 
+function clearUnlockSession() {
+  try { sessionStorage.removeItem(STORAGE_KEYS.operationsUnlockUntil); }
+  catch { /* sessionStorage unavailable: local state still locks the current page */ }
+}
+
 export default function OperationsPage({ onOpenClient, onBack, focusDealId = null }) {
   const initialUnlockUntil = readUnlockUntil();
   const [unlockUntil, setUnlockUntil] = useState(initialUnlockUntil);
@@ -32,6 +37,7 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
   const remainingSeconds = Math.max(0, Math.ceil((lockedUntil - now) / 1000));
+  const sessionRemainingSeconds = unlocked ? Math.max(0, Math.ceil((unlockUntil - now) / 1000)) : 0;
 
   useEffect(() => {
     if (!remainingSeconds) return undefined;
@@ -49,6 +55,21 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     const timer = setTimeout(() => setUnlocked(false), remaining);
     return () => clearTimeout(timer);
   }, [unlocked, unlockUntil]);
+
+  useEffect(() => {
+    if (!unlocked) return undefined;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, [unlocked]);
+
+  function lockNow() {
+    clearUnlockSession();
+    setUnlockUntil(0);
+    setUnlocked(false);
+    setPassword('');
+    setError('');
+  }
 
   async function unlock() {
     if (busy || remainingSeconds || !isValidPresentationPin(password)) return;
@@ -78,7 +99,7 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     }
   }
 
-  if (unlocked) return <DealsPage onOpenClient={onOpenClient} onBack={onBack} focusDealId={focusDealId} />;
+  if (unlocked) return <DealsPage onOpenClient={onOpenClient} onBack={onBack} focusDealId={focusDealId} sessionRemainingSeconds={sessionRemainingSeconds} onLock={lockNow} />;
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 sm:py-14">
