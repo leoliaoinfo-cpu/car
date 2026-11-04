@@ -397,7 +397,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
 
   async function finishWork(row) {
     if (row.sourceType === 'delivery') {
-      onOpenOperations?.(row.dealId);
+      onOpenOperations?.(row.dealId, item.id);
       return;
     }
     if (row.sourceType === 'workItem') {
@@ -431,7 +431,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
-            <button type="button" disabled={!linkedDeal} onClick={() => linkedDeal && onOpenOperations?.(linkedDeal.id)} className="card min-h-16 px-2 py-3 text-xs font-bold text-copper disabled:opacity-40">🚚 {linkedDeal ? '施工進度' : '尚未成交'}</button>
+            <button type="button" disabled={!linkedDeal} onClick={() => linkedDeal && onOpenOperations?.(linkedDeal.id, item.id)} className="card min-h-16 px-2 py-3 text-xs font-bold text-copper disabled:opacity-40">🚚 {linkedDeal ? '施工進度' : '尚未成交'}</button>
           </section>
 
           <nav className="grid grid-cols-4 gap-1 rounded-xl border border-bdr bg-s1 p-1 sticky top-[3.9rem] z-10">
@@ -484,12 +484,12 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
                   </div>
                 </div>
 
-                <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="btn-primary mt-4 min-h-12 w-full text-sm">處理現在進度</button>
+                <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="btn-primary mt-4 min-h-12 w-full text-sm">處理現在進度</button>
               </div>
             </section>
           )}
 
-          {(section === 'overview' || section === 'quotes') && <section className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{linkedQuotes.map((quote) => <button type="button" onClick={() => onOpenQuote?.(item, quote.id)} key={quote.id} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">報價・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
+          {(section === 'overview' || section === 'quotes') && <section className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{linkedQuotes.map((quote) => <button type="button" onClick={() => onOpenQuote?.(item, quote.id)} key={quote.id} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">報價・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
 
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}

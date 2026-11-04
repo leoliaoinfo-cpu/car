@@ -5,6 +5,7 @@ export const MIN_PRESENTATION_PIN_LENGTH = 4;
 export const MAX_PRESENTATION_PIN_LENGTH = 12;
 export const PIN_MAX_FAILURES = 5;
 export const PIN_COOLDOWN_MS = 30_000;
+export const BACKEND_SESSION_TTL_MS = 30 * 60 * 1000;
 
 export function isValidPresentationPin(pin) {
   return new RegExp(`^\\d{${MIN_PRESENTATION_PIN_LENGTH},${MAX_PRESENTATION_PIN_LENGTH}}$`).test(String(pin || ''));
@@ -26,4 +27,13 @@ export function registerPinFailure(failureCount, now = Date.now()) {
     return { failureCount: 0, lockedUntil: now + PIN_COOLDOWN_MS };
   }
   return { failureCount: failures, lockedUntil: 0 };
+}
+
+export function createBackendSessionDeadline(now = Date.now()) {
+  return now + BACKEND_SESSION_TTL_MS;
+}
+
+export function isBackendSessionUnlocked(unlockUntil, now = Date.now()) {
+  const deadline = Number(unlockUntil) || 0;
+  return deadline > now && deadline - now <= BACKEND_SESSION_TTL_MS;
 }

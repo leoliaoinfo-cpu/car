@@ -41,7 +41,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
 
   async function complete(row) {
     if (row.sourceType === 'delivery') {
-      onOpenOperations?.(row.dealId);
+      onOpenOperations?.(row.dealId, row.caseId);
       return;
     }
     if (row.sourceType === 'workItem') {
@@ -65,7 +65,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
 
   async function snooze(row, days) {
     if (row.sourceType === 'delivery') {
-      onOpenOperations?.(row.dealId);
+      onOpenOperations?.(row.dealId, row.caseId);
       setSnoozing(null);
       return;
     }
@@ -84,7 +84,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   }
 
   function openRow(row) {
-    if (row.sourceType === 'delivery') onOpenOperations?.(row.dealId);
+    if (row.sourceType === 'delivery') onOpenOperations?.(row.dealId, row.caseId);
     else if (row.caseId && onOpenCase) onOpenCase(row.caseId);
     else if (row.clientId) onOpenClient?.(row.clientId);
   }
@@ -134,7 +134,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               </button>
               <div className="mt-3 flex gap-2">
                 <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : '✓ 完成'}</button>
-                <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
+                <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
                 <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>
               </div>
               {snoozing === row.id && (

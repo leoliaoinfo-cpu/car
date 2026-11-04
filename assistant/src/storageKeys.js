@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   icsSnoozeAt: `${STORAGE_PREFIX}ics.remindSnoozeAt`,
   truckComparison: `${STORAGE_PREFIX}truckComparison`,
   presentationPinHash: `${STORAGE_PREFIX}presentation.pinHash`,
+  operationsUnlockUntil: `${STORAGE_PREFIX}operations.unlockUntil`,
 };
 
 export const CAR_DB_NAME = 'car_sales_assistant_v1';

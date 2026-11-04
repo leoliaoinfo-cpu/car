@@ -612,9 +612,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     const { id: catalogId, name, price, group, cat, desc = '', pendingPrice = false } = addon;
     if (bundleLocks.has(catalogId)) return;
     const currentlyPicked = isPicked({ id: catalogId, name });
-    if (!currentlyPicked && Array.isArray(addon.includes) && addon.includes.length > 0) {
-      setShowDesc(true);
-    }
+    // 產品介紹是否展開完全由使用者控制；選擇套餐或其他產品不可擅自重新展開。
     if (!currentlyPicked && cat) {
       setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
         .filter((category) => category !== cat));

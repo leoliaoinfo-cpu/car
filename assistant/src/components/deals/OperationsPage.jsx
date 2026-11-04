@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import DealsPage from './DealsPage';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
-  DEFAULT_PRESENTATION_PIN_HASH, isValidPresentationPin, MAX_PRESENTATION_PIN_LENGTH,
-  registerPinFailure, verifyPresentationPin,
+  createBackendSessionDeadline, DEFAULT_PRESENTATION_PIN_HASH, isBackendSessionUnlocked,
+  isValidPresentationPin, MAX_PRESENTATION_PIN_LENGTH, registerPinFailure, verifyPresentationPin,
 } from '../../utils/presentationLock';
 
 function readBackendPasswordHash() {
@@ -11,8 +11,20 @@ function readBackendPasswordHash() {
   catch { return DEFAULT_PRESENTATION_PIN_HASH; }
 }
 
+function readUnlockUntil() {
+  try { return Number(sessionStorage.getItem(STORAGE_KEYS.operationsUnlockUntil)) || 0; }
+  catch { return 0; }
+}
+
+function saveUnlockUntil(value) {
+  try { sessionStorage.setItem(STORAGE_KEYS.operationsUnlockUntil, String(value)); }
+  catch { /* sessionStorage unavailable: keep only the current mounted page unlocked */ }
+}
+
 export default function OperationsPage({ onOpenClient, onBack, focusDealId = null }) {
-  const [unlocked, setUnlocked] = useState(false);
+  const initialUnlockUntil = readUnlockUntil();
+  const [unlockUntil, setUnlockUntil] = useState(initialUnlockUntil);
+  const [unlocked, setUnlocked] = useState(() => isBackendSessionUnlocked(initialUnlockUntil));
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [failureCount, setFailureCount] = useState(0);
@@ -27,12 +39,26 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     return () => clearInterval(timer);
   }, [remainingSeconds]);
 
+  useEffect(() => {
+    if (!unlocked) return undefined;
+    const remaining = Math.max(0, unlockUntil - Date.now());
+    if (!remaining) {
+      setUnlocked(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setUnlocked(false), remaining);
+    return () => clearTimeout(timer);
+  }, [unlocked, unlockUntil]);
+
   async function unlock() {
     if (busy || remainingSeconds || !isValidPresentationPin(password)) return;
     setBusy(true);
     setError('');
     try {
       if (await verifyPresentationPin(password, readBackendPasswordHash())) {
+        const deadline = createBackendSessionDeadline();
+        saveUnlockUntil(deadline);
+        setUnlockUntil(deadline);
         setFailureCount(0);
         setLockedUntil(0);
         setNow(Date.now());
@@ -52,11 +78,11 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     }
   }
 
-  if (unlocked) return <DealsPage onOpenClient={onOpenClient} focusDealId={focusDealId} />;
+  if (unlocked) return <DealsPage onOpenClient={onOpenClient} onBack={onBack} focusDealId={focusDealId} />;
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 sm:py-14">
-      <button type="button" onClick={onBack} className="btn-ghost mb-4 text-sm lg:hidden">← 返回</button>
+      <button type="button" onClick={onBack} className="btn-ghost mb-4 min-h-11 text-sm">← 返回</button>
       <div className="card p-5 space-y-4 border-2 border-accent/25">
         <h1 className="text-xl font-bold text-ink">🗂️ 成交與施工管理</h1>
         <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={MAX_PRESENTATION_PIN_LENGTH} value={password}

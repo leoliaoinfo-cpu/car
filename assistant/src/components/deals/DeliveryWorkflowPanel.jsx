@@ -137,7 +137,8 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
     return map;
   }, [cases]);
   const supplierNames = useMemo(() => new Map(suppliers.map((supplier) => [supplier.id, supplier.name])), [suppliers]);
-  const sortedDeals = [...deals].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const sortedDeals = (focusDealId ? deals.filter((deal) => deal.id === focusDealId) : [...deals])
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   deals.forEach((deal) => {
     dealRefs.current[deal.id] = deal;
@@ -306,6 +307,50 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
         if (FINISHED_STATUSES.has(nextStatus)) {
           setExpandedSteps((current) => ({ ...current, [`${deal.id}:${stepId}`]: false }));
         }
+        return true;
+      },
+    });
+  }
+
+  function requestBlockedDetailsEdit(deal, stepId) {
+    const workflow = latestWorkflow(deal);
+    const step = workflow.find((candidate) => candidate.id === stepId);
+    if (!step || step.status !== 'blocked') return;
+    setConfirmAction({
+      title: `修改「${step.label}」的卡點？`,
+      description: '更新後，案件三行摘要與今天提醒會一起同步。',
+      effects: ['更新卡住原因與等待對象', '依新的日期安排下次追蹤', '保留原進度與一筆可復原紀錄'],
+      confirmLabel: '確認更新', tone: 'danger', icon: '✎', requiresBlockDetails: true,
+      blockReason: step.blockedReason || '',
+      blockOwner: step.blockedOwner || supplierNames.get(step.supplierId) || '',
+      blockFollowUpDate: step.blockedFollowUpDate || dayjs().add(1, 'day').format('YYYY-MM-DD'),
+      perform: async (confirmedAction) => {
+        const currentWorkflow = latestWorkflow(deal);
+        const currentStep = currentWorkflow.find((candidate) => candidate.id === stepId);
+        if (!currentStep || currentStep.status !== 'blocked') {
+          setSaveErrors((current) => ({ ...current, [deal.id]: '此階段已不再是卡住狀態，未修改卡點資料。' }));
+          return false;
+        }
+        const timestamp = new Date().toISOString();
+        const nextWorkflow = currentWorkflow.map((candidate) => candidate.id === stepId ? {
+          ...candidate,
+          blockedReason: String(confirmedAction.blockReason || '').trim(),
+          blockedOwner: String(confirmedAction.blockOwner || '').trim(),
+          blockedFollowUpDate: confirmedAction.blockFollowUpDate || '',
+          updatedAt: timestamp,
+        } : candidate);
+        const detail = [
+          String(confirmedAction.blockReason || '').trim(),
+          confirmedAction.blockOwner ? `等待 ${confirmedAction.blockOwner}` : '',
+          confirmedAction.blockFollowUpDate ? `${confirmedAction.blockFollowUpDate} 再追` : '',
+        ].filter(Boolean).join('・');
+        const event = workflowEvent({
+          type: 'blocked-details', action: `更新「${currentStep.label}」卡點`, step: currentStep,
+          beforeWorkflow: currentWorkflow, afterWorkflow: nextWorkflow, detail,
+        });
+        const saved = await saveWorkflow(deal, nextWorkflow, { event });
+        if (!saved) return false;
+        setUndoAction({ dealId: deal.id, eventId: event.id, message: event.action });
         return true;
       },
     });
@@ -752,6 +797,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                             <div className="mt-3 rounded-xl border border-danger/30 bg-s1/80 p-3">
                               <p className="text-xs font-bold text-danger">{stats.current.blockedReason || '此階段目前卡住'}</p>
                               <p className="mt-1 text-[11px] text-ink-3">{[stats.current.blockedOwner ? `等待 ${stats.current.blockedOwner}` : '', stats.current.blockedFollowUpDate ? `${dayjs(stats.current.blockedFollowUpDate).format('MM/DD')} 再追` : '尚未設定追蹤日'].filter(Boolean).join('・')}</p>
+                              <button type="button" onClick={() => requestBlockedDetailsEdit(deal, stats.current.id)} className="mt-2 min-h-11 w-full rounded-lg border border-danger/35 text-xs font-bold text-danger">✎ 修改卡點／追蹤日</button>
                             </div>
                           )}
                           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -765,7 +811,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                         {otherBlockedSteps.length > 0 && (
                           <section className="rounded-xl border border-danger/45 bg-danger/5 p-3">
                             <p className="text-xs font-bold text-danger">卡住，需要處理</p>
-                            <div className="mt-2 space-y-2">{otherBlockedSteps.map((step) => <button type="button" key={step.id} onClick={() => openStepEditor(deal, step.id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2 text-left text-sm font-semibold text-ink"><span className="min-w-0"><span className="block truncate">{step.label}</span><span className="mt-0.5 block truncate text-[11px] font-normal text-ink-3">{step.blockedReason || '尚未填寫卡住原因'}{step.blockedFollowUpDate ? `・${dayjs(step.blockedFollowUpDate).format('MM/DD')} 再追` : ''}</span></span><span className="shrink-0 text-xs text-danger">查看 ›</span></button>)}</div>
+                            <div className="mt-2 space-y-2">{otherBlockedSteps.map((step) => <button type="button" key={step.id} onClick={() => requestBlockedDetailsEdit(deal, step.id)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-s1/80 px-3 py-2 text-left text-sm font-semibold text-ink"><span className="min-w-0"><span className="block truncate">{step.label}</span><span className="mt-0.5 block truncate text-[11px] font-normal text-ink-3">{step.blockedReason || '尚未填寫卡住原因'}{step.blockedFollowUpDate ? `・${dayjs(step.blockedFollowUpDate).format('MM/DD')} 再追` : ''}</span></span><span className="shrink-0 text-xs text-danger">修改 ›</span></button>)}</div>
                           </section>
                         )}
 
@@ -861,6 +907,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                             </select>
                             {!finished && <button type="button" onClick={() => completeStep(deal, step.id)} className="btn-outline min-h-11 px-3 text-xs text-ok">✓ 完成</button>}
                           </div>
+                          {step.status === 'blocked' && <button type="button" onClick={() => requestBlockedDetailsEdit(deal, step.id)} className="min-h-11 w-full rounded-xl border border-danger/40 bg-danger/5 px-3 text-xs font-bold text-danger">✎ 修改卡住原因與追蹤日</button>}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <label className="text-[10px] text-ink-3">施工廠商<select value={step.supplierId || ''} onChange={(event) => updateStep(deal, step.id, { supplierId: event.target.value })} aria-label={`${step.label}廠商`} className="mt-1 min-h-11 w-full text-xs"><option value="">未指派廠商</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
                             <label className="text-[10px] text-ink-3">預計日期<input type="date" value={step.plannedDate || ''} onChange={(event) => updateStep(deal, step.id, { plannedDate: event.target.value })} className="mt-1 min-h-11 w-full text-xs" /></label>
@@ -906,6 +953,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                         {editing && <div className="space-y-3 border-t border-bdr/70 bg-s1/45 p-3">
                           <div className="rounded-xl border border-copper/35 bg-copper/5 p-3"><label className="block text-[11px] font-bold text-copper">施工階段名稱</label><div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><input value={stepNameDrafts[stepKey] ?? row.label} onChange={(event) => setStepNameDrafts((current) => ({ ...current, [stepKey]: event.target.value }))} className="min-h-11 w-full text-sm font-semibold" /><button type="button" disabled={!String(stepNameDrafts[stepKey] ?? row.label).trim() || String(stepNameDrafts[stepKey] ?? row.label).trim() === row.label} onClick={() => saveStepName(deal, row)} className="btn-primary min-h-11 px-3 text-xs disabled:opacity-40">儲存名稱</button></div></div>
                           <div className="grid grid-cols-[1fr_auto] gap-2"><select value={row.status} onChange={(event) => requestStatusChange(deal, row.id, event.target.value)} aria-label={`${row.label}狀態`} className="min-h-11 text-xs">{DELIVERY_STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{!finished && <button type="button" onClick={() => completeStep(deal, row.id)} className="btn-outline min-h-11 px-3 text-xs text-ok">✓ 完成</button>}</div>
+                          {row.status === 'blocked' && <button type="button" onClick={() => requestBlockedDetailsEdit(deal, row.id)} className="min-h-11 w-full rounded-xl border border-danger/40 bg-danger/5 px-3 text-xs font-bold text-danger">✎ 修改卡住原因與追蹤日</button>}
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                             <label className="text-[10px] text-ink-3">施工廠商<select value={row.supplierId || ''} onChange={(event) => updateStep(deal, row.id, { supplierId: event.target.value })} className="mt-1 min-h-11 w-full text-xs"><option value="">未指派廠商</option>{supplierOptions.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
                             <label className="text-[10px] text-ink-3">預計日期<input type="date" value={row.plannedDate || ''} onChange={(event) => updateStep(deal, row.id, { plannedDate: event.target.value })} className="mt-1 min-h-11 w-full text-xs" /></label>

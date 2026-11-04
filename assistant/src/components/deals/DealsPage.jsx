@@ -14,7 +14,7 @@ import {
   QuotePricingPanel,
 } from './InternalPricing';
 
-export default function DealsPage({ onOpenClient, focusDealId = null }) {
+export default function DealsPage({ onOpenClient, onBack, focusDealId = null }) {
   const {
     deals,
     cases,
@@ -35,7 +35,7 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
     saveSupplier,
     deleteSupplier,
   } = useApp();
-  const [section, setSection] = useState('performance');
+  const [section, setSection] = useState(focusDealId ? 'fulfillment' : 'performance');
   const [view, setView] = useState('month');
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [editingDeal, setEditingDeal] = useState(null);
@@ -210,19 +210,26 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
     ['suppliers', '合作廠商'],
     ['fulfillment', '交車施工進度'],
   ];
+  const focusedWorkflow = Boolean(focusDealId);
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-4">
-      <div className="card p-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
+      {focusedWorkflow && (
+        <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-3 border-b border-bdr bg-bg/95 px-4 py-3 backdrop-blur">
+          <button type="button" onClick={onBack} className="btn-outline min-h-11 shrink-0 px-3">← 返回案件</button>
+          <div className="min-w-0"><p className="font-bold text-ink">施工進度處理</p><p className="text-[11px] text-ink-3">只顯示目前案件</p></div>
+        </div>
+      )}
+      {!focusedWorkflow && <div className="card p-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
         {tabs.map(([key, label]) => (
           <button key={key} onClick={() => setSection(key)}
             className={`flex-1 rounded-lg px-2 py-2 text-sm font-semibold ${section === key ? 'bg-accent text-on-accent' : 'text-ink-2 hover:bg-s2'}`}>
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
-      {section === 'quotes' && (
+      {!focusedWorkflow && section === 'quotes' && (
         <QuotePricingPanel clients={clients} quoteDrafts={quoteDrafts} pricingRecords={pricingRecords}
           costCatalog={costCatalog} customPricingHistory={customPricingHistory}
           onSavePricing={savePricingRecord} onSaveCustomHistory={saveCustomPricingHistory}
@@ -230,25 +237,25 @@ export default function DealsPage({ onOpenClient, focusDealId = null }) {
           onOpenCostSettings={openCostSettings} />
       )}
 
-      {section === 'costs' && (
+      {!focusedWorkflow && section === 'costs' && (
         <CostCatalogPanel quotePresets={quotePresets} costCatalog={costCatalog}
           onSave={saveCostCatalog} initialSearch={costSearch} />
       )}
 
-      {section === 'customPricing' && (
+      {!focusedWorkflow && section === 'customPricing' && (
         <CustomPricingHistoryPanel entries={centralCustomHistory} onSave={saveCustomPricingHistory} />
       )}
 
-      {section === 'fulfillment' && (
+      {(section === 'fulfillment' || focusedWorkflow) && (
         <DeliveryWorkflowPanel deals={deals} cases={cases} clients={clients} pricingById={pricingById}
           suppliers={suppliers} onSaveDeal={saveDeal} onOpenPricing={openDealPricing} focusDealId={focusDealId} />
       )}
 
-      {section === 'suppliers' && (
+      {!focusedWorkflow && section === 'suppliers' && (
         <SupplierPanel suppliers={suppliers} onSave={saveSupplier} onDelete={deleteSupplier} />
       )}
 
-      {section === 'performance' && (
+      {!focusedWorkflow && section === 'performance' && (
         <>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>

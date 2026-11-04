@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DEFAULT_PRESENTATION_PIN_HASH, hashPresentationPin, isValidPresentationPin, registerPinFailure, verifyPresentationPin,
+  BACKEND_SESSION_TTL_MS, createBackendSessionDeadline, DEFAULT_PRESENTATION_PIN_HASH,
+  hashPresentationPin, isBackendSessionUnlocked, isValidPresentationPin, registerPinFailure, verifyPresentationPin,
 } from './presentationLock.js';
 
 test('backend PIN accepts four through twelve digits', () => {
@@ -27,4 +28,13 @@ test('backend PIN pauses after five failed attempts', () => {
   assert.deepEqual(state, { failureCount: 4, lockedUntil: 0 });
   state = registerPinFailure(state.failureCount, 1_000);
   assert.deepEqual(state, { failureCount: 0, lockedUntil: 31_000 });
+});
+
+test('backend unlock stays in the current session for thirty minutes only', () => {
+  const now = 1_000;
+  const deadline = createBackendSessionDeadline(now);
+  assert.equal(deadline, now + BACKEND_SESSION_TTL_MS);
+  assert.equal(isBackendSessionUnlocked(deadline, now + 1), true);
+  assert.equal(isBackendSessionUnlocked(deadline, deadline), false);
+  assert.equal(isBackendSessionUnlocked(deadline + 1, now), false);
 });

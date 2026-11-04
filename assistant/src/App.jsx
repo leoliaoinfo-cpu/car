@@ -67,6 +67,7 @@ function AppInner() {
   const [caseCreateClientId, setCaseCreateClientId] = useState(null);
   const [caseFocusId, setCaseFocusId] = useState(null);
   const [operationsFocusDealId, setOperationsFocusDealId] = useState(null);
+  const [operationsReturn, setOperationsReturn] = useState(null);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [showCaseSearch, setShowCaseSearch] = useState(false);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
@@ -100,9 +101,22 @@ function AppInner() {
     setTab('quotes');
   }
 
-  function openCaseOperations(dealId = null) {
+  function openCaseOperations(dealId = null, caseId = null) {
+    setOperationsReturn({ tab, caseId: caseId || null });
     setOperationsFocusDealId(dealId);
     setTab('operations');
+  }
+
+  function closeOperations() {
+    const returnTab = operationsReturn?.tab && operationsReturn.tab !== 'operations' ? operationsReturn.tab : 'more';
+    if (operationsReturn?.caseId) {
+      setCaseFocusId(operationsReturn.caseId);
+      setTab('cases');
+    } else {
+      setTab(returnTab);
+    }
+    setOperationsFocusDealId(null);
+    setOperationsReturn(null);
   }
 
   function quickCreate(action) {
@@ -169,7 +183,7 @@ function AppInner() {
           )}
           {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} />}
           {tab === 'catalog' && <ProductCatalog />}
-          {tab === 'operations' && <OperationsPage onBack={() => setTab('more')} onOpenClient={openClient} focusDealId={operationsFocusDealId} />}
+          {tab === 'operations' && <OperationsPage onBack={closeOperations} onOpenClient={openClient} focusDealId={operationsFocusDealId} />}
           {tab === 'settings' && <SettingsPanel onClose={() => setTab('more')} />}
           {tab === 'more' && <MorePage onNavigate={setTab} />}
         </div>
