@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   getClientStatus, STATUS_COLOR, STATUS_LABEL, CAT_COLORS, FIELD_COLORS, generateId,
   EVENT_TYPES, QUICK_EVENT_KEYS, DELIVERY_FOLLOWUP_DAYS, formatMoney,
+  CUSTOMER_KIND_LABEL, getClientCustomerKind,
 } from '../../utils/crm';
 import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import { useApp } from '../../context';
@@ -25,7 +26,7 @@ const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
 const EDITABLE_FIELDS = [
   'name', 'phone', 'lineId', 'email', 'address', 'source',
   'clientType', 'taxId', 'industry', 'contacts', 'referrerId', 'referralFee',
-  'catId', 'stageId', 'intentLevel', 'notes', 'customFieldValues',
+  'catId', 'stageId', 'customerKind', 'intentLevel', 'notes', 'customFieldValues',
 ];
 
 function pickEditable(client) {
@@ -172,6 +173,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const status = getClientStatus(client, thresholds);
   const cat = cats.find((c) => c.id === client.catId);
   const stage = stages.find((s) => s.id === client.stageId);
+  const customerKind = getClientCustomerKind(client, cases);
   const daysSinceContact = client.lastContact ? dayjs().diff(dayjs(client.lastContact), 'day') : null;
   const daysSinceCreated = dayjs().diff(dayjs(client.createdAt), 'day');
 
@@ -777,6 +779,14 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   </select>
                 </Field>
               </div>
+              <Field label="業務類型">
+                <div className="grid grid-cols-2 gap-2">
+                  {[['modification', '🛠 改裝客戶'], ['purchase', '🚚 買車客戶']].map(([kind, label]) => (
+                    <button key={kind} type="button" onClick={() => setField('customerKind', kind)}
+                      className={`min-h-11 rounded-xl border text-xs font-bold ${(form.customerKind || customerKind) === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{label}</button>
+                  ))}
+                </div>
+              </Field>
               <Field label="意願度">
                 <select value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
                   {INTENT_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
@@ -859,6 +869,11 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   {cat.name}
                 </span>
               ) : '—'} />
+              <InfoRow label="業務類型" value={
+                <span className={`badge ${customerKind === 'modification' ? 'bg-violet/12 text-violet' : customerKind === 'purchase' ? 'bg-teal/12 text-teal' : 'bg-copper/12 text-copper'}`}>
+                  {CUSTOMER_KIND_LABEL[customerKind]}
+                </span>
+              } />
               <InfoRow label="進度" value={stage?.name || '—'} />
               <InfoRow label="意願度" value={
                 <span style={{ color: INTENT_COLORS[client.intentLevel || 0] }} className="font-medium">

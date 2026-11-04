@@ -16,6 +16,29 @@ export const STATUS_LABEL = {
   cold: '長期未聯繫',
 };
 
+export const CUSTOMER_KIND_LABEL = {
+  purchase: '買車客戶',
+  modification: '改裝客戶',
+  both: '買車＋改裝',
+  unclassified: '待分類',
+};
+
+/**
+ * 客戶看板分類優先採用業務手動指定值；舊客戶則由既有案件自動判斷。
+ * 客戶與案件保持分離，切換看板分類不會改寫或刪除任何案件。
+ */
+export function getClientCustomerKind(client, cases = []) {
+  if (client?.customerKind === 'purchase' || client?.customerKind === 'modification') return client.customerKind;
+  const types = new Set((cases || [])
+    .filter((item) => !item.deletedAt && item.clientId === client?.id)
+    .map((item) => item.type)
+    .filter((type) => type === 'purchase' || type === 'modification'));
+  if (types.has('purchase') && types.has('modification')) return 'both';
+  if (types.has('purchase')) return 'purchase';
+  if (types.has('modification')) return 'modification';
+  return 'unclassified';
+}
+
 /** 追蹤規則預設值：超過 coldDays 天未聯繫 → 🟠久未聯繫；超過 deadDays 天 → 🔴長期未聯繫 */
 export const DEFAULT_THRESHOLDS = { coldDays: 180, deadDays: 365 };
 

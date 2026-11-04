@@ -3,7 +3,8 @@ import { useApp } from '../../context';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
   getClientStatus, clientMatchesFilter, sortClients,
-  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, generateId, findDuplicateClient,
+  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, CUSTOMER_KIND_LABEL,
+  generateId, findDuplicateClient, getClientCustomerKind,
 } from '../../utils/crm';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
@@ -19,20 +20,6 @@ const SORT_OPTIONS = [
 ];
 
 const ITEM_HEIGHT = 72; // px for desktop row / card
-
-/** md 斷點偵測：看板只在桌面顯示，手機一律列表 */
-function useIsDesktop() {
-  const [is, setIs] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const fn = (e) => setIs(e.matches);
-    mq.addEventListener('change', fn);
-    return () => mq.removeEventListener('change', fn);
-  }, []);
-  return is;
-}
 
 function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
   const [scrollTop, setScrollTop] = useState(0);
@@ -59,7 +46,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 }
 
 export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocusIntentConsumed, startNewToken, onStartConsumed, onOpenCase, onCreateCase }) {
-  const { clients, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
+  const { clients, cases, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -69,14 +56,14 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
   const [showNewForm, setShowNewForm] = useState(false);
   const listRef = useRef(null);
 
-  // 檢視模式：列表 / 看板（桌面限定，記住上次選擇）
-  const isDesktop = useIsDesktop();
+  // 檢視模式：列表 / 客戶類型看板（手機與桌面皆可使用）
   const [view, setView] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.crmView) === 'board' ? 'board' : 'list'; } catch { return 'list'; }
   });
-  const effectiveView = isDesktop && view === 'board' ? 'board' : 'list';
+  const effectiveView = view === 'board' ? 'board' : 'list';
   function changeView(v) {
     setView(v);
+    if (v === 'board') setSelectedId(null);
     try { localStorage.setItem(STORAGE_KEYS.crmView, v); } catch { /* noop */ }
   }
 
@@ -325,9 +312,8 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
               <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              {/* 檢視切換（看板僅桌面） */}
-              <div className="hidden md:flex rounded-lg border border-bdr overflow-hidden shrink-0">
-                {[{ v: 'list', label: '☰ 列表' }, { v: 'board', label: '▦ 看板' }].map(({ v, label }) => (
+              <div className="flex rounded-lg border border-bdr overflow-hidden shrink-0">
+                {[{ v: 'list', label: '☰ 列表' }, { v: 'board', label: '▦ 客戶類型' }].map(({ v, label }) => (
                   <button
                     key={v}
                     onClick={() => changeView(v)}
@@ -351,14 +337,14 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
         </div>
 
         {effectiveView === 'board' ? (
-          /* 看板：依業務進度分欄，卡片可拖曳換階段 */
+          /* 客戶類型看板：手機可點按分類，桌面也可拖曳 */
           <BoardView
             clients={filteredSorted}
-            stages={stages}
+            cases={cases}
             cats={cats}
             thresholds={thresholds}
             onSelect={handleSelect}
-            onMoveStage={(id, stageId) => updateClient(id, (c) => ({ ...c, stageId }))}
+            onSetCustomerKind={(id, customerKind) => updateClient(id, (c) => ({ ...c, customerKind }))}
           />
         ) : (
           /* List + Detail side by side on desktop */
@@ -559,111 +545,106 @@ function ClientRow({ client, cats, stages, selected, selectMode, checked, onClic
   );
 }
 
-// ── BoardView（看板：依業務進度分欄，桌面限定）────────────────────────────────
-function BoardView({ clients, stages, cats, thresholds, onSelect, onMoveStage }) {
+// ── BoardView（看板：依買車／改裝客戶分欄）──────────────────────────────────
+function BoardView({ clients, cases, cats, thresholds, onSelect, onSetCustomerKind }) {
   const [dragId, setDragId] = useState(null);
-  const [overStageId, setOverStageId] = useState(null);
+  const [overKind, setOverKind] = useState(null);
 
-  const sortedStages = useMemo(() => [...stages].sort((a, b) => a.order - b.order), [stages]);
-
-  const byStage = useMemo(() => {
-    const map = {};
-    for (const s of sortedStages) map[s.id] = [];
-    const orphans = [];
-    for (const c of clients) {
-      if (map[c.stageId]) map[c.stageId].push(c);
-      else orphans.push(c);
+  const casesByClient = useMemo(() => {
+    const map = new Map();
+    for (const item of cases || []) {
+      if (item.deletedAt || !item.clientId) continue;
+      const list = map.get(item.clientId) || [];
+      list.push(item);
+      map.set(item.clientId, list);
     }
-    return { map, orphans };
-  }, [clients, sortedStages]);
+    for (const list of map.values()) list.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    return map;
+  }, [cases]);
 
-  function handleDrop(stageId) {
-    if (dragId) onMoveStage(dragId, stageId);
+  const byKind = useMemo(() => {
+    const map = { modification: [], purchase: [], both: [], unclassified: [] };
+    for (const client of clients) map[getClientCustomerKind(client, cases)].push(client);
+    return map;
+  }, [clients, cases]);
+
+  const columns = [
+    { id: 'modification', label: '改裝客戶', icon: '🛠️', color: '#9382a5' },
+    { id: 'purchase', label: '買車客戶', icon: '🚚', color: '#6f9a9c' },
+    ...(byKind.both.length ? [{ id: 'both', label: '買車＋改裝', icon: '↔', color: '#bf8a5e' }] : []),
+    ...(byKind.unclassified.length ? [{ id: 'unclassified', label: '待分類', icon: '?', color: '#8a919b' }] : []),
+  ];
+
+  function handleDrop(customerKind) {
+    if (dragId && (customerKind === 'purchase' || customerKind === 'modification')) onSetCustomerKind(dragId, customerKind);
     setDragId(null);
-    setOverStageId(null);
+    setOverKind(null);
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
-      <div className="flex gap-3 p-3 h-full min-w-max">
-        {sortedStages.map((stage) => {
-          const color = CAT_COLORS[stage.colorIdx % CAT_COLORS.length];
-          const list = byStage.map[stage.id] || [];
-          const isOver = overStageId === stage.id;
+    <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-bdr bg-s2/45 px-3 py-2">
+        <p className="text-xs font-bold text-ink">客戶類型看板</p>
+        <p className="mt-0.5 text-[11px] text-ink-3">直接按卡片下方的「改裝／買車」；桌面也能拖曳換欄。</p>
+      </div>
+      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
+        <div className="flex gap-3 p-3 h-full min-w-max">
+        {columns.map((column) => {
+          const list = byKind[column.id] || [];
+          const acceptsDrop = column.id === 'purchase' || column.id === 'modification';
+          const isOver = overKind === column.id;
           return (
             <div
-              key={stage.id}
-              onDragOver={(e) => { e.preventDefault(); setOverStageId(stage.id); }}
-              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStageId(null); }}
-              onDrop={(e) => { e.preventDefault(); handleDrop(stage.id); }}
-              className={`w-60 shrink-0 flex flex-col rounded-xl border transition-colors ${
+              key={column.id}
+              onDragOver={acceptsDrop ? (e) => { e.preventDefault(); setOverKind(column.id); } : undefined}
+              onDragLeave={acceptsDrop ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverKind(null); } : undefined}
+              onDrop={acceptsDrop ? (e) => { e.preventDefault(); handleDrop(column.id); } : undefined}
+              className={`w-[84vw] max-w-72 md:w-72 shrink-0 flex flex-col rounded-xl border transition-colors ${
                 isOver ? 'border-accent bg-accent/5' : 'border-bdr bg-s1'
               }`}
             >
-              {/* 欄標題 */}
               <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bdr/60 shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
-                <span className="font-semibold text-sm text-ink flex-1 truncate">{stage.name}</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-sm" style={{ background: `${column.color}22`, color: column.color }}>{column.icon}</span>
+                <span className="font-semibold text-sm text-ink flex-1 truncate">{column.label}</span>
                 <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{list.length}</span>
               </div>
-              {/* 卡片 */}
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
                 {list.map((client) => (
                   <BoardCard
                     key={client.id}
                     client={client}
+                    customerKind={column.id}
+                    clientCases={casesByClient.get(client.id) || []}
                     cats={cats}
                     thresholds={thresholds}
                     dragging={dragId === client.id}
                     onDragStart={() => setDragId(client.id)}
-                    onDragEnd={() => { setDragId(null); setOverStageId(null); }}
+                    onDragEnd={() => { setDragId(null); setOverKind(null); }}
                     onClick={() => onSelect(client.id)}
+                    onSetCustomerKind={(kind) => onSetCustomerKind(client.id, kind)}
                   />
                 ))}
                 {list.length === 0 && (
                   <div className={`text-center text-xs py-6 rounded-lg border border-dashed ${
                     isOver ? 'border-accent text-accent' : 'border-bdr/60 text-ink-3'
                   }`}>
-                    {isOver ? '放開以移到此階段' : '—'}
+                    {isOver ? `放開以改成${CUSTOMER_KIND_LABEL[column.id]}` : '目前沒有客戶'}
                   </div>
                 )}
               </div>
             </div>
           );
         })}
-
-        {/* 進度資料異常（stageId 對不到）時的補救欄，平常不出現 */}
-        {byStage.orphans.length > 0 && (
-          <div className="w-60 shrink-0 flex flex-col rounded-xl border border-bdr bg-s1">
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bdr/60 shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-ink-3 shrink-0" />
-              <span className="font-semibold text-sm text-ink flex-1">未分進度</span>
-              <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{byStage.orphans.length}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {byStage.orphans.map((client) => (
-                <BoardCard
-                  key={client.id}
-                  client={client}
-                  cats={cats}
-                  thresholds={thresholds}
-                  dragging={dragId === client.id}
-                  onDragStart={() => setDragId(client.id)}
-                  onDragEnd={() => { setDragId(null); setOverStageId(null); }}
-                  onClick={() => onSelect(client.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
 }
 
-function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd, onClick }) {
+function BoardCard({ client, customerKind, clientCases, cats, thresholds, dragging, onDragStart, onDragEnd, onClick, onSetCustomerKind }) {
   const status = getClientStatus(client, thresholds);
   const cat = cats.find((c) => c.id === client.catId);
+  const latestCase = clientCases[0];
   return (
     <div
       draggable
@@ -690,7 +671,9 @@ function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd,
               {cat.name}
             </span>
           )}
+          {latestCase?.caseNumber != null && <span className="badge bg-s1 font-mono text-[10px] text-ink-2">#{latestCase.caseNumber}{clientCases.length > 1 ? ` ＋${clientCases.length - 1}` : ''}</span>}
         </div>
+        {latestCase && <p className="mt-1.5 truncate text-[11px] text-ink-2">{latestCase.title || CUSTOMER_KIND_LABEL[customerKind]}</p>}
         <div className="flex items-center justify-between mt-1.5">
           <span className="text-[10px] font-medium" style={{ color: STATUS_COLOR[status] }}>
             {STATUS_LABEL[status]}
@@ -698,6 +681,12 @@ function BoardCard({ client, cats, thresholds, dragging, onDragStart, onDragEnd,
           <span className="text-[10px] text-ink-3">
             {client.nextDate ? formatDate(client.nextDate) : '未設追蹤'}
           </span>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-bdr/60 pt-2">
+          {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
+            <button key={kind} type="button" onClick={(event) => { event.stopPropagation(); onSetCustomerKind(kind); }}
+              className={`min-h-11 rounded-lg border text-[11px] font-bold ${customerKind === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
+          ))}
         </div>
       </div>
     </div>
@@ -709,7 +698,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
   const [form, setForm] = useState({
     name: '', phone: '', lineId: '', clientType: 'personal', industry: '',
     catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
-    intentLevel: 0, notes: '', nextDate: addDays(today(), 7),
+    customerKind: '', intentLevel: 0, notes: '', nextDate: addDays(today(), 7),
   });
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
@@ -722,7 +711,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !form.customerKind) return;
     await onCreate(form);
   }
 
@@ -735,6 +724,14 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
           <form onSubmit={handleSubmit} className="space-y-3">
             <Field label="姓名 / 公司名" required>
               <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例：陳頭家 / 大發水電行" className="w-full" required />
+            </Field>
+            <Field label="業務類型" required>
+              <div className="grid grid-cols-2 gap-2">
+                {[['modification', '🛠 改裝客戶'], ['purchase', '🚚 買車客戶']].map(([kind, label]) => (
+                  <button key={kind} type="button" onClick={() => set('customerKind', kind)}
+                    className={`min-h-12 rounded-xl border text-sm font-bold ${form.customerKind === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{label}</button>
+                ))}
+              </div>
             </Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="客戶類型">
@@ -796,7 +793,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
             )}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">{dup ? '仍要新增' : '新增'}</button>
+              <button type="submit" disabled={!form.name.trim() || !form.customerKind} className="btn-primary flex-1 disabled:opacity-40">{dup ? '仍要新增' : '新增'}</button>
             </div>
           </form>
         </div>
