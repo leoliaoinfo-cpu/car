@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import dayjs from 'dayjs';
 import {
-  assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
+  assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCasePipelineStageId, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
 } from './cases.js';
 
 test('案件編號從 100 起補齊、保留既有編號並修復重複編號', () => {
@@ -35,13 +35,14 @@ test('案件可用自訂階段名稱取代固定狀態文字', () => {
   assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '' }), '等待中');
 });
 
-test('案件流程依資料進展為新案件、報價、成交、施工與交車', () => {
+test('案件流程統一為新開發、追蹤、報價、成交與完成', () => {
   const item = { id: 'case-1', quoteIds: [] };
-  assert.equal(getCasePipelineStage(item), '新案件');
-  assert.equal(getCasePipelineStage({ ...item, quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), '報價');
-  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1' }] }), '成交');
-  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1', deliveryWorkflow: [{ id: 'work', label: '施工', status: 'doing' }] }] }), '施工');
-  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1', deliveryWorkflow: [{ id: 'delivery', label: '交車', status: 'done' }] }] }), '交車');
+  assert.equal(getCasePipelineStage(item), '新開發');
+  assert.equal(getCasePipelineStage({ ...item, pipelineStage: 'follow_up' }), '追蹤中');
+  assert.equal(getCasePipelineStage({ ...item, quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), '已報價');
+  assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1' }] }), '已成交');
+  assert.equal(getCasePipelineStage({ ...item, status: 'completed' }), '已完成');
+  assert.equal(getCasePipelineStageId({ ...item, pipelineStage: 'new', quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), 'quoted');
 });
 
 test('改裝報價會建立改車案件，且已被成交引用的報價不重複建立', () => {
@@ -73,29 +74,30 @@ test('已刪除案件的舊報價不會在重新載入時自動建立案件', ()
   assert.equal(cases.length, 0);
 });
 
-test('客戶工作會帶出所有進行中案件編號，已刪案件工作不顯示', () => {
+test('工作只使用案件自己的追蹤日，已刪案件工作不顯示', () => {
   const rows = buildWorkQueue({
     cases: [
-      { id: 'case-103', caseNumber: 103, clientId: 'client-1', status: 'active' },
-      { id: 'case-104', caseNumber: 104, clientId: 'client-1', status: 'active' },
+      { id: 'case-a', clientId: 'client-1', status: 'active', nextFollowUpDate: '2099-01-01' },
+      { id: 'case-b', clientId: 'client-1', status: 'active', nextFollowUpDate: '2099-01-02' },
     ],
     clients: [{ id: 'client-1', name: '展間客戶', nextDate: '2099-01-01' }],
     workItems: [{ id: 'deleted-work', caseId: 'case-deleted', title: '不應顯示', state: 'todo' }],
   });
-  assert.deepEqual(rows.find((row) => row.sourceType === 'client-next').caseNumbers, [103, 104]);
+  assert.deepEqual(rows.filter((row) => row.sourceType === 'case-follow-up').map((row) => row.caseId).sort(), ['case-a', 'case-b']);
+  assert.equal(rows.some((row) => row.sourceType === 'client-next'), false);
   assert.equal(rows.some((row) => row.sourceId === 'deleted-work'), false);
 });
 
-test('工作佇列會合併案件工作、中央待辦與客戶追蹤', () => {
+test('工作佇列會合併案件工作、中央待辦與案件追蹤', () => {
   const rows = buildWorkQueue({
-    cases: [{ id: 'case-1', caseNumber: 100, clientName: '王先生', title: '購車案件' }],
+    cases: [{ id: 'case-1', clientName: '王先生', title: '買車案件', nextFollowUpDate: '2099-01-01' }],
     workItems: [{ id: 'w1', caseId: 'case-1', title: '確認規格', state: 'todo' }],
     tasks: [{ id: 't1', title: '回覆廠商', done: false }],
     clients: [{ id: 'c1', name: '陳先生', nextDate: '2099-01-01' }],
   });
   assert.equal(rows.length, 3);
   assert.equal(rows.find((row) => row.sourceType === 'workItem').clientName, '王先生');
-  assert.equal(rows.find((row) => row.sourceType === 'workItem').caseNumber, 100);
+  assert.equal(rows.find((row) => row.sourceType === 'case-follow-up').caseId, 'case-1');
 });
 
 test('施工階段依分配天數產生催辦期限，未解鎖階段維持等待', () => {

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  getClientStatus, STATUS_COLOR, STATUS_LABEL, CAT_COLORS, FIELD_COLORS, generateId,
+  CAT_COLORS, FIELD_COLORS, generateId,
   EVENT_TYPES, QUICK_EVENT_KEYS, DELIVERY_FOLLOWUP_DAYS, formatMoney,
-  CUSTOMER_KIND_LABEL, getClientCustomerKind,
 } from '../../utils/crm';
-import { today, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
+import { today, formatDateFull, addDays } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
@@ -16,7 +15,7 @@ import { heightPlanSummary, requirementSummary, requirementPendingItems } from '
 import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow, updateWorkflowStepStatus } from '../../utils/delivery';
-import { CASE_STATUS_LABEL, CASE_TYPE_LABEL } from '../../utils/cases';
+import { CASE_TYPE_LABEL, getCasePipelineStage } from '../../utils/cases';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -26,7 +25,7 @@ const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
 const EDITABLE_FIELDS = [
   'name', 'phone', 'lineId', 'email', 'address', 'source',
   'clientType', 'taxId', 'industry', 'contacts', 'referrerId', 'referralFee',
-  'catId', 'stageId', 'customerKind', 'intentLevel', 'notes', 'customFieldValues',
+  'catId', 'intentLevel', 'notes', 'customFieldValues',
 ];
 
 function pickEditable(client) {
@@ -79,7 +78,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => pickEditable(client));
   const [heightCopyStatus, setHeightCopyStatus] = useState('');
-  const [logInput, setLogInput] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showTruckComparison, setShowTruckComparison] = useState(false);
   const [showAddTimer, setShowAddTimer] = useState(false);
@@ -170,12 +168,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const referrer = client.referrerId ? clients.find((c) => c.id === client.referrerId) : null;
   const referredClients = clients.filter((c) => c.referrerId === client.id);
 
-  const status = getClientStatus(client, thresholds);
   const cat = cats.find((c) => c.id === client.catId);
-  const stage = stages.find((s) => s.id === client.stageId);
-  const customerKind = getClientCustomerKind(client, cases);
-  const daysSinceContact = client.lastContact ? dayjs().diff(dayjs(client.lastContact), 'day') : null;
   const daysSinceCreated = dayjs().diff(dayjs(client.createdAt), 'day');
+  const activeCases = clientCases.filter((row) => row.status !== 'completed');
+  const nextCaseFollowUp = [...activeCases].filter((row) => row.nextFollowUpDate).sort((a, b) => a.nextFollowUpDate.localeCompare(b.nextFollowUpDate))[0];
 
   // Timers belonging to this client
   const clientTimers = timers.filter((t) => t.clientId === client.id && !t.confirmedAt);
@@ -201,34 +197,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
       state: saved.pendingCustomerDetails ? 'todo' : 'done',
       completedAt: saved.pendingCustomerDetails ? null : new Date().toISOString(),
     });
-  }
-
-  async function handleContacted() {
-    const t = today();
-    const logEntry = {
-      id: generateId('log'),
-      date: t,
-      text: logInput.trim() || '已聯繫',
-      type: 'contact',
-    };
-    setLogInput(''); // 先清空再儲存，避免儲存期間輸入的新內容被清掉
-    await updateClient(client.id, (c) => ({
-      ...c,
-      lastContact: t,
-      missedCalls: 0,
-      log: [...(c.log || []), logEntry],
-    }));
-  }
-
-  async function handleMissedCall() {
-    await updateClient(client.id, (c) => ({
-      ...c,
-      missedCalls: (c.missedCalls || 0) + 1,
-      log: [
-        ...(c.log || []),
-        { id: generateId('log'), date: today(), text: '致電未接', type: 'missed' },
-      ],
-    }));
   }
 
   // ── 業務流程事件（報價/看車試乘/貸款補件/下訂/交車/售後回訪/LINE 摘要）──────
@@ -565,10 +533,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
     });
   }
 
-  function setNextDate(dateStr) {
-    updateClient(client.id, (c) => ({ ...c, nextDate: dateStr }));
-  }
-
   function setDeliveryDate(dateStr) {
     updateClient(client.id, (c) => ({ ...c, deliveryDate: dateStr }));
   }
@@ -577,10 +541,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
     <div className="h-full flex flex-col bg-bg">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-s1 border-b border-bdr sticky top-0 z-10">
-        <div className="w-2 h-8 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] }} />
+        <div className="w-2 h-8 rounded-full shrink-0 bg-teal" />
         <div className="flex-1 min-w-0">
           <h2 className="font-bold text-base text-ink truncate">{client.name}</h2>
-          <p className="text-xs" style={{ color: STATUS_COLOR[status] }}>{STATUS_LABEL[status]}</p>
+          <p className="text-xs text-teal">{activeCases.length} 件進行中案件</p>
         </div>
         <div className="flex gap-1.5">
           <button
@@ -606,21 +570,19 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Stats row */}
+        {/* 客戶層級只做案件彙整，不儲存共用追蹤狀態 */}
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="bg-s2 rounded-lg py-2">
             <p className="text-lg font-bold text-ink-2">{daysSinceCreated}</p>
             <p className="text-[10px] text-ink-3">建立天數</p>
           </div>
           <div className="bg-s2 rounded-lg py-2">
-            <p className="text-lg font-bold text-ink-2">{daysSinceContact ?? '—'}</p>
-            <p className="text-[10px] text-ink-3">距上次聯繫</p>
+            <p className="text-lg font-bold text-ink-2">{activeCases.length}</p>
+            <p className="text-[10px] text-ink-3">進行中案件</p>
           </div>
-          <div className={`rounded-lg py-2 ${client.missedCalls >= 5 ? 'bg-danger/10' : 'bg-s2'}`}>
-            <p className={`text-lg font-bold ${client.missedCalls >= 5 ? 'text-danger' : 'text-ink-2'}`}>
-              {client.missedCalls || 0}
-            </p>
-            <p className="text-[10px] text-ink-3">未接次數</p>
+          <div className="rounded-lg bg-s2 py-2">
+            <p className="text-sm font-bold text-ink-2">{nextCaseFollowUp ? dayjs(nextCaseFollowUp.nextFollowUpDate).format('MM/DD') : '—'}</p>
+            <p className="text-[10px] text-ink-3">最近案件追蹤</p>
           </div>
         </div>
 
@@ -653,11 +615,11 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        {item.caseNumber != null && <span className="badge bg-s1 font-mono font-bold text-ink">#{item.caseNumber}</span>}
                         <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
-                        <span className="badge bg-s1 text-ink-2">{CASE_STATUS_LABEL[item.status] || '進行中'}</span>
+                        <span className="badge bg-copper/12 text-copper">{getCasePipelineStage(item, { deals, quotes: quoteDrafts })}</span>
                       </div>
                       <p className="mt-1.5 truncate text-sm font-semibold text-ink">{item.title || '未命名案件'}</p>
+                      <p className="mt-1 text-[11px] text-ink-3">最近聯繫：{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}・下次追蹤：{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : item.status === 'completed' ? '已完成' : '尚未設定'}</p>
                     </div>
                     <span className="text-ink-3">›</span>
                   </div>
@@ -767,25 +729,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                     className="w-full" />
                 </Field>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="客戶分類">
+              <Field label="客戶分類">
                   <select value={form.catId || ''} onChange={(e) => setField('catId', e.target.value)} className="w-full">
                     {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                </Field>
-                <Field label="客戶階段">
-                  <select value={form.stageId || ''} onChange={(e) => setField('stageId', e.target.value)} className="w-full">
-                    {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                </Field>
-              </div>
-              <Field label="業務類型">
-                <div className="grid grid-cols-2 gap-2">
-                  {[['modification', '🛠 改裝客戶'], ['purchase', '🚚 買車客戶']].map(([kind, label]) => (
-                    <button key={kind} type="button" onClick={() => setField('customerKind', kind)}
-                      className={`min-h-11 rounded-xl border text-xs font-bold ${(form.customerKind || customerKind) === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{label}</button>
-                  ))}
-                </div>
               </Field>
               <Field label="意願度">
                 <select value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
@@ -869,12 +816,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   {cat.name}
                 </span>
               ) : '—'} />
-              <InfoRow label="業務類型" value={
-                <span className={`badge ${customerKind === 'modification' ? 'bg-violet/12 text-violet' : customerKind === 'purchase' ? 'bg-teal/12 text-teal' : 'bg-copper/12 text-copper'}`}>
-                  {CUSTOMER_KIND_LABEL[customerKind]}
-                </span>
-              } />
-              <InfoRow label="進度" value={stage?.name || '—'} />
               <InfoRow label="意願度" value={
                 <span style={{ color: INTENT_COLORS[client.intentLevel || 0] }} className="font-medium">
                   {INTENT_LABELS[client.intentLevel || 0]}
@@ -912,23 +853,9 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           </section>
         )}
 
-        {/* Next follow-up date */}
-        <section className="card p-4 space-y-3">
-          <h3 className="font-semibold text-sm text-ink-2">📅 下次追蹤日期</h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="date"
-              value={client.nextDate || ''}
-              onChange={(e) => setNextDate(e.target.value)}
-              className="text-sm"
-            />
-            <span className="text-xs text-ink-3">快速：</span>
-            {QUICK_DATES.map(({ label, days }) => (
-              <button key={label} onClick={() => setNextDate(addDays(today(), days))} className="btn-outline text-xs px-2 py-1">
-                {label}
-              </button>
-            ))}
-          </div>
+        <section className="rounded-2xl border border-teal/30 bg-teal/8 p-4">
+          <h3 className="font-semibold text-sm text-teal">📅 追蹤日由案件管理</h3>
+          <p className="mt-1 text-xs leading-relaxed text-ink-2">請從上方的買車或改裝案件記錄聯繫與下次追蹤，不會再把同一客戶的多個案件混在一起。</p>
         </section>
 
         {/* 預計交車日：到期會出現在「今日工作 → 今日交車」；記錄「交車」事件後自動清除 */}
@@ -984,29 +911,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
             <input type="checkbox" checked={evYearly} onChange={(e) => setEvYearly(e.target.checked)} className="shrink-0" />
             每年重複（生日、紀念日建議勾選）
           </label>
-        </section>
-
-        {/* Contact actions */}
-        <section className="card p-4 space-y-3">
-          <h3 className="font-semibold text-sm text-ink-2">📞 聯繫操作</h3>
-          <Field label="聯繫備註">
-            <textarea
-              value={logInput}
-              onChange={(e) => setLogInput(e.target.value)}
-              placeholder="可留空"
-              rows={2}
-              className="w-full resize-none text-sm"
-            />
-          </Field>
-          <div className="flex gap-2 flex-wrap">
-            <button onClick={handleContacted} className="btn-primary text-sm flex-1">✅ 已聯繫</button>
-            <button onClick={handleMissedCall} className="btn-outline text-sm flex-1">
-              📵 未接 ({client.missedCalls || 0})
-            </button>
-          </div>
-          {client.lastContact && (
-            <p className="text-xs text-ink-3">上次聯繫：{formatDateFull(client.lastContact)}</p>
-          )}
         </section>
 
         {/* 業務流程事件 */}
@@ -1070,7 +974,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                         <option value="">請選擇購車案件…</option>
                         {pendingDeliveryDeals.map((deal) => {
                           const linkedCase = clientCases.find((row) => row.id === deal.caseId);
-                          return <option key={deal.id} value={deal.id}>{linkedCase?.caseNumber ? `#${linkedCase.caseNumber}・` : ''}{deal.model || deal.note || '未命名車輛'}</option>;
+                          return <option key={deal.id} value={deal.id}>{linkedCase ? `${CASE_TYPE_LABEL[linkedCase.type]}・` : ''}{deal.model || deal.note || '未命名車輛'}</option>;
                         })}
                       </select>
                     </label>

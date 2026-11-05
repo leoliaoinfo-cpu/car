@@ -1,9 +1,25 @@
 import dayjs from 'dayjs';
 import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './delivery.js';
 
-export const CASE_TYPE_LABEL = { purchase: '購車', modification: '改車' };
+export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
 export const FIRST_CASE_NUMBER = 100;
+export const CASE_PIPELINE_STAGES = [
+  { id: 'new', label: '新開發' },
+  { id: 'follow_up', label: '追蹤中' },
+  { id: 'quoted', label: '已報價' },
+  { id: 'won', label: '已成交' },
+  { id: 'completed', label: '已完成' },
+];
+
+export function getCasePipelineStageId(item, { deals = [], quotes = [] } = {}) {
+  const explicit = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === item?.pipelineStage);
+  let derived = item?.status === 'completed' ? 4 : 0;
+  const linkedDeal = deals.find((row) => row.id === item?.dealId || row.caseId === item?.id);
+  if (linkedDeal) derived = 3;
+  else if (quotes.some((row) => (item?.quoteIds || []).includes(row.id) || row.caseId === item?.id)) derived = 2;
+  return CASE_PIPELINE_STAGES[Math.max(explicit, derived, 0)].id;
+}
 
 export function assignCaseNumbers(items = [], nextNumber = FIRST_CASE_NUMBER) {
   const ordered = [...items].sort((a, b) => String(a.createdAt || a.updatedAt || a.id || '').localeCompare(String(b.createdAt || b.updatedAt || b.id || '')));
@@ -39,14 +55,8 @@ export function getCaseStatusLabel(item) {
 }
 
 export function getCasePipelineStage(item, { deals = [], quotes = [] } = {}) {
-  const linkedDeal = deals.find((row) => row.id === item?.dealId || row.caseId === item?.id);
-  if (linkedDeal) {
-    const workflow = normalizeDeliveryWorkflow(linkedDeal);
-    if (!workflow.length) return '成交';
-    return workflow.every((step) => ['done', 'na'].includes(step.status)) ? '交車' : '施工';
-  }
-  const hasQuote = quotes.some((row) => (item?.quoteIds || []).includes(row.id) || row.caseId === item?.id);
-  return hasQuote ? '報價' : '新案件';
+  const id = getCasePipelineStageId(item, { deals, quotes });
+  return CASE_PIPELINE_STAGES.find((stage) => stage.id === id)?.label || '新開發';
 }
 
 /**
@@ -157,6 +167,15 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     .map((row) => row.caseNumber).filter(Boolean).sort((a, b) => a - b);
   const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn, row.followUpReminder) });
 
+  cases.filter((row) => row.status !== 'completed' && row.nextFollowUpDate).forEach((row) => {
+    push({
+      id: `case-follow-up:${row.id}`, sourceType: 'case-follow-up', sourceId: row.id,
+      title: '聯繫客戶', due: row.nextFollowUpDate, state: 'todo', caseId: row.id,
+      clientId: row.clientId || null, clientName: row.clientName || clientMap.get(row.clientId)?.name || '',
+      caseTitle: row.title || '',
+    });
+  });
+
   workItems.filter((row) => row.state !== 'done' && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const linkedCase = caseMap.get(row.caseId);
     push({ ...row, sourceType: 'workItem', sourceId: row.id, clientName: row.clientName || linkedCase?.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: linkedCase?.title || '', caseNumber: linkedCase?.caseNumber });
@@ -171,9 +190,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   });
   clients.forEach((client) => {
     const caseId = onlyCaseForClient(client.id);
-    const caseNumber = caseMap.get(caseId)?.caseNumber;
     const caseNumbers = caseNumbersForClient(client.id);
-    if (client.nextDate) push({ id: `client-next:${client.id}`, sourceType: 'client-next', sourceId: client.id, title: '聯繫客戶', due: client.nextDate, state: 'todo', caseId, caseNumber, caseNumbers, clientId: client.id, clientName: client.name });
     (client.todos || []).filter((row) => !row.done).forEach((row) => push({
       id: `client-todo:${client.id}:${row.id}`, sourceType: 'client-todo', sourceId: row.id,
       title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, caseNumber: caseMap.get(row.caseId || caseId)?.caseNumber, caseNumbers, clientId: client.id, clientName: client.name,

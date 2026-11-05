@@ -70,7 +70,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         if (typeFilter === 'unlinked' ? linkedCase : typeFilter !== 'all' && quoteType !== typeFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
-        return [linkedCase?.caseNumber, linkedCase?.caseNumber ? `#${linkedCase.caseNumber}` : '', CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
+        return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
   }, [quoteDrafts, query, typeFilter, clientMap, caseById, caseByQuoteId]);
@@ -177,7 +177,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
 
       <div className="flex items-center gap-2">
         <input value={query} onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜尋 #案件編號、客戶、電話、車型或需求…" className="flex-1 text-sm" />
+          placeholder="搜尋客戶、電話、車型、案件或需求…" className="flex-1 text-sm" />
         <span className="text-xs text-ink-3 shrink-0">{rows.length} 張</span>
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1" aria-label="報價種類篩選">
@@ -220,7 +220,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {linkedCase?.caseNumber && <span className="badge bg-s3 font-mono font-bold text-ink">#{linkedCase.caseNumber}</span>}
                       <span className={`badge ${quoteType === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>

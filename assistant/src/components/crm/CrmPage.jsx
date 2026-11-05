@@ -3,9 +3,10 @@ import { useApp } from '../../context';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
   getClientStatus, clientMatchesFilter, sortClients,
-  CAT_COLORS, STATUS_COLOR, STATUS_LABEL, CUSTOMER_KIND_LABEL,
-  generateId, findDuplicateClient, getClientCustomerKind,
+  CAT_COLORS, STATUS_COLOR, STATUS_LABEL,
+  generateId, findDuplicateClient,
 } from '../../utils/crm';
+import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId } from '../../utils/cases';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
@@ -13,8 +14,6 @@ import dayjs from 'dayjs';
 
 const SORT_OPTIONS = [
   { value: 'createdAt', label: '建立時間' },
-  { value: 'nextDate', label: '追蹤日期' },
-  { value: 'lastContact', label: '最後聯繫' },
   { value: 'name', label: '姓名' },
   { value: 'intent', label: '意願度' },
 ];
@@ -46,7 +45,7 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 }
 
 export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocusIntentConsumed, startNewToken, onStartConsumed, onOpenCase, onCreateCase }) {
-  const { clients, cases, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients } = useApp();
+  const { clients, cases, deals, quoteDrafts, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients, saveCase } = useApp();
   const [filter, setFilter] = useState('all');
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -105,6 +104,9 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
     let list = clients.filter((c) => clientMatchesFilter(c, filter, thresholds));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
+      const matchingClientIds = new Set(cases.filter((item) =>
+        item.title?.toLowerCase().includes(q) || item.clientName?.toLowerCase().includes(q)
+      ).map((item) => item.clientId));
       list = list.filter((c) =>
         c.name?.toLowerCase().includes(q) ||
         c.phone?.toLowerCase().includes(q) ||
@@ -112,13 +114,14 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
         c.notes?.toLowerCase().includes(q) ||
         c.industry?.toLowerCase().includes(q) ||
         c.taxId?.toLowerCase().includes(q) ||
+        matchingClientIds.has(c.id) ||
         (c.contacts || []).some((ct) =>
           ct.name?.toLowerCase().includes(q) || ct.phone?.toLowerCase().includes(q)
         )
       );
     }
     return sortClients(list, sortKey);
-  }, [clients, filter, sortKey, search, thresholds]);
+  }, [clients, cases, filter, sortKey, search, thresholds]);
 
   const { visibleItems, totalHeight, offsetY } = useVirtualList(filteredSorted, listRef);
 
@@ -131,14 +134,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
     const map = {};
     clients.forEach((c) => {
       map[c.catId] = (map[c.catId] || 0) + 1;
-    });
-    return map;
-  }, [clients]);
-
-  const stageCounts = useMemo(() => {
-    const map = {};
-    clients.forEach((c) => {
-      map[c.stageId] = (map[c.stageId] || 0) + 1;
     });
     return map;
   }, [clients]);
@@ -157,16 +152,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
     Object.keys(industryCounts).forEach((name) => set.add(name));
     return [...set];
   }, [industries, industryCounts]);
-
-  const pendingCount = useMemo(() => clients.filter((c) => {
-    const nd = c.nextDate ? dayjs(c.nextDate) : null;
-    return nd && !nd.isAfter(dayjs(), 'day');
-  }).length, [clients]);
-
-  const coldCount = useMemo(() => clients.filter((c) => {
-    const s = getClientStatus(c, thresholds);
-    return s === 'cold' || s === 'hot';
-  }).length, [clients, thresholds]);
 
   function handleSelect(id) {
     if (selectMode) { toggleChecked(id); return; }
@@ -222,8 +207,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
             <p className="section-title">快速篩選</p>
             {[
               { key: 'all', label: '全部', count: clients.length, color: '#8f7a68' },
-              { key: 'pending', label: '待聯繫', count: pendingCount, color: STATUS_COLOR.warn },
-              { key: 'cold', label: '久未聯繫', count: coldCount, color: STATUS_COLOR.cold },
             ].map((f) => (
               <SidebarItem key={f.key} active={filter === f.key} color={f.color}
                 label={f.label} count={f.count} onClick={() => { setFilter(f.key); setShowSidebar(false); }} />
@@ -238,17 +221,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
                 color={CAT_COLORS[cat.colorIdx % CAT_COLORS.length]}
                 label={cat.name} count={catCounts[cat.id] || 0}
                 onClick={() => { setFilter(`cat:${cat.id}`); setShowSidebar(false); }} />
-            ))}
-          </div>
-
-          {/* Stages */}
-          <div>
-            <p className="section-title">客戶階段</p>
-            {[...stages].sort((a, b) => a.order - b.order).map((stage) => (
-              <SidebarItem key={stage.id} active={filter === `stage:${stage.id}`}
-                color={CAT_COLORS[stage.colorIdx % CAT_COLORS.length]}
-                label={stage.name} count={stageCounts[stage.id] || 0}
-                onClick={() => { setFilter(`stage:${stage.id}`); setShowSidebar(false); }} />
             ))}
           </div>
 
@@ -313,7 +285,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               <div className="flex rounded-lg border border-bdr overflow-hidden shrink-0">
-                {[{ v: 'list', label: '☰ 列表' }, { v: 'board', label: '▦ 客戶類型' }].map(({ v, label }) => (
+                {[{ v: 'list', label: '☰ 客戶' }, { v: 'board', label: '▦ 案件流程' }].map(({ v, label }) => (
                   <button
                     key={v}
                     onClick={() => changeView(v)}
@@ -337,14 +309,14 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
         </div>
 
         {effectiveView === 'board' ? (
-          /* 客戶類型看板：手機可點按分類，桌面也可拖曳 */
+          /* 案件流程看板：類型是標籤，欄位只表示案件進度 */
           <BoardView
             clients={filteredSorted}
             cases={cases}
-            cats={cats}
-            thresholds={thresholds}
-            onSelect={handleSelect}
-            onSetCustomerKind={(id, customerKind) => updateClient(id, (c) => ({ ...c, customerKind }))}
+            deals={deals}
+            quotes={quoteDrafts}
+            onOpenCase={onOpenCase}
+            onSaveCase={saveCase}
           />
         ) : (
           /* List + Detail side by side on desktop */
@@ -362,6 +334,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
                       client={client}
                       cats={cats}
                       stages={stages}
+                      cases={cases.filter((item) => item.clientId === client.id && !item.deletedAt)}
                       selected={selectedId === client.id}
                       selectMode={selectMode}
                       checked={checkedIds.has(client.id)}
@@ -477,11 +450,10 @@ function SidebarItem({ label, count, color, active, onClick }) {
 }
 
 // ── ClientRow ─────────────────────────────────────────────────────────────────
-function ClientRow({ client, cats, stages, selected, selectMode, checked, onClick }) {
-  const { thresholds } = useApp();
-  const status = getClientStatus(client, thresholds);
+function ClientRow({ client, cats, cases = [], selected, selectMode, checked, onClick }) {
   const cat = cats.find((c) => c.id === client.catId);
-  const stage = stages.find((s) => s.id === client.stageId);
+  const openCases = cases.filter((item) => item.status !== 'completed');
+  const nextCase = [...openCases].filter((item) => item.nextFollowUpDate).sort((a, b) => a.nextFollowUpDate.localeCompare(b.nextFollowUpDate))[0];
 
   return (
     <div
@@ -491,8 +463,7 @@ function ClientRow({ client, cats, stages, selected, selectMode, checked, onClic
       }`}
       style={{ height: ITEM_HEIGHT }}
     >
-      {/* Status bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r" style={{ background: STATUS_COLOR[status] }} />
+      <div className="absolute left-0 top-0 bottom-0 w-1 rounded-r bg-teal" />
 
       {/* 批次選取 checkbox */}
       {selectMode && (
@@ -534,101 +505,134 @@ function ClientRow({ client, cats, stages, selected, selectMode, checked, onClic
       </div>
 
       <div className="text-right shrink-0">
-        <div className="text-xs font-medium" style={{ color: STATUS_COLOR[status] }}>
-          {STATUS_LABEL[status]}
-        </div>
+        <div className="text-xs font-medium text-teal">{openCases.length} 件進行中</div>
         <div className="text-[10px] text-ink-3 mt-0.5">
-          {client.nextDate ? formatDate(client.nextDate) : '未設追蹤'}
+          {nextCase ? `${nextCase.title || CASE_TYPE_LABEL[nextCase.type]}・${formatDate(nextCase.nextFollowUpDate)}` : '沒有案件追蹤'}
         </div>
       </div>
     </div>
   );
 }
 
-// ── BoardView（看板：依買車／改裝客戶分欄）──────────────────────────────────
-function BoardView({ clients, cases, cats, thresholds, onSelect, onSetCustomerKind }) {
+// ── BoardView（看板：以案件流程分欄，買車／改裝只是標籤）──────────────────
+function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   const [dragId, setDragId] = useState(null);
-  const [overKind, setOverKind] = useState(null);
+  const [overStage, setOverStage] = useState(null);
+  const [mobileStage, setMobileStage] = useState('new');
+  const pickedInitialMobileStage = useRef(false);
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [pendingMove, setPendingMove] = useState(null);
+  const [saveError, setSaveError] = useState('');
+  const allowedClientIds = useMemo(() => new Set(clients.map((client) => client.id)), [clients]);
+  const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const visibleCases = useMemo(() => (cases || [])
+    .filter((item) => !item.deletedAt && allowedClientIds.has(item.clientId))
+    .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+    .sort((a, b) => String(a.nextFollowUpDate || '9999').localeCompare(String(b.nextFollowUpDate || '9999'))),
+  [cases, allowedClientIds, typeFilter]);
+  const byStage = useMemo(() => {
+    const map = Object.fromEntries(CASE_PIPELINE_STAGES.map((stage) => [stage.id, []]));
+    for (const item of visibleCases) map[getCasePipelineStageId(item, { deals, quotes })].push(item);
+    return map;
+  }, [visibleCases, deals, quotes]);
 
-  const casesByClient = useMemo(() => {
-    const map = new Map();
-    for (const item of cases || []) {
-      if (item.deletedAt || !item.clientId) continue;
-      const list = map.get(item.clientId) || [];
-      list.push(item);
-      map.set(item.clientId, list);
+  useEffect(() => {
+    if (pickedInitialMobileStage.current) return;
+    const firstStageWithCases = CASE_PIPELINE_STAGES.find((stage) => byStage[stage.id]?.length > 0);
+    if (firstStageWithCases) setMobileStage(firstStageWithCases.id);
+    pickedInitialMobileStage.current = true;
+  }, [byStage]);
+
+  function requestMove(item, stageId) {
+    const from = getCasePipelineStageId(item, { deals, quotes });
+    if (from !== stageId) setPendingMove({ item, from, to: stageId });
+  }
+
+  async function confirmMove() {
+    if (!pendingMove) return;
+    const { item, to } = pendingMove;
+    setSaveError('');
+    try {
+      await onSaveCase({
+        ...item,
+        pipelineStage: to,
+        status: to === 'completed' ? 'completed' : 'active',
+        nextFollowUpDate: to === 'completed' ? '' : item.nextFollowUpDate,
+        updatedAt: new Date().toISOString(),
+      });
+      setMobileStage(to);
+      setPendingMove(null);
+    } catch (cause) {
+      setSaveError(cause?.message || '進度儲存失敗。');
     }
-    for (const list of map.values()) list.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
-    return map;
-  }, [cases]);
+  }
 
-  const byKind = useMemo(() => {
-    const map = { modification: [], purchase: [], both: [], unclassified: [] };
-    for (const client of clients) map[getClientCustomerKind(client, cases)].push(client);
-    return map;
-  }, [clients, cases]);
+  async function setCaseType(item, type) {
+    if (item.type === type) return;
+    setSaveError('');
+    try {
+      await onSaveCase({ ...item, type, updatedAt: new Date().toISOString() });
+    } catch (cause) {
+      setSaveError(cause?.message || '案件類型儲存失敗。');
+    }
+  }
 
-  const columns = [
-    { id: 'modification', label: '改裝客戶', icon: '🛠️', color: '#9382a5' },
-    { id: 'purchase', label: '買車客戶', icon: '🚚', color: '#6f9a9c' },
-    ...(byKind.both.length ? [{ id: 'both', label: '買車＋改裝', icon: '↔', color: '#bf8a5e' }] : []),
-    ...(byKind.unclassified.length ? [{ id: 'unclassified', label: '待分類', icon: '?', color: '#8a919b' }] : []),
-  ];
-
-  function handleDrop(customerKind) {
-    if (dragId && (customerKind === 'purchase' || customerKind === 'modification')) onSetCustomerKind(dragId, customerKind);
+  function handleDrop(stageId) {
+    const item = visibleCases.find((row) => row.id === dragId);
+    if (item) requestMove(item, stageId);
     setDragId(null);
-    setOverKind(null);
+    setOverStage(null);
   }
 
   return (
     <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-bdr bg-s2/45 px-3 py-2">
-        <p className="text-xs font-bold text-ink">客戶類型看板</p>
-        <p className="mt-0.5 text-[11px] text-ink-3">直接按卡片下方的「改裝／買車」；桌面也能拖曳換欄。</p>
+      <div className="shrink-0 border-b border-bdr bg-s2/45 px-3 py-2 space-y-2">
+        <div><p className="text-xs font-bold text-ink">案件流程</p><p className="mt-0.5 text-[11px] text-ink-3">每個案件的聯繫與追蹤日都獨立儲存。</p></div>
+        <div className="flex gap-2 overflow-x-auto">
+          {[['all', '全部'], ['purchase', '🚚 買車'], ['modification', '🛠 改裝']].map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
+          ))}
+        </div>
+        <div className="flex gap-2 overflow-x-auto md:hidden">
+          {CASE_PIPELINE_STAGES.map((stage) => <button key={stage.id} type="button" onClick={() => setMobileStage(stage.id)} className={`min-h-10 shrink-0 rounded-lg px-3 text-xs font-bold ${mobileStage === stage.id ? 'bg-copper text-on-accent' : 'bg-s1 text-ink-2 border border-bdr'}`}>{stage.label} {byStage[stage.id].length}</button>)}
+        </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden">
-        <div className="flex gap-3 p-3 h-full min-w-max">
-        {columns.map((column) => {
-          const list = byKind[column.id] || [];
-          const acceptsDrop = column.id === 'purchase' || column.id === 'modification';
-          const isOver = overKind === column.id;
+      {saveError && <p role="alert" className="m-3 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{saveError}</p>}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="hidden md:flex gap-3 p-3 h-full min-w-max overflow-x-auto">
+        {CASE_PIPELINE_STAGES.map((stage) => {
+          const list = byStage[stage.id] || [];
+          const isOver = overStage === stage.id;
           return (
             <div
-              key={column.id}
-              onDragOver={acceptsDrop ? (e) => { e.preventDefault(); setOverKind(column.id); } : undefined}
-              onDragLeave={acceptsDrop ? (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverKind(null); } : undefined}
-              onDrop={acceptsDrop ? (e) => { e.preventDefault(); handleDrop(column.id); } : undefined}
-              className={`w-[84vw] max-w-72 md:w-72 shrink-0 flex flex-col rounded-xl border transition-colors ${
+              key={stage.id}
+              onDragOver={(e) => { e.preventDefault(); setOverStage(stage.id); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverStage(null); }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(stage.id); }}
+              className={`w-64 shrink-0 flex flex-col rounded-xl border transition-colors ${
                 isOver ? 'border-accent bg-accent/5' : 'border-bdr bg-s1'
               }`}
             >
               <div className="flex items-center gap-2 px-3 py-2.5 border-b border-bdr/60 shrink-0">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg text-sm" style={{ background: `${column.color}22`, color: column.color }}>{column.icon}</span>
-                <span className="font-semibold text-sm text-ink flex-1 truncate">{column.label}</span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-copper/12 text-xs font-bold text-copper">{CASE_PIPELINE_STAGES.findIndex((row) => row.id === stage.id) + 1}</span>
+                <span className="font-semibold text-sm text-ink flex-1 truncate">{stage.label}</span>
                 <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{list.length}</span>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {list.map((client) => (
+                {list.map((item) => (
                   <BoardCard
-                    key={client.id}
-                    client={client}
-                    customerKind={column.id}
-                    clientCases={casesByClient.get(client.id) || []}
-                    cats={cats}
-                    thresholds={thresholds}
-                    dragging={dragId === client.id}
-                    onDragStart={() => setDragId(client.id)}
-                    onDragEnd={() => { setDragId(null); setOverKind(null); }}
-                    onClick={() => onSelect(client.id)}
-                    onSetCustomerKind={(kind) => onSetCustomerKind(client.id, kind)}
+                    key={item.id} item={item} client={clientMap.get(item.clientId)}
+                    stageId={stage.id} dragging={dragId === item.id}
+                    onDragStart={() => setDragId(item.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
+                    onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)}
+                    onSetType={(type) => setCaseType(item, type)}
                   />
                 ))}
                 {list.length === 0 && (
                   <div className={`text-center text-xs py-6 rounded-lg border border-dashed ${
                     isOver ? 'border-accent text-accent' : 'border-bdr/60 text-ink-3'
                   }`}>
-                    {isOver ? `放開以改成${CUSTOMER_KIND_LABEL[column.id]}` : '目前沒有客戶'}
+                    {isOver ? `放開以移到${stage.label}` : '目前沒有案件'}
                   </div>
                 )}
               </div>
@@ -636,60 +640,45 @@ function BoardView({ clients, cases, cats, thresholds, onSelect, onSetCustomerKi
           );
         })}
         </div>
+        <div className="h-full overflow-y-auto p-3 md:hidden">
+          <div className="space-y-3">
+            {byStage[mobileStage].map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
+            {byStage[mobileStage].length === 0 && <div className="rounded-2xl border border-dashed border-bdr py-12 text-center text-sm text-ink-3">目前沒有案件</div>}
+          </div>
+        </div>
       </div>
+      {pendingMove && <><div className="overlay" onClick={() => setPendingMove(null)} /><div className="modal"><div className="z-50 w-full max-w-sm rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><p className="text-xs font-bold text-copper">確認案件進度</p><h3 className="mt-1 text-lg font-bold text-ink">{pendingMove.item.clientName}・{pendingMove.item.title}</h3><p className="mt-3 text-sm text-ink-2">{CASE_PIPELINE_STAGES.find((stage) => stage.id === pendingMove.from)?.label} → <strong>{CASE_PIPELINE_STAGES.find((stage) => stage.id === pendingMove.to)?.label}</strong></p><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setPendingMove(null)} className="btn-outline min-h-12">取消</button><button type="button" onClick={confirmMove} className="btn-primary min-h-12">確認變更</button></div></div></div></>}
     </div>
   );
 }
 
-function BoardCard({ client, customerKind, clientCases, cats, thresholds, dragging, onDragStart, onDragEnd, onClick, onSetCustomerKind }) {
-  const status = getClientStatus(client, thresholds);
-  const cat = cats.find((c) => c.id === client.catId);
-  const latestCase = clientCases[0];
+function BoardCard({ item, client, stageId, dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
+  const stageIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
+  const nextStage = CASE_PIPELINE_STAGES[stageIndex + 1];
+  const followUpDiff = item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
   return (
-    <div
-      draggable
-      onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
+    <article
+      draggable={Boolean(onDragStart)}
+      onDragStart={(e) => { if (!onDragStart) return; e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
       onDragEnd={onDragEnd}
-      onClick={onClick}
-      className={`bg-s2 rounded-lg p-2.5 cursor-pointer border border-bdr/50 hover:border-accent/50 transition-all relative ${
+      className={`bg-s2 rounded-xl p-3 border border-bdr/60 hover:border-accent/50 transition-all ${
         dragging ? 'opacity-40' : ''
       }`}
     >
-      <div className="absolute left-0 top-2 bottom-2 w-1 rounded-r" style={{ background: STATUS_COLOR[status] }} />
-      <div className="pl-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          {client.pinned && <span className="text-[10px]">📌</span>}
-          <span className="font-medium text-sm text-ink truncate">{client.name}</span>
-        </div>
-        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-          <span className="text-[11px] text-ink-3">{client.phone || '—'}</span>
-          {cat && (
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full"
-              style={{ background: CAT_COLORS[cat.colorIdx % CAT_COLORS.length] + '20', color: CAT_COLORS[cat.colorIdx % CAT_COLORS.length] }}
-            >
-              {cat.name}
-            </span>
-          )}
-          {latestCase?.caseNumber != null && <span className="badge bg-s1 font-mono text-[10px] text-ink-2">#{latestCase.caseNumber}{clientCases.length > 1 ? ` ＋${clientCases.length - 1}` : ''}</span>}
-        </div>
-        {latestCase && <p className="mt-1.5 truncate text-[11px] text-ink-2">{latestCase.title || CUSTOMER_KIND_LABEL[customerKind]}</p>}
-        <div className="flex items-center justify-between mt-1.5">
-          <span className="text-[10px] font-medium" style={{ color: STATUS_COLOR[status] }}>
-            {STATUS_LABEL[status]}
-          </span>
-          <span className="text-[10px] text-ink-3">
-            {client.nextDate ? formatDate(client.nextDate) : '未設追蹤'}
-          </span>
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-bdr/60 pt-2">
+      <button type="button" onClick={onOpen} className="w-full text-left">
+        <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate font-bold text-ink">{item.clientName || client?.name || '未命名客戶'}</p><p className="mt-1 truncate text-sm text-ink-2">{item.title || '未命名案件'}</p></div><span className="text-ink-3">›</span></div>
+      </button>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
-            <button key={kind} type="button" onClick={(event) => { event.stopPropagation(); onSetCustomerKind(kind); }}
-              className={`min-h-11 rounded-lg border text-[11px] font-bold ${customerKind === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
+            <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
           ))}
-        </div>
       </div>
-    </div>
+      <div className="mt-2 rounded-lg bg-s1 px-2.5 py-2 text-[11px]">
+        <p className="text-ink-3">最近聯繫：{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}</p>
+        <p className={`mt-1 font-semibold ${followUpDiff != null && followUpDiff < 0 ? 'text-danger' : 'text-copper'}`}>下次追蹤：{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : stageId === 'completed' ? '已完成' : '尚未設定'}</p>
+      </div>
+      <div className="mt-2 flex gap-2"><button type="button" onClick={onOpen} className="btn-outline min-h-10 flex-1 text-xs">開啟案件</button>{nextStage && <button type="button" onClick={() => onMove(nextStage.id)} className="btn-primary min-h-10 flex-1 text-xs">下一階段 →</button>}</div>
+    </article>
   );
 }
 
@@ -697,8 +686,7 @@ function BoardCard({ client, customerKind, clientCases, cats, thresholds, draggi
 function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, onOpenExisting }) {
   const [form, setForm] = useState({
     name: '', phone: '', lineId: '', clientType: 'personal', industry: '',
-    catId: cats[0]?.id || '', stageId: stages[0]?.id || '',
-    customerKind: '', intentLevel: 0, notes: '', nextDate: addDays(today(), 7),
+    catId: cats[0]?.id || '', stageId: stages[0]?.id || '', intentLevel: 0, notes: '',
   });
 
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
@@ -711,7 +699,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim() || !form.customerKind) return;
+    if (!form.name.trim()) return;
     await onCreate(form);
   }
 
@@ -724,14 +712,6 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
           <form onSubmit={handleSubmit} className="space-y-3">
             <Field label="姓名 / 公司名" required>
               <input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="例：陳頭家 / 大發水電行" className="w-full" required />
-            </Field>
-            <Field label="業務類型" required>
-              <div className="grid grid-cols-2 gap-2">
-                {[['modification', '🛠 改裝客戶'], ['purchase', '🚚 買車客戶']].map(([kind, label]) => (
-                  <button key={kind} type="button" onClick={() => set('customerKind', kind)}
-                    className={`min-h-12 rounded-xl border text-sm font-bold ${form.customerKind === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{label}</button>
-                ))}
-              </div>
             </Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="客戶類型">
@@ -759,20 +739,10 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
                 <input value={form.lineId} onChange={(e) => set('lineId', e.target.value)} className="w-full" />
               </Field>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="客戶分類">
+            <Field label="客戶分類">
                 <select value={form.catId} onChange={(e) => set('catId', e.target.value)} className="w-full">
                   {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-              </Field>
-              <Field label="客戶階段">
-                <select value={form.stageId} onChange={(e) => set('stageId', e.target.value)} className="w-full">
-                  {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </Field>
-            </div>
-            <Field label="下次追蹤日期">
-              <input type="date" value={form.nextDate} onChange={(e) => set('nextDate', e.target.value)} className="w-full" />
             </Field>
             <Field label="備註">
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="需求、預算、注意事項…" rows={2} className="w-full resize-none" />
@@ -793,7 +763,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
             )}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" disabled={!form.name.trim() || !form.customerKind} className="btn-primary flex-1 disabled:opacity-40">{dup ? '仍要新增' : '新增'}</button>
+              <button type="submit" disabled={!form.name.trim()} className="btn-primary flex-1 disabled:opacity-40">{dup ? '仍要新增' : '新增'}</button>
             </div>
           </form>
         </div>

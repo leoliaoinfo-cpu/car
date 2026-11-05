@@ -16,19 +16,16 @@ export default function CaseQuickSearch({ onClose, onOpenCase }) {
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const numericNeedle = needle.replace(/^#/, '');
     return cases.map((caseItem) => {
       const client = clients.find((item) => item.id === caseItem.clientId);
       const linkedDeal = deals.find((item) => item.id === caseItem.dealId || item.caseId === caseItem.id);
       const linkedQuotes = quoteDrafts.filter((item) => (caseItem.quoteIds || []).includes(item.id) || item.caseId === caseItem.id);
-      const exactNumber = numericNeedle && String(caseItem.caseNumber) === numericNeedle;
-      const values = [caseItem.caseNumber, `#${caseItem.caseNumber}`, caseItem.clientName, caseItem.title,
+      const values = [caseItem.clientName, caseItem.title,
         client?.name, client?.phone, client?.lineId, client?.company, client?.plate, client?.licensePlate,
         linkedDeal?.model, ...linkedQuotes.map((item) => item.model)];
-      return { caseItem, exactNumber, matches: !needle || values.some((value) => String(value || '').toLowerCase().includes(needle)) };
+      return { caseItem, matches: !needle || values.some((value) => String(value || '').toLowerCase().includes(needle)) };
     }).filter((row) => row.matches)
-      .sort((a, b) => Number(b.exactNumber) - Number(a.exactNumber)
-        || String(b.caseItem.updatedAt || '').localeCompare(String(a.caseItem.updatedAt || '')))
+      .sort((a, b) => String(b.caseItem.updatedAt || '').localeCompare(String(a.caseItem.updatedAt || '')))
       .slice(0, 30);
   }, [cases, clients, deals, query, quoteDrafts]);
 
@@ -44,7 +41,7 @@ export default function CaseQuickSearch({ onClose, onOpenCase }) {
           <div className="relative flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">⌕</span>
             <input ref={inputRef} value={query} onChange={(event) => setQuery(event.target.value)}
-              className="min-h-12 w-full pl-9 pr-3" placeholder="輸入 #100、姓名、電話、車牌或車型" aria-label="搜尋案件" />
+              className="min-h-12 w-full pl-9 pr-3" placeholder="輸入姓名、電話、車牌、車型或案件名稱" aria-label="搜尋案件" />
           </div>
           <button type="button" onClick={onClose} className="btn-outline min-h-12 shrink-0 px-4">關閉</button>
         </header>
@@ -56,7 +53,7 @@ export default function CaseQuickSearch({ onClose, onOpenCase }) {
                 const stage = getCasePipelineStage(caseItem, { deals, quotes: quoteDrafts });
                 return <button type="button" key={caseItem.id} onClick={() => open(caseItem)} className="card min-h-16 w-full p-3 text-left hover:border-teal/60 active:scale-[0.99]">
                   <div className="flex items-start gap-3">
-                    <span className="rounded-lg bg-teal/12 px-2 py-1 font-mono text-sm font-bold text-teal">#{caseItem.caseNumber}</span>
+                    <span className={`rounded-lg px-2 py-1 text-xs font-bold ${caseItem.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[caseItem.type] || '案件'}</span>
                     <div className="min-w-0 flex-1"><p className="truncate font-bold text-ink">{caseItem.clientName || '未命名客戶'}</p><p className="mt-0.5 truncate text-xs text-ink-3">{CASE_TYPE_LABEL[caseItem.type] || '案件'}・{caseItem.title || '未命名案件'}</p></div>
                     <div className="shrink-0 text-right"><p className="text-xs font-bold text-copper">{stage}</p><p className="mt-1 text-[10px] text-ink-3">{getCaseStatusLabel(caseItem)}</p></div>
                   </div>

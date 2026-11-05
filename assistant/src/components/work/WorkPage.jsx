@@ -22,7 +22,7 @@ function dueText(row) {
 export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, onQuickCreate }) {
   const {
     workItems, tasks, clients, deals, cases,
-    saveWorkItem, saveTask, updateClient, saveActivity,
+    saveWorkItem, saveTask, updateClient, saveActivity, saveCase,
   } = useApp();
   const queue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([key]) => [key, queue.filter((row) => row.group === key).length])), [queue]);
@@ -45,17 +45,16 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       onOpenOperations?.(row.dealId, row.caseId);
       return;
     }
+    if (row.sourceType === 'case-follow-up') {
+      onOpenCase?.(row.caseId);
+      return;
+    }
     if (row.sourceType === 'workItem') {
       const current = workItems.find((item) => item.id === row.sourceId);
       if (current) await saveWorkItem({ ...current, state: 'done', completedAt: new Date().toISOString() });
     } else if (row.sourceType === 'task') {
       const current = tasks.find((item) => item.id === row.sourceId);
       if (current) await saveTask({ ...current, done: true, doneAt: new Date().toISOString() });
-    } else if (row.sourceType === 'client-next') {
-      await updateClient(row.clientId, (client) => ({
-        ...client, nextDate: '', lastContact: today(), missedCalls: 0,
-        log: [...(client.log || []), { id: generateId('log'), date: today(), type: 'contact', text: '已完成聯繫' }],
-      }));
     } else if (row.sourceType === 'client-todo') {
       await updateClient(row.clientId, (client) => ({
         ...client, todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, done: true, doneAt: new Date().toISOString() } : item),
@@ -71,6 +70,12 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       return;
     }
     const due = addDays(today(), days);
+    if (row.sourceType === 'case-follow-up') {
+      const current = cases.find((item) => item.id === row.caseId);
+      if (current) await saveCase({ ...current, nextFollowUpDate: due, updatedAt: new Date().toISOString() });
+      setSnoozing(null);
+      return;
+    }
     if (row.sourceType === 'workItem') {
       const current = workItems.find((item) => item.id === row.sourceId);
       if (current) await saveWorkItem({ ...current, due, state: 'todo' });
@@ -79,7 +84,6 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       const current = tasks.find((item) => item.id === row.sourceId);
       if (current) await saveTask({ ...current, due });
     }
-    if (row.sourceType === 'client-next') await updateClient(row.clientId, (client) => ({ ...client, nextDate: due }));
     if (row.sourceType === 'client-todo') await updateClient(row.clientId, (client) => ({ ...client, todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, due } : item) }));
     setSnoozing(null);
   }
@@ -128,14 +132,14 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-ink leading-snug">{row.title}</p>
-                    {(row.caseNumber || row.caseNumbers?.length || row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.caseNumber ? `#${row.caseNumber}` : row.caseNumbers?.length ? `案件 ${row.caseNumbers.map((value) => `#${value}`).join('、')}` : '', row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
+                    {(row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
                     {row.followUpReminder && row.waitingOn && <p className="mt-1 text-xs font-semibold text-danger">{row.waitingOn}</p>}
                   </div>
                   <span className={`badge shrink-0 ${row.group === 'overdue' ? 'bg-danger/12 text-danger' : row.group === 'waiting' ? 'bg-gold/12 text-gold' : 'bg-accent/10 text-accent'}`}>{dueText(row)}</span>
                 </div>
               </button>
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : '✓ 完成'}</button>
+                <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
                 <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
                 {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
               </div>
