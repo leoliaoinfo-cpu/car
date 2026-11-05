@@ -159,6 +159,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
 
   for (const deal of deals) {
     const id = `case:deal:${deal.id}`;
+    if (deal.caseId && existingIds.has(deal.caseId)) continue;
     if (existingIds.has(id)) continue;
     const quote = quoteMap.get(deal.quoteId);
     const client = clientMap.get(deal.clientId);
@@ -265,7 +266,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
       title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, caseNumber: caseMap.get(row.caseId || caseId)?.caseNumber, caseNumbers, clientId: client.id, clientName: client.name,
     }));
   });
-  deals.forEach((deal) => {
+  deals.filter((deal) => !deal.caseArchivedAt).forEach((deal) => {
     const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
     const workflow = normalizeDeliveryWorkflow(deal);
     workflow.filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {

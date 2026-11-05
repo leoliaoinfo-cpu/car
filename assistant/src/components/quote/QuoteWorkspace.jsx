@@ -229,6 +229,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
                       {pipelineStage && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
+                      {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
                       {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}

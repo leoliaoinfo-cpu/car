@@ -6,6 +6,7 @@ export const STORAGE_PREFIX = 'car-sales.';
 export const STORAGE_KEYS = {
   theme: `${STORAGE_PREFIX}theme`,
   crmView: `${STORAGE_PREFIX}crmView`,
+  hideCompletedCases: `${STORAGE_PREFIX}hideCompletedCases`,
   housekeepAt: `${STORAGE_PREFIX}housekeepAt`,
   isolationNoticeDismissed: `${STORAGE_PREFIX}isolationNoticeDismissed`,
   syncToken: `${STORAGE_PREFIX}sync.token`,

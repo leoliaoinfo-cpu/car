@@ -515,6 +515,11 @@ export function AppProvider({ children }) {
   const saveDeal = useCallback(async (deal) => {
     const now = new Date().toISOString();
     let full = { createdAt: now, ...deal, updatedAt: now };
+    if (full.caseArchivedAt) {
+      dispatch({ type: 'UPSERT_DEAL', payload: full });
+      await db.put('deals', full);
+      return full;
+    }
     const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
     const quote = full.quoteId ? await db.get('quoteDrafts', full.quoteId).catch(() => null) : null;
     const caseType = inferCaseType(quote);
@@ -583,8 +588,7 @@ export function AppProvider({ children }) {
     const linked = allCases.find((row) => row.id === full.caseId)
       || previousLinked
       || (candidates.length === 1 ? candidates[0] : null);
-    const keepDetached = Boolean(full.caseArchivedAt && !full.caseId);
-    if (full.caseId && full.caseArchivedAt) full = { ...full, caseArchivedAt: null };
+    const keepDetached = Boolean(full.caseArchivedAt);
     let caseRow = null;
     if (!keepDetached && (linked || full.clientId || full.customerName)) {
       caseRow = advanceCasePipeline({
@@ -684,10 +688,21 @@ export function AppProvider({ children }) {
   const deleteCase = useCallback(async (id) => {
     const current = casesRef.current.find((row) => row.id === id);
     if (!current) return null;
-    const linkedDeals = (await db.getAll('deals').catch(() => [])).filter((row) => row.caseId === id || current.dealId === row.id);
-    if (linkedDeals.length) throw new Error('已成交或進入施工的案件不能直接刪除。');
-
     const now = new Date().toISOString();
+    const linkedDeals = (await db.getAll('deals').catch(() => [])).filter((row) => row.caseId === id || current.dealId === row.id);
+    const linkedQuotes = (await db.getAll('quoteDrafts').catch(() => [])).filter((row) => row.caseId === id || (current.quoteIds || []).includes(row.id));
+
+    for (const row of linkedDeals) {
+      const next = { ...row, caseId: id, caseArchivedAt: now, updatedAt: now };
+      dispatch({ type: 'UPSERT_DEAL', payload: next });
+      await db.put('deals', next);
+    }
+    for (const row of linkedQuotes) {
+      const next = { ...row, caseId: id, caseArchivedAt: now, updatedAt: now };
+      dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: next });
+      await db.put('quoteDrafts', next);
+    }
+
     const archived = { ...current, deletedAt: now, updatedAt: now };
     await db.put('cases', archived);
     casesRef.current = casesRef.current.filter((row) => row.id !== id);
@@ -698,8 +713,23 @@ export function AppProvider({ children }) {
   const restoreCase = useCallback(async (id) => {
     const archived = await db.get('cases', id).catch(() => null);
     if (!archived?.deletedAt) throw new Error('找不到可恢復的案件。');
+    const now = new Date().toISOString();
+    const linkedDeals = (await db.getAll('deals').catch(() => [])).filter((row) => row.caseId === id || archived.dealId === row.id);
+    const linkedQuotes = (await db.getAll('quoteDrafts').catch(() => [])).filter((row) => row.caseId === id || (archived.quoteIds || []).includes(row.id));
+    for (const row of linkedDeals) {
+      const { caseArchivedAt, ...restDeal } = row;
+      const next = { ...restDeal, caseId: id, updatedAt: now };
+      dispatch({ type: 'UPSERT_DEAL', payload: next });
+      await db.put('deals', next);
+    }
+    for (const row of linkedQuotes) {
+      const { caseArchivedAt, ...restQuote } = row;
+      const next = { ...restQuote, caseId: id, updatedAt: now };
+      dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: next });
+      await db.put('quoteDrafts', next);
+    }
     const { deletedAt, ...rest } = archived;
-    const restored = { ...rest, updatedAt: new Date().toISOString() };
+    const restored = { ...rest, updatedAt: now };
     await db.put('cases', restored);
     casesRef.current = [...casesRef.current.filter((row) => row.id !== id), restored];
     dispatch({ type: 'RESTORE_CASE', payload: restored });

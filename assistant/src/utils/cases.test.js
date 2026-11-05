@@ -122,6 +122,23 @@ test('已刪除案件的舊報價不會在重新載入時自動建立案件', ()
   assert.equal(cases.length, 0);
 });
 
+test('已封存案件連結的成交不會在重新載入時建立重複案件', () => {
+  const cases = buildLegacyCaseSeeds({
+    deals: [{ id: 'deal-archived', clientId: 'client-1', caseId: 'case-archived' }],
+    clients: [{ id: 'client-1', name: '王先生' }],
+    existingCases: [{ id: 'case-archived', deletedAt: '2026-11-05T00:00:00.000Z' }],
+  });
+  assert.deepEqual(cases, []);
+});
+
+test('封存案件的施工不會被錯掛到同客戶其他案件', () => {
+  const rows = buildWorkQueue({
+    deals: [{ id: 'deal-1', clientId: 'client-1', caseId: 'case-archived', caseArchivedAt: '2026-11-05T00:00:00.000Z', deliveryWorkflow: [{ id: 'delivery', label: '交車', status: 'todo' }] }],
+    cases: [{ id: 'case-active', clientId: 'client-1', status: 'active' }],
+  });
+  assert.equal(rows.some((row) => row.sourceType === 'delivery'), false);
+});
+
 test('工作只使用案件自己的追蹤日，已刪案件工作不顯示', () => {
   const rows = buildWorkQueue({
     cases: [

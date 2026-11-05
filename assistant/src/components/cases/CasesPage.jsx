@@ -95,6 +95,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
             );
             const caseActions = workQueue.filter((row) => row.caseId === item.id);
             const action = caseActions.find((row) => row.state !== 'waiting') || caseActions[0];
+            const pipelineStageId = getCasePipelineStageId(item, { deals, quotes: quoteDrafts });
             const pipelineStage = getCasePipelineStage(item, { deals, quotes: quoteDrafts });
             const stageUpdatedAt = getCasePipelineUpdatedAt(item, { deals, quotes: quoteDrafts });
             const stageDays = getCasePipelineElapsedDays(item, { deals, quotes: quoteDrafts });
@@ -106,6 +107,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
                       <span className="badge bg-copper/12 text-copper">{pipelineStage}</span>
+                      {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
                     <p className="text-sm text-ink-2 truncate">{item.title || '未命名案件'}</p>
@@ -266,7 +268,7 @@ function CasePipeline({ item, currentId, deals, quotes }) {
   );
 }
 
-function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], canDelete = true, onClose, onDeleted, onSaveCase, onDeleteCase, onSaveWorkItem, onSaveActivity }) {
+function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinkedDeal = false, onClose, onDeleted, onSaveCase, onDeleteCase, onSaveWorkItem, onSaveActivity }) {
   const [title, setTitle] = useState(item.title || '');
   const [type, setType] = useState(item.type || 'purchase');
   const [pipelineStage, setPipelineStage] = useState(currentPipeline);
@@ -312,7 +314,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], canDelet
   }
 
   async function removeCase() {
-    if (deleting || !canDelete) return;
+    if (deleting) return;
     setDeleting(true);
     setError('');
     try {
@@ -343,9 +345,8 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], canDelet
           <section className="rounded-2xl border border-danger/30 bg-danger/5 p-3">
             <p className="text-sm font-bold text-danger">刪除廢棄案件</p>
             <p className="mt-1 text-xs leading-relaxed text-ink-3">案件會移到「已刪除」；客戶、報價、工作與紀錄都會保留，可隨時恢復。</p>
-            {!canDelete ? (
-              <p className="mt-3 rounded-xl bg-s2 px-3 py-2 text-xs font-semibold text-ink-2">此案件已成交或進入施工，為避免施工資料斷線，不能從這裡刪除。</p>
-            ) : !confirmDelete ? (
+            {hasLinkedDeal && <p className="mt-3 rounded-xl bg-s2 px-3 py-2 text-xs font-semibold text-ink-2">此案件含成交或施工資料；移到「已刪除」後資料仍會保留，恢復案件即可重新顯示。</p>}
+            {!confirmDelete ? (
               <button type="button" onClick={() => setConfirmDelete(true)} className="mt-3 min-h-11 w-full rounded-xl border border-danger/50 text-sm font-bold text-danger">刪除案件</button>
             ) : (
               <div role="alert" className="mt-3 rounded-xl border border-danger/45 bg-s1 p-3">
@@ -538,7 +539,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
         </div>
         {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div><label className="mt-4 block text-xs font-bold text-ink-2">這次聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowContact(false)} className="btn-outline min-h-12">取消</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></form></div>}
-        {showEdit && <CaseEditSheet item={item} currentPipeline={pipelineStageId} workItems={caseWork} canDelete={!linkedDeal} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
+        {showEdit && <CaseEditSheet item={item} currentPipeline={pipelineStageId} workItems={caseWork} hasLinkedDeal={Boolean(linkedDeal)} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
       </div>
     </div>
   );

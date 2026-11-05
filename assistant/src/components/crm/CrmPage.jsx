@@ -441,6 +441,9 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   const [pendingMove, setPendingMove] = useState(null);
   const [saveError, setSaveError] = useState('');
   const [expandedStages, setExpandedStages] = useState(() => new Set());
+  const [hideCompleted, setHideCompleted] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEYS.hideCompletedCases) !== 'false'; } catch { return true; }
+  });
   const allowedClientIds = useMemo(() => new Set(clients.map((client) => client.id)), [clients]);
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const visibleCases = useMemo(() => (cases || [])
@@ -456,6 +459,16 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
     )));
     return map;
   }, [visibleCases, deals, quotes]);
+  const displayedStages = hideCompleted ? CASE_PIPELINE_STAGES.filter((stage) => stage.id !== 'completed') : CASE_PIPELINE_STAGES;
+
+  function toggleCompletedVisibility() {
+    setHideCompleted((previous) => {
+      const next = !previous;
+      try { localStorage.setItem(STORAGE_KEYS.hideCompletedCases, String(next)); } catch { /* noop */ }
+      if (next && mobileStage === 'completed') setMobileStage('new');
+      return next;
+    });
+  }
 
   function toggleStageExpanded(stageId) {
     setExpandedStages((previous) => {
@@ -521,15 +534,16 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
           {[['all', '全部'], ['purchase', '🚚 買車'], ['modification', '🛠 改裝']].map(([id, label]) => (
             <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? (id === 'purchase' ? 'border-danger bg-danger text-white' : id === 'modification' ? 'border-warn bg-warn text-ink' : 'border-teal bg-teal text-white') : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
           ))}
+          <button type="button" onClick={toggleCompletedVisibility} className="min-h-10 shrink-0 rounded-full border border-bdr bg-s1 px-3 text-xs font-bold text-ink-2">{hideCompleted ? `顯示已完工 ${byStage.completed.length}` : '隱藏已完工'}</button>
         </div>
         <div className="flex gap-2 overflow-x-auto md:hidden">
-          {CASE_PIPELINE_STAGES.map((stage) => <button key={stage.id} type="button" onClick={() => setMobileStage(stage.id)} className={`min-h-10 shrink-0 rounded-lg px-3 text-xs font-bold ${mobileStage === stage.id ? 'bg-copper text-on-accent' : 'bg-s1 text-ink-2 border border-bdr'}`}>{stage.label} {byStage[stage.id].length}</button>)}
+          {displayedStages.map((stage) => <button key={stage.id} type="button" onClick={() => setMobileStage(stage.id)} className={`min-h-10 shrink-0 rounded-lg px-3 text-xs font-bold ${mobileStage === stage.id ? 'bg-copper text-on-accent' : 'bg-s1 text-ink-2 border border-bdr'}`}>{stage.label} {byStage[stage.id].length}</button>)}
         </div>
       </div>
       {saveError && <p role="alert" className="m-3 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{saveError}</p>}
       <div className="flex-1 min-h-0 overflow-hidden">
         <div className="hidden md:flex gap-3 p-3 h-full min-w-max overflow-x-auto">
-        {CASE_PIPELINE_STAGES.map((stage) => {
+        {displayedStages.map((stage) => {
           const list = byStage[stage.id] || [];
           const isExpanded = expandedStages.has(stage.id);
           const displayedList = isExpanded ? list : list.slice(0, defaultVisibleCount);
@@ -604,6 +618,7 @@ function BoardCard({ item, client, stageId, stageUpdatedAt, dragging, onDragStar
       <button type="button" onClick={onOpen} className="w-full text-left">
         <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate font-bold text-ink">{item.clientName || client?.name || '未命名客戶'}</p><p className="mt-1 truncate text-sm text-ink-2">{item.title || '未命名案件'}</p></div><span className="text-ink-3">›</span></div>
       </button>
+      {stageId === 'completed' && stageUpdatedAt && <p className="mt-2 inline-flex rounded-full bg-ok/15 px-2 py-1 text-[10px] font-bold text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</p>}
       <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
             <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? (kind === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
