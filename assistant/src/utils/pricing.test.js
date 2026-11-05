@@ -975,8 +975,34 @@ test('separates regular and double-fold liftgates and restores the accessory sec
     ['滑特(升降尾門)', '雙折尾門', '升降尾門的油壓缸', '尾門配件'],
   );
   assert.deepEqual(QUOTE_ADDON_SECTIONS.map((section) => [section.label, section.categories.length]), [
-    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 4],
+    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 4], ['周邊配件', 1],
   ]);
+});
+
+test('adds a peripheral accessory section with matching sale prices and costs', () => {
+  const ids = [
+    ['qa-k2500-sunshade', '卡旺專用遮陽簾', 1280],
+    ['qa-steering-leather-cover', '卡旺方向盤皮革套', 499],
+    ['qa-dashboard-mat', '卡旺專用避光墊', 589],
+    ['qa-double-cab-storage-box', '雙廂貨車置物盒', 389],
+    ['qa-keyless-fuel-cap', '免鑰匙油箱蓋', 599],
+    ['qa-side-led-housing', '側邊 LED 方向燈殼', 1190],
+    ['qa-side-led-bulb', '側邊 LED 方向燈【燈芯】', 249],
+  ];
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v28',
+    addons: DEFAULT_QUOTE_PRESETS.addons.filter((item) => !ids.some(([id]) => id === item.id)),
+  });
+  const costs = normalizeCostCatalog({ version: 12, addons: {} });
+  const section = QUOTE_ADDON_SECTIONS.find((row) => row.key === 'peripheral-accessories');
+  assert.deepEqual(section.categories, ['周邊配件']);
+  for (const [id, name, price] of ids) {
+    const item = resolved.addons.find((row) => row.id === id);
+    assert.deepEqual({ cat: item.cat, name: item.name, price: item.price }, { cat: '周邊配件', name, price });
+    assert.equal(costs.addons[id].cost, price, `${name}成本`);
+  }
+  assert.match(resolved.addons.find((item) => item.id === 'qa-side-led-housing').desc, /霧白側邊燈殼 2 顆.*橘色鹵素燈泡/);
 });
 
 test('adds body-build categories with vendor-quote placeholders', () => {

@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 12;
+const COST_CATALOG_VERSION = 13;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -112,6 +112,16 @@ const V12_ADDON_COSTS = {
   'qa-paint-pearl': { cost: 8000 },
 };
 
+const V13_ADDON_COSTS = {
+  'qa-k2500-sunshade': { cost: 1280 },
+  'qa-steering-leather-cover': { cost: 499 },
+  'qa-dashboard-mat': { cost: 589 },
+  'qa-double-cab-storage-box': { cost: 389 },
+  'qa-keyless-fuel-cap': { cost: 599 },
+  'qa-side-led-housing': { cost: 1190 },
+  'qa-side-led-bulb': { cost: 249 },
+};
+
 const V10_MODEL_COMMISSIONS = {
   'qm-1': 35000, 'qm-2': 35000, 'qm-3': 35000, 'qm-4': 35000,
   'qm-5': 50000, 'qm-6': 50000, 'qm-7': 45000, 'qm-8': 45000,
@@ -183,6 +193,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V9_ADDON_COSTS,
   ...V11_ADDON_COSTS,
   ...V12_ADDON_COSTS,
+  ...V13_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -631,6 +642,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 9 ? V9_ADDON_COSTS : {}),
     ...(row && previousVersion < 11 ? V11_ADDON_COSTS : {}),
     ...(row && previousVersion < 12 ? V12_ADDON_COSTS : {}),
+    ...(row && previousVersion < 13 ? V13_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;

@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v28';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v29';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -227,6 +227,7 @@ const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
 const BODY_BUILD_CATEGORIES = ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
+const PERIPHERAL_ACCESSORY_CATEGORY = '周邊配件';
 const TAILGATE_PRICE_BY_SIZE_ID = {
   '35': 40000,
   '40': 43000,
@@ -237,7 +238,7 @@ const TAILGATE_PRICE_BY_SIZE_ID = {
 
 // 報價配備分類顯示順序
 export const QUOTE_ADDON_CATS = [
-  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', ...BODY_BUILD_CATEGORIES, '外觀空力', '燈組', '音響', '配件', ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '烤漆周邊', '鋁圈',
+  '配備版本', '駕駛科技', '貨斗底板', SWIFT_TAILGATE_CATEGORY, DOUBLE_FOLD_TAILGATE_CATEGORY, TAILGATE_CYLINDER_CATEGORY, TAILGATE_ACCESSORY_CATEGORY, '客製車體', ...BODY_BUILD_CATEGORIES, '外觀空力', '燈組', '音響', '配件', PERIPHERAL_ACCESSORY_CATEGORY, ...WINDOW_FILM_CATEGORIES, '底盤強化', '金屬製研', '車身改色', '防刮漆料', '烤漆周邊', '鋁圈',
 ];
 
 export const QUOTE_ADDON_SECTIONS = [
@@ -249,6 +250,7 @@ export const QUOTE_ADDON_SECTIONS = [
   { key: 'window-film', label: '隔熱紙', categories: WINDOW_FILM_CATEGORIES },
   { key: 'body-color', label: '車身顏色', categories: ['車身改色', '防刮漆料', '烤漆周邊'] },
   { key: 'body-build', label: '車體打造', categories: BODY_BUILD_CATEGORIES },
+  { key: 'peripheral-accessories', label: '周邊配件', categories: [PERIPHERAL_ACCESSORY_CATEGORY] },
 ];
 
 const VENDOR_QUOTE_ADDONS = [
@@ -346,6 +348,19 @@ const PAINT_ACCESSORY_ADDONS = [
   },
 ];
 
+const PERIPHERAL_ACCESSORY_ADDONS = [
+  { id: 'qa-k2500-sunshade', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用遮陽簾', price: 1280 },
+  { id: 'qa-steering-leather-cover', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺方向盤皮革套', price: 499 },
+  { id: 'qa-dashboard-mat', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用避光墊', price: 589 },
+  { id: 'qa-double-cab-storage-box', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '雙廂貨車置物盒', price: 389, desc: '雙廂貨車專用' },
+  { id: 'qa-keyless-fuel-cap', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '免鑰匙油箱蓋', price: 599 },
+  {
+    id: 'qa-side-led-housing', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '側邊 LED 方向燈殼', price: 1190,
+    desc: '霧白側邊燈殼 2 顆，內含橘色鹵素燈泡',
+  },
+  { id: 'qa-side-led-bulb', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '側邊 LED 方向燈【燈芯】', price: 249 },
+];
+
 const BODY_BUILD_ADDONS = [
   { id: 'qa-canvas-single-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 17500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
   { id: 'qa-canvas-single-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 18500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
@@ -379,6 +394,7 @@ const REQUIRED_QUOTE_ADDONS = [
   ...SUPPLIER_SHEET_ADDONS,
   ...LATEST_CATALOG_ADDONS,
   ...PAINT_ACCESSORY_ADDONS,
+  ...PERIPHERAL_ACCESSORY_ADDONS,
   ...BODY_BUILD_ADDONS,
 ];
 
