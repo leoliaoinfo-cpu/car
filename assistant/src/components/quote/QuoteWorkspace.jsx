@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
 import { addDays, today } from '../../utils/date';
-import { CASE_TYPE_LABEL, inferCaseType } from '../../utils/cases';
+import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType } from '../../utils/cases';
 import QuoteModal from './QuoteModal';
 
 function pendingCount(quote) {
@@ -21,7 +21,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   } = useApp();
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [stageFilter, setStageFilter] = useState('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveNotice, setSaveNotice] = useState(null);
 
@@ -53,13 +53,15 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     return map;
   }, [cases]);
   const linkedCaseFor = (quote) => caseById.get(quote.caseId) || caseByQuoteId.get(quote.id) || null;
-  const typeCounts = useMemo(() => quoteDrafts.reduce((counts, quote) => {
+  const stageCounts = useMemo(() => quoteDrafts.reduce((counts, quote) => {
     const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
-    const type = linkedCase?.type || inferCaseType(quote);
-    counts[type] = (counts[type] || 0) + 1;
     if (!linkedCase) counts.unlinked += 1;
+    else {
+      const stageId = getCasePipelineStageId(linkedCase, { quotes: quoteDrafts });
+      counts[stageId] = (counts[stageId] || 0) + 1;
+    }
     return counts;
-  }, { purchase: 0, modification: 0, unlinked: 0 }), [quoteDrafts, caseById, caseByQuoteId]);
+  }, { new: 0, follow_up: 0, won: 0, delivery: 0, completed: 0, unlinked: 0 }), [quoteDrafts, caseById, caseByQuoteId]);
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return [...quoteDrafts]
@@ -67,13 +69,14 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       .filter((quote) => {
         const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
         const quoteType = linkedCase?.type || inferCaseType(quote);
-        if (typeFilter === 'unlinked' ? linkedCase : typeFilter !== 'all' && quoteType !== typeFilter) return false;
+        const pipelineStage = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : 'unlinked';
+        if (stageFilter !== 'all' && pipelineStage !== stageFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
         return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
-  }, [quoteDrafts, query, typeFilter, clientMap, caseById, caseByQuoteId]);
+  }, [quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId]);
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, ...quotePayload } = payload;
@@ -180,13 +183,12 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           placeholder="搜尋客戶、電話、車型、案件或需求…" className="flex-1 text-sm" />
         <span className="text-xs text-ink-3 shrink-0">{rows.length} 張</span>
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1" aria-label="報價種類篩選">
+      <div className="flex gap-2 overflow-x-auto pb-1" aria-label="案件進度篩選">
         {[
           ['all', '全部', quoteDrafts.length],
-          ['purchase', '🚛 購車', typeCounts.purchase],
-          ['modification', '🛠️ 改車', typeCounts.modification],
-          ['unlinked', '未歸入案件', typeCounts.unlinked],
-        ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setTypeFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${typeFilter === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
+          ...CASE_PIPELINE_STAGES.map((stage, index) => [stage.id, `${index + 1} ${stage.label}`, stageCounts[stage.id]]),
+          ['unlinked', '未歸入案件', stageCounts.unlinked],
+        ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
 
       {saveNotice && (
@@ -213,6 +215,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const customer = quote.customerName || linked?.name || '未填客戶';
             const linkedCase = linkedCaseFor(quote);
             const quoteType = linkedCase?.type || inferCaseType(quote);
+            const pipelineStageId = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : null;
+            const pipelineStage = CASE_PIPELINE_STAGES.find((stage) => stage.id === pipelineStageId);
+            const stageUpdatedAt = linkedCase ? getCasePipelineUpdatedAt(linkedCase, { quotes: quoteDrafts }) : '';
+            const stageDays = linkedCase ? getCasePipelineElapsedDays(linkedCase, { quotes: quoteDrafts }) : null;
+            const totalDays = linkedCase ? getCaseTotalElapsedDays(linkedCase, { quotes: quoteDrafts }) : null;
             const pending = pendingCount(quote);
             const pendingRequirements = requirementPendingCount(quote);
             return (
@@ -220,7 +227,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`badge ${quoteType === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
+                      <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
+                      {pipelineStage && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
                       {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
@@ -230,6 +238,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
+                    {pipelineStage && <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入{pipelineStage.label}・階段第 {stageDays} 天｜案件總計 {totalDays} 天</p>}
                   </div>
                   <p className="text-right shrink-0">
                     <span className="block text-[10px] text-ink-3">{pending > 0 ? '目前金額' : '專案價'}</span>

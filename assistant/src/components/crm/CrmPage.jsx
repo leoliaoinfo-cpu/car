@@ -6,7 +6,7 @@ import {
   CAT_COLORS, STATUS_COLOR, STATUS_LABEL,
   generateId, findDuplicateClient,
 } from '../../utils/crm';
-import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId } from '../../utils/cases';
+import { advanceCasePipeline, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays } from '../../utils/cases';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
@@ -46,11 +46,10 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 
 export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocusIntentConsumed, startNewToken, onStartConsumed, onOpenCase, onCreateCase }) {
   const { clients, cases, deals, quoteDrafts, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients, saveCase } = useApp();
-  const [filter, setFilter] = useState('all');
+  const filter = 'all';
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(null);
-  const [showSidebar, setShowSidebar] = useState(false);
   const [focusDetail, setFocusDetail] = useState(false); // 桌面：收合側欄＋列表，只看客戶詳情
   const [showNewForm, setShowNewForm] = useState(false);
   const listRef = useRef(null);
@@ -130,14 +129,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
     [clients, selectedId]
   );
 
-  const catCounts = useMemo(() => {
-    const map = {};
-    clients.forEach((c) => {
-      map[c.catId] = (map[c.catId] || 0) + 1;
-    });
-    return map;
-  }, [clients]);
-
   // 產業篩選清單：設定的選項＋客戶資料裡已存在的（涵蓋早期自由填寫的值）
   const industryCounts = useMemo(() => {
     const map = {};
@@ -156,7 +147,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
   function handleSelect(id) {
     if (selectMode) { toggleChecked(id); return; }
     setSelectedId(id);
-    setShowSidebar(false);
   }
 
   // 全選＝目前篩選＋搜尋結果的全部（先篩「久未聯繫」再全選，最適合清理老名單）
@@ -189,66 +179,10 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] md:h-[calc(100vh-3.5rem)] overflow-hidden">
-      {/* Sidebar — drawer on mobile, fixed on desktop */}
-      <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-s1 border-r border-bdr flex flex-col transition-transform duration-300
-        ${focusDetail ? '' : 'lg:static lg:translate-x-0 lg:z-auto lg:h-full'}
-        ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        {/* Mobile close */}
-        <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-bdr">
-          <span className="font-semibold text-ink">篩選分類</span>
-          <button onClick={() => setShowSidebar(false)} className="text-ink-3 text-lg">✕</button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          {/* Fixed filters */}
-          <div>
-            <p className="section-title">快速篩選</p>
-            {[
-              { key: 'all', label: '全部', count: clients.length, color: '#8f7a68' },
-            ].map((f) => (
-              <SidebarItem key={f.key} active={filter === f.key} color={f.color}
-                label={f.label} count={f.count} onClick={() => { setFilter(f.key); setShowSidebar(false); }} />
-            ))}
-          </div>
-
-          {/* Categories */}
-          <div>
-            <p className="section-title">客戶分類</p>
-            {[...cats].sort((a, b) => a.order - b.order).map((cat) => (
-              <SidebarItem key={cat.id} active={filter === `cat:${cat.id}`}
-                color={CAT_COLORS[cat.colorIdx % CAT_COLORS.length]}
-                label={cat.name} count={catCounts[cat.id] || 0}
-                onClick={() => { setFilter(`cat:${cat.id}`); setShowSidebar(false); }} />
-            ))}
-          </div>
-
-          {/* Industries（選項可在設定 → 🏭 產業選項管理） */}
-          {industryList.length > 0 && (
-            <div>
-              <p className="section-title">產業</p>
-              {industryList.map((name) => (
-                <SidebarItem key={name} active={filter === `ind:${name}`}
-                  color="#9a9a6f"
-                  label={name} count={industryCounts[name] || 0}
-                  onClick={() => { setFilter(`ind:${name}`); setShowSidebar(false); }} />
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Overlay for mobile drawer */}
-      {showSidebar && (
-        <div className="lg:hidden fixed inset-0 bg-black/30 z-30" onClick={() => setShowSidebar(false)} />
-      )}
-
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-sage/25 bg-gradient-to-r from-sage/12 via-s1 to-s1 flex-wrap">
-          <button onClick={() => setShowSidebar(true)} className={`btn-ghost text-sm ${focusDetail ? '' : 'lg:hidden'}`}>☰</button>
           {selectMode ? (
             <>
               <button onClick={toggleCheckAll} className="btn-outline text-sm">
@@ -271,7 +205,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
               {effectiveView === 'list' && selectedClient && (
                 <button onClick={() => setFocusDetail((v) => !v)}
                   className="hidden md:inline-flex btn-primary text-sm shrink-0"
-                  title={focusDetail ? '展開分類與客戶列表' : '收合側欄與列表，放大客戶詳情'}>
+                  title={focusDetail ? '展開客戶列表' : '收合客戶列表，放大客戶詳情'}>
                   {focusDetail ? '◨ 展開列表' : '⤢ 放大詳情'}
                 </button>
               )}
@@ -431,24 +365,6 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
   );
 }
 
-// ── SidebarItem ──────────────────────────────────────────────────────────────
-function SidebarItem({ label, count, color, active, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors ${
-        active ? 'bg-accent/10 text-accent font-medium' : 'text-ink-2 hover:bg-s3'
-      }`}
-    >
-      <span className="flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-        {label}
-      </span>
-      <span className={`text-xs ${active ? 'text-accent' : 'text-ink-3'}`}>{count}</span>
-    </button>
-  );
-}
-
 // ── ClientRow ─────────────────────────────────────────────────────────────────
 function ClientRow({ client, cats, cases = [], selected, selectMode, checked, onClick }) {
   const cat = cats.find((c) => c.id === client.catId);
@@ -516,6 +432,7 @@ function ClientRow({ client, cats, cases = [], selected, selectMode, checked, on
 
 // ── BoardView（看板：以案件流程分欄，買車／改裝只是標籤）──────────────────
 function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
+  const defaultVisibleCount = 5;
   const [dragId, setDragId] = useState(null);
   const [overStage, setOverStage] = useState(null);
   const [mobileStage, setMobileStage] = useState('new');
@@ -523,18 +440,30 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [pendingMove, setPendingMove] = useState(null);
   const [saveError, setSaveError] = useState('');
+  const [expandedStages, setExpandedStages] = useState(() => new Set());
   const allowedClientIds = useMemo(() => new Set(clients.map((client) => client.id)), [clients]);
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
   const visibleCases = useMemo(() => (cases || [])
     .filter((item) => !item.deletedAt && allowedClientIds.has(item.clientId))
-    .filter((item) => typeFilter === 'all' || item.type === typeFilter)
-    .sort((a, b) => String(a.nextFollowUpDate || '9999').localeCompare(String(b.nextFollowUpDate || '9999'))),
+    .filter((item) => typeFilter === 'all' || item.type === typeFilter),
   [cases, allowedClientIds, typeFilter]);
   const byStage = useMemo(() => {
     const map = Object.fromEntries(CASE_PIPELINE_STAGES.map((stage) => [stage.id, []]));
     for (const item of visibleCases) map[getCasePipelineStageId(item, { deals, quotes })].push(item);
+    Object.values(map).forEach((list) => list.sort((a, b) => (
+      String(getCasePipelineUpdatedAt(b, { deals, quotes })).localeCompare(String(getCasePipelineUpdatedAt(a, { deals, quotes })))
+      || String(a.clientName || '').localeCompare(String(b.clientName || ''), 'zh-Hant')
+    )));
     return map;
   }, [visibleCases, deals, quotes]);
+
+  function toggleStageExpanded(stageId) {
+    setExpandedStages((previous) => {
+      const next = new Set(previous);
+      if (next.has(stageId)) next.delete(stageId); else next.add(stageId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (pickedInitialMobileStage.current) return;
@@ -553,12 +482,12 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
     const { item, to } = pendingMove;
     setSaveError('');
     try {
+      const timestamp = new Date().toISOString();
       await onSaveCase({
-        ...item,
-        pipelineStage: to,
+        ...advanceCasePipeline(item, to, timestamp),
         status: to === 'completed' ? 'completed' : 'active',
         nextFollowUpDate: to === 'completed' ? '' : item.nextFollowUpDate,
-        updatedAt: new Date().toISOString(),
+        updatedAt: timestamp,
       });
       setMobileStage(to);
       setPendingMove(null);
@@ -590,7 +519,7 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
         <div><p className="text-xs font-bold text-ink">案件流程</p><p className="mt-0.5 text-[11px] text-ink-3">每個案件的聯繫與追蹤日都獨立儲存。</p></div>
         <div className="flex gap-2 overflow-x-auto">
           {[['all', '全部'], ['purchase', '🚚 買車'], ['modification', '🛠 改裝']].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
+            <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? (id === 'purchase' ? 'border-danger bg-danger text-white' : id === 'modification' ? 'border-warn bg-warn text-ink' : 'border-teal bg-teal text-white') : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
           ))}
         </div>
         <div className="flex gap-2 overflow-x-auto md:hidden">
@@ -602,6 +531,8 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
         <div className="hidden md:flex gap-3 p-3 h-full min-w-max overflow-x-auto">
         {CASE_PIPELINE_STAGES.map((stage) => {
           const list = byStage[stage.id] || [];
+          const isExpanded = expandedStages.has(stage.id);
+          const displayedList = isExpanded ? list : list.slice(0, defaultVisibleCount);
           const isOver = overStage === stage.id;
           return (
             <div
@@ -619,15 +550,17 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
                 <span className="text-xs text-ink-3 bg-s2 rounded-full px-1.5 py-0.5">{list.length}</span>
               </div>
               <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {list.map((item) => (
+                {displayedList.map((item) => (
                   <BoardCard
                     key={item.id} item={item} client={clientMap.get(item.clientId)}
+                    stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })}
                     stageId={stage.id} dragging={dragId === item.id}
                     onDragStart={() => setDragId(item.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
                     onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)}
                     onSetType={(type) => setCaseType(item, type)}
                   />
                 ))}
+                {list.length > defaultVisibleCount && <button type="button" onClick={() => toggleStageExpanded(stage.id)} className="min-h-11 w-full rounded-lg border border-bdr bg-s1 px-3 text-xs font-bold text-ink-2">{isExpanded ? `收合，只顯示最近 ${defaultVisibleCount} 筆` : `顯示其餘 ${list.length - defaultVisibleCount} 筆`}</button>}
                 {list.length === 0 && (
                   <div className={`text-center text-xs py-6 rounded-lg border border-dashed ${
                     isOver ? 'border-accent text-accent' : 'border-bdr/60 text-ink-3'
@@ -642,7 +575,8 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
         </div>
         <div className="h-full overflow-y-auto p-3 md:hidden">
           <div className="space-y-3">
-            {byStage[mobileStage].map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
+            {(expandedStages.has(mobileStage) ? byStage[mobileStage] : byStage[mobileStage].slice(0, defaultVisibleCount)).map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
+            {byStage[mobileStage].length > defaultVisibleCount && <button type="button" onClick={() => toggleStageExpanded(mobileStage)} className="min-h-12 w-full rounded-xl border border-bdr bg-s1 px-3 text-sm font-bold text-ink-2">{expandedStages.has(mobileStage) ? `收合，只顯示最近 ${defaultVisibleCount} 筆` : `顯示其餘 ${byStage[mobileStage].length - defaultVisibleCount} 筆`}</button>}
             {byStage[mobileStage].length === 0 && <div className="rounded-2xl border border-dashed border-bdr py-12 text-center text-sm text-ink-3">目前沒有案件</div>}
           </div>
         </div>
@@ -652,16 +586,18 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   );
 }
 
-function BoardCard({ item, client, stageId, dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
+function BoardCard({ item, client, stageId, stageUpdatedAt, dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
   const stageIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
   const nextStage = CASE_PIPELINE_STAGES[stageIndex + 1];
   const followUpDiff = item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
+  const stageDays = getCasePipelineElapsedDays({ ...item, pipelineStageUpdatedAt: stageUpdatedAt });
+  const totalDays = getCaseTotalElapsedDays({ ...item, pipelineStageUpdatedAt: stageUpdatedAt });
   return (
     <article
       draggable={Boolean(onDragStart)}
       onDragStart={(e) => { if (!onDragStart) return; e.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
       onDragEnd={onDragEnd}
-      className={`bg-s2 rounded-xl p-3 border border-bdr/60 hover:border-accent/50 transition-all ${
+      className={`bg-s2 rounded-xl p-3 border border-bdr/60 border-l-4 ${item.type === 'purchase' ? 'border-l-danger' : 'border-l-warn'} hover:border-accent/50 transition-all ${
         dragging ? 'opacity-40' : ''
       }`}
     >
@@ -670,12 +606,14 @@ function BoardCard({ item, client, stageId, dragging, onDragStart, onDragEnd, on
       </button>
       <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
-            <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? 'border-accent bg-accent/12 text-accent' : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
+            <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? (kind === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
           ))}
       </div>
       <div className="mt-2 rounded-lg bg-s1 px-2.5 py-2 text-[11px]">
         <p className="text-ink-3">最近聯繫：{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}</p>
         <p className={`mt-1 font-semibold ${followUpDiff != null && followUpDiff < 0 ? 'text-danger' : 'text-copper'}`}>下次追蹤：{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : stageId === 'completed' ? '已完成' : '尚未設定'}</p>
+        <p className="mt-1 font-semibold text-ink-2">目前階段：{stageUpdatedAt && dayjs(stageUpdatedAt).isValid() ? `${dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入・第 ${stageDays} 天` : '尚無紀錄'}</p>
+        <p className="mt-1 text-ink-3">案件總計：{totalDays ? `${totalDays} 天` : '尚無紀錄'}</p>
       </div>
       <div className="mt-2 flex gap-2"><button type="button" onClick={onOpen} className="btn-outline min-h-10 flex-1 text-xs">開啟案件</button>{nextStage && <button type="button" onClick={() => onMove(nextStage.id)} className="btn-primary min-h-10 flex-1 text-xs">下一階段 →</button>}</div>
     </article>

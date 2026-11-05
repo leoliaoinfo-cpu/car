@@ -2,18 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import {
-  buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStage, getCasePipelineStageId, getCaseStatusLabel, resolveCaseFollowUpTarget,
+  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget,
 } from '../../utils/cases';
 import { today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
 import { buildDeliverySchedule, getCurrentWorkflowStep, getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from '../../utils/delivery';
 import { ClientPicker } from '../ui';
 
-const STATUS_FILTERS = [['active', '進行中'], ['waiting', '等待中'], ['completed', '已完成'], ['all', '全部'], ['deleted', '已刪除']];
+const STATUS_FILTERS = [...CASE_PIPELINE_STAGES.map((stage) => [stage.id, stage.label]), ['all', '全部'], ['deleted', '已刪除']];
 
 export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
   const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, cats, stages, saveCase, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
-  const [filter, setFilter] = useState('active');
+  const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(null);
   const [showNew, setShowNew] = useState(false);
@@ -31,7 +31,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
     const needle = query.trim().toLowerCase();
     const source = filter === 'deleted' ? deletedCases : cases;
     return [...source]
-      .filter((row) => filter === 'all' || filter === 'deleted' || row.status === filter)
+      .filter((row) => filter === 'all' || filter === 'deleted' || getCasePipelineStageId(row, { deals, quotes: quoteDrafts }) === filter)
       .filter((row) => {
         if (!needle) return true;
         const client = clients.find((item) => item.id === row.clientId);
@@ -63,7 +63,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋姓名、電話、車牌、車型或案件名稱…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
         {STATUS_FILTERS.map(([key, label]) => {
-          const count = key === 'all' ? cases.length : key === 'deleted' ? deletedCases.length : cases.filter((row) => row.status === key).length;
+          const count = key === 'all' ? cases.length : key === 'deleted' ? deletedCases.length : cases.filter((row) => getCasePipelineStageId(row, { deals, quotes: quoteDrafts }) === key).length;
           return <button key={key} type="button" onClick={() => setFilter(key)} className={`shrink-0 min-h-10 rounded-full border px-3 text-sm ${filter === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>;
         })}
       </div>
@@ -84,7 +84,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
               <article key={item.id} className="card border-danger/25 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5"><span className="badge bg-danger/10 text-danger">已刪除</span><span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span></div>
+                    <div className="flex flex-wrap items-center gap-1.5"><span className="badge bg-danger/10 text-danger">已刪除</span><span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span></div>
                     <h2 className="mt-2 truncate font-bold text-ink">{item.clientName || '未命名客戶'}</h2>
                     <p className="truncate text-sm text-ink-2">{item.title || '未命名案件'}</p>
                     <p className="mt-1 text-[11px] text-ink-3">刪除於 {dayjs(item.deletedAt).format('YYYY/MM/DD HH:mm')}</p>
@@ -96,14 +96,16 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
             const caseActions = workQueue.filter((row) => row.caseId === item.id);
             const action = caseActions.find((row) => row.state !== 'waiting') || caseActions[0];
             const pipelineStage = getCasePipelineStage(item, { deals, quotes: quoteDrafts });
+            const stageUpdatedAt = getCasePipelineUpdatedAt(item, { deals, quotes: quoteDrafts });
+            const stageDays = getCasePipelineElapsedDays(item, { deals, quotes: quoteDrafts });
+            const totalDays = getCaseTotalElapsedDays(item, { deals, quotes: quoteDrafts });
             return (
               <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className="card p-4 text-left hover:border-teal/50 active:scale-[0.99] transition-all">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className={`badge ${item.type === 'modification' ? 'bg-violet/12 text-violet' : 'bg-teal/12 text-teal'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
+                      <span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
                       <span className="badge bg-copper/12 text-copper">{pipelineStage}</span>
-                      <span className="badge bg-s2 text-ink-2">{getCaseStatusLabel(item)}</span>
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
                     <p className="text-sm text-ink-2 truncate">{item.title || '未命名案件'}</p>
@@ -117,6 +119,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                 <p className={`mt-2 text-xs ${item.nextFollowUpDate ? 'text-copper' : 'font-semibold text-gold'}`}>
                   {item.nextFollowUpDate ? `下次追蹤 ${dayjs(item.nextFollowUpDate).format('YYYY/MM/DD')}` : item.status === 'completed' ? '案件已完成' : '尚未設定下次追蹤日'}
                 </p>
+                <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).isValid() ? `${dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入${pipelineStage}・階段第 ${stageDays} 天｜案件總計 ${totalDays} 天` : '目前階段尚無日期紀錄'}</p>
               </button>
             );
           })}
@@ -167,15 +170,16 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
     }
     if (!client) { setError('請先搜尋並選擇一位既有客戶。'); setSaving(false); return; }
     const id = generateId('case');
-    const item = await onSaveCase({
+    const createdAt = new Date().toISOString();
+    const item = await onSaveCase(advanceCasePipeline({
       id, clientId: client.id, clientName: client.name, type, status: 'active',
       title: title.trim() || (type === 'purchase' ? '買車案件' : '改裝案件'), source: 'manual', quoteIds: [], dealId: null,
-      pipelineStage: 'new', lastContactAt: null,
+      lastContactAt: null, createdAt, updatedAt: createdAt,
       nextFollowUpDate, followUpPlanMode: followUpMode,
       followUpPlanBaseDate: followUpMode === 'relative' ? today() : null,
       followUpPlanAmount: followUpMode === 'relative' ? Number(followUpAmount) : null,
       followUpPlanUnit: followUpMode === 'relative' ? followUpUnit : null,
-    });
+    }, 'new', createdAt));
     if (nextTitle.trim()) await onSaveWorkItem({ id: generateId('work'), caseId: id, clientId: client.id, clientName: client.name, title: nextTitle.trim(), due: nextFollowUpDate, state: 'todo' });
     await onSaveActivity({ id: generateId('activity'), caseId: id, clientId: client.id, type: 'created', text: `建立${CASE_TYPE_LABEL[type]}案件`, date: today() });
     onCreated(item.id);
@@ -202,7 +206,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
           <section>
             <label className="section-title block px-0">2. 案件種類</label>
             <div className="grid grid-cols-2 gap-2 mt-2">
-              {[['purchase', '🚛 購車'], ['modification', '🛠️ 改車']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-16 rounded-xl border text-base font-bold ${type === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr'}`}>{label}</button>)}
+              {[['purchase', '🚛 購車'], ['modification', '🛠️ 改車']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-16 rounded-xl border text-base font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr'}`}>{label}</button>)}
             </div>
           </section>
           <section className="space-y-2">
@@ -243,12 +247,20 @@ function FollowUpTargetChooser({ mode, onModeChange, date, onDateChange, amount,
   );
 }
 
-function CasePipeline({ current }) {
-  const currentIndex = Math.max(0, CASE_PIPELINE_STAGES.findIndex((stage) => stage.label === current));
+function CasePipeline({ item, currentId, deals, quotes }) {
+  const currentIndex = Math.max(0, CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === currentId));
+  const enteredByStage = new Map((item.pipelineStageHistory || []).map((entry) => [entry.stageId === 'quoted' ? 'new' : entry.stageId, entry.enteredAt]));
+  enteredByStage.set(currentId, getCasePipelineUpdatedAt(item, { deals, quotes }));
+  const currentDays = getCasePipelineElapsedDays(item, { deals, quotes });
+  const totalDays = getCaseTotalElapsedDays(item, { deals, quotes });
   return (
     <section className="card p-3" aria-label="案件流程">
+      <div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs font-bold text-ink-2">案件進度</p><p className="text-xs font-bold text-copper">案件總計 {totalDays} 天</p></div>
       <div className="grid grid-cols-5 gap-1">
-        {CASE_PIPELINE_STAGES.map((stage, index) => <div key={stage.id} className="min-w-0 text-center"><div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${index < currentIndex ? 'bg-ok text-on-accent' : index === currentIndex ? 'bg-copper text-on-accent ring-4 ring-copper/15' : 'bg-s3 text-ink-3'}`}>{index < currentIndex ? '✓' : index + 1}</div><p className={`mt-1 truncate text-[10px] font-bold ${index === currentIndex ? 'text-copper' : 'text-ink-3'}`}>{stage.label}</p></div>)}
+        {CASE_PIPELINE_STAGES.map((stage, index) => {
+          const enteredAt = enteredByStage.get(stage.id);
+          return <div key={stage.id} className="min-w-0 text-center"><div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${index < currentIndex ? 'bg-ok text-on-accent' : index === currentIndex ? 'bg-copper text-on-accent ring-4 ring-copper/15' : 'bg-s3 text-ink-3'}`}>{index < currentIndex ? '✓' : index + 1}</div><p className={`mt-1 truncate text-[10px] font-bold ${index === currentIndex ? 'text-copper' : 'text-ink-3'}`}>{stage.label}</p><p className="mt-0.5 text-[9px] text-ink-3">{enteredAt && dayjs(enteredAt).isValid() ? dayjs(enteredAt).format('MM/DD') : '—'}</p>{index === currentIndex && <p className="text-[9px] font-bold text-copper">第 {currentDays} 天</p>}</div>;
+        })}
       </div>
     </section>
   );
@@ -278,13 +290,15 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], canDelet
     if (pipelineStage !== 'completed' && !nextFollowUpDate) { setError('請設定下一次追蹤日期。'); return; }
     setSaving(true);
     setError('');
+    const savedAt = new Date().toISOString();
     await onSaveCase({
-      ...item, title: title.trim(), type, pipelineStage, status: pipelineStage === 'completed' ? 'completed' : 'active',
+      ...advanceCasePipeline(item, pipelineStage, savedAt), title: title.trim(), type, status: pipelineStage === 'completed' ? 'completed' : 'active',
       nextFollowUpDate: pipelineStage === 'completed' ? '' : nextFollowUpDate,
       followUpPlanMode: pipelineStage === 'completed' ? null : followUpMode,
       followUpPlanBaseDate: pipelineStage !== 'completed' && followUpMode === 'relative' ? followUpBaseDate : null,
       followUpPlanAmount: pipelineStage !== 'completed' && followUpMode === 'relative' ? Number(followUpAmount) : null,
       followUpPlanUnit: pipelineStage !== 'completed' && followUpMode === 'relative' ? followUpUnit : null,
+      updatedAt: savedAt,
     });
     const nextWork = workItems.find((work) => work.state !== 'done');
     if (nextWork && pipelineStage !== 'completed' && nextFollowUpDate) {
@@ -321,7 +335,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], canDelet
         </div>
         <div className="mt-5 space-y-5">
           <label className="block text-xs font-bold text-ink-2">案件名稱<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：尾門＋帆布改裝" className="mt-2 min-h-12 w-full" /></label>
-          <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? 'border-teal bg-teal/12 text-teal' : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
+          <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
           <section><p className="text-xs font-bold text-ink-2">案件流程</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_PIPELINE_STAGES.map((stage) => <button key={stage.id} type="button" onClick={() => setPipelineStage(stage.id)} className={`min-h-11 rounded-xl border text-xs font-bold ${pipelineStage === stage.id ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{stage.label}</button>)}</div></section>
           {pipelineStage !== 'completed' && <section><p className="text-xs font-bold text-ink-2">下次追蹤日</p><p className="mt-1 text-xs text-ink-3">只會更新這一筆案件。</p><FollowUpTargetChooser mode={followUpMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && followUpMode !== 'relative') setFollowUpBaseDate(today()); setFollowUpMode(nextMode); }} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} /></section>}
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
@@ -400,10 +414,9 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
     const timestamp = new Date().toISOString();
     try {
       await onSaveCase({
-        ...item,
+        ...advanceCasePipeline(item, pipelineStageId === 'new' ? 'follow_up' : pipelineStageId, timestamp),
         lastContactAt: timestamp,
         nextFollowUpDate: pipelineStageId === 'completed' ? '' : contactNextDate,
-        pipelineStage: pipelineStageId === 'new' ? 'follow_up' : pipelineStageId,
         updatedAt: timestamp,
       });
       await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'contact', text: `聯繫：${contactResult.trim()}`, date: timestamp });
@@ -459,7 +472,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
         </header>
 
         <div className="p-3 md:p-5 space-y-4 pb-28">
-          <CasePipeline current={pipelineStage} />
+          <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} />
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>

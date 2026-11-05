@@ -15,7 +15,7 @@ import {
 } from './utils/pricing';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
-import { assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
+import { advanceCasePipeline, assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 
 const AppContext = createContext(null);
 
@@ -523,7 +523,7 @@ export function AppProvider({ children }) {
     const linked = allCases.find((row) => row.id === full.caseId || row.id === quote?.caseId
       || row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)))
       || (candidates.length === 1 ? candidates[0] : null);
-    const caseRow = {
+    const caseRow = advanceCasePipeline({
       ...(linked || {}),
       id: linked?.id || `case:deal:${full.id}`,
       clientId: full.clientId || quote?.clientId || linked?.clientId || null,
@@ -533,7 +533,7 @@ export function AppProvider({ children }) {
       status: linked?.status || 'active', dealId: full.id,
       quoteIds: [...new Set([...(linked?.quoteIds || []), full.quoteId].filter(Boolean))],
       source: linked?.source || 'deal', createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
-    };
+    }, 'won', now, { allowBackward: false });
     full = { ...full, caseId: caseRow.id };
     dispatch({ type: 'UPSERT_DEAL', payload: full });
     await db.put('deals', full);
@@ -587,7 +587,7 @@ export function AppProvider({ children }) {
     if (full.caseId && full.caseArchivedAt) full = { ...full, caseArchivedAt: null };
     let caseRow = null;
     if (!keepDetached && (linked || full.clientId || full.customerName)) {
-      caseRow = {
+      caseRow = advanceCasePipeline({
         ...(linked || {}), id: linked?.id || `case:quote:${full.id}`,
         clientId: full.clientId || linked?.clientId || null,
         clientName: full.customerName || linked?.clientName || '未命名客戶',
@@ -595,7 +595,7 @@ export function AppProvider({ children }) {
         status: linked?.status || 'active', dealId: linked?.dealId || null,
         quoteIds: [...new Set([...(linked?.quoteIds || []), full.id])], source: linked?.source || 'quote',
         createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
-      };
+      }, 'new', now, { allowBackward: false });
       full = { ...full, caseId: caseRow.id };
     }
     dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });

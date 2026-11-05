@@ -5,19 +5,19 @@ export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
 export const FIRST_CASE_NUMBER = 100;
 export const CASE_PIPELINE_STAGES = [
-  { id: 'new', label: '新開發' },
-  { id: 'follow_up', label: '追蹤中' },
-  { id: 'quoted', label: '已報價' },
+  { id: 'new', label: '新開發（報價）' },
+  { id: 'follow_up', label: '有意願在追蹤' },
   { id: 'won', label: '已成交' },
-  { id: 'completed', label: '已完成' },
+  { id: 'delivery', label: '安排交車事項' },
+  { id: 'completed', label: '已完工交車' },
 ];
 
 export function getCasePipelineStageId(item, { deals = [], quotes = [] } = {}) {
-  const explicit = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === item?.pipelineStage);
+  const normalizedExplicit = item?.pipelineStage === 'quoted' ? 'new' : item?.pipelineStage;
+  const explicit = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === normalizedExplicit);
   let derived = item?.status === 'completed' ? 4 : 0;
   const linkedDeal = deals.find((row) => row.id === item?.dealId || row.caseId === item?.id);
-  if (linkedDeal) derived = 3;
-  else if (quotes.some((row) => (item?.quoteIds || []).includes(row.id) || row.caseId === item?.id)) derived = 2;
+  if (linkedDeal) derived = 2;
   return CASE_PIPELINE_STAGES[Math.max(explicit, derived, 0)].id;
 }
 
@@ -57,6 +57,73 @@ export function getCaseStatusLabel(item) {
 export function getCasePipelineStage(item, { deals = [], quotes = [] } = {}) {
   const id = getCasePipelineStageId(item, { deals, quotes });
   return CASE_PIPELINE_STAGES.find((stage) => stage.id === id)?.label || '新開發';
+}
+
+/**
+ * 案件階段最後異動時間。
+ * 新資料使用 pipelineStageUpdatedAt；舊資料則從實際促成階段變化的報價／成交時間補足，
+ * 最後才退回案件本身的更新或建立時間，避免改備註也被誤認成狀態更新。
+ */
+export function getCasePipelineUpdatedAt(item, { deals = [], quotes = [] } = {}) {
+  if (!item) return '';
+  const stageId = getCasePipelineStageId(item, { deals, quotes });
+  const stageIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
+  const explicitStage = item.pipelineStage === 'quoted' ? 'new' : item.pipelineStage;
+  if (explicitStage === stageId && item.pipelineStageUpdatedAt && dayjs(item.pipelineStageUpdatedAt).isValid()) {
+    return item.pipelineStageUpdatedAt;
+  }
+  const candidates = [item.pipelineStageUpdatedAt].filter(Boolean);
+
+  if (stageId === 'new') {
+    const quoteIds = new Set(item.quoteIds || []);
+    quotes
+      .filter((row) => row.caseId === item.id || quoteIds.has(row.id))
+      .forEach((row) => candidates.push(row.createdAt || row.date || row.updatedAt));
+  }
+  if (stageIndex >= 2) {
+    deals
+      .filter((row) => row.caseId === item.id || row.id === item.dealId)
+      .forEach((row) => candidates.push(row.createdAt || row.date || row.updatedAt));
+  }
+
+  const valid = candidates.filter((value) => value && dayjs(value).isValid());
+  if (valid.length) return valid.sort((a, b) => dayjs(a).valueOf() - dayjs(b).valueOf()).at(-1);
+  return item.updatedAt || item.createdAt || '';
+}
+
+export function getCasePipelineElapsedDays(item, options = {}, now = new Date()) {
+  const enteredAt = getCasePipelineUpdatedAt(item, options);
+  if (!enteredAt || !dayjs(enteredAt).isValid()) return null;
+  return Math.max(1, dayjs(now).startOf('day').diff(dayjs(enteredAt).startOf('day'), 'day') + 1);
+}
+
+export function getCaseTotalElapsedDays(item, options = {}, now = new Date()) {
+  const firstHistory = (item?.pipelineStageHistory || [])
+    .map((entry) => entry.enteredAt).filter((value) => value && dayjs(value).isValid())
+    .sort((a, b) => dayjs(a).valueOf() - dayjs(b).valueOf())[0];
+  const startedAt = item?.createdAt || firstHistory || item?.pipelineStageUpdatedAt || item?.updatedAt;
+  if (!startedAt || !dayjs(startedAt).isValid()) return null;
+  const completed = getCasePipelineStageId(item, options) === 'completed';
+  const endedAt = completed ? getCasePipelineUpdatedAt(item, options) : now;
+  return Math.max(1, dayjs(endedAt).startOf('day').diff(dayjs(startedAt).startOf('day'), 'day') + 1);
+}
+
+/** 切換案件流程並留下每次真正進入階段的日期；自動串接可禁止倒退。 */
+export function advanceCasePipeline(item = {}, stageId, enteredAt = new Date().toISOString(), { allowBackward = true } = {}) {
+  const targetIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
+  const currentIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === item.pipelineStage);
+  if (targetIndex < 0 || (!allowBackward && currentIndex > targetIndex)) return item;
+  const history = Array.isArray(item.pipelineStageHistory) ? [...item.pipelineStageHistory] : [];
+  const changed = currentIndex !== targetIndex || !item.pipelineStageUpdatedAt;
+  if (changed && !history.some((entry) => entry.stageId === stageId && entry.enteredAt === enteredAt)) {
+    history.push({ stageId, enteredAt });
+  }
+  return {
+    ...item,
+    pipelineStage: stageId,
+    pipelineStageUpdatedAt: changed ? enteredAt : item.pipelineStageUpdatedAt,
+    pipelineStageHistory: history,
+  };
 }
 
 /**
@@ -107,6 +174,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
       source: 'legacy-deal',
       createdAt: deal.createdAt || deal.date || now,
       updatedAt: deal.updatedAt || deal.createdAt || deal.date || now,
+      pipelineStageUpdatedAt: deal.updatedAt || deal.createdAt || deal.date || now,
     });
   }
 
@@ -128,6 +196,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
       source: 'legacy-quote',
       createdAt: quote.createdAt || quote.date || now,
       updatedAt: quote.updatedAt || quote.createdAt || quote.date || now,
+      pipelineStageUpdatedAt: quote.updatedAt || quote.createdAt || quote.date || now,
     });
   }
   return seeds;

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import dayjs from 'dayjs';
 import {
-  assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineStage, getCasePipelineStageId, getCaseStatusLabel, inferCaseType, resolveCaseFollowUpTarget,
+  advanceCasePipeline, assignCaseNumbers, buildLegacyCaseSeeds, buildWorkQueue, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, inferCaseType, resolveCaseFollowUpTarget,
 } from './cases.js';
 
 test('案件編號從 100 起補齊、保留既有編號並修復重複編號', () => {
@@ -35,14 +35,62 @@ test('案件可用自訂階段名稱取代固定狀態文字', () => {
   assert.equal(getCaseStatusLabel({ status: 'waiting', stageLabel: '' }), '等待中');
 });
 
-test('案件流程統一為新開發、追蹤、報價、成交與完成', () => {
+test('案件流程統一為新開發報價、有意願追蹤、成交、安排交車與完工交車', () => {
   const item = { id: 'case-1', quoteIds: [] };
-  assert.equal(getCasePipelineStage(item), '新開發');
-  assert.equal(getCasePipelineStage({ ...item, pipelineStage: 'follow_up' }), '追蹤中');
-  assert.equal(getCasePipelineStage({ ...item, quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), '已報價');
+  assert.equal(getCasePipelineStage(item), '新開發（報價）');
+  assert.equal(getCasePipelineStage({ ...item, pipelineStage: 'follow_up' }), '有意願在追蹤');
+  assert.equal(getCasePipelineStage({ ...item, quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), '新開發（報價）');
   assert.equal(getCasePipelineStage(item, { deals: [{ id: 'deal-1', caseId: 'case-1' }] }), '已成交');
-  assert.equal(getCasePipelineStage({ ...item, status: 'completed' }), '已完成');
-  assert.equal(getCasePipelineStageId({ ...item, pipelineStage: 'new', quoteIds: ['quote-1'] }, { quotes: [{ id: 'quote-1' }] }), 'quoted');
+  assert.equal(getCasePipelineStage({ ...item, pipelineStage: 'delivery' }), '安排交車事項');
+  assert.equal(getCasePipelineStage({ ...item, status: 'completed' }), '已完工交車');
+  assert.equal(getCasePipelineStageId({ ...item, pipelineStage: 'quoted' }), 'new');
+});
+
+test('案件狀態時間只取階段異動，不會被一般備註更新時間覆蓋', () => {
+  const item = {
+    id: 'case-1', pipelineStage: 'follow_up',
+    pipelineStageUpdatedAt: '2026-10-02T08:00:00.000Z',
+    updatedAt: '2026-10-05T08:00:00.000Z',
+  };
+  assert.equal(getCasePipelineUpdatedAt(item), '2026-10-02T08:00:00.000Z');
+});
+
+test('報價或成交推進案件時會使用對應紀錄的最新時間', () => {
+  const item = {
+    id: 'case-1', quoteIds: ['quote-1'], dealId: 'deal-1',
+    pipelineStageUpdatedAt: '2026-10-01T08:00:00.000Z',
+  };
+  assert.equal(getCasePipelineUpdatedAt(item, {
+    quotes: [{ id: 'quote-1', updatedAt: '2026-10-03T08:00:00.000Z' }],
+    deals: [{ id: 'deal-1', updatedAt: '2026-10-04T08:00:00.000Z' }],
+  }), '2026-10-04T08:00:00.000Z');
+});
+
+test('只修改成交內容不會重設已成交階段的日期', () => {
+  const item = {
+    id: 'case-1', dealId: 'deal-1', pipelineStage: 'won',
+    pipelineStageUpdatedAt: '2026-10-04T08:00:00.000Z',
+  };
+  assert.equal(getCasePipelineUpdatedAt(item, {
+    deals: [{ id: 'deal-1', createdAt: '2026-10-04T08:00:00.000Z', updatedAt: '2026-10-10T08:00:00.000Z' }],
+  }), '2026-10-04T08:00:00.000Z');
+});
+
+test('新階段從進入當天算第 1 天並保留階段歷史', () => {
+  const created = advanceCasePipeline({}, 'new', '2026-11-05T08:00:00.000Z');
+  const won = advanceCasePipeline(created, 'won', '2026-11-07T08:00:00.000Z');
+  assert.equal(getCasePipelineElapsedDays(won, {}, '2026-11-07T10:00:00.000Z'), 1);
+  assert.deepEqual(won.pipelineStageHistory, [
+    { stageId: 'new', enteredAt: '2026-11-05T08:00:00.000Z' },
+    { stageId: 'won', enteredAt: '2026-11-07T08:00:00.000Z' },
+  ]);
+  assert.equal(advanceCasePipeline(won, 'follow_up', '2026-11-08T08:00:00.000Z', { allowBackward: false }), won);
+  assert.equal(getCaseTotalElapsedDays(won, {}, '2026-11-10T08:00:00.000Z'), 6);
+});
+
+test('已完工案件的總天數會固定在完工日', () => {
+  const item = advanceCasePipeline({ createdAt: '2026-11-01T08:00:00.000Z' }, 'completed', '2026-11-05T08:00:00.000Z');
+  assert.equal(getCaseTotalElapsedDays(item, {}, '2026-12-01T08:00:00.000Z'), 5);
 });
 
 test('改裝報價會建立改車案件，且已被成交引用的報價不重複建立', () => {
