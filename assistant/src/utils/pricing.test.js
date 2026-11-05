@@ -1208,6 +1208,20 @@ test('upgrades the old pending deflector price while preserving custom edits', (
   assert.equal(customized.addons.find((item) => item.id === 'qa-truck-air-deflector').price, 4000);
 });
 
+test('renames the default leaf suspension item while preserving its customized price', () => {
+  const resolved = resolveQuotePresets({
+    key: 'quotePresets', _catalog: 'kavan-2026-v26', models: [], subsidies: [],
+    addonCategories: ['底盤強化'],
+    addons: [{
+      id: 'qa-leaf', cat: '底盤強化', name: '鋼板避震彈簧', price: 16800,
+      desc: '支撐力及載重能力提高、強化載重行駛穩定性',
+    }],
+  });
+  const leaf = resolved.addons.find((item) => item.id === 'qa-leaf');
+  assert.equal(leaf.name, '強化支撐彈簧');
+  assert.equal(leaf.price, 16800);
+});
+
 test('moves an existing four-cylinder liftgate into the cylinder-only category', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v6', models: [], subsidies: [],

@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v26';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v27';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -464,7 +464,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-spring', cat: '底盤強化', name: '彈簧鋼板', price: 5500, desc: '增加支撐力、防止車尾下垂' },
     { id: 'qa-block', cat: '底盤強化', name: '抗震優力膠', price: 7800, desc: '吸收鋼板間的撞擊震動、防止左右側傾與下垂' },
     { id: 'qa-atc', cat: '底盤強化', name: 'ATC 防傾桿', price: 18500, desc: '2WD；優力膠套換紅色強化版' },
-    { id: 'qa-leaf', cat: '底盤強化', name: '鋼板避震彈簧', price: 15500, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
+    { id: 'qa-leaf', cat: '底盤強化', name: '強化支撐彈簧', price: 15500, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
     // 金屬製研
     { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, desc: '原車鎖點結構穩固、保護尿素桶防止破損' },
     { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
@@ -646,6 +646,9 @@ export function resolveQuotePresets(row) {
     }
     if (migrated.id === 'qa-pkg2' && migrated.desc === PREVIOUS_SAFETY_PACKAGE_DESC) {
       migrated = { ...migrated, desc: SAFETY_PACKAGE_DESC };
+    }
+    if (migrated.id === 'qa-leaf' && migrated.name === '鋼板避震彈簧') {
+      migrated = { ...migrated, name: '強化支撐彈簧' };
     }
     const tailgateDefault = REQUIRED_QUOTE_ADDONS.find((addon) => addon.id === migrated.id);
     const previousTailgateCategory = (row.addonCategoryAliases || {})['升降尾門'] || '升降尾門';
