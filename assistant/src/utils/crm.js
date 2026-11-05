@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v27';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v28';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -340,6 +340,10 @@ const LATEST_CATALOG_ADDONS = [
 const PAINT_ACCESSORY_ADDONS = [
   { id: 'qa-paint-logo', cat: '烤漆周邊', name: 'Logo', price: 1500 },
   { id: 'qa-paint-wheel-cap', cat: '烤漆周邊', name: '輪胎蓋', price: 3000 },
+  {
+    id: 'qa-paint-pearl', cat: '車身改色', name: '珍珠漆工法', price: 8000,
+    desc: '車身烤漆改色加選工法；售價與成本皆為 8,000 元',
+  },
 ];
 
 const BODY_BUILD_ADDONS = [

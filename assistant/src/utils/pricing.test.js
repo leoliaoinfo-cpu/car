@@ -744,6 +744,21 @@ test('adds paint accessories as a category under body color without inventing co
   assert.equal(costs.addons['qa-paint-wheel-cap'], undefined);
 });
 
+test('adds pearl paint as an 8000 sale and cost option beside body paint finishes', () => {
+  const resolved = resolveQuotePresets({
+    ...DEFAULT_QUOTE_PRESETS,
+    _catalog: 'kavan-2026-v27',
+    addons: DEFAULT_QUOTE_PRESETS.addons.filter((item) => item.id !== 'qa-paint-pearl'),
+  });
+  const pearl = resolved.addons.find((item) => item.id === 'qa-paint-pearl');
+  assert.deepEqual(
+    { cat: pearl.cat, name: pearl.name, price: pearl.price },
+    { cat: '車身改色', name: '珍珠漆工法', price: 8000 },
+  );
+  assert.equal(normalizeCostCatalog(null).addons['qa-paint-pearl'].cost, 8000);
+  assert.equal(normalizeCostCatalog({ version: 11, addons: {} }).addons['qa-paint-pearl'].cost, 8000);
+});
+
 test('customized bundle uses retained component costs instead of the package cost', () => {
   const record = buildPricingRecord({
     quote: {
