@@ -75,6 +75,8 @@ export function buildQuoteMessage({
     const name = `${compactQuoteItemName(item.name)}${option ? `（${option}）` : ''}`;
     if (item.pending) lines.push(`${name}：待廠商報價`);
     else if (!item.gift) lines.push(`${name}：+${formatLineWan(item.price)}`);
+    const customNote = item.backendCustom ? String(item.note || '').trim() : '';
+    if (customNote) lines.push(`  備註：${customNote}`);
   }
 
   lines.push('----------', `原價總計：${formatLineWan(totals.originalTotal)}`, '----------');

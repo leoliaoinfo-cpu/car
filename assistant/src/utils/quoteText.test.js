@@ -80,6 +80,17 @@ test('includes the selected LED fog-light color in the customer message', () => 
   assert.match(message, /LED 霧燈（黃金光）：\+0\.18 萬/);
 });
 
+test('includes a backend custom item specification note in the customer message', () => {
+  const message = buildQuoteMessage({
+    items: [{
+      id: 'custom', kind: 'addon', backendCustom: true, name: '客製工具箱', price: 20000,
+      note: '左側開門、霧黑色、長 120 cm',
+    }],
+  });
+  assert.match(message, /客製工具箱：\+2 萬/);
+  assert.match(message, /備註：左側開門、霧黑色、長 120 cm/);
+});
+
 test('builds the exact K2500 proposal math without adding gift value into the sale total', () => {
   const message = buildQuoteMessage({
     customerName: '柳老闆',

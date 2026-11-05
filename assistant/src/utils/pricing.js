@@ -369,6 +369,7 @@ function customHistoryEntry(row, defaults = {}) {
     customerName: String(row?.customerName || defaults.customerName || '').trim(),
     model: String(row?.model || defaults.model || '').trim(),
     name,
+    note: String(row?.note || defaults.note || '').trim(),
     salePrice,
     discount,
     netPrice: Math.max(0, salePrice - discount),
@@ -381,6 +382,7 @@ function customHistoryEntry(row, defaults = {}) {
 
 function sameCustomHistoryValue(left, right) {
   return left?.name === right?.name
+    && left?.note === right?.note
     && left?.salePrice === right?.salePrice
     && left?.discount === right?.discount
     && left?.costKnown === right?.costKnown
@@ -862,6 +864,7 @@ export function buildPricingRecord({ quote, costCatalog, existing = null, kind =
       catalogId: item.catalogId || null,
       kind: item.kind || 'other',
       name: item.name || '',
+      note: String(item.note || '').trim(),
       gift: !!item.gift,
       salePrice: money(item.price),
       netPrice: totals.itemTotals[item.id]?.net || 0,

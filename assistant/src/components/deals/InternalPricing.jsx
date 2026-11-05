@@ -622,6 +622,7 @@ export function PricingEditorModal({
     .map((line) => ({
       id: line.id,
       name: line.name || '',
+      note: line.note || quote?.items?.find((item) => item.id === line.id)?.note || '',
       salePrice: line.salePrice == null ? '' : String(line.salePrice),
       cost: line.costKnown ? String(line.cost) : '',
       discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
@@ -657,6 +658,7 @@ export function PricingEditorModal({
       catalogId: null,
       kind: 'addon',
       name: row.name.trim() || '未命名客製項目',
+      note: String(row.note || '').trim(),
       gift: false,
       salePrice,
       netPrice: salePrice,
@@ -735,7 +737,8 @@ export function PricingEditorModal({
   const missingCatalogLines = missingLines.filter((line) => line.catalogId);
   const historyNeedle = historySearch.trim().toLowerCase();
   const filteredCustomHistory = customHistory.filter((row) => !historyNeedle
-    || [row.name, row.customerName, row.model].some((value) => String(value || '').toLowerCase().includes(historyNeedle)));
+    || [row.name, row.note, row.customerName, row.model]
+      .some((value) => String(value || '').toLowerCase().includes(historyNeedle)));
 
   function addOtherCost() {
     setOtherCosts((list) => [...list, { id: generateId('cost'), name: '其他成本', amount: '' }]);
@@ -743,7 +746,7 @@ export function PricingEditorModal({
 
   function addCustomItem() {
     setCustomItems((list) => [...list, {
-      id: generateId('qi'), name: '', salePrice: '', cost: '', discount: '',
+      id: generateId('qi'), name: '', note: '', salePrice: '', cost: '', discount: '',
     }]);
     setCustomError('');
   }
@@ -757,6 +760,7 @@ export function PricingEditorModal({
     setCustomItems((list) => [...list, {
       id: generateId('qi'),
       name: row.name,
+      note: row.note || '',
       salePrice: String(row.salePrice),
       cost: row.costKnown ? String(row.cost) : '',
       discount: row.discount ? String(row.discount) : '',
@@ -1039,6 +1043,7 @@ export function PricingEditorModal({
                                   {row.recordedAt ? dayjs(row.recordedAt).format('YYYY/MM/DD HH:mm') : '日期未記錄'}
                                   {row.customerName ? `・${row.customerName}` : ''}{row.model ? `・${row.model}` : ''}
                                 </p>
+                                {row.note && <p className="mt-1 text-[10px] text-ink-2 whitespace-pre-wrap break-words">備註：{row.note}</p>}
                               </div>
                               <button type="button" onClick={() => reuseCustomHistory(row)}
                                 className="btn-primary text-[11px] min-h-11 shrink-0 px-3">帶入</button>
@@ -1073,6 +1078,14 @@ export function PricingEditorModal({
                         <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
                           className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
                       </div>
+                      <label className="block">
+                        <span className="block text-[9px] text-ink-3 mb-0.5">客製規格備註</span>
+                        <textarea rows="3" value={row.note || ''}
+                          onChange={(e) => updateCustomItem(row.id, { note: e.target.value })}
+                          className="w-full resize-y text-xs leading-relaxed"
+                          placeholder="例如：尺寸、材質、顏色、開啟方式、施工差異或客戶指定內容"
+                          aria-label={`${row.name || '客製項目'}備註`} />
+                      </label>
                       <div className="grid grid-cols-2 gap-2 items-end">
                         <label className="block min-w-0">
                           <span className="block text-[9px] text-ink-3 mb-0.5">對客售價</span>
