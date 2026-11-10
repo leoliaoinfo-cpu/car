@@ -1341,6 +1341,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
+              const isModificationItem = it.kind === 'addon';
               const catalogAddon = quotePresets.addons.find((addon) => addon.id === it.catalogId);
               const heightImpact = addonHeightImpact(catalogAddon || it.catalogId, heightConfig);
               return (
@@ -1375,13 +1376,18 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       {!it.optionValue && <p className="mt-1.5 text-[10px] font-semibold text-warn">尚未選擇，儲存或輸出前必須確認。</p>}
                     </div>
                   )}
-                  {needsColorNote && (
+                  {isModificationItem && (
                     <div className="rounded-lg border border-accent/25 bg-accent/5 p-2">
-                      <label className="block text-[10px] font-medium text-ink-2 mb-1">🎨 車色備註</label>
-                      <input value={it.note || ''}
+                      <label htmlFor={`item-note-${it.id}`} className="block text-[10px] font-medium text-ink-2 mb-1">
+                        {needsColorNote ? '🎨 車色／施工備註' : '📝 項目備註'}
+                      </label>
+                      <textarea id={`item-note-${it.id}`} value={it.note || ''}
                         onChange={(e) => setItem(it.id, { note: e.target.value })}
-                        placeholder="例如：珍珠白、消光黑、指定色號…"
-                        className="w-full text-xs" />
+                        placeholder={needsColorNote
+                          ? '例如：珍珠白、消光黑、指定色號、施工要求…'
+                          : '例如：安裝位置、尺寸、顏色、施工要求、客戶交代事項…'}
+                        rows={2}
+                        className="w-full min-h-11 resize-y text-xs" />
                     </div>
                   )}
                   {it.name.trim() && (

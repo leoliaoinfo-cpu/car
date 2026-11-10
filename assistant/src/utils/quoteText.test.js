@@ -91,6 +91,20 @@ test('includes a backend custom item specification note in the customer message'
   assert.match(message, /備註：左側開門、霧黑色、長 120 cm/);
 });
 
+test('includes a regular modification item note in the customer message', () => {
+  const message = buildQuoteMessage({
+    customerName: '王先生',
+    model: '雙廂6人座 5速手自排',
+    items: [{
+      id: 'tailgate', kind: 'addon', catalogId: 'tailgate',
+      name: '升降尾門', price: 40000,
+      note: '安裝完成後電話通知，遙控器交車時確認',
+    }],
+  });
+  assert.match(message, /升降尾門：\+4 萬/);
+  assert.match(message, /備註：安裝完成後電話通知，遙控器交車時確認/);
+});
+
 test('builds the exact K2500 proposal math without adding gift value into the sale total', () => {
   const message = buildQuoteMessage({
     customerName: '柳老闆',
