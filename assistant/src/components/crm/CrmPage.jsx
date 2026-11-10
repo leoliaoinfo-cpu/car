@@ -6,7 +6,7 @@ import {
   CAT_COLORS, STATUS_COLOR, STATUS_LABEL,
   generateId, findDuplicateClient,
 } from '../../utils/crm';
-import { advanceCasePipeline, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays } from '../../utils/cases';
+import { advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays } from '../../utils/cases';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
@@ -45,7 +45,12 @@ function useVirtualList(items, containerRef, itemHeight = ITEM_HEIGHT) {
 }
 
 export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocusIntentConsumed, startNewToken, onStartConsumed, onOpenCase, onCreateCase }) {
-  const { clients, cases, deals, quoteDrafts, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients, saveCase } = useApp();
+  const { clients, cases, deals, quoteDrafts, workItems, tasks, cats, stages, industries, thresholds, saveClient, updateClient, deleteClient, deleteClients, saveCase } = useApp();
+  const caseWorkQueue = useMemo(
+    () => buildWorkQueue({ workItems, tasks, clients, deals, cases })
+      .filter((row) => row.caseId && row.sourceType !== 'case-follow-up'),
+    [workItems, tasks, clients, deals, cases],
+  );
   const filter = 'all';
   const [sortKey, setSortKey] = useState('createdAt');
   const [search, setSearch] = useState('');
@@ -249,6 +254,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
             cases={cases}
             deals={deals}
             quotes={quoteDrafts}
+            workQueue={caseWorkQueue}
             onOpenCase={onOpenCase}
             onSaveCase={saveCase}
           />
@@ -431,7 +437,7 @@ function ClientRow({ client, cats, cases = [], selected, selectMode, checked, on
 }
 
 // ── BoardView（看板：以案件流程分欄，買車／改裝只是標籤）──────────────────
-function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
+function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSaveCase }) {
   const defaultVisibleCount = 5;
   const [dragId, setDragId] = useState(null);
   const [overStage, setOverStage] = useState(null);
@@ -446,6 +452,15 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   });
   const allowedClientIds = useMemo(() => new Set(clients.map((client) => client.id)), [clients]);
   const clientMap = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const pendingByCase = useMemo(() => {
+    const map = new Map();
+    (workQueue || []).forEach((row) => {
+      const list = map.get(row.caseId) || [];
+      list.push(row);
+      map.set(row.caseId, list);
+    });
+    return map;
+  }, [workQueue]);
   const visibleCases = useMemo(() => (cases || [])
     .filter((item) => !item.deletedAt && allowedClientIds.has(item.clientId))
     .filter((item) => typeFilter === 'all' || item.type === typeFilter),
@@ -568,6 +583,7 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
                   <BoardCard
                     key={item.id} item={item} client={clientMap.get(item.clientId)}
                     stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })}
+                    pendingItems={pendingByCase.get(item.id) || []}
                     stageId={stage.id} dragging={dragId === item.id}
                     onDragStart={() => setDragId(item.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
                     onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)}
@@ -589,7 +605,7 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
         </div>
         <div className="h-full overflow-y-auto p-3 md:hidden">
           <div className="space-y-3">
-            {(expandedStages.has(mobileStage) ? byStage[mobileStage] : byStage[mobileStage].slice(0, defaultVisibleCount)).map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
+            {(expandedStages.has(mobileStage) ? byStage[mobileStage] : byStage[mobileStage].slice(0, defaultVisibleCount)).map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })} pendingItems={pendingByCase.get(item.id) || []} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
             {byStage[mobileStage].length > defaultVisibleCount && <button type="button" onClick={() => toggleStageExpanded(mobileStage)} className="min-h-12 w-full rounded-xl border border-bdr bg-s1 px-3 text-sm font-bold text-ink-2">{expandedStages.has(mobileStage) ? `收合，只顯示最近 ${defaultVisibleCount} 筆` : `顯示其餘 ${byStage[mobileStage].length - defaultVisibleCount} 筆`}</button>}
             {byStage[mobileStage].length === 0 && <div className="rounded-2xl border border-dashed border-bdr py-12 text-center text-sm text-ink-3">目前沒有案件</div>}
           </div>
@@ -600,7 +616,7 @@ function BoardView({ clients, cases, deals, quotes, onOpenCase, onSaveCase }) {
   );
 }
 
-function BoardCard({ item, client, stageId, stageUpdatedAt, dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
+function BoardCard({ item, client, stageId, stageUpdatedAt, pendingItems = [], dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
   const stageIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
   const nextStage = CASE_PIPELINE_STAGES[stageIndex + 1];
   const followUpDiff = item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
@@ -630,6 +646,22 @@ function BoardCard({ item, client, stageId, stageUpdatedAt, dragging, onDragStar
         <p className="mt-1 font-semibold text-ink-2">目前階段：{stageUpdatedAt && dayjs(stageUpdatedAt).isValid() ? `${dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入・第 ${stageDays} 天` : '尚無紀錄'}</p>
         <p className="mt-1 text-ink-3">案件總計：{totalDays ? `${totalDays} 天` : '尚無紀錄'}</p>
       </div>
+      {pendingItems.length > 0 && (
+        <button type="button" onClick={onOpen} className="mt-2 w-full rounded-lg border border-copper/35 bg-copper/10 px-2.5 py-2 text-left">
+          <span className="flex items-center justify-between gap-2 text-[11px] font-bold text-copper">
+            <span>尚未處理</span>
+            <span>{pendingItems.length} 項</span>
+          </span>
+          <span className="mt-1.5 block space-y-1">
+            {pendingItems.slice(0, 2).map((row) => (
+              <span key={row.id} className="flex items-start gap-1.5 text-[11px] font-semibold text-ink-2">
+                <span aria-hidden="true">•</span><span className="line-clamp-1">{row.title}</span>
+              </span>
+            ))}
+            {pendingItems.length > 2 && <span className="block text-[10px] font-semibold text-ink-3">另有 {pendingItems.length - 2} 項，開啟案件查看</span>}
+          </span>
+        </button>
+      )}
       <div className="mt-2 flex gap-2"><button type="button" onClick={onOpen} className="btn-outline min-h-10 flex-1 text-xs">開啟案件</button>{nextStage && <button type="button" onClick={() => onMove(nextStage.id)} className="btn-primary min-h-10 flex-1 text-xs">下一階段 →</button>}</div>
     </article>
   );

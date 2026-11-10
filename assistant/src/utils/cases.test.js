@@ -165,6 +165,15 @@ test('工作佇列會合併案件工作、中央待辦與案件追蹤', () => {
   assert.equal(rows.find((row) => row.sourceType === 'case-follow-up').caseId, 'case-1');
 });
 
+test('已取消的工作、待辦與客戶事項不再出現在工作台', () => {
+  const rows = buildWorkQueue({
+    workItems: [{ id: 'w1', title: '取消工作', state: 'cancelled' }],
+    tasks: [{ id: 't1', title: '取消待辦', canceled: true }],
+    clients: [{ id: 'c1', name: '王先生', todos: [{ id: 'todo-1', text: '取消事項', canceled: true }] }],
+  });
+  assert.deepEqual(rows, []);
+});
+
 test('施工階段依分配天數產生催辦期限，未解鎖階段維持等待', () => {
   const rows = buildWorkQueue({
     deals: [{ id: 'd1', clientId: 'c1', caseId: 'case-1', deliveryWorkflow: [

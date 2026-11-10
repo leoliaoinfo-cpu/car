@@ -4,6 +4,7 @@ import { useApp } from '../../context';
 import { buildWorkQueue } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { generateId } from '../../utils/crm';
+import { normalizeDeliveryWorkflow } from '../../utils/delivery';
 
 const FILTERS = [
   ['overdue', '逾期'], ['today', '今天'], ['waiting', '等待'], ['next', '接下來'],
@@ -22,13 +23,14 @@ function dueText(row) {
 export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, onQuickCreate }) {
   const {
     workItems, tasks, clients, deals, cases,
-    saveWorkItem, saveTask, updateClient, saveActivity, saveCase,
+    saveWorkItem, saveTask, updateClient, saveActivity, saveCase, saveDeal,
   } = useApp();
   const queue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([key]) => [key, queue.filter((row) => row.group === key).length])), [queue]);
   const firstActive = FILTERS.find(([key]) => counts[key] > 0)?.[0] || 'today';
   const [filter, setFilter] = useState(firstActive);
   const [snoozing, setSnoozing] = useState(null);
+  const [canceling, setCanceling] = useState(null);
   const visible = queue.filter((row) => row.group === filter);
   const nextAvailableFilter = FILTERS.find(([key]) => key !== filter && counts[key] > 0);
 
@@ -88,6 +90,35 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
     setSnoozing(null);
   }
 
+  async function cancel(row) {
+    const canceledAt = new Date().toISOString();
+    if (row.sourceType === 'case-follow-up') {
+      const current = cases.find((item) => item.id === row.caseId);
+      if (current) await saveCase({ ...current, nextFollowUpDate: '', updatedAt: canceledAt });
+    } else if (row.sourceType === 'delivery') {
+      const deal = deals.find((item) => item.id === row.dealId);
+      if (deal) {
+        const deliveryWorkflow = normalizeDeliveryWorkflow(deal).map((step) => step.id === row.sourceId
+          ? { ...step, status: 'na', completedAt: canceledAt, statusChangedAt: canceledAt }
+          : step);
+        await saveDeal({ ...deal, deliveryWorkflow });
+      }
+    } else if (row.sourceType === 'workItem') {
+      const current = workItems.find((item) => item.id === row.sourceId);
+      if (current) await saveWorkItem({ ...current, state: 'cancelled', canceledAt });
+    } else if (row.sourceType === 'task') {
+      const current = tasks.find((item) => item.id === row.sourceId);
+      if (current) await saveTask({ ...current, done: true, canceled: true, doneAt: canceledAt, canceledAt });
+    } else if (row.sourceType === 'client-todo') {
+      await updateClient(row.clientId, (client) => ({
+        ...client,
+        todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, done: true, canceled: true, doneAt: canceledAt, canceledAt } : item),
+      }));
+    }
+    await writeActivity(row, `取消：${row.title}`);
+    setCanceling(null);
+  }
+
   function openRow(row) {
     if (row.sourceType === 'delivery') onOpenOperations?.(row.dealId, row.caseId);
     else if (row.caseId && onOpenCase) onOpenCase(row.caseId);
@@ -142,7 +173,18 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
                 <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
                 {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
+                <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>
               </div>
+              {canceling === row.id && (
+                <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
+                  <p className="text-sm font-bold text-danger">確定取消「{row.title}」？</p>
+                  <p className="mt-1 text-xs text-ink-3">取消後會從工作台隱藏，但案件紀錄仍會保留。</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setCanceling(null)} className="btn-outline min-h-10">先不要</button>
+                    <button type="button" onClick={() => cancel(row)} className="btn-danger min-h-10">確認取消</button>
+                  </div>
+                </div>
+              )}
               {snoozing === row.id && (
                 <div className="grid grid-cols-3 gap-2 mt-2 rounded-xl bg-s2 p-2">
                   {[1, 3, 7].map((days) => <button key={days} type="button" onClick={() => snooze(row, days)} className="btn-outline bg-s1 min-h-10">＋{days} 天</button>)}

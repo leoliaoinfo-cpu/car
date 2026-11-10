@@ -246,11 +246,11 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     });
   });
 
-  workItems.filter((row) => row.state !== 'done' && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
+  workItems.filter((row) => !['done', 'cancelled'].includes(row.state) && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const linkedCase = caseMap.get(row.caseId);
     push({ ...row, sourceType: 'workItem', sourceId: row.id, clientName: row.clientName || linkedCase?.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: linkedCase?.title || '', caseNumber: linkedCase?.caseNumber });
   });
-  tasks.filter((row) => !row.done && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
+  tasks.filter((row) => !row.done && !row.canceled && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const caseId = row.caseId || onlyCaseForClient(row.clientId);
     push({
       id: `task:${row.id}`, sourceType: 'task', sourceId: row.id, title: row.title || row.text || '待辦事項',
@@ -261,7 +261,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   clients.forEach((client) => {
     const caseId = onlyCaseForClient(client.id);
     const caseNumbers = caseNumbersForClient(client.id);
-    (client.todos || []).filter((row) => !row.done).forEach((row) => push({
+    (client.todos || []).filter((row) => !row.done && !row.canceled).forEach((row) => push({
       id: `client-todo:${client.id}:${row.id}`, sourceType: 'client-todo', sourceId: row.id,
       title: row.text || row.title || '客戶待辦', due: row.due || '', state: 'todo', caseId: row.caseId || caseId, caseNumber: caseMap.get(row.caseId || caseId)?.caseNumber, caseNumbers, clientId: client.id, clientName: client.name,
     }));

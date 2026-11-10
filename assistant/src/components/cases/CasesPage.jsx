@@ -249,21 +249,48 @@ function FollowUpTargetChooser({ mode, onModeChange, date, onDateChange, amount,
   );
 }
 
-function CasePipeline({ item, currentId, deals, quotes }) {
+function CasePipeline({ item, currentId, deals, quotes, onChangeStage }) {
+  const [showStages, setShowStages] = useState(false);
+  const [confirmStageId, setConfirmStageId] = useState(null);
+  const [saving, setSaving] = useState(false);
   const currentIndex = Math.max(0, CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === currentId));
-  const enteredByStage = new Map((item.pipelineStageHistory || []).map((entry) => [entry.stageId === 'quoted' ? 'new' : entry.stageId, entry.enteredAt]));
-  enteredByStage.set(currentId, getCasePipelineUpdatedAt(item, { deals, quotes }));
   const currentDays = getCasePipelineElapsedDays(item, { deals, quotes });
   const totalDays = getCaseTotalElapsedDays(item, { deals, quotes });
+  const currentStage = CASE_PIPELINE_STAGES[currentIndex];
+  const nextStage = CASE_PIPELINE_STAGES[currentIndex + 1] || null;
+  const confirmStage = CASE_PIPELINE_STAGES.find((stage) => stage.id === confirmStageId);
+
+  async function applyStage() {
+    if (!confirmStage || saving) return;
+    setSaving(true);
+    try {
+      await onChangeStage?.(confirmStage.id);
+      setConfirmStageId(null);
+      setShowStages(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <section className="card p-3" aria-label="案件流程">
-      <div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs font-bold text-ink-2">案件進度</p><p className="text-xs font-bold text-copper">案件總計 {totalDays} 天</p></div>
-      <div className="grid grid-cols-5 gap-1">
-        {CASE_PIPELINE_STAGES.map((stage, index) => {
-          const enteredAt = enteredByStage.get(stage.id);
-          return <div key={stage.id} className="min-w-0 text-center"><div className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${index < currentIndex ? 'bg-ok text-on-accent' : index === currentIndex ? 'bg-copper text-on-accent ring-4 ring-copper/15' : 'bg-s3 text-ink-3'}`}>{index < currentIndex ? '✓' : index + 1}</div><p className={`mt-1 truncate text-[10px] font-bold ${index === currentIndex ? 'text-copper' : 'text-ink-3'}`}>{stage.label}</p><p className="mt-0.5 text-[9px] text-ink-3">{enteredAt && dayjs(enteredAt).isValid() ? dayjs(enteredAt).format('MM/DD') : '—'}</p>{index === currentIndex && <p className="text-[9px] font-bold text-copper">第 {currentDays} 天</p>}</div>;
-        })}
+    <section className="card p-4" aria-label="案件進度">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold text-copper">目前階段</p>
+          <h2 className="mt-1 text-lg font-bold text-ink">{currentIndex + 1}. {currentStage?.label}</h2>
+          <p className="mt-1 text-xs text-ink-3">這階段第 {currentDays} 天・案件總計 {totalDays} 天</p>
+        </div>
+        <span className="rounded-full bg-copper/12 px-3 py-1 text-xs font-bold text-copper">{currentIndex + 1} / {CASE_PIPELINE_STAGES.length}</span>
       </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className="h-full rounded-full bg-copper" style={{ width: `${((currentIndex + 1) / CASE_PIPELINE_STAGES.length) * 100}%` }} /></div>
+      <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+        {nextStage
+          ? <button type="button" onClick={() => setConfirmStageId(nextStage.id)} className="btn-primary min-h-12">下一階段：{nextStage.label} →</button>
+          : <div className="flex min-h-12 items-center justify-center rounded-xl bg-ok/10 text-sm font-bold text-ok">✓ 案件已完成</div>}
+        <button type="button" onClick={() => setShowStages((value) => !value)} className="btn-outline min-h-12 px-3">{showStages ? '收起' : '調整'}</button>
+      </div>
+      {showStages && <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-s2 p-2">{CASE_PIPELINE_STAGES.map((stage, index) => <button key={stage.id} type="button" disabled={stage.id === currentId} onClick={() => setConfirmStageId(stage.id)} className={`min-h-11 rounded-lg border px-3 text-left text-sm font-bold ${stage.id === currentId ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink-2'}`}>{index + 1}. {stage.label}{stage.id === currentId ? '（目前）' : ''}</button>)}</div>}
+      {confirmStage && <div role="alert" className="mt-3 rounded-xl border border-copper/40 bg-copper/5 p-3"><p className="text-sm font-bold text-ink">確定切換到「{confirmStage.label}」？</p><p className="mt-1 text-xs text-ink-3">切換後會從第 1 天重新計算這個階段，案件總天數仍會保留。</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={saving} onClick={() => setConfirmStageId(null)} className="btn-outline min-h-11">先不要</button><button type="button" disabled={saving} onClick={applyStage} className="btn-primary min-h-11">{saving ? '儲存中…' : '確認切換'}</button></div></div>}
     </section>
   );
 }
@@ -271,7 +298,7 @@ function CasePipeline({ item, currentId, deals, quotes }) {
 function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinkedDeal = false, onClose, onDeleted, onSaveCase, onDeleteCase, onSaveWorkItem, onSaveActivity }) {
   const [title, setTitle] = useState(item.title || '');
   const [type, setType] = useState(item.type || 'purchase');
-  const [pipelineStage, setPipelineStage] = useState(currentPipeline);
+  const pipelineStage = currentPipeline;
   const [followUpMode, setFollowUpMode] = useState(item.nextFollowUpDate ? 'date' : '');
   const [followUpDate, setFollowUpDate] = useState(item.nextFollowUpDate || '');
   const [followUpAmount, setFollowUpAmount] = useState('');
@@ -302,7 +329,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
       followUpPlanUnit: pipelineStage !== 'completed' && followUpMode === 'relative' ? followUpUnit : null,
       updatedAt: savedAt,
     });
-    const nextWork = workItems.find((work) => work.state !== 'done');
+    const nextWork = workItems.find((work) => !['done', 'cancelled'].includes(work.state));
     if (nextWork && pipelineStage !== 'completed' && nextFollowUpDate) {
       await onSaveWorkItem({ ...nextWork, due: nextFollowUpDate });
     }
@@ -338,7 +365,6 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
         <div className="mt-5 space-y-5">
           <label className="block text-xs font-bold text-ink-2">案件名稱<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：尾門＋帆布改裝" className="mt-2 min-h-12 w-full" /></label>
           <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
-          <section><p className="text-xs font-bold text-ink-2">案件流程</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_PIPELINE_STAGES.map((stage) => <button key={stage.id} type="button" onClick={() => setPipelineStage(stage.id)} className={`min-h-11 rounded-xl border text-xs font-bold ${pipelineStage === stage.id ? 'border-accent bg-accent/12 text-accent' : 'border-bdr text-ink-2'}`}>{stage.label}</button>)}</div></section>
           {pipelineStage !== 'completed' && <section><p className="text-xs font-bold text-ink-2">下次追蹤日</p><p className="mt-1 text-xs text-ink-3">只會更新這一筆案件。</p><FollowUpTargetChooser mode={followUpMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && followUpMode !== 'relative') setFollowUpBaseDate(today()); setFollowUpMode(nextMode); }} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} /></section>}
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
           <div className="grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="btn-outline min-h-12">取消</button><button type="submit" disabled={saving} className="btn-primary min-h-12">{saving ? '儲存中…' : '確認儲存案件'}</button></div>
@@ -460,6 +486,22 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
     await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, type: 'work', text: `完成：${row.title}`, date: today() });
   }
 
+  async function changePipelineStage(stageId) {
+    if (stageId === pipelineStageId) return;
+    const timestamp = new Date().toISOString();
+    const stage = CASE_PIPELINE_STAGES.find((row) => row.id === stageId);
+    await onSaveCase({
+      ...advanceCasePipeline(item, stageId, timestamp),
+      status: stageId === 'completed' ? 'completed' : 'active',
+      nextFollowUpDate: stageId === 'completed' ? '' : item.nextFollowUpDate,
+      updatedAt: timestamp,
+    });
+    await onSaveActivity({
+      id: generateId('activity'), caseId: item.id, clientId: item.clientId,
+      type: 'case', text: `案件階段切換：${stage?.label || stageId}`, date: timestamp,
+    });
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-bg safe-panel overflow-y-auto anim-slide-right">
       <div className="max-w-3xl mx-auto min-h-full bg-bg">
@@ -473,7 +515,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
         </header>
 
         <div className="p-3 md:p-5 space-y-4 pb-28">
-          <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} />
+          <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} onChangeStage={changePipelineStage} />
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
