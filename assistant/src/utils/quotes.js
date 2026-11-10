@@ -35,6 +35,30 @@ export function canonicalizeQuotes(clients = [], quoteDrafts = []) {
 export function quotesForClient(quoteDrafts = [], clientId) {
   if (!clientId) return [];
   return quoteDrafts
-    .filter((quote) => quote.clientId === clientId)
+    .filter((quote) => quote.clientId === clientId && !quote.archivedAt)
     .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''));
+}
+
+export const UNASSIGNED_QUOTE_WARNING_DAYS = 30;
+export const LINKED_QUOTE_STALE_DAYS = 90;
+
+/** 報價年齡固定從建立日計算；修改內容不會把天數歸零。 */
+export function getQuoteAgeDays(quote, now = new Date()) {
+  const raw = quote?.createdAt || (quote?.date ? `${quote.date}T00:00:00` : '') || quote?.updatedAt;
+  const startedAt = new Date(raw);
+  const current = now instanceof Date ? now : new Date(now);
+  if (!raw || Number.isNaN(startedAt.getTime()) || Number.isNaN(current.getTime())) return null;
+  const elapsed = Math.max(0, current.getTime() - startedAt.getTime());
+  return Math.floor(elapsed / 86400000) + 1;
+}
+
+export function getQuoteAttention(quote, now = new Date()) {
+  const ageDays = getQuoteAgeDays(quote, now);
+  const linked = Boolean(quote?.clientId);
+  return {
+    ageDays,
+    linked,
+    unassignedOverdue: !linked && ageDays != null && ageDays > UNASSIGNED_QUOTE_WARNING_DAYS,
+    linkedStale: linked && ageDays != null && ageDays > LINKED_QUOTE_STALE_DAYS,
+  };
 }

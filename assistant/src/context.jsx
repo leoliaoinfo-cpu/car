@@ -640,6 +640,27 @@ export function AppProvider({ children }) {
     }
   }, [saveClient]);
 
+  /** 報價垃圾車：只隱藏、不刪除報價、成本、客戶或案件關聯，可隨時恢復。 */
+  const archiveQuoteDraft = useCallback(async (id) => {
+    const current = await db.get('quoteDrafts', id).catch(() => null);
+    if (!current) throw new Error('找不到要放入垃圾車的報價。');
+    const now = new Date().toISOString();
+    const archived = { ...current, archivedAt: now, updatedAt: now };
+    dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: archived });
+    await db.put('quoteDrafts', archived);
+    return archived;
+  }, []);
+
+  const restoreQuoteDraft = useCallback(async (id) => {
+    const current = await db.get('quoteDrafts', id).catch(() => null);
+    if (!current?.archivedAt) throw new Error('找不到可恢復的報價。');
+    const { archivedAt, ...rest } = current;
+    const restored = { ...rest, updatedAt: new Date().toISOString() };
+    dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: restored });
+    await db.put('quoteDrafts', restored);
+    return restored;
+  }, []);
+
   // ── 客戶接待（匿名開始、每次操作自動儲存）──────────────────────────────
   const saveReceptionSession = useCallback(async (session) => {
     const now = new Date().toISOString();
@@ -949,6 +970,8 @@ export function AppProvider({ children }) {
     deletePricingRecord,
     saveQuoteDraft,
     deleteQuoteDraft,
+    archiveQuoteDraft,
+    restoreQuoteDraft,
     saveReceptionSession,
     deleteReceptionSession,
     saveSupplier,

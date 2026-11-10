@@ -4,6 +4,7 @@ import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
 import { addDays, today } from '../../utils/date';
 import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType } from '../../utils/cases';
+import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 
 function pendingCount(quote) {
@@ -16,7 +17,7 @@ function requirementPendingCount(quote) {
 
 export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed }) {
   const {
-    clients, cases, quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
+    clients, cases, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft,
     savePricingRecord, saveClient, updateClient, cats, stages,
   } = useApp();
   const [editing, setEditing] = useState(null);
@@ -53,7 +54,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     return map;
   }, [cases]);
   const linkedCaseFor = (quote) => caseById.get(quote.caseId) || caseByQuoteId.get(quote.id) || null;
-  const stageCounts = useMemo(() => quoteDrafts.reduce((counts, quote) => {
+  const activeQuotes = useMemo(() => quoteDrafts.filter((quote) => !quote.archivedAt), [quoteDrafts]);
+  const archivedQuotes = useMemo(() => quoteDrafts.filter((quote) => quote.archivedAt), [quoteDrafts]);
+  const stageCounts = useMemo(() => activeQuotes.reduce((counts, quote) => {
     const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
     if (!linkedCase) counts.unlinked += 1;
     else {
@@ -61,22 +64,23 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       counts[stageId] = (counts[stageId] || 0) + 1;
     }
     return counts;
-  }, { new: 0, follow_up: 0, won: 0, delivery: 0, completed: 0, unlinked: 0 }), [quoteDrafts, caseById, caseByQuoteId]);
+  }, { new: 0, follow_up: 0, won: 0, delivery: 0, completed: 0, unlinked: 0 }), [activeQuotes, quoteDrafts, caseById, caseByQuoteId]);
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return [...quoteDrafts]
+    const source = stageFilter === 'trash' ? archivedQuotes : activeQuotes;
+    return [...source]
       .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))
       .filter((quote) => {
         const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
         const quoteType = linkedCase?.type || inferCaseType(quote);
         const pipelineStage = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : 'unlinked';
-        if (stageFilter !== 'all' && pipelineStage !== stageFilter) return false;
+        if (stageFilter !== 'all' && stageFilter !== 'trash' && pipelineStage !== stageFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
         return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
-  }, [quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId]);
+  }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId]);
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, ...quotePayload } = payload;
@@ -156,9 +160,15 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     setEditing(null);
   }
 
-  async function removeQuote(id) {
-    await deleteQuoteDraft(id);
+  async function moveQuoteToTrash(id) {
+    await archiveQuoteDraft(id);
     setConfirmDeleteId(null);
+    setSaveNotice({ clientId: null, text: '報價已放入垃圾車，資料仍保留並可隨時恢復。' });
+  }
+
+  async function restoreQuote(id) {
+    await restoreQuoteDraft(id);
+    setSaveNotice({ clientId: null, text: '報價已從垃圾車恢復。' });
   }
 
   return (
@@ -185,11 +195,19 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       </div>
       <div className="flex gap-2 overflow-x-auto pb-1" aria-label="案件進度篩選">
         {[
-          ['all', '全部', quoteDrafts.length],
+          ['all', '全部', activeQuotes.length],
           ...CASE_PIPELINE_STAGES.map((stage, index) => [stage.id, `${index + 1} ${stage.label}`, stageCounts[stage.id]]),
           ['unlinked', '未歸入案件', stageCounts.unlinked],
+          ['trash', '🗑 垃圾車', archivedQuotes.length],
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
+      {stageFilter !== 'trash' && (
+        <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+          <span className="rounded-full border border-danger/40 bg-danger/10 px-2.5 py-1 text-danger">紅色：未分配客戶超過 30 天</span>
+          <span className="rounded-full border border-ink-3/30 bg-ink-3/10 px-2.5 py-1 text-ink-3">灰色：已分配客戶超過 90 天</span>
+          <span className="rounded-full border border-bdr bg-s1 px-2.5 py-1 text-ink-2">🗑 可隱藏並恢復</span>
+        </div>
+      )}
 
       {saveNotice && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 flex items-center gap-2 text-sm text-ink-2">
@@ -204,9 +222,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {rows.length === 0 ? (
         <section className="card p-8 text-center">
           <div className="text-4xl">🧾</div>
-          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : '還沒有報價'}</h2>
-          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : '按「新報價」建立第一張報價單。'}</p>
-          {!query && <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary mt-4">＋ 建立報價</button>}
+          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : stageFilter === 'trash' ? '垃圾車目前是空的' : '還沒有報價'}</h2>
+          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : stageFilter === 'trash' ? '放入垃圾車的報價會保留在這裡，可隨時恢復。' : '按「新報價」建立第一張報價單。'}</p>
+          {!query && stageFilter !== 'trash' && <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary mt-4">＋ 建立報價</button>}
         </section>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -222,8 +240,12 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const totalDays = linkedCase ? getCaseTotalElapsedDays(linkedCase, { quotes: quoteDrafts }) : null;
             const pending = pendingCount(quote);
             const pendingRequirements = requirementPendingCount(quote);
+            const attention = getQuoteAttention(quote);
+            const attentionClass = attention.unassignedOverdue
+              ? 'border-danger/60 bg-danger/10'
+              : attention.linkedStale ? 'border-ink-3/35 bg-ink-3/10 opacity-80' : '';
             return (
-              <article key={quote.id} className="card p-4 space-y-3">
+              <article key={quote.id} className={`card p-4 space-y-3 ${attentionClass}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -231,6 +253,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {pipelineStage && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
                       {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
+                      {attention.unassignedOverdue && <span className="badge bg-danger text-white">未分配客戶超過 30 天</span>}
+                      {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
+                      {quote.archivedAt && <span className="badge bg-ink-3 text-white">垃圾車</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
                       {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
                       {pending > 0
@@ -239,6 +264,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
+                    {attention.ageDays != null && <p className={`mt-1 text-[11px] font-semibold ${attention.unassignedOverdue ? 'text-danger' : attention.linkedStale ? 'text-ink-3' : 'text-ink-2'}`}>報價已建立第 {attention.ageDays} 天{attention.linked ? '・已分配客戶' : '・尚未分配客戶'}</p>}
                     {pipelineStage && <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入{pipelineStage.label}・階段第 {stageDays} 天｜案件總計 {totalDays} 天</p>}
                   </div>
                   <p className="text-right shrink-0">
@@ -252,19 +278,21 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 )}
 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
+                  {!quote.archivedAt && <button onClick={() => setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
                     ✏️ 開啟／輸出圖片
-                  </button>
-                  {linked && onOpenClient && (
+                  </button>}
+                  {!quote.archivedAt && linked && onOpenClient && (
                     <button onClick={() => onOpenClient(linked.id)} className="btn-outline text-xs">看客戶</button>
                   )}
-                  {confirmDeleteId === quote.id ? (
+                  {quote.archivedAt ? (
+                    <button onClick={() => restoreQuote(quote.id)} className="btn-primary flex-1 text-xs">↩ 恢復報價</button>
+                  ) : confirmDeleteId === quote.id ? (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => removeQuote(quote.id)} className="btn-danger text-[10px]">確定</button>
+                      <button onClick={() => moveQuoteToTrash(quote.id)} className="btn-danger text-[10px]">確認放入垃圾車</button>
                       <button onClick={() => setConfirmDeleteId(null)} className="btn-outline text-[10px]">取消</button>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDeleteId(quote.id)} className="btn-ghost text-danger/60 px-2" title="刪除報價">🗑</button>
+                    <button onClick={() => setConfirmDeleteId(quote.id)} className="btn-ghost text-danger/70 px-2" title="放入垃圾車（可恢復）">🗑</button>
                   )}
                 </div>
               </article>

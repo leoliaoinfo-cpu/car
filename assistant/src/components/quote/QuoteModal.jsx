@@ -423,6 +423,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [exportError, setExportError] = useState('');
   const [showCatalog, setShowCatalog] = useState(false); // 產品型錄覆蓋層
   const [showTextQuote, setShowTextQuote] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [textCopyStatus, setTextCopyStatus] = useState('');
   const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入。
@@ -965,9 +966,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     { key: 'other', label: '其他費用', rows: sortQuoteRows(selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon')) },
   ].filter((group) => group.rows.length > 0);
 
+  function requestClose() {
+    setShowCloseConfirm(true);
+  }
+
   return (
     <>
-      <div className="overlay" onClick={onClose} />
+      <div className="overlay" onClick={requestClose} />
       <div className="safe-screen fixed inset-0 z-50 overflow-y-auto px-4 flex items-start justify-center">
         <div className="bg-s1 rounded-2xl shadow-panel border border-bdr w-full max-w-md md:max-w-2xl p-4 md:p-5 anim-scale-in my-4">
           <div className="flex items-center justify-between mb-3">
@@ -975,7 +980,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => setShowCatalog(true)}
                 className="btn-outline text-xs gap-1 py-1">📖 看型錄</button>
-              <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1">✕</button>
+              <button onClick={requestClose} className="btn-ghost text-xl leading-none px-2 py-1" aria-label="關閉報價單">✕</button>
             </div>
           </div>
           {/* 輸入區 */}
@@ -1804,7 +1809,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           </p>
           {exportError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
           <div className="flex gap-2 mt-3">
-            <button onClick={onClose} className="btn-outline flex-1">關閉</button>
+            <button onClick={requestClose} className="btn-outline flex-1">關閉</button>
             <button onClick={handleRecord} disabled={selectedItems.length === 0}
               className="btn-outline flex-1 disabled:opacity-40">
               💾 {isEdit ? '儲存修改' : (client?.id ? '記錄報價' : customerMode === 'new' ? '建立客戶並儲存報價' : '儲存報價')}
@@ -1812,6 +1817,22 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           </div>
         </div>
       </div>
+      {showCloseConfirm && (
+        <div className="safe-screen fixed inset-0 z-[100] bg-black/70 px-4 flex items-center justify-center">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="quote-close-title"
+            className="w-full max-w-sm rounded-2xl border border-danger/35 bg-s1 p-5 shadow-panel space-y-4">
+            <div>
+              <p className="text-[11px] font-bold tracking-wider text-danger">關閉前確認</p>
+              <h3 id="quote-close-title" className="mt-1 text-lg font-bold text-ink">確定要關閉這張報價單？</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-2">尚未按「儲存」的內容會消失。若只是按錯，請選擇繼續編輯。</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setShowCloseConfirm(false)} className="btn-primary min-h-11">繼續編輯</button>
+              <button type="button" onClick={onClose} className="btn-outline min-h-11 border-danger/40 text-danger">確認關閉</button>
+            </div>
+          </section>
+        </div>
+      )}
       {showTextQuote && (
         <div className="safe-screen fixed inset-0 z-[85] bg-black/80 overflow-y-auto px-3 flex items-start justify-center">
           <div className="w-full max-w-md my-3 rounded-2xl bg-s1 border border-bdr shadow-panel p-4">

@@ -180,7 +180,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
   }
 
   for (const quote of quotes) {
-    if (quote.caseArchivedAt) continue;
+    if (quote.caseArchivedAt || quote.archivedAt) continue;
     if (quote.caseId && existingIds.has(quote.caseId)) continue;
     const id = `case:quote:${quote.id}`;
     if (linkedQuoteIds.has(quote.id) || existingIds.has(id)) continue;
