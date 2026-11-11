@@ -6,4 +6,5 @@
 - 使用者是貨車業務本人（非工程師），一律繁體中文、口語、直接動工。
 - 開發分支 `claude/car-sales-handoff-sht2ks`；做完 commit + push，**不開 PR、不推 main**。
 - Claude 與 Codex 輪流接手：開工先 `git pull` 並看 `git log`，收工務必 push，避免進度只留在本機。
+- **每次做完重要功能，要順手更新 CLAUDE.md**（架構、流程、決策、現況待辦），和程式一起 commit；這是使用者要求的收工步驟。
 - 詳細交接見 `docs/HANDOFF.md`。
