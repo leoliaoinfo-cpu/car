@@ -160,7 +160,9 @@ test('工作佇列會合併案件工作、中央待辦與案件追蹤', () => {
     tasks: [{ id: 't1', title: '回覆廠商', done: false }],
     clients: [{ id: 'c1', name: '陳先生', nextDate: '2099-01-01' }],
   });
-  assert.equal(rows.length, 3);
+  // 沒有案件的客戶，自己的追蹤日也要進工作佇列（否則拿掉「完整工作總覽」後就沒地方提醒）。
+  assert.equal(rows.length, 4);
+  assert.equal(rows.find((row) => row.sourceType === 'client-follow').clientName, '陳先生');
   assert.equal(rows.find((row) => row.sourceType === 'workItem').clientName, '王先生');
   assert.equal(rows.find((row) => row.sourceType === 'case-follow-up').caseId, 'case-1');
 });

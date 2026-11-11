@@ -1,6 +1,10 @@
 import dayjs from 'dayjs';
 import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './delivery.js';
 import { stockAlert } from './stock.js';
+import { getOccasionsOnDate } from './crm.js';
+
+/** 沒排追蹤日、又這麼多天沒動靜的案件，視為「太久沒追」。 */
+export const STALE_CASE_DAYS = 14;
 
 export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
@@ -224,7 +228,55 @@ function dueGroup(due, state, waitingOn, followUpReminder = false) {
   return 'next';
 }
 
-export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals = [], cases = [] } = {}) {
+/** 案件最後一次有動靜的時間（聯繫、修改或建立，取最新）。 */
+export function getCaseLastTouchedAt(item) {
+  return [item?.lastContactAt, item?.updatedAt, item?.createdAt]
+    .filter((value) => value && dayjs(value).isValid())
+    .sort((a, b) => dayjs(a).valueOf() - dayjs(b).valueOf()).at(-1) || '';
+}
+
+/**
+ * 指定日期的「日子類」事項：行事曆自建活動（含每年重複）與客戶紀念日。
+ * 工作佇列（今天）與行事曆（任一天）都用這一個函式，兩邊才會一致。
+ */
+export function buildDayOccasionRows({ events = [], clients = [], customFields = [] } = {}, date) {
+  if (!date) return [];
+  const rows = [];
+  const monthDay = date.slice(5);
+  const clientMap = new Map(clients.map((row) => [row.id, row]));
+  for (const event of events) {
+    if (!event?.date) continue;
+    const yearly = event.repeat === 'yearly';
+    if (yearly ? event.date.slice(5) !== monthDay : event.date !== date) continue;
+    const years = yearly ? Number(date.slice(0, 4)) - Number(event.date.slice(0, 4)) : 0;
+    if (years < 0) continue;
+    rows.push({
+      id: `event:${event.id}:${date}`, sourceType: 'event', sourceId: event.id, title: event.title || '活動',
+      due: date, time: event.time || '', state: 'todo', clientId: event.clientId || null,
+      clientName: clientMap.get(event.clientId)?.name || '', note: yearly && years > 0 ? `滿 ${years} 年` : (event.note || ''),
+      yearly, event,
+    });
+  }
+  for (const occasion of getOccasionsOnDate(clients, customFields, date)) {
+    const label = occasion.field.name;
+    // 當天已按過「已問候」就不再提醒。
+    if ((occasion.client.log || []).some((entry) => entry.date === date && entry.text === `${label}問候`)) continue;
+    rows.push({
+      id: `occasion:${occasion.field.id}:${occasion.client.id}:${date}`, sourceType: 'occasion', sourceId: occasion.field.id,
+      title: label, due: date, state: 'todo', clientId: occasion.client.id, clientName: occasion.client.name,
+      note: occasion.years > 0 ? `滿 ${occasion.years} 年` : '',
+    });
+  }
+  return rows;
+}
+
+/**
+ * 「現在該做什麼」的唯一來源：工作頁、案件頁與行事曆都讀這一份。
+ * 包含：案件追蹤日、案件工作、中央待辦、客戶待辦、客戶追蹤日（沒有同日案件追蹤時）、
+ * 預計交車日、配件再追日、施工階段、計時提醒、今天的活動與紀念日、太久沒追的案件。
+ */
+export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals = [], cases = [], timers = [], events = [], customFields = [] } = {}) {
+  const todayString = dayjs().format('YYYY-MM-DD');
   const caseMap = new Map(cases.map((row) => [row.id, row]));
   const clientMap = new Map(clients.map((row) => [row.id, row]));
   const rows = [];
@@ -245,7 +297,8 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   cases.filter((row) => row.status !== 'completed' && row.nextFollowUpDate).forEach((row) => {
     push({
       id: `case-follow-up:${row.id}`, sourceType: 'case-follow-up', sourceId: row.id,
-      title: '聯繫客戶', due: row.nextFollowUpDate, state: 'todo', caseId: row.id,
+      // 建案時寫的「要確認什麼」只當第一次聯繫前的提示；聯繫過後回到一般的「聯繫客戶」。
+      title: (!row.lastContactAt && String(row.followUpNote || '').trim()) || '聯繫客戶', due: row.nextFollowUpDate, state: 'todo', caseId: row.id,
       clientId: row.clientId || null, clientName: row.clientName || clientMap.get(row.clientId)?.name || '',
       caseTitle: row.title || '',
     });
@@ -311,8 +364,42 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
       });
     });
   });
+  // 客戶自己的追蹤日／預計交車日（舊流程與售後回訪用）。同一天已有案件追蹤就不重複。
+  clients.forEach((client) => {
+    const activeCases = activeCasesByClient.get(client.id) || [];
+    const caseId = onlyCaseForClient(client.id);
+    if (client.nextDate && !activeCases.some((row) => row.nextFollowUpDate === client.nextDate)) {
+      push({ id: `client-follow:${client.id}`, sourceType: 'client-follow', sourceId: client.id,
+        title: '聯繫客戶', due: client.nextDate, state: 'todo', caseId, clientId: client.id, clientName: client.name });
+    }
+    if (client.deliveryDate) {
+      push({ id: `client-delivery:${client.id}`, sourceType: 'client-delivery', sourceId: client.id,
+        title: '交車', due: client.deliveryDate, state: 'todo', caseId, clientId: client.id, clientName: client.name });
+    }
+  });
+  timers.filter((row) => !row.confirmedAt && row.triggerAt && dayjs(row.triggerAt).isValid()).forEach((row) => push({
+    id: `timer:${row.id}`, sourceType: 'timer', sourceId: row.id, title: row.note || row.clientName || '提醒',
+    due: dayjs(row.triggerAt).format('YYYY-MM-DD'), time: dayjs(row.triggerAt).format('HH:mm'), state: 'todo',
+    clientId: row.clientId || null, clientName: row.clientName || '',
+  }));
+  buildDayOccasionRows({ events, clients, customFields }, todayString).forEach(push);
+
+  // 太久沒追：沒排追蹤日、也沒有任何排了日期的工作，且超過 STALE_CASE_DAYS 天沒動靜。
+  const datedCaseIds = new Set(rows.filter((row) => row.caseId && row.due).map((row) => row.caseId));
+  cases.filter((row) => row.status !== 'completed' && !row.deletedAt && !row.nextFollowUpDate && !datedCaseIds.has(row.id)).forEach((row) => {
+    const touchedAt = getCaseLastTouchedAt(row);
+    if (!touchedAt) return;
+    const staleDays = dayjs().startOf('day').diff(dayjs(touchedAt).startOf('day'), 'day');
+    if (staleDays < STALE_CASE_DAYS) return;
+    push({
+      id: `case-stale:${row.id}`, sourceType: 'case-stale', sourceId: row.id, stale: true, staleDays,
+      title: `太久沒追・${staleDays} 天沒動靜`, due: todayString, state: 'todo', caseId: row.id,
+      clientId: row.clientId || null, clientName: row.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: row.title || '',
+    });
+  });
+
   const order = { overdue: 0, today: 1, waiting: 2, next: 3 };
-  return rows.sort((a, b) => (order[a.group] - order[b.group]) || Number(b.urgent) - Number(a.urgent) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.title).localeCompare(String(b.title)));
+  return rows.sort((a, b) => (order[a.group] - order[b.group]) || Number(Boolean(a.stale)) - Number(Boolean(b.stale)) || Number(b.urgent) - Number(a.urgent) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.title).localeCompare(String(b.title)));
 }
 
 
