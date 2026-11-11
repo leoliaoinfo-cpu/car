@@ -186,6 +186,8 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
 
   for (const quote of quotes) {
     if (quote.caseArchivedAt || quote.archivedAt) continue;
+    // 沒有客戶的報價（只做報價）不自動長出「未命名客戶」案件；歸入客戶時才建立／併入案件。
+    if (!quote.clientId) continue;
     if (quote.caseId && existingIds.has(quote.caseId)) continue;
     const id = `case:quote:${quote.id}`;
     if (linkedQuoteIds.has(quote.id) || existingIds.has(id) || caseQuoteIds.has(quote.id)) continue;
