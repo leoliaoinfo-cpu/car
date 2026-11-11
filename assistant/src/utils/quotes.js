@@ -9,9 +9,13 @@ export function canonicalizeQuotes(clients = [], quoteDrafts = []) {
   }
 
   let migrated = false;
+  // 只回報「真的變動」的資料，呼叫端只需寫回這些（不要整批重寫、重蓋 _ts）
+  const changedClientIds = [];
+  const addedQuoteIds = [];
   const nextClients = clients.map((client) => {
     for (const legacy of client.quotes || []) {
       if (!legacy?.id || byId.has(legacy.id)) continue;
+      addedQuoteIds.push(legacy.id);
       byId.set(legacy.id, {
         ...legacy,
         clientId: legacy.clientId || client.id,
@@ -26,10 +30,11 @@ export function canonicalizeQuotes(clients = [], quoteDrafts = []) {
     const next = { ...client };
     delete next.quotes;
     migrated = true;
+    changedClientIds.push(client.id);
     return next;
   });
 
-  return { clients: nextClients, quoteDrafts: [...byId.values()], migrated };
+  return { clients: nextClients, quoteDrafts: [...byId.values()], migrated, changedClientIds, addedQuoteIds };
 }
 
 export function quotesForClient(quoteDrafts = [], clientId) {

@@ -17,15 +17,40 @@ import { stockItemsFromQuote } from './utils/stock';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 import { advanceCasePipeline, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
+import { changedPatch, pricingRecordsToDropForClients, recTs } from './utils/dataMerge.js';
 
 const AppContext = createContext(null);
 
 async function migrateLegacyQuotes(clients, quoteDrafts) {
   const canonical = canonicalizeQuotes(clients, quoteDrafts);
   if (!canonical.migrated) return canonical;
-  for (const quote of canonical.quoteDrafts) await db.put('quoteDrafts', quote);
-  for (const client of canonical.clients) await db.put('clients', client);
+  // 只寫回真的變動的資料，且原樣寫入（不重蓋 _ts）：搬移不是使用者的新修改，
+  // 不能因此蓋掉別台裝置較新的版本，也不能讓別台已刪除的報價復活。
+  const added = new Set(canonical.addedQuoteIds);
+  const changed = new Set(canonical.changedClientIds);
+  for (const quote of canonical.quoteDrafts) if (added.has(quote.id)) await db.putRaw('quoteDrafts', quote);
+  // 客戶只比原本時間 +1ms：贏過「同一版但還帶舊 quotes 的自己」（避免兩台同分互相覆蓋），但輸給任何真正較新的修改
+  for (const client of canonical.clients) if (changed.has(client.id)) await db.putRaw('clients', { ...client, _ts: recTs(client) + 1 });
   return canonical;
+}
+
+/**
+ * 啟動時的整理寫入。預設分類／階段／業績欄位只放記憶體、不寫進資料庫——
+ * 寫進去會帶新的 _ts，新裝置一同步就把使用者在別台自訂好的同 id 資料蓋回預設值。
+ */
+async function persistStartupMigrations({ customPricingHistoryRow, resolvedCustomPricingHistory, caseNumberSequenceRow, nextNumber }) {
+  // 自訂品項歷史：只有真的搬到東西才寫；空的不寫（否則新裝置的空清單會蓋掉雲端真實紀錄）
+  if (!customPricingHistoryRow?.legacyMigratedAt && resolvedCustomPricingHistory.length > 0) {
+    await db.put('settings', {
+      key: 'customPricingHistory', entries: resolvedCustomPricingHistory,
+      legacyMigratedAt: new Date().toISOString(),
+    });
+  }
+  // 案件編號序號：還沒有任何編號時不必寫（避免新裝置的「100」蓋掉雲端已用到的序號）
+  const isPristine = !caseNumberSequenceRow && nextNumber === FIRST_CASE_NUMBER;
+  if (!isPristine && caseNumberSequenceRow?.nextNumber !== nextNumber) {
+    await db.put('settings', { key: 'caseNumberSequence', nextNumber });
+  }
 }
 
 const DEFAULT_CATS = [
@@ -315,16 +340,6 @@ export function AppProvider({ children }) {
             { id: 'central-custom-pricing', customItemHistory: storedCustomPricingHistory },
             ...pricingRecords,
           ]);
-        if (!customPricingHistoryRow?.legacyMigratedAt) {
-          await db.put('settings', {
-            key: 'customPricingHistory', entries: resolvedCustomPricingHistory,
-            legacyMigratedAt: new Date().toISOString(),
-          });
-        }
-
-        if (cats.length === 0) for (const c of DEFAULT_CATS) await db.put('cats', c).catch(() => {});
-        if (stages.length === 0) for (const s of DEFAULT_STAGES) await db.put('stages', s).catch(() => {});
-        if (dealFields.length === 0) for (const f of DEFAULT_DEAL_FIELDS) await db.put('dealFields', f).catch(() => {});
 
         const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
         const caseSeeds = buildLegacyCaseSeeds({
@@ -337,9 +352,9 @@ export function AppProvider({ children }) {
         caseNumberNextRef.current = numberedCases.nextNumber;
         const visibleCases = numberedCases.cases.filter((row) => !row.deletedAt);
         casesRef.current = visibleCases;
-        if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
-          await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
-        }
+        await persistStartupMigrations({
+          customPricingHistoryRow, resolvedCustomPricingHistory, caseNumberSequenceRow, nextNumber: numberedCases.nextNumber,
+        });
         const resolvedCases = visibleCases;
         dispatch({
           type: 'LOAD_INIT',
@@ -404,14 +419,24 @@ export function AppProvider({ children }) {
     return saveClient(updater(current));
   }, [saveClient]);
 
-  /** 刪除客戶時一併清除其關聯的行事曆活動與未完成提醒，避免日曆留下孤兒項目 */
+  /**
+   * 刪除客戶時一併清除其關聯的行事曆活動與未完成提醒，避免日曆留下孤兒項目。
+   * 內部成本紀錄：綁著仍存在的成交或報價的一律保留（成交不會跟著刪，成本利潤不能不見）。
+   * 案件、報價、成交、工作、歷程、待辦、接待紀錄維持原狀不動（保守做法：不默默刪使用者資料）。
+   */
   const cleanupClientLinks = useCallback(async (idSet) => {
     const set = idSet instanceof Set ? idSet : new Set(idSet);
-    const [evs, tms, pricing] = await Promise.all([
+    const [evs, tms, allPricing, deals, quotes] = await Promise.all([
       db.getAll('events'),
       db.getAll('timers'),
       db.getAll('pricingRecords').catch(() => []),
+      db.getAll('deals').catch(() => null),
+      db.getAll('quoteDrafts').catch(() => null),
     ]);
+    // 讀不到成交或報價時寧可一筆都不刪
+    const pricing = deals && quotes ? pricingRecordsToDropForClients(allPricing, set, {
+      dealIds: new Set(deals.map((row) => row.id)), quoteIds: new Set(quotes.map((row) => row.id)),
+    }) : [];
     for (const e of evs) {
       if (e.clientId && set.has(e.clientId)) {
         await db.delete('events', e.id);
@@ -425,10 +450,8 @@ export function AppProvider({ children }) {
       }
     }
     for (const record of pricing) {
-      if (record.clientId && set.has(record.clientId)) {
-        await db.delete('pricingRecords', record.id);
-        dispatch({ type: 'DELETE_PRICING_RECORD', id: record.id });
-      }
+      await db.delete('pricingRecords', record.id);
+      dispatch({ type: 'DELETE_PRICING_RECORD', id: record.id });
     }
   }, []);
 
@@ -459,31 +482,39 @@ export function AppProvider({ children }) {
   const reassignClientRecords = useCallback(async (sourceId, targetClient) => {
     if (!sourceId || !targetClient?.id) return;
     const now = new Date().toISOString();
+    const id = targetClient.id;
+    const name = targetClient.name;
+    // 只列出要改的欄位；值都一樣的資料不重寫（一般儲存客戶時 sourceId === targetId，
+    // 若整批重寫會蓋上新的 _ts，讓這台的舊資料在同步時蓋掉別台較新的修改）
     const mappings = [
-      ['cases', 'UPSERT_CASE', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
-      ['workItems', 'UPSERT_WORK_ITEM', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
-      ['activities', 'UPSERT_ACTIVITY', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
-      ['tasks', 'UPSERT_TASK', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
-      ['events', 'UPSERT_EVENT', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
-      ['timers', 'UPSERT_TIMER', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
-      ['pricingRecords', 'UPSERT_PRICING_RECORD', (row) => ({ ...row, clientId: targetClient.id, updatedAt: now })],
-      ['quoteDrafts', 'UPSERT_QUOTE_DRAFT', (row) => ({ ...row, clientId: targetClient.id, customerName: targetClient.name, updatedAt: now })],
-      ['deals', 'UPSERT_DEAL', (row) => ({ ...row, clientId: targetClient.id, clientName: targetClient.name, updatedAt: now })],
-      ['receptionSessions', 'UPSERT_RECEPTION_SESSION', (row) => ({ ...row, clientId: targetClient.id, displayName: targetClient.name, pendingCustomerDetails: !!targetClient.pendingCustomerDetails, updatedAt: now })],
+      ['cases', 'UPSERT_CASE', { clientId: id, clientName: name }],
+      ['workItems', 'UPSERT_WORK_ITEM', { clientId: id, clientName: name }],
+      ['activities', 'UPSERT_ACTIVITY', { clientId: id, clientName: name }],
+      ['tasks', 'UPSERT_TASK', { clientId: id }],
+      ['events', 'UPSERT_EVENT', { clientId: id }],
+      ['timers', 'UPSERT_TIMER', { clientId: id, clientName: name }],
+      ['pricingRecords', 'UPSERT_PRICING_RECORD', { clientId: id }],
+      ['quoteDrafts', 'UPSERT_QUOTE_DRAFT', { clientId: id, customerName: name }],
+      ['deals', 'UPSERT_DEAL', { clientId: id, clientName: name }],
+      ['receptionSessions', 'UPSERT_RECEPTION_SESSION', { clientId: id, displayName: name, pendingCustomerDetails: !!targetClient.pendingCustomerDetails }],
     ];
-    for (const [storeName, actionType, patch] of mappings) {
+    for (const [storeName, actionType, fields] of mappings) {
       const rows = await db.getAll(storeName).catch(() => []);
       for (const row of rows) {
         if (row.clientId !== sourceId) continue;
-        const next = patch(row);
+        const diff = changedPatch(row, fields);
+        if (!diff) continue;
+        const next = { ...row, ...diff, updatedAt: now };
         await db.put(storeName, next);
         dispatch({ type: actionType, payload: next });
       }
     }
     if (sourceId !== targetClient.id) {
+      // 照片只存本機、刪了救不回 → 改掛到正式客戶，不刪除。
+      // 改掛失敗就丟出錯誤、暫不刪除原客戶，讓照片仍有主人（之後可再合併一次）。
+      await db.reassignPhotos(sourceId, targetClient.id);
       clientsRef.current = clientsRef.current.filter((row) => row.id !== sourceId);
       await db.delete('clients', sourceId);
-      await db.deletePhotosByClient(sourceId).catch(() => {});
       dispatch({ type: 'DELETE_CLIENT', id: sourceId });
     }
   }, []);
@@ -939,12 +970,6 @@ export function AppProvider({ children }) {
         { id: 'central-custom-pricing', customItemHistory: storedCustomPricingHistory },
         ...pricingRecords,
       ]);
-    if (!customPricingHistoryRow?.legacyMigratedAt) {
-      await db.put('settings', {
-        key: 'customPricingHistory', entries: resolvedCustomPricingHistory,
-        legacyMigratedAt: new Date().toISOString(),
-      });
-    }
     const canonical = await migrateLegacyQuotes(clients, quoteDrafts);
     const caseSeeds = buildLegacyCaseSeeds({ deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases });
     for (const item of caseSeeds) await db.put('cases', item);
@@ -954,9 +979,9 @@ export function AppProvider({ children }) {
     caseNumberNextRef.current = numberedCases.nextNumber;
     const visibleCases = numberedCases.cases.filter((row) => !row.deletedAt);
     casesRef.current = visibleCases;
-    if (caseNumberSequenceRow?.nextNumber !== numberedCases.nextNumber) {
-      await db.put('settings', { key: 'caseNumberSequence', nextNumber: numberedCases.nextNumber });
-    }
+    await persistStartupMigrations({
+      customPricingHistoryRow, resolvedCustomPricingHistory, caseNumberSequenceRow, nextNumber: numberedCases.nextNumber,
+    });
     dispatch({
       type: 'RELOAD_ALL',
       payload: {

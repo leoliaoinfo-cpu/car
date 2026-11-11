@@ -1,5 +1,9 @@
 import { openDB } from 'idb';
-import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME } from './storageKeys';
+import { CAR_DB_NAME, LEGACY_SHARED_DB_NAME, STORAGE_KEYS } from './storageKeys';
+import {
+  ALL_STORES, STORE_KEYS, TOMBSTONE_KEEP_MS, mergeTombstoneLists, planStoreApply, planTombstoneApply,
+  planImportStore,
+} from './utils/dataMerge.js';
 
 const DB_NAME = CAR_DB_NAME;
 // v12：以「客戶 → 案件 → 工作」為核心的行動工作台；舊資料不搬移、不刪除。
@@ -136,20 +140,7 @@ function getDB() {
   return dbPromise;
 }
 
-const ALL_STORES = [
-  'clients', 'cats', 'stages', 'customFields',
-  'deals', 'dealFields', 'pricingRecords', 'quoteDrafts', 'receptionSessions', 'suppliers', 'cases', 'workItems', 'activities', 'tasks', 'events',
-  'journalEntries', 'archivedJournal',
-  'salaryMonths', 'timers', 'timerHistory', 'settings',
-];
-
-// 各 store 的主鍵欄位（同步合併時逐筆比對用）
-export const STORE_KEYS = {
-  clients: 'id', cats: 'id', stages: 'id', customFields: 'id',
-  deals: 'id', dealFields: 'id', pricingRecords: 'id', quoteDrafts: 'id', receptionSessions: 'id', suppliers: 'id', cases: 'id', workItems: 'id', activities: 'id', tasks: 'id', events: 'id', timers: 'id', timerHistory: 'id',
-  settings: 'key', salaryMonths: 'key',
-  journalEntries: 'date', archivedJournal: 'date',
-};
+export { STORE_KEYS };
 export const SYNCED_STORES = ALL_STORES;
 
 // 資料變動通知（雲端同步引擎訂閱後，變動會排程自動上傳）
@@ -219,6 +210,12 @@ export const db = {
     notifyMutation();
     return res;
   },
+  /** 原樣寫入、不重蓋 _ts（搬移舊資料等「內容沒實質改變」的情境用，避免舊裝置的整理動作蓋掉別台的新修改） */
+  async putRaw(store, value) {
+    const res = await (await getDB()).put(store, value);
+    notifyMutation();
+    return res;
+  },
   async delete(store, key) {
     const database = await getDB();
     await database.delete(store, key);
@@ -263,6 +260,21 @@ export const db = {
     while (cursor) { await cursor.delete(); cursor = await cursor.continue(); }
     await tx.done;
   },
+  /** 客戶合併時把照片改掛到正式客戶（照片只存本機，刪了就永久消失） */
+  async reassignPhotos(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return 0;
+    const database = await getDB();
+    const tx = database.transaction('photos', 'readwrite');
+    let moved = 0;
+    let cursor = await tx.store.index('clientId').openCursor(sourceId);
+    while (cursor) {
+      await cursor.update({ ...cursor.value, clientId: targetId });
+      moved += 1;
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+    return moved;
+  },
   /** 目前所有照片佔用的位元組數（供設定頁顯示已用空間） */
   async photosUsage() {
     const all = await (await getDB()).getAll('photos');
@@ -277,7 +289,6 @@ export const db = {
    */
   async housekeep() {
     const now = Date.now();
-    const TOMBSTONE_KEEP_MS = 90 * 24 * 3600 * 1000;
     const DONE_KEEP_MS = 30 * 24 * 3600 * 1000;
 
     const tombs = await db.getAll('tombstones');
@@ -294,13 +305,17 @@ export const db = {
       const ts = t.done && t.doneAt ? Date.parse(t.doneAt) : NaN;
       if (!Number.isNaN(ts) && now - ts >= DONE_KEEP_MS) await db.delete('tasks', t.id);
     }
-    // 清孤兒照片（對應客戶已不存在，例如還原舊備份後）——釋放其佔用的空間
+    // 清孤兒照片：只刪「客戶確實已被刪除（有墓碑）」的照片。
+    // 客戶暫時不在本機（例如剛還原備份、雲端還沒同步回來）時照片必須留著——照片只存本機，刪了救不回。
     const clientIds = new Set((await db.getAll('clients')).map((c) => c.id));
+    const deletedClientIds = new Set((await db.getAll('tombstones'))
+      .filter((t) => t.store === 'clients').map((t) => t.key));
     const database = await getDB();
     const tx = database.transaction('photos', 'readwrite');
     let cur = await tx.store.openCursor();
     while (cur) {
-      if (!clientIds.has(cur.value.clientId)) await cur.delete();
+      const cid = cur.value.clientId;
+      if (!clientIds.has(cid) && deletedClientIds.has(cid)) await cur.delete();
       cur = await cur.continue();
     }
     await tx.done;
@@ -322,51 +337,94 @@ export const db = {
     return data;
   },
 
-  /** 雲端同步用：把合併後的結果原樣寫回——不蓋 _ts、不寫墓碑、不觸發變動通知 */
+  /**
+   * 雲端同步用：把合併結果「逐筆」套進本機——絕不清空 store。
+   * 在單一 readwrite 交易內讀取「當下」的本機資料再比對，所以同步拉資料期間剛做的修改不會被蓋掉：
+   * - 合併結果比本機新（或本機沒有）才寫入
+   * - 只有墓碑蓋到的本機資料才刪除；合併結果沒有但也沒被刪的本機資料保留
+   * - 墓碑只增不減（同 id 取較新的）
+   * 不蓋 _ts、不寫墓碑、不觸發變動通知。回傳實際寫入／刪除的筆數。
+   */
   async applySyncedSnapshot(data) {
     const database = await getDB();
-    for (const store of [...ALL_STORES, 'tombstones']) {
-      if (!Array.isArray(data[store])) continue;
-      const tx = database.transaction(store, 'readwrite');
-      tx.store.clear();
-      for (const item of data[store]) tx.store.put(item);
-      await tx.done;
+    const stores = [...ALL_STORES, 'tombstones'];
+    const tx = database.transaction(stores, 'readwrite');
+    let changed = 0;
+    const tombStore = tx.objectStore('tombstones');
+    const currentTombs = await tombStore.getAll();
+    const tombMap = mergeTombstoneLists(currentTombs, data.tombstones);
+    for (const t of planTombstoneApply(currentTombs, data.tombstones || [])) { tombStore.put(t); changed += 1; }
+    for (const store of ALL_STORES) {
+      const os = tx.objectStore(store);
+      const current = await os.getAll();
+      const { puts, deletes } = planStoreApply(store, STORE_KEYS[store], current,
+        Array.isArray(data[store]) ? data[store] : [], tombMap);
+      for (const row of puts) os.put(row);
+      for (const key of deletes) os.delete(key);
+      changed += puts.length + deletes.length;
     }
+    await tx.done;
+    return { changed };
   },
 
-  /** 匯出並下載備份，同時記錄最後備份時間（供備份提醒使用） */
+  /** 匯出並下載備份，同時記錄最後備份時間（供備份提醒使用；只記在這台裝置，不同步） */
   async exportAndDownload() {
     const data = await db.exportAll();
     downloadJSON(data, `auto-sales-backup-${new Date().toISOString().slice(0, 10)}.json`);
-    await db.put('settings', { key: 'lastBackupAt', value: new Date().toISOString() }).catch(() => {});
+    try { localStorage.setItem(STORAGE_KEYS.lastBackupAt, new Date().toISOString()); } catch { /* 無法記錄不影響備份 */ }
     return data;
   },
 
-  /** 最後備份時間（ISO 字串），從未備份回傳 null */
+  /** 這台裝置最後備份時間（ISO 字串），從未備份回傳 null；舊版存在同步設定裡的值當備援 */
   async getLastBackupAt() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.lastBackupAt);
+      if (local) return local;
+    } catch { /* noop */ }
     const row = await db.get('settings', 'lastBackupAt').catch(() => null);
     return row?.value ?? null;
   },
 
-  /** Full import — wipes existing data */
-  async importAll(data) {
-    for (const store of ALL_STORES) {
-      if (Array.isArray(data[store])) {
-        await db.clear(store);
-        await db.bulkPut(store, data[store]);
+  /**
+   * 還原備份（共用）：單一交易內完成，任何一筆失敗整批不生效。
+   * replace：清空後寫入備份；merge：逐筆保留較新的一方。
+   * 備份裡已被刪除（墓碑）的資料會被救回：重蓋時間並移除墓碑，同步時才不會再被刪掉。
+   */
+  async _restore(data, mode) {
+    const database = await getDB();
+    const stores = ALL_STORES.filter((store) => Array.isArray(data?.[store]));
+    if (stores.length === 0) return;
+    const tx = database.transaction([...stores, 'tombstones'], 'readwrite');
+    const tombStore = tx.objectStore('tombstones');
+    const tombMap = mergeTombstoneLists(await tombStore.getAll());
+    const now = Date.now();
+    const done = tx.done;
+    try {
+      for (const store of stores) {
+        const os = tx.objectStore(store);
+        const local = mode === 'merge' ? await os.getAll() : [];
+        const { puts, dropTombstones } = planImportStore(store, STORE_KEYS[store], local, data[store], tombMap, { mode, now });
+        if (mode === 'replace') await os.clear();
+        for (const row of puts) os.put(row);
+        for (const id of dropTombstones) tombStore.delete(id);
       }
+    } catch (err) {
+      try { tx.abort(); } catch { /* 已中止 */ }
+      await done.catch(() => {});
+      throw err;
     }
-    setMutationListenerNotify();
+    await done;
+    notifyMutation();
   },
 
-  /** Merge import from v2 format without wiping */
+  /** 完整還原——清掉現有資料改用備份（單一交易，失敗不會只還原一半） */
+  async importAll(data) {
+    await db._restore(data, 'replace');
+  },
+
+  /** 安全合併：不清除現有資料，逐筆保留較新的版本 */
   async mergeImport(data) {
-    for (const store of ALL_STORES) {
-      if (Array.isArray(data[store])) {
-        await db.bulkPut(store, data[store]);
-      }
-    }
-    setMutationListenerNotify();
+    await db._restore(data, 'merge');
   },
 
   /** Import from legacy v1 format: { _v:1, crm, jnl, sal } */
