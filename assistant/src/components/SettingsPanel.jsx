@@ -10,7 +10,7 @@ import {
   notifySupported, notifyPermission, requestNotifyPermission,
   showSystemNotification, registerPeriodicReminderCheck,
 } from '../notify';
-import { Field } from './ui';
+import { Field, ConfirmDeleteButton } from './ui';
 import { STORAGE_KEYS } from '../storageKeys';
 import {
   DEFAULT_PRESENTATION_PIN_HASH, hashPresentationPin, isValidPresentationPin,
@@ -639,8 +639,8 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
                         className={`text-[10px] rounded-full border px-2 py-1 shrink-0 ${item.pendingPrice ? 'border-warn text-warn bg-warn/10' : 'border-bdr text-ink-3'}`}>
                         {item.pendingPrice ? '待廠商報價' : '固定價'}
                       </button>
-                      <button type="button" onClick={() => onChange(items.filter((entry) => entry.id !== item.id))}
-                        aria-label={`刪除${item.name}`} className="text-danger/60 hover:text-danger text-sm shrink-0">✕</button>
+                      <ConfirmDeleteButton onConfirm={() => onChange(items.filter((entry) => entry.id !== item.id))}
+                        ariaLabel={`刪除${item.name}`} className="text-danger/60 hover:text-danger text-sm shrink-0" />
                     </div>
                     {customCategoryId === item.id && (
                       <div className="flex items-center gap-2 rounded-lg bg-s2 p-2">

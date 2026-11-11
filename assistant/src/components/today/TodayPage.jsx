@@ -8,6 +8,7 @@ import {
 import { formatDate } from '../../utils/date';
 import { downloadICS, needsIcsExport, snoozeIcsReminder } from '../../utils/ics';
 import dayjs from 'dayjs';
+import { ConfirmDeleteButton } from '../ui';
 
 export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReception }) {
   const {
@@ -471,7 +472,7 @@ export default function TodayPage({ onOpenClient, onOpenSettings, onOpenReceptio
                   )}
                 </div>
                 <button onClick={() => confirmTimer(t)} className="btn-outline text-xs shrink-0">完成</button>
-                <button onClick={() => deleteTimer(t.id)} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
+                <ConfirmDeleteButton onConfirm={() => deleteTimer(t.id)} ariaLabel="刪除計時" className="text-danger/40 hover:text-danger text-xs shrink-0" />
               </div>
             );
           })}
@@ -674,7 +675,7 @@ function TaskRow({ task, todayStr, onToggle, onDelete, onOpenClient, onSetDate }
         <input type="date" value={due} onChange={(e) => onSetDate(e.target.value)}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style={{ padding: 0, border: 'none' }} />
       </label>
-      <button onClick={onDelete} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
+      <ConfirmDeleteButton onConfirm={onDelete} ariaLabel="刪除待辦" className="text-danger/40 hover:text-danger text-xs shrink-0" />
     </div>
   );
 }

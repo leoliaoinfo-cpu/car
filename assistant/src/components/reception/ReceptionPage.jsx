@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { calculateQuoteTotals } from '../../utils/pricing';
@@ -21,6 +21,9 @@ import { STORAGE_KEYS } from '../../storageKeys';
 import { addDays, today } from '../../utils/date';
 import ProductCatalog from '../catalog/ProductCatalog';
 import TruckComparison from './TruckComparison';
+import { ConfirmDeleteButton } from '../ui';
+
+const BLANK_FORMAL = { name: '', phone: '', lineId: '', company: '', address: '', budget: '', purchaseTime: '', payment: '', loanNeed: '', nextDate: '' };
 
 const CHIP = 'min-h-11 rounded-xl border px-3 py-2 text-sm transition-colors text-left';
 const selectedChip = (selected) => `${CHIP} ${selected ? 'bg-accent text-on-accent border-accent font-semibold' : 'bg-s1 text-ink-2 border-bdr hover:border-accent/60'}`;
@@ -62,7 +65,9 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
   const [view, setView] = useState('sessions');
   const [selectedId, setSelectedId] = useState(null);
   const [showFormalize, setShowFormalize] = useState(false);
-  const [formal, setFormal] = useState({ name: '', phone: '', lineId: '', company: '', address: '', budget: '', purchaseTime: '', payment: '', loanNeed: '', nextDate: '' });
+  const [formal, setFormal] = useState(BLANK_FORMAL);
+  const [formalSaving, setFormalSaving] = useState(false);
+  const formalBusy = useRef(false);
   const [notice, setNotice] = useState('');
   const [showSessionComparison, setShowSessionComparison] = useState(false);
   const [showSessionSpecs, setShowSessionSpecs] = useState(false);
@@ -94,8 +99,37 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     await update({ requirements: { ...session.requirements, [name]: { ...(session.requirements?.[name] || {}), ...patch } } });
   }
 
+  // 每次開啟「建立客戶」視窗，都用目前這場接待重新帶入，避免殘留上一位客戶的資料
+  function openFormalize() {
+    if (!session) return;
+    const linked = session.clientId ? clients.find((row) => row.id === session.clientId) : null;
+    setFormal({
+      ...BLANK_FORMAL,
+      name: linked?.name || session.displayName || '',
+      phone: linked?.phone || '',
+      lineId: linked?.lineId || '',
+      company: linked?.company || '',
+      address: linked?.address || '',
+    });
+    setShowFormalize(true);
+  }
+
   async function formalize() {
-    if (!session || !formal.name.trim()) return;
+    if (!session || !formal.name.trim() || formalBusy.current) return;
+    formalBusy.current = true;
+    setFormalSaving(true);
+    try {
+      await formalizeInner();
+    } catch (err) {
+      console.error(err);
+      setNotice('建立客戶失敗，請再試一次。');
+    } finally {
+      formalBusy.current = false;
+      setFormalSaving(false);
+    }
+  }
+
+  async function formalizeInner() {
     const selectedVariant = getVehicleVariant(session.vehicleVariantId);
     const generatedHeightSummary = heightPlanSummary(session, selectedVariant, heightConfig);
     const linkedClient = session.clientId ? clients.find((row) => row.id === session.clientId) : null;
@@ -161,6 +195,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
     }
     await saveReceptionSession({ ...session, status: 'formalized', clientId: client.id, displayName: client.name });
     setShowFormalize(false);
+    setFormal(BLANK_FORMAL);
     onOpenClient?.(client.id);
   }
 
@@ -282,7 +317,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
 
   if (session) return <>
     <ReceptionEditor session={session} update={update} updateRequirement={updateRequirement} heightConfig={heightConfig}
-      onBack={() => setSelectedId(null)} onFormalize={() => setShowFormalize(true)} onAddQuote={addConfirmedToQuote} quoteSaving={savingQuote}
+      onBack={() => setSelectedId(null)} onFormalize={openFormalize} onAddQuote={addConfirmedToQuote} quoteSaving={savingQuote}
       onOpenCatalog={onOpenCatalog}
       onOpenShowcase={() => setShowCustomerShowcase(true)}
       onOpenSpecs={() => setShowSessionSpecs(true)}
@@ -305,7 +340,7 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
       </div>
     )}
     {showCustomerShowcase && <CustomerShowcase onExit={() => setShowCustomerShowcase(false)} />}
-    {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
+    {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} saving={formalSaving} />}
   </>;
 
   return (
@@ -328,12 +363,12 @@ export default function ReceptionPage({ startNewToken, onStartConsumed, onOpenCl
             <article key={row.id} className="card p-4">
               <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold">{row.displayName}</h2><p className="text-xs text-ink-3 mt-1">{row.source || '接待'}・{row.customerMode}・{dayjs(row.updatedAt).format('M/D HH:mm')}</p></div><span className={`badge ${row.status === 'formalized' ? 'bg-ok/10 text-ok' : 'bg-accent/10 text-accent'}`}>{{ formalized: '已建立客戶', hold: '已保留', closed: '不追蹤', active: '接待中' }[row.status] || '接待中'}</span></div>
               <p className="text-sm text-ink-2 mt-3 line-clamp-2">{[row.industry, row.currentVehicle, ...(row.cargo || [])].filter(Boolean).join('・') || '尚未開始記錄需求'}</p>
-              <div className="flex gap-2 mt-4"><button onClick={() => setSelectedId(row.id)} className="btn-primary flex-1">開啟</button><button onClick={() => deleteReceptionSession(row.id)} className="btn-ghost text-danger">刪除</button></div>
+              <div className="flex gap-2 mt-4"><button onClick={() => setSelectedId(row.id)} className="btn-primary flex-1">開啟</button><ConfirmDeleteButton label="刪除" ariaLabel="刪除接待紀錄" onConfirm={() => deleteReceptionSession(row.id)} className="btn-ghost text-danger" /></div>
             </article>
           ))}</div>
       )}
 
-      {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} />}
+      {showFormalize && <FormalizeModal form={formal} setForm={setFormal} onClose={() => setShowFormalize(false)} onSave={formalize} saving={formalSaving} />}
     </div>
   );
 }
@@ -643,7 +678,7 @@ function ShowcaseHome({ onSelect }) {
   return <div className="space-y-6"><section className="rounded-3xl bg-gradient-to-br from-slate-800 to-slate-950 p-7 md:p-10 text-white"><p className="text-xs tracking-[0.25em] text-orange-300">KIA K2500</p><h1 className="text-3xl md:text-5xl font-black mt-3">選對工作車，工作更順手</h1><p className="mt-4 max-w-2xl text-sm md:text-base text-slate-200 leading-relaxed">從平常載運內容、路線、乘坐人數與改裝需求出發，查看適合自己的車型與工作配備。實際售價、載重與改裝內容仍由業務依正式資料確認。</p></section><div className="grid sm:grid-cols-2 gap-4">{cards.map(([key, icon, title, desc]) => <button type="button" key={key} onClick={() => onSelect(key)} className="card min-h-40 p-5 text-left hover:border-accent/60 transition-colors"><span className="text-3xl">{icon}</span><strong className="block text-xl mt-3">{title}</strong><span className="block text-sm text-ink-3 mt-2 leading-relaxed">{desc}</span><span className="block text-sm text-accent font-semibold mt-4">開始查看 →</span></button>)}</div></div>;
 }
 
-function FormalizeModal({ form, setForm, onClose, onSave }) {
+function FormalizeModal({ form, setForm, onClose, onSave, saving }) {
   const set = (key, value) => setForm((old) => ({ ...old, [key]: value }));
-  return <><div className="overlay" onClick={onClose} /><div className="modal"><div className="safe-screen bg-s1 rounded-2xl border border-bdr shadow-panel w-full max-w-lg max-h-[92dvh] overflow-y-auto p-5 z-50"><h2 className="text-lg font-bold">建立客戶並追蹤</h2><p className="text-xs text-ink-3 mt-1">接待紀錄會全部帶入，不必重新問一次。</p><div className="grid grid-cols-2 gap-3 mt-5">{[['name', '姓名／公司名 *'], ['phone', '電話'], ['lineId', 'LINE'], ['company', '公司名稱'], ['address', '地址'], ['budget', '預算'], ['purchaseTime', '購車時間'], ['payment', '付款方式'], ['loanNeed', '貸款需求'], ['nextDate', '下次追蹤日期']].map(([key, label]) => <label key={key} className={key === 'address' ? 'col-span-2' : ''}><span className="text-xs text-ink-3">{label}</span><input type={key === 'nextDate' ? 'date' : 'text'} value={form[key]} onChange={(e) => set(key, e.target.value)} className="w-full min-h-11 mt-1" /></label>)}</div><div className="flex gap-2 mt-5"><button onClick={onClose} className="btn-outline flex-1">取消</button><button onClick={onSave} disabled={!form.name.trim()} className="btn-primary flex-1 disabled:opacity-40">建立客戶並追蹤</button></div></div></div></>;
+  return <><div className="overlay" onClick={onClose} /><div className="modal"><div className="safe-screen bg-s1 rounded-2xl border border-bdr shadow-panel w-full max-w-lg max-h-[92dvh] overflow-y-auto p-5 z-50"><h2 className="text-lg font-bold">建立客戶並追蹤</h2><p className="text-xs text-ink-3 mt-1">接待紀錄會全部帶入，不必重新問一次。</p><div className="grid grid-cols-2 gap-3 mt-5">{[['name', '姓名／公司名 *'], ['phone', '電話'], ['lineId', 'LINE'], ['company', '公司名稱'], ['address', '地址'], ['budget', '預算'], ['purchaseTime', '購車時間'], ['payment', '付款方式'], ['loanNeed', '貸款需求'], ['nextDate', '下次追蹤日期']].map(([key, label]) => <label key={key} className={key === 'address' ? 'col-span-2' : ''}><span className="text-xs text-ink-3">{label}</span><input type={key === 'nextDate' ? 'date' : 'text'} value={form[key]} onChange={(e) => set(key, e.target.value)} className="w-full min-h-11 mt-1" /></label>)}</div><div className="flex gap-2 mt-5"><button onClick={onClose} className="btn-outline flex-1">取消</button><button onClick={onSave} disabled={!form.name.trim() || saving} className="btn-primary flex-1 disabled:opacity-40">{saving ? '建立中…' : '建立客戶並追蹤'}</button></div></div></div></>;
 }

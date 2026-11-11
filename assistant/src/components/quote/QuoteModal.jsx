@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
-import { Field } from '../ui';
+import { Field, ConfirmDeleteButton } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, includedQuoteItems, mergeQuoteDiscounts, normalizeDiscount, normalizeQuoteItems,
@@ -522,9 +522,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const effectiveDown = loan.downPct != null ? Math.round(total * loan.downPct / 100) : (Number(loan.down) || 0);
   const loanPrincipal = Math.max(0, total - effectiveDown);
   const selMonths = Math.min(84, Number(loan.months) || 0);
-  // 選到的期數對應年利率（設定帶入）；找不到就 0（單純除法）
+  // 選到的期數對應年利率（設定帶入）；找不到就用標準 4.5% 概算（不可退成 0% 單純除法）
   const selTerm = loanTerms.find((t) => Number(t.months) === selMonths);
-  const annualRate = selTerm ? Number(selTerm.rate) || 0 : 0;
+  const annualRate = selTerm ? Number(selTerm.rate) || 0 : 4.5;
   const monthlyPay = calcMonthlyPayment(loanPrincipal, annualRate, selMonths);
 
   // 選車型：帶入車型名稱，並把「車輛售價」項目設為該車型售價
@@ -1370,8 +1370,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
                       disabled={it.pending} placeholder={it.pending ? '待廠商報價' : it.gift ? '贈送價值' : '0'}
                       className="w-28 text-sm disabled:opacity-40" />
-                    <button onClick={() => removeItem(it.id)}
-                      className="text-danger/50 hover:text-danger shrink-0 px-1">✕</button>
+                    <ConfirmDeleteButton onConfirm={() => removeItem(it.id)} ariaLabel="刪除此項目"
+                      className="text-danger/50 hover:text-danger shrink-0 px-1" />
                   </div>
                   {heightImpact && (
                     <p className="rounded-lg border border-warn/35 bg-warn/10 px-2.5 py-2 text-[11px] font-semibold text-warn leading-relaxed">
@@ -1788,14 +1788,14 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   <p style={{ color: '#b08650', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>貸款概算</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <span style={{ color: '#8b7355', fontSize: 11, fontWeight: 600 }}>
-                      分 {selMonths} 期・年利率 {annualRate}%
+                      分 {selMonths} 期
                     </span>
                     <span style={{ color: '#2e3a42', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                       <span style={{ fontSize: 11, fontWeight: 600, marginRight: 3 }}>每月約</span>
                       <span style={{ fontSize: 19 }}>{formatMoney(monthlyPay)}</span>
                     </span>
                   </div>
-                  <p style={{ color: '#a5937e', fontSize: 8.8, lineHeight: 1.5, marginTop: 6 }}>以上為概算；實際利率、額度、還款方式與核貸結果依貸款機構及客戶條件為準。</p>
+                  <p style={{ color: '#a5937e', fontSize: 8.8, lineHeight: 1.5, marginTop: 6 }}>以上為概算；實際額度、還款方式與核貸結果以核貸為準。</p>
                 </div>
               )}
 

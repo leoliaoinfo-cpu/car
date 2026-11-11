@@ -100,3 +100,28 @@ export function ClientPicker({
     </div>
   );
 }
+
+/**
+ * 兩段式刪除鈕：第一下變紅色「確定刪除?」，再按一下才真正刪除；幾秒沒按就自動恢復。
+ */
+export function ConfirmDeleteButton({ onConfirm, label = '✕', className = '', ariaLabel, timeout = 3500 }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return undefined;
+    const t = setTimeout(() => setArmed(false), timeout);
+    return () => clearTimeout(t);
+  }, [armed, timeout]);
+  return (
+    <button
+      type="button"
+      aria-label={armed ? '確定刪除' : ariaLabel}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (armed) { setArmed(false); onConfirm(); } else setArmed(true);
+      }}
+      className={armed ? 'text-[11px] font-semibold text-white bg-danger rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap' : className}
+    >
+      {armed ? '確定刪除?' : label}
+    </button>
+  );
+}
