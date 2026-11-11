@@ -104,6 +104,13 @@ function AppInner() {
   }
 
   function openCaseOperations(dealId = null, caseId = null) {
+    // 施工進度不是機密，直接在案件內處理（不需要密碼）；沒有案件才進後台管理頁
+    if (caseId) {
+      setShowQuickCreate(false);
+      setShowCaseSearch(false);
+      openCase(caseId);
+      return;
+    }
     setOperationsReturn({ tab, caseId: caseId || null });
     setOperationsFocusDealId(dealId);
     setShowQuickCreate(false);
