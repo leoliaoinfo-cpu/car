@@ -155,13 +155,17 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
   const quoteMap = new Map(quotes.map((row) => [row.id, row]));
   const linkedQuoteIds = new Set(deals.map((row) => row.quoteId).filter(Boolean));
   const existingIds = new Set(existingCases.map((row) => row.id));
+  // 舊資料的成交／報價關聯只記在案件上（case.dealId、case.quoteIds），也要算「已有案件」，
+  // 否則會替同一筆成交或報價重複建立第二個案件（見 findDealForCase）。含已封存的案件。
+  const caseDealIds = new Set(existingCases.map((row) => row.dealId).filter(Boolean));
+  const caseQuoteIds = new Set(existingCases.flatMap((row) => row.quoteIds || []));
   const now = new Date().toISOString();
   const seeds = [];
 
   for (const deal of deals) {
     const id = `case:deal:${deal.id}`;
     if (deal.caseId && existingIds.has(deal.caseId)) continue;
-    if (existingIds.has(id)) continue;
+    if (existingIds.has(id) || caseDealIds.has(deal.id)) continue;
     const quote = quoteMap.get(deal.quoteId);
     const client = clientMap.get(deal.clientId);
     seeds.push({
@@ -184,7 +188,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
     if (quote.caseArchivedAt || quote.archivedAt) continue;
     if (quote.caseId && existingIds.has(quote.caseId)) continue;
     const id = `case:quote:${quote.id}`;
-    if (linkedQuoteIds.has(quote.id) || existingIds.has(id)) continue;
+    if (linkedQuoteIds.has(quote.id) || existingIds.has(id) || caseQuoteIds.has(quote.id)) continue;
     const client = clientMap.get(quote.clientId);
     seeds.push({
       id,

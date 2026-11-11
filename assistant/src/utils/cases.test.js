@@ -239,3 +239,20 @@ test('findDealForCase finds legacy deals linked only by case.dealId and ignores 
   assert.equal(findDealForCase([{ id: 'd-old', caseArchivedAt: 'x' }], { id: 'c1', dealId: 'd-old' }), null);
   assert.equal(findDealForCase([legacy], { id: 'c9' }), null);
 });
+
+test('舊成交只靠 case.dealId 關聯時不重複建立案件', () => {
+  const seeds = buildLegacyCaseSeeds({
+    deals: [{ id: 'dOld', clientId: 'c2', quoteId: 'qB' }],
+    quotes: [{ id: 'qB', clientId: 'c2' }],
+    existingCases: [{ id: 'cB', clientId: 'c2', dealId: 'dOld', quoteIds: ['qB'] }],
+  });
+  assert.deepEqual(seeds, []);
+});
+
+test('報價只記在既有案件的 quoteIds 時不重複建立案件', () => {
+  const seeds = buildLegacyCaseSeeds({
+    quotes: [{ id: 'q9', clientId: 'c1' }],
+    existingCases: [{ id: 'case-x', clientId: 'c1', quoteIds: ['q9'] }],
+  });
+  assert.deepEqual(seeds, []);
+});

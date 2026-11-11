@@ -46,3 +46,21 @@ test('unassigned quotes warn after 30 days and linked quotes turn stale after 90
   assert.equal(linked.unassignedOverdue, false);
   assert.equal(linked.linkedStale, true);
 });
+
+test('舊報價搬移只回報真正變動的客戶與新增的報價（其他資料不重寫）', () => {
+  const untouched = { id: 'c0', name: '沒有舊報價' };
+  const clients = [untouched, { id: 'c1', name: '王老闆', quotes: [{ id: 'q1', date: '2026-09-01' }, { id: 'q2' }] }];
+  const existing = { id: 'q2', clientId: 'c1' };
+  const result = canonicalizeQuotes(clients, [existing]);
+  assert.deepEqual(result.changedClientIds, ['c1']);
+  assert.deepEqual(result.addedQuoteIds, ['q1']);
+  assert.equal(result.clients[0], untouched);
+  assert.equal(result.quoteDrafts.find((q) => q.id === 'q2'), existing);
+});
+
+test('沒有舊報價時不回報任何變動', () => {
+  const result = canonicalizeQuotes([{ id: 'c1' }], [{ id: 'q1' }]);
+  assert.equal(result.migrated, false);
+  assert.deepEqual(result.changedClientIds, []);
+  assert.deepEqual(result.addedQuoteIds, []);
+});
