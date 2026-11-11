@@ -177,7 +177,7 @@ function AppInner() {
 
       {!focusedOperations && <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} />}
 
-      <main className={focusedOperations ? '' : 'pb-20 lg:pb-0'}>
+      <main className={focusedOperations ? '' : 'pb-44 lg:pb-0'}>
         <div className="anim-fade-in" key={tab}>
           {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
           {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}

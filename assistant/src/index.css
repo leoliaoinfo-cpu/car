@@ -71,6 +71,13 @@
   html.dark input, html.dark textarea, html.dark select {
     color-scheme: dark;
   }
+  /* iOS Safari 欄位字級小於 16px 會在點入時自動放大畫面；手機寬度一律 16px */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    textarea, select {
+      font-size: 16px !important;
+    }
+  }
   input:focus, textarea:focus, select:focus {
     border-color: rgb(var(--c-accent));
     box-shadow: 0 0 0 2px rgb(var(--c-accent) / 0.2);

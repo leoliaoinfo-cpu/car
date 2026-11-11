@@ -96,8 +96,10 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null, se
   );
   const payrollData = useMemo(() => {
     const caseById = new Map(cases.map((row) => [row.id, row]));
+    // 舊資料只有 case.dealId 連到成交
+    const caseByDealId = new Map(cases.filter((row) => row.dealId).map((row) => [row.dealId, row]));
     const vehicleDeals = deals.filter((deal) => {
-      const linkedCase = caseById.get(deal.caseId);
+      const linkedCase = caseById.get(deal.caseId) || caseByDealId.get(deal.id);
       const pricing = pricingById.get(`deal:${deal.id}`);
       const hasVehicleLine = (pricing?.lines || []).some((line) => line.kind === 'vehicle');
       return linkedCase ? linkedCase.type !== 'modification' : hasVehicleLine;

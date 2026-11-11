@@ -6,7 +6,7 @@ import {
   CAT_COLORS, STATUS_COLOR, STATUS_LABEL,
   generateId, findDuplicateClient,
 } from '../../utils/crm';
-import { advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays } from '../../utils/cases';
+import { advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, findDealForCase } from '../../utils/cases';
 import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
@@ -462,7 +462,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
     });
     return map;
   }, [workQueue]);
-  const dealByCase = useMemo(() => new Map(deals.filter((deal) => !deal.caseArchivedAt && deal.caseId).map((deal) => [deal.caseId, deal])), [deals]);
+  const dealByCase = useMemo(() => new Map(cases.map((row) => [row.id, findDealForCase(deals, row)]).filter(([, deal]) => deal)), [cases, deals]);
   const visibleCases = useMemo(() => (cases || [])
     .filter((item) => !item.deletedAt && allowedClientIds.has(item.clientId))
     .filter((item) => typeFilter === 'all' || item.type === typeFilter),
@@ -506,7 +506,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
   }, [byStage]);
 
   function requestMove(item, stageId) {
-    if (CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId) >= 2 && !deals.some((deal) => deal.id === item.dealId || deal.caseId === item.id)) {
+    if (CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId) >= 2 && !findDealForCase(deals, item)) {
       setSaveError('請先到報價單確認成交版本，再安排施工與交車。');
       return;
     }
@@ -686,6 +686,8 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
     catId: cats[0]?.id || '', stageId: stages[0]?.id || '', intentLevel: 0, notes: '',
   });
 
+  const [saving, setSaving] = useState(false);
+  const busy = useRef(false);
   function set(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
   // 重複偵測：同電話（優先）或同姓名，即時提示避免名單重複
@@ -696,8 +698,15 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.name.trim()) return;
-    await onCreate(form);
+    if (!form.name.trim() || busy.current) return;
+    busy.current = true;
+    setSaving(true);
+    try {
+      await onCreate(form);
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
 
   return (
@@ -760,7 +769,7 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
             )}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" disabled={!form.name.trim()} className="btn-primary flex-1 disabled:opacity-40">{dup ? '仍要新增' : '新增'}</button>
+              <button type="submit" disabled={!form.name.trim() || saving} className="btn-primary flex-1 disabled:opacity-40">{saving ? '新增中…' : dup ? '仍要新增' : '新增'}</button>
             </div>
           </form>
         </div>

@@ -15,7 +15,8 @@ import { heightPlanSummary, requirementSummary, requirementPendingItems } from '
 import { getVehicleVariant } from '../../utils/vehicles';
 import { quotesForClient } from '../../utils/quotes';
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow, updateWorkflowStepStatus } from '../../utils/delivery';
-import { CASE_TYPE_LABEL, getCasePipelineStage } from '../../utils/cases';
+import { CASE_TYPE_LABEL, getCasePipelineStage, findDealForCase } from '../../utils/cases';
+import { stockItemsFromQuote } from '../../utils/stock';
 
 const INTENT_LABELS = ['未評估', '低', '中', '高', '非常高'];
 const INTENT_COLORS = ['#8a919b', '#9a9a6f', '#6f9a9c', '#7d9b76', '#bf8a5e'];
@@ -41,7 +42,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
     pricingRecords, savePricingRecord,
     quoteDrafts, saveQuoteDraft, deleteQuoteDraft,
     events, saveEvent, deleteEvent, heightConfig, cases,
-    workItems, saveWorkItem, reassignClientRecords, saveCase, saveActivity,
+    workItems, saveWorkItem, reassignClientRecords, saveCase, saveActivity, quotePresets,
   } = useApp();
   const clientQuotes = quotesForClient(quoteDrafts, client.id);
   const demandVariant = getVehicleVariant(client.demandProfile?.vehicleVariantId);
@@ -85,6 +86,9 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const [timerTime, setTimerTime] = useState('');
   const [eventType, setEventType] = useState(null);
   const [eventNote, setEventNote] = useState('');
+  const [eventSaving, setEventSaving] = useState(false);
+  const [eventError, setEventError] = useState('');
+  const eventBusy = useRef(false);
   const [eventAmount, setEventAmount] = useState('');
   const transactionSectionRef = useRef(null);
   // 交車年度商機提醒（保險續保 / 驗車 / 舊換新預測），日期可調
@@ -120,8 +124,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const clientCases = cases
     .filter((row) => row.clientId === client.id)
     .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  // 成交對應案件：新資料 deal.caseId，舊資料只有 case.dealId
+  const caseOfDeal = (deal) => clientCases.find((row) => row.id === deal.caseId || (row.dealId && row.dealId === deal.id));
   const purchaseDeals = clientDeals.filter((deal) => {
-    const linkedCase = clientCases.find((row) => row.id === deal.caseId);
+    const linkedCase = caseOfDeal(deal);
     const pricing = pricingRecords.find((row) => row.id === `deal:${deal.id}`);
     const hasVehicleLine = (pricing?.lines || []).some((line) => line.kind === 'vehicle');
     return linkedCase ? linkedCase.type !== 'modification' : hasVehicleLine;
@@ -240,10 +246,12 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
       if (!window.confirm(`${unfinishedWarning}確定已實際交車，並認列到 ${dayjs(t).format('YYYY 年 M 月')}薪資嗎？`)) return;
     }
 
-    // 先關閉表單再儲存：避免連點重複記錄、避免儲存期間的輸入被清掉
-    setEventType(null);
-    setEventNote('');
-    setEventAmount('');
+    // 儲存期間鎖住按鈕防連點；全部寫入成功才關閉表單，失敗則保留輸入並顯示錯誤
+    if (eventBusy.current) return;
+    eventBusy.current = true;
+    setEventSaving(true);
+    setEventError('');
+    try {
 
     // 交車：自動建立 3 / 7 / 30 天售後回訪提醒，並把下次追蹤設為 3 天後
     if (isDelivery) {
@@ -283,11 +291,16 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
       const openCases = clientCases.filter((row) => row.status !== 'completed');
       const linkedCase = clientCases.find((row) => row.id === latestQuote?.caseId)
         || (openCases.length === 1 ? openCases[0] : null);
+      const existingCaseDeal = linkedCase ? findDealForCase(deals, linkedCase) : null;
+      if (existingCaseDeal) {
+        deal = existingCaseDeal;
+      } else {
       const dealDraft = {
         id: generateId('deal'), clientId: client.id, clientName: client.name,
         date: t, amount: amount > 0 ? amount : Number(latestQuote?.total) || 0,
         note: latestQuote?.model || eventNote.trim() || def.label,
         fields: {}, quoteId: latestQuote?.id || null, model: latestQuote?.model || '', caseId: linkedCase?.id || null,
+        stockItems: latestQuote ? stockItemsFromQuote(latestQuote, quotePresets?.addons || []) : [],
         ...(isDelivery ? { commissionRecognizedAt: t } : {}),
       };
       let createdWorkflow = generateDeliveryWorkflow({ deal: dealDraft, pricing: { lines: latestQuote?.items || [] } });
@@ -309,6 +322,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           saleTotal, profit, belowCost: profit != null && profit < 0,
           capturedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         });
+      }
       }
     } else if (isDelivery && deal) {
       deal = await saveDeal({
@@ -351,6 +365,16 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
       // 交車完成：下次追蹤設 3 天後，並清除「預計交車日」（已交車就不再提醒）
       ...(isDelivery ? { nextDate: addDays(t, DELIVERY_FOLLOWUP_DAYS[0]), deliveryDate: '' } : {}),
     }));
+    setEventType(null);
+    setEventNote('');
+    setEventAmount('');
+    } catch (err) {
+      console.error(err);
+      setEventError(`儲存失敗：${err?.message || '請稍後再試'}（表單內容已保留，可再按一次）`);
+    } finally {
+      eventBusy.current = false;
+      setEventSaving(false);
+    }
   }
 
   // ── 即將簽約：置頂 / 重點備註 / 簽約前待辦 ─────────────────────────────────
@@ -460,12 +484,17 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
 
   /** 成交歸檔：寫入業績表 + 客戶時間軸 */
   async function handleArchiveDeal(deal) {
-    setShowDealModal(false);
     const latestQuote = clientQuotes[0] || null;
     const openCases = clientCases.filter((row) => row.status !== 'completed');
     const resolvedCaseId = deal.caseId || latestQuote?.caseId || (openCases.length === 1 ? openCases[0].id : null);
+    const caseForDeal = resolvedCaseId ? cases.find((row) => row.id === resolvedCaseId) : null;
+    const priorCaseDeal = caseForDeal ? findDealForCase(deals, caseForDeal) : null;
+    if (priorCaseDeal && priorCaseDeal.id !== deal.id) {
+      throw new Error('這個案件已經有成交案，請到成交管理編輯，避免重複建立。');
+    }
     const fullDeal = {
       ...deal,
+      ...(latestQuote && !deal.stockItems ? { stockItems: stockItemsFromQuote(latestQuote, quotePresets?.addons || []) } : {}),
       quoteId: latestQuote?.id || null,
       model: latestQuote?.model || deal.note || '',
       caseId: resolvedCaseId,
@@ -501,6 +530,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
         ...(fullDeal.amount > 0 ? { amount: fullDeal.amount } : {}),
       }],
     }));
+    setShowDealModal(false);
   }
 
   /** 套用交車待辦範本（設定頁可編輯內容；跳過空項與已存在的同名項目） */
@@ -973,7 +1003,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                         className="mt-1 min-h-11 w-full text-sm">
                         <option value="">請選擇購車案件…</option>
                         {pendingDeliveryDeals.map((deal) => {
-                          const linkedCase = clientCases.find((row) => row.id === deal.caseId);
+                          const linkedCase = caseOfDeal(deal);
                           return <option key={deal.id} value={deal.id}>{linkedCase ? `${CASE_TYPE_LABEL[linkedCase.type]}・` : ''}{deal.model || deal.note || '未命名車輛'}</option>;
                         })}
                       </select>
@@ -1010,7 +1040,8 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   ))}
                 </div>
               )}
-              <button onClick={handleAddEvent} className="btn-primary text-xs w-full">
+              {eventError && <p className="text-xs text-danger">{eventError}</p>}
+              <button onClick={handleAddEvent} disabled={eventSaving} className="btn-primary text-xs w-full disabled:opacity-50">
                 {EVENT_TYPES[eventType].icon} {eventType === 'delivery' ? '確認交車並認列本月薪資' : `記錄「${EVENT_TYPES[eventType].label}」`}
               </button>
             </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { buildWorkQueue } from '../../utils/cases';
@@ -31,6 +31,8 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   const [filter, setFilter] = useState(firstActive);
   const [snoozing, setSnoozing] = useState(null);
   const [canceling, setCanceling] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
+  const completeBusy = useRef(false);
   const visible = queue.filter((row) => row.group === filter);
   const nextAvailableFilter = FILTERS.find(([key]) => key !== filter && counts[key] > 0);
 
@@ -43,6 +45,21 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   }
 
   async function complete(row) {
+    if (completeBusy.current) return;
+    const navigates = ['stock-alert', 'delivery', 'case-follow-up'].includes(row.sourceType);
+    if (!navigates) { completeBusy.current = true; setCompletingId(row.id); }
+    try {
+      await completeInner(row);
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || '完成失敗，請再試一次。');
+    } finally {
+      completeBusy.current = false;
+      setCompletingId(null);
+    }
+  }
+
+  async function completeInner(row) {
     if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); return; }
     if (row.sourceType === 'delivery') {
       onOpenOperations?.(row.dealId, row.caseId);
@@ -174,7 +191,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 </div>
               </button>
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
+                <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
                 {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
                 {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
                 {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>}

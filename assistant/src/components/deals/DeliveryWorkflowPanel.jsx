@@ -26,9 +26,11 @@ function ConfirmActionDialog({ action, busy, onCancel, onConfirm, onActionChange
   if (!action) return null;
   const missingBlockDetails = action.requiresBlockDetails
     && (!String(action.blockReason || '').trim() || !action.blockFollowUpDate);
+  // 已經輸入內容時，點背景不關閉，避免辛苦打的卡住原因被丟掉
+  const hasTypedContent = Boolean(String(action.blockReason || '').trim() || String(action.blockOwner || '').trim() || action.blockFollowUpDate);
   return (
     <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="delivery-confirm-title">
-      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={busy ? undefined : onCancel} aria-label="取消並關閉" />
+      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={busy || hasTypedContent ? undefined : onCancel} aria-label="取消並關閉" />
       <section className="relative max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel sm:rounded-2xl">
         <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-bdr sm:hidden" />
         <div className="flex items-start gap-3">

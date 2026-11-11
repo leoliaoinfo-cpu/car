@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
@@ -28,6 +28,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [confirmDealId, setConfirmDealId] = useState(null);
   const [viewWonQuoteId, setViewWonQuoteId] = useState(null);
   const [dealError, setDealError] = useState('');
+  const [dealSaving, setDealSaving] = useState(false);
+  const dealBusy = useRef(false);
 
   useEffect(() => {
     if (startNewToken) {
@@ -180,6 +182,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   }
 
   async function confirmDeal() {
+    if (dealBusy.current) return;
+    dealBusy.current = true;
+    setDealSaving(true);
     setDealError('');
     try {
       const deal = await confirmQuoteDeal(confirmDealId);
@@ -187,6 +192,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       setSaveNotice({ clientId: deal.clientId, text: '已指定此張報價成交，並建立本案件配件核對表。' });
     } catch (cause) {
       setDealError(cause?.message || '確認成交失敗，請稍後重試。');
+    } finally {
+      dealBusy.current = false;
+      setDealSaving(false);
     }
   }
 
@@ -343,7 +351,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {confirmDealId && (() => {
         const quote = quoteDrafts.find((row) => row.id === confirmDealId);
         const priorDeal = quote ? dealByCase.get(linkedCaseFor(quote)?.id) : null;
-        return quote ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="w-full max-w-md rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><h2 className="text-lg font-bold text-ink">{priorDeal ? '核對既有成交的報價' : '確認這張報價成交？'}</h2><p className="mt-2 text-sm text-ink-2">{quote.customerName}・{quote.model || '未填車型'}<br />報價 NT$ {formatMoney(quote.total)}</p>{priorDeal && <p className="mt-2 text-xs font-bold text-warn">既有成交價 NT$ {formatMoney(priorDeal.amount)} 將保留；若與報價不同，請到後台核對成本與利潤。</p>}<p className="mt-3 text-xs text-copper">只會使用這張報價的配件建立核對表；同案其他報價不計入。</p>{pendingCount(quote) > 0 && <p className="mt-2 text-xs font-bold text-warn">仍有 {pendingCount(quote)} 項待廠商確認，成交後須繼續追蹤。</p>}{dealError && <p role="alert" className="mt-2 text-sm text-danger">{dealError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConfirmDealId(null)} className="btn-outline min-h-12">先不要</button><button type="button" onClick={confirmDeal} className="btn-primary min-h-12">確認成交</button></div></div></div> : null;
+        return quote ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="w-full max-w-md rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><h2 className="text-lg font-bold text-ink">{priorDeal ? '核對既有成交的報價' : '確認這張報價成交？'}</h2><p className="mt-2 text-sm text-ink-2">{quote.customerName}・{quote.model || '未填車型'}<br />報價 NT$ {formatMoney(quote.total)}</p>{priorDeal && <p className="mt-2 text-xs font-bold text-warn">既有成交價 NT$ {formatMoney(priorDeal.amount)} 將保留；若與報價不同，請到後台核對成本與利潤。</p>}<p className="mt-3 text-xs text-copper">只會使用這張報價的配件建立核對表；同案其他報價不計入。</p>{pendingCount(quote) > 0 && <p className="mt-2 text-xs font-bold text-warn">仍有 {pendingCount(quote)} 項待廠商確認，成交後須繼續追蹤。</p>}{dealError && <p role="alert" className="mt-2 text-sm text-danger">{dealError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConfirmDealId(null)} className="btn-outline min-h-12">先不要</button><button type="button" onClick={confirmDeal} disabled={dealSaving} className="btn-primary min-h-12 disabled:opacity-50">{dealSaving ? '處理中…' : '確認成交'}</button></div></div></div> : null;
       })()}
       {viewWonQuoteId && (() => {
         const deal = deals.find((row) => row.quoteId === viewWonQuoteId && !row.caseArchivedAt);

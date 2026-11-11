@@ -138,7 +138,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       </>}
 
       {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id) => { setShowNew(false); onNewClosed?.(); setSelectedId(id); }} />}
-      {selected && <CaseDetail item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
+      {selected && <CaseDetail key={selected.id} item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
     </div>
   );
 }
@@ -377,6 +377,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
     if (pipelineStage !== 'completed' && !nextFollowUpDate) { setError('請設定下一次追蹤日期。'); return; }
     setSaving(true);
     setError('');
+    try {
     const savedAt = new Date().toISOString();
     await onSaveCase({
       ...advanceCasePipeline(item, pipelineStage, savedAt), title: title.trim(), type, status: pipelineStage === 'completed' ? 'completed' : 'active',
@@ -387,15 +388,18 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
       followUpPlanUnit: pipelineStage !== 'completed' && followUpMode === 'relative' ? followUpUnit : null,
       updatedAt: savedAt,
     });
-    const nextWork = workItems.find((work) => !['done', 'cancelled'].includes(work.state));
-    if (nextWork && pipelineStage !== 'completed' && nextFollowUpDate) {
-      await onSaveWorkItem({ ...nextWork, due: nextFollowUpDate });
-    }
+    // 案件自己的追蹤日由 case.nextFollowUpDate 推導成工作佇列項目（沒有對應的獨立待辦列），
+    // 所以不再順手改任何一筆手動待辦的到期日。
     await onSaveActivity({
       id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName,
       type: 'case', text: `更新案件：${title.trim()}・${CASE_PIPELINE_STAGES.find((stage) => stage.id === pipelineStage)?.label}`, date: today(),
     });
     onClose();
+    } catch (cause) {
+      setError(cause?.message || '案件儲存失敗，請再試一次。');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function removeCase() {
@@ -451,6 +455,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
 
 function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onSaveDeal, onDeleteCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
   const [newTitle, setNewTitle] = useState('');
+  const [addingWork, setAddingWork] = useState(false);
   const [due, setDue] = useState('');
   const [section, setSection] = useState('overview');
   const [stockError, setStockError] = useState('');
@@ -520,10 +525,17 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
 
   async function addWork(event) {
     event.preventDefault();
-    if (!newTitle.trim()) return;
-    await onSaveWorkItem({ id: generateId('work'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, title: newTitle.trim(), due, state: 'todo' });
-    await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, type: 'work', text: `新增工作：${newTitle.trim()}`, date: today() });
-    setNewTitle('');
+    if (!newTitle.trim() || addingWork) return;
+    setAddingWork(true);
+    try {
+      await onSaveWorkItem({ id: generateId('work'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, title: newTitle.trim(), due, state: 'todo' });
+      await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, type: 'work', text: `新增工作：${newTitle.trim()}`, date: today() });
+      setNewTitle('');
+    } catch (cause) {
+      window.alert(cause?.message || '新增工作失敗。');
+    } finally {
+      setAddingWork(false);
+    }
   }
 
   async function finishWork(row) {
@@ -605,7 +617,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
             {pending.length === 0 ? <p className="text-sm text-ink-3 mt-3">尚未安排工作。</p> : <div className="space-y-2 mt-3">{actionablePending.map((row) => <div key={row.id} className="rounded-xl border border-bdr bg-s2 p-3 flex items-center gap-3"><button type="button" onClick={() => finishWork(row)} className={`w-11 h-11 rounded-full border-2 font-bold shrink-0 ${row.sourceType === 'delivery' ? 'border-copper text-copper' : 'border-ok text-ok'}`} aria-label={row.sourceType === 'delivery' ? `前往施工進度處理 ${row.title}` : `完成 ${row.title}`}>{row.sourceType === 'delivery' ? '→' : '✓'}</button><div className="min-w-0 flex-1"><p className="font-medium text-ink">{row.title}</p><p className="text-xs text-ink-3 mt-0.5">{row.sourceType === 'delivery' ? '前往施工進度確認後再變更狀態' : (row.due ? dayjs(row.due).format('YYYY/MM/DD') : '未排日期')}</p></div></div>)}{actionablePending.length === 0 && <p className="rounded-xl bg-s2 p-3 text-sm text-ink-3">目前工作都在等待前置階段。</p>}{waitingPending.length > 0 && <details className="rounded-xl border border-bdr bg-s2/50"><summary className="cursor-pointer px-3 py-3 text-xs font-bold text-ink-2">等待中的後續 {waitingPending.length} 項</summary><div className="space-y-2 border-t border-bdr px-3 py-3">{waitingPending.map((row) => <div key={row.id}><p className="text-sm text-ink">{row.title}</p><p className="text-[11px] text-ink-3">{row.waitingOn || '等待前置工作'}</p></div>)}</div></details>}</div>}
             <form onSubmit={addWork} className="mt-3 grid grid-cols-[1fr_auto] gap-2">
               <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="新增下一步…" className="min-h-11" />
-              <button className="btn-primary min-h-11">加入</button>
+              <button disabled={addingWork} className="btn-primary min-h-11 disabled:opacity-50">{addingWork ? '加入中…' : '加入'}</button>
               <input type="date" value={due} onChange={(event) => setDue(event.target.value)} className="min-h-11 col-span-2" />
             </form>
           </section>}

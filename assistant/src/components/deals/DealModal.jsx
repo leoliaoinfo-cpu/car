@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { generateId, FIELD_COLORS } from '../../utils/crm';
 import { today } from '../../utils/date';
 import { Field } from '../ui';
@@ -20,6 +20,9 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
   );
   const [caseId, setCaseId] = useState(initialCaseId);
   const [caseError, setCaseError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const busy = useRef(false);
   const [fieldValues, setFieldValues] = useState(() => {
     const init = {};
     for (const f of dealFields) {
@@ -37,6 +40,7 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (busy.current) return;
     const activeCases = availableCases.filter((row) => row.status !== 'completed');
     if (!isEdit && activeCases.length > 1 && !caseId) {
       setCaseError('這位客戶有多筆進行中案件，請先選擇本次成交屬於哪一筆。');
@@ -47,6 +51,10 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
       const n = Number(fieldValues[f.id]);
       if (n > 0) fields[f.id] = n;
     }
+    busy.current = true;
+    setSaving(true);
+    setSaveError('');
+    try {
     await onSave({
       ...(deal || {}),
       id: deal?.id || generateId('deal'),
@@ -59,6 +67,13 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
       fields,
       ...(deal?.createdAt ? { createdAt: deal.createdAt } : {}),
     });
+    } catch (err) {
+      console.error(err);
+      setSaveError(err?.message || '儲存失敗，請再試一次。');
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
   }
 
   return (
@@ -106,9 +121,10 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
               <input value={note} onChange={(e) => setNote(e.target.value)}
                 className="w-full text-sm" />
             </Field>
+            {saveError && <p className="text-xs text-danger">{saveError}</p>}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={onClose} className="btn-outline flex-1">取消</button>
-              <button type="submit" className="btn-primary flex-1">{isEdit ? '儲存' : '建立成交案'}</button>
+              <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-50">{saving ? '儲存中…' : isEdit ? '儲存' : '建立成交案'}</button>
             </div>
           </form>
         </div>

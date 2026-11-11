@@ -113,6 +113,7 @@ export default function CalendarPage({ onOpenClient }) {
         const ds = d.format('YYYY-MM-DD');
         const md = ds.slice(5);
         for (const e of events) {
+          if (!e.date) continue;
           const match = e.repeat === 'yearly' ? e.date.slice(5) === md : e.date === ds;
           if (!match) continue;
           const years = e.repeat === 'yearly' ? Number(ds.slice(0, 4)) - Number(e.date.slice(0, 4)) : 0;
