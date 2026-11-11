@@ -29,18 +29,18 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 155 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 175 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
 
 ## 4. 架構速覽
 
-- **導覽**（`src/App.jsx`）：底部 工作 / 案件 / 客戶 / 更多；更多內有 今日、客戶接待、報價管理、行事曆、產品型錄、成交與施工管理、完整工作總覽、系統設定。桌面版 Header 對應。
+- **導覽**（`src/App.jsx`）：底部 工作 / 案件 / 客戶 / 更多；更多內有 完整工作總覽、客戶接待、報價管理、行事曆、產品型錄、成交與施工管理、完整工作總覽、系統設定。桌面版 Header 對應。
 - **`src/context.jsx`**：全域狀態與所有存取（saveDeal、confirmQuoteDeal、deleteClient…），改資料一律走這裡，別在元件裡直接寫 DB（照片除外）。
 - **`src/db.js`**：IndexedDB（idb），目前 **DB v12**，stores：clients cats stages customFields journalEntries archivedJournal salaryMonths timers timerHistory settings deals dealFields tasks tombstones events photos pricingRecords quoteDrafts receptionSessions suppliers cases workItems activities。所有 `put` 自動蓋 `_ts`、`delete` 自動寫墓碑供同步。
 - **`src/storageKeys.js`**：所有儲存名稱的唯一來源，**一律帶專屬前綴**（見 §6 儲存隔離）。
-- `src/utils/`：純邏輯（可單元測試）。`cases.js` 案件階段與工作佇列、`pricing.js` 報價成本利潤、`stock.js` 成交配件核對與缺貨、`delivery.js` 交車流程、`quotes.js`、`reception.js`、`presentationLock.js`、`lock.js`、`ics.js`。
+- `src/utils/`：純邏輯（可單元測試）。`dataMerge.js` 同步／還原的合併決策、`cases.js` 案件階段與工作佇列、`pricing.js` 報價成本利潤、`stock.js` 成交配件核對與缺貨、`delivery.js` 交車流程、`quotes.js`、`reception.js`、`presentationLock.js`、`lock.js`、`ics.js`。
 - `src/components/`：`cases/`（案件主流程）、`quote/`（QuoteModal 報價編輯、QuoteWorkspace 獨立報價工作區）、`work/`（工作清單）、`crm/`、`deals/`、`reception/`、`today/`、`calendar/`、`catalog/`、`SettingsPanel.jsx`。
 
 ## 5. 核心業務模型與流程
@@ -61,6 +61,12 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - 不要把大檔塞進同步用 `data.json`（GitHub 單檔與 repo 歷史膨脹，五年會爆）。
 - 要求能運行 5 年、數千客戶不癱瘓：每日資料保養（`db.housekeep`）、批次寫入、虛擬捲動；新增資料量大的功能要想增長。
 - 平板：manifest `orientation: any`；客戶追蹤 md(768) 起「列表＋詳情」兩欄，有醒目「放大詳情」收合鈕。
+- **同步絕不清空資料表**：`db.applySyncedSnapshot` 只「補上較新的、刪掉有墓碑的」，本機獨有資料一律保留；合併決策在 `utils/dataMerge.js`（純函式、有測試）。不要改回 clear 後重寫（下載途中的修改會被洗掉）。
+- **預設值不寫進資料庫**：客戶分類／階段／業績欄位的預設只留在記憶體；寫進 DB 會帶新 `_ts`，新裝置一連同步就蓋掉所有裝置的自訂設定。啟動時的資料整理只寫「真的有變」的紀錄（`db.putRaw` 不重蓋 `_ts`）。
+- **照片只搬不刪**：合併客戶用 `db.reassignPhotos`；每日保養只刪「客戶有墓碑」的孤兒照片。刪客戶時，成交或報價還在的成本紀錄要保留。墓碑保留 2 年。
+- **客戶頁建立成交也要建配件核對表**（`stockItemsFromQuote`），且先用 `findDealForCase` 找既有成交；客戶報價預覽／PNG 不可出現「年利率」字樣。
+- 刪除類小按鈕一律用 `ui.jsx` 的 `ConfirmDeleteButton`（兩段式）；會寫資料的按鈕要有送出中鎖定，避免連點重複建立。
+- 手機輸入框字級須 ≥16px（index.css 已設），否則 iPhone 點了會自動放大。
 - 測試踩雷：Playwright 的勾選列會消失，用 `.click()` 不要 `.check()`；配件核對列的「狀態/數量/再追日」在折疊 `<details>` 內，要先點開；案件詳情是全螢幕覆蓋層，點底部導覽前要先按「←」返回。
 - Pages 部署：Actions 只在改動 `assistant/**` 或 deploy.yml 時觸發；部署後已安裝的 PWA 需關掉重開才拿到新版（SW 網路優先）。
 
@@ -70,6 +76,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - 待處理：
   - 分支 `hotfix/pages-storage-isolation` 尚未與開發分支整理（Codex 處理 Pages 儲存隔離的修正線），動它前先問使用者。
   - 配件核對表目前每項的狀態/再追日藏在折疊區；若使用者覺得手機難操作，可把「再追日」直接露出。
+  - 2026-11-11 全面檢視後已修：同步／還原掉資料、畫面 bug 共 24 項。**尚未做、等使用者決定**：(1) 簡化 10 項（報價拿掉 27 分類逐一確認、施工進度移出密碼區、客戶頁瘦身、移除「完整工作總覽」入口、用語統一等）；(2) 內部成本入口：本檔 §5 寫「設定＋就讀的國小」，程式實際是「成交與施工管理＋數字密碼」，以使用者回覆為準；(3) 同一客戶兩台裝置同時改只留一邊（需逐筆合併 `client.log`／`todos`，設計見 HANDOFF）。
+  - 已知未修 bug：手機上「⏱ 提醒」膠囊蓋住「＋」；沒選客戶的報價重整後自動長出「未命名客戶」案件；交車完成後卡片仍顯示尚缺配件、缺配件可直接交車無提醒；新建案件產生兩張重複待辦；行事曆與完整工作總覽看不到案件追蹤日。
 - 新需求：使用者會逐項口述；做完更新本段。
 
 ## 8. 文件地圖

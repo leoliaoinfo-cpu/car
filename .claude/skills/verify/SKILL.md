@@ -23,7 +23,7 @@ Wipe state for a clean run:
 
 ```js
 await page.evaluate(() => new Promise((res) => {
-  const r = indexedDB.deleteDatabase('business_assistant_v2');
+  const r = indexedDB.deleteDatabase('car_sales_assistant_v1');
   r.onsuccess = r.onerror = r.onblocked = () => res();
 }));
 await page.reload();
