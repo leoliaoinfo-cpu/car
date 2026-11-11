@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
 import { addDays, today } from '../../utils/date';
-import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType } from '../../utils/cases';
+import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType, findDealForCase } from '../../utils/cases';
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 
@@ -60,7 +60,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     return map;
   }, [cases]);
   const linkedCaseFor = (quote) => caseById.get(quote.caseId) || caseByQuoteId.get(quote.id) || null;
-  const dealByCase = useMemo(() => new Map(deals.filter((deal) => !deal.caseArchivedAt && deal.caseId).map((deal) => [deal.caseId, deal])), [deals]);
+  const dealByCase = useMemo(() => new Map(cases.map((row) => [row.id, findDealForCase(deals, row)]).filter(([, deal]) => deal)), [cases, deals]);
   const quoteState = (quote) => {
     const caseItem = linkedCaseFor(quote);
     if (!caseItem) return 'unlinked';

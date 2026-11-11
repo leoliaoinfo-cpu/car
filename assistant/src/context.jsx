@@ -16,7 +16,7 @@ import {
 import { stockItemsFromQuote } from './utils/stock';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
-import { advanceCasePipeline, assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
+import { advanceCasePipeline, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 
 const AppContext = createContext(null);
 
@@ -578,7 +578,7 @@ export function AppProvider({ children }) {
     const caseItem = await db.get('cases', quote.caseId);
     if (!caseItem || caseItem.deletedAt || caseItem.clientId !== quote.clientId) throw new Error('報價的客戶案件連結不正確，請先核對。');
     const existingDeals = await db.getAll('deals');
-    const priorDeal = existingDeals.find((row) => !row.caseArchivedAt && row.caseId === quote.caseId);
+    const priorDeal = findDealForCase(existingDeals, caseItem);
     if (priorDeal?.quoteId && priorDeal.quoteId !== quoteId) throw new Error('此案件已指定另一張成交報價，不能重複建立。');
     if (priorDeal?.quoteId === quoteId) throw new Error('這張報價已經是成交版本，不需要重複確認。');
     const timestamp = new Date().toISOString();

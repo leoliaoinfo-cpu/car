@@ -230,3 +230,12 @@ test('卡住的施工階段依再追日期回到今天工作並保留原因', ()
   assert.equal(reminder.waitingOn, '等待確認施工日期・等待 力新帆布');
   assert.equal(reminder.caseNumber, 105);
 });
+
+test('findDealForCase finds legacy deals linked only by case.dealId and ignores archived ones', async () => {
+  const { findDealForCase } = await import('./cases.js');
+  const legacy = { id: 'd-old', amount: 900000 };
+  assert.equal(findDealForCase([legacy], { id: 'c1', dealId: 'd-old' }), legacy);
+  assert.equal(findDealForCase([{ id: 'd2', caseId: 'c1' }], { id: 'c1' }).id, 'd2');
+  assert.equal(findDealForCase([{ id: 'd-old', caseArchivedAt: 'x' }], { id: 'c1', dealId: 'd-old' }), null);
+  assert.equal(findDealForCase([legacy], { id: 'c9' }), null);
+});

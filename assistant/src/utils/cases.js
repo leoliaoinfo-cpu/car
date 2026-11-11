@@ -311,3 +311,9 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   return rows.sort((a, b) => (order[a.group] - order[b.group]) || Number(b.urgent) - Number(a.urgent) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.title).localeCompare(String(b.title)));
 }
 
+
+/** 找出案件已有的（舊）成交：新資料靠 deal.caseId，舊資料可能只有 case.dealId。封存的不算。 */
+export function findDealForCase(deals = [], caseItem) {
+  if (!caseItem) return null;
+  return deals.find((row) => !row.caseArchivedAt && (row.caseId === caseItem.id || (caseItem.dealId && row.id === caseItem.dealId))) || null;
+}
