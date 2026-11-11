@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
   truckComparison: `${STORAGE_PREFIX}truckComparison`,
   presentationPinHash: `${STORAGE_PREFIX}presentation.pinHash`,
   operationsUnlockUntil: `${STORAGE_PREFIX}operations.unlockUntil`,
+  lastBackupAt: `${STORAGE_PREFIX}backup.lastAt`, // 每台裝置各自記錄，不進同步（否則 A 備份會讓 B 不再提醒）
 };
 
 export const CAR_DB_NAME = 'car_sales_assistant_v1';

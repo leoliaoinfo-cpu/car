@@ -1,4 +1,5 @@
 import { db, STORE_KEYS, SYNCED_STORES, setMutationListener } from './db';
+import { mergeSnapshots } from './utils/dataMerge.js';
 import { STORAGE_KEYS } from './storageKeys';
 
 /**
@@ -20,7 +21,6 @@ const FILE_PATH = 'data.json';
 const API = 'https://api.github.com';
 const PULL_INTERVAL_MS = 60_000;
 const PUSH_DEBOUNCE_MS = 4_000;
-const TOMBSTONE_KEEP_MS = 90 * 24 * 3600 * 1000; // 墓碑保留 90 天
 
 // ── 狀態（UI 訂閱顯示）────────────────────────────────────────────────────────
 let status = { state: 'off', lastSyncAt: localStorage.getItem(LS_LAST) || null, error: null };
@@ -102,51 +102,21 @@ async function pushRemote(data, sha) {
       ...(sha ? { sha } : {}),
     }),
   });
-  if (res.status === 409 || res.status === 422) throw new Error('CONFLICT');
+  // 409：sha 不符＝對方剛上傳過 → 重拉合併重傳。
+  // 422 且這次沒帶 sha：讀取時雲端還沒有檔案、上傳前別台剛建立 → 同樣是衝突，重拉即可。
+  if (res.status === 409 || (res.status === 422 && !sha)) throw new Error('CONFLICT');
   if (res.status === 401) throw new Error(AUTH_ERROR);
+  if (res.status === 422) {
+    let detail = '';
+    try { detail = (await res.json())?.message || ''; } catch { /* 無內容 */ }
+    throw new Error(`GitHub 拒絕這次上傳（HTTP 422${detail ? `：${detail}` : ''}）。可能是雲端資料檔太大或儲存庫設定不符；本機資料都還在，請稍後再試，持續發生請找人協助檢查。`);
+  }
   if (!res.ok) throw new Error(`上傳雲端失敗（HTTP ${res.status}）`);
   return (await res.json()).content.sha;
 }
 
-// ── 合併 ──────────────────────────────────────────────────────────────────────
-const recTs = (r) => r?._ts
-  || (r?.updatedAt ? Date.parse(r.updatedAt) : 0)
-  || (r?.createdAt ? Date.parse(r.createdAt) : 0)
-  || 0;
-
-/** 逐筆「新的贏」合併兩份快照，並套用雙方墓碑；回傳合併結果 */
-export function mergeSnapshots(a, b) {
-  const out = { _v: 2, exportedAt: new Date().toISOString() };
-
-  // 墓碑：同一筆取較新的，過期的丟掉
-  const tombMap = new Map();
-  for (const t of [...(a?.tombstones || []), ...(b?.tombstones || [])]) {
-    const prev = tombMap.get(t.id);
-    if (!prev || t.ts > prev.ts) tombMap.set(t.id, t);
-  }
-  const now = Date.now();
-  const tombs = [...tombMap.values()].filter((t) => now - t.ts < TOMBSTONE_KEEP_MS);
-  out.tombstones = tombs;
-
-  for (const store of SYNCED_STORES) {
-    const keyField = STORE_KEYS[store];
-    const map = new Map();
-    for (const r of (a?.[store] || [])) map.set(r[keyField], r);
-    for (const r of (b?.[store] || [])) {
-      const k = r[keyField];
-      const prev = map.get(k);
-      if (!prev || recTs(r) > recTs(prev)) map.set(k, r);
-    }
-    // 套墓碑：刪除時間比資料最後修改新 → 這筆確實被刪了
-    for (const t of tombs) {
-      if (t.store !== store) continue;
-      const cur = map.get(t.key);
-      if (cur && recTs(cur) <= t.ts) map.delete(t.key);
-    }
-    out[store] = [...map.values()];
-  }
-  return out;
-}
+// ── 合併（純邏輯在 utils/dataMerge.js，可單元測試）────────────────────────────
+export { mergeSnapshots };
 
 /** 穩定序列化（各 store 依主鍵排序），內容沒變就不用上傳 */
 function canonical(data) {
@@ -170,18 +140,20 @@ export async function syncNow() {
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
       const [{ data: remote, sha }, local] = await Promise.all([pullRemote(), db.exportForSync()]);
-      const merged = remote ? mergeSnapshots(local, remote) : { ...local, tombstones: local.tombstones || [] };
-
-      const mergedC = canonical(merged);
-      // 遠端有本機沒有的內容 → 寫回本機並刷新畫面
-      if (canonical(local) !== mergedC) {
-        await db.applySyncedSnapshot(merged);
-        try { onRemoteApplied?.(); } catch { /* 重載失敗不影響資料 */ }
+      let toPush = mergeSnapshots(local, remote);
+      // 遠端有本機沒有的內容 → 逐筆套進本機（不清空；拉資料期間的新修改會保留）
+      if (remote && canonical(mergeSnapshots(local, null)) !== canonical(toPush)) {
+        const { changed } = await db.applySyncedSnapshot(toPush);
+        if (changed > 0) {
+          // 重新匯出本機：拉資料期間寫入的新資料（含新墓碑）也要一起上傳
+          toPush = mergeSnapshots(await db.exportForSync(), remote);
+          try { onRemoteApplied?.(); } catch { /* 重載失敗不影響資料 */ }
+        }
       }
       // 本機有遠端沒有的內容 → 上傳（sha 不符表示對方剛傳過，重拉再合併）
-      if (!remote || canonical(remote) !== mergedC) {
+      if (!remote || canonical(remote) !== canonical(toPush)) {
         try {
-          await pushRemote(merged, sha);
+          await pushRemote(toPush, sha);
         } catch (e) {
           if (e.message === 'CONFLICT' && attempt < 2) continue;
           throw e;
