@@ -1,7 +1,15 @@
-// 成交配備核對表與中央缺品統計。只取已指定成交的報價快照，不讀同案其他報價。
+// 成交配件核對表與中央缺品統計。只取已指定成交的報價快照，不讀同案其他報價。
 export const STOCK_STATUSES = [
   ['todo', '未處理'], ['inquiry', '待廠商確認'], ['ready', '已備妥'], ['installed', '已安裝'], ['not_needed', '不需備品'],
 ];
+
+/** 已備妥／已安裝／不需備品都算「不缺」。 */
+export const STOCK_SETTLED = ['ready', 'installed', 'not_needed'];
+
+/** 還沒備妥的配件（交車前警示、案件卡片共用同一個判斷）。 */
+export function missingStockItems(deal) {
+  return (deal?.stockItems || []).filter((item) => !STOCK_SETTLED.includes(item.status));
+}
 
 export function stockItemsFromQuote(quote, addons = []) {
   const catalog = new Map(addons.map((item) => [item.id, item]));
@@ -52,8 +60,11 @@ export function summarizeStock(deals = [], cases = []) {
 }
 
 export function stockAlert(deal, caseItem, now = new Date()) {
-  const items = deal?.stockItems || [];
-  const missing = items.filter((item) => !['ready', 'installed', 'not_needed'].includes(item.status));
+  // 已交車（已完成）的案件不再提醒缺貨，舊資料只有 status=completed 也要算。
+  if (caseItem?.status === 'completed' || caseItem?.pipelineStage === 'completed') {
+    return { missing: 0, deliveryRisk: false, inquiryNoDate: false, days: null, delivered: true };
+  }
+  const missing = missingStockItems(deal);
   const target = caseItem?.desiredDeliveryDate;
   const days = target ? Math.ceil((new Date(`${target}T00:00:00`).getTime() - new Date(now).setHours(0, 0, 0, 0)) / 86400000) : null;
   return {

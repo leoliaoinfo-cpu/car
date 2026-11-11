@@ -18,7 +18,8 @@ export function getCasePipelineStageId(item, { deals = [], quotes = [] } = {}) {
   const explicit = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === normalizedExplicit);
   let derived = item?.status === 'completed' ? 4 : 0;
   const linkedDeal = deals.find((row) => row.id === item?.dealId || row.caseId === item?.id);
-  if (linkedDeal) derived = 2;
+  // 有成交至少是「已成交」，但已標記完成的案件不能被降回「已成交」。
+  if (linkedDeal) derived = Math.max(derived, 2);
   return CASE_PIPELINE_STAGES[Math.max(explicit, derived, 0)].id;
 }
 
