@@ -174,6 +174,30 @@ test('已取消的工作、待辦與客戶事項不再出現在工作台', () =>
   assert.deepEqual(rows, []);
 });
 
+test('交車將近缺品與待廠商確認未排再追日會提醒，但不把其他報價計入', () => {
+  const todayString = dayjs().format('YYYY-MM-DD');
+  const rows = buildWorkQueue({
+    cases: [{ id: 'case-1', clientId: 'client-1', clientName: '柳老闆', status: 'active', desiredDeliveryDate: todayString }],
+    clients: [{ id: 'client-1', name: '柳老闆' }],
+    deals: [{ id: 'deal-1', caseId: 'case-1', clientId: 'client-1', quoteId: 'winning-quote', stockItems: [{ id: 'mirror', name: '後照鏡', status: 'inquiry' }] }],
+  });
+  assert.equal(rows.filter((row) => row.sourceType === 'stock-alert').length, 2);
+  assert.ok(rows.some((row) => row.title.includes('尚缺 1 項')));
+});
+
+test('廠商再追日期進工作台，急件在同日一般案件之前', () => {
+  const due = dayjs().add(2, 'day').format('YYYY-MM-DD');
+  const rows = buildWorkQueue({
+    cases: [{ id: 'ordinary', status: 'active' }, { id: 'urgent', status: 'active', urgent: true }],
+    deals: [
+      { id: 'd1', caseId: 'ordinary', quoteId: 'q1', stockItems: [{ name: '帆布', status: 'inquiry', followUpDate: due }] },
+      { id: 'd2', caseId: 'urgent', quoteId: 'q2', stockItems: [{ name: '尾門', status: 'inquiry', followUpDate: due }] },
+    ],
+  });
+  assert.deepEqual(rows.map((row) => row.caseId), ['urgent', 'ordinary']);
+  assert.equal(rows[0].due, due);
+});
+
 test('施工階段依分配天數產生催辦期限，未解鎖階段維持等待', () => {
   const rows = buildWorkQueue({
     deals: [{ id: 'd1', clientId: 'c1', caseId: 'case-1', deliveryWorkflow: [

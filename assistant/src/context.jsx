@@ -11,8 +11,9 @@ import { today } from './utils/date';
 import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
 import {
-  collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
+  buildPricingRecord, collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
 } from './utils/pricing';
+import { stockItemsFromQuote } from './utils/stock';
 import { canonicalizeQuotes } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 import { advanceCasePipeline, assignCaseNumbers, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
@@ -571,6 +572,42 @@ export function AppProvider({ children }) {
     return record;
   }, []);
 
+  const confirmQuoteDeal = useCallback(async (quoteId) => {
+    const quote = await db.get('quoteDrafts', quoteId);
+    if (!quote || quote.archivedAt || !quote.clientId || !quote.caseId) throw new Error('請先將報價連結至客戶案件，才可確認成交。');
+    const caseItem = await db.get('cases', quote.caseId);
+    if (!caseItem || caseItem.deletedAt || caseItem.clientId !== quote.clientId) throw new Error('報價的客戶案件連結不正確，請先核對。');
+    const existingDeals = await db.getAll('deals');
+    const priorDeal = existingDeals.find((row) => !row.caseArchivedAt && row.caseId === quote.caseId);
+    if (priorDeal?.quoteId && priorDeal.quoteId !== quoteId) throw new Error('此案件已指定另一張成交報價，不能重複建立。');
+    if (priorDeal?.quoteId === quoteId) throw new Error('這張報價已經是成交版本，不需要重複確認。');
+    const timestamp = new Date().toISOString();
+    const dealId = priorDeal?.id || `deal:quote:${quoteId}`;
+    const deal = {
+      ...(priorDeal || {}),
+      id: dealId, quoteId, caseId: caseItem.id, clientId: quote.clientId,
+      clientName: quote.customerName || caseItem.clientName, model: quote.model || caseItem.title,
+      amount: priorDeal ? priorDeal.amount : Number(quote.total) || 0,
+      date: priorDeal?.date || today(), confirmedAt: priorDeal?.confirmedAt || priorDeal?.createdAt || timestamp,
+      pricingNeedsReview: Boolean(priorDeal),
+      quoteSnapshot: structuredClone(quote),
+      stockItems: stockItemsFromQuote(quote, state.quotePresets?.addons || []),
+    };
+    const sourcePricing = await db.get('pricingRecords', `quote:${quoteId}`).catch(() => null);
+    const previousDealPricing = priorDeal ? await db.get('pricingRecords', `deal:${dealId}`).catch(() => null) : null;
+    const pricing = buildPricingRecord({ quote, costCatalog: state.costCatalog, existing: sourcePricing || previousDealPricing, kind: 'deal', dealId });
+    await saveDeal(deal);
+    const dealPricing = priorDeal && previousDealPricing
+      ? { ...previousDealPricing, quoteId, updatedAt: timestamp }
+      : { ...pricing, id: `deal:${dealId}`, quoteId, dealId, kind: 'deal', clientId: quote.clientId,
+        saleTotal: Number(deal.amount) || 0, profit: priorDeal ? null : pricing.profit,
+        costComplete: priorDeal ? false : pricing.costComplete,
+        createdAt: timestamp, updatedAt: timestamp };
+    dispatch({ type: 'UPSERT_PRICING_RECORD', payload: dealPricing });
+    await db.put('pricingRecords', dealPricing);
+    return deal;
+  }, [saveDeal, state.quotePresets, state.costCatalog]);
+
   const deletePricingRecord = useCallback(async (id) => {
     dispatch({ type: 'DELETE_PRICING_RECORD', id });
     await db.delete('pricingRecords', id);
@@ -964,6 +1001,7 @@ export function AppProvider({ children }) {
     saveStages,
     saveCustomFields,
     saveDeal,
+    confirmQuoteDeal,
     deleteDeal,
     saveDealFields,
     savePricingRecord,

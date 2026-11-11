@@ -43,6 +43,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   }
 
   async function complete(row) {
+    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); return; }
     if (row.sourceType === 'delivery') {
       onOpenOperations?.(row.dealId, row.caseId);
       return;
@@ -66,6 +67,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   }
 
   async function snooze(row, days) {
+    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); return; }
     if (row.sourceType === 'delivery') {
       onOpenOperations?.(row.dealId, row.caseId);
       setSnoozing(null);
@@ -91,6 +93,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   }
 
   async function cancel(row) {
+    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); setCanceling(null); return; }
     const canceledAt = new Date().toISOString();
     if (row.sourceType === 'case-follow-up') {
       const current = cases.find((item) => item.id === row.caseId);
@@ -163,6 +166,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-ink leading-snug">{row.title}</p>
+                    {row.urgent && <p className="mt-1 text-xs font-bold text-danger">🔴 急件</p>}
                     {(row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
                     {row.followUpReminder && row.waitingOn && <p className="mt-1 text-xs font-semibold text-danger">{row.waitingOn}</p>}
                   </div>
@@ -170,10 +174,10 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 </div>
               </button>
               <div className="mt-3 flex gap-2">
-                <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
-                <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>
+                <button type="button" onClick={() => complete(row)} className="btn-primary flex-1 min-h-10">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
+                {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
                 {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
-                <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>
+                {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>}
               </div>
               {canceling === row.id && (
                 <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">

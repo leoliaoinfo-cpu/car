@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { getStageTiming, getWaitingOn, normalizeDeliveryWorkflow } from './delivery.js';
+import { stockAlert } from './stock.js';
 
 export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
@@ -235,7 +236,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   };
   const caseNumbersForClient = (clientId) => (activeCasesByClient.get(clientId) || [])
     .map((row) => row.caseNumber).filter(Boolean).sort((a, b) => a - b);
-  const push = (row) => rows.push({ ...row, group: dueGroup(row.due, row.state, row.waitingOn, row.followUpReminder) });
+  const push = (row) => rows.push({ ...row, urgent: Boolean(caseMap.get(row.caseId)?.urgent), group: dueGroup(row.due, row.state, row.waitingOn, row.followUpReminder) });
 
   cases.filter((row) => row.status !== 'completed' && row.nextFollowUpDate).forEach((row) => {
     push({
@@ -268,6 +269,25 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   });
   deals.filter((deal) => !deal.caseArchivedAt).forEach((deal) => {
     const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
+    if (linkedCase && !linkedCase.deletedAt && linkedCase.status !== 'completed' && deal.quoteId) {
+      const alert = stockAlert(deal, linkedCase);
+      const clientName = linkedCase.clientName || clientMap.get(deal.clientId)?.name || '';
+      if (alert.deliveryRisk) push({ id: `stock-risk:${deal.id}`, sourceType: 'stock-alert', sourceId: deal.id,
+        title: `交車將近，尚缺 ${alert.missing} 項配件`, due: dayjs().format('YYYY-MM-DD'), state: 'todo',
+        caseId: linkedCase.id, clientId: deal.clientId, clientName, caseTitle: linkedCase.title || '' });
+      if (alert.inquiryNoDate) push({ id: `stock-inquiry:${deal.id}`, sourceType: 'stock-alert', sourceId: deal.id,
+        title: '待廠商確認的配件尚未排再追日', due: dayjs().format('YYYY-MM-DD'), state: 'todo',
+        caseId: linkedCase.id, clientId: deal.clientId, clientName, caseTitle: linkedCase.title || '' });
+      const inquiriesByDate = new Map();
+      (deal.stockItems || []).filter((item) => item.status === 'inquiry' && item.followUpDate).forEach((item) => {
+        const names = inquiriesByDate.get(item.followUpDate) || [];
+        names.push(item.name);
+        inquiriesByDate.set(item.followUpDate, names);
+      });
+      for (const [due, names] of inquiriesByDate) push({ id: `stock-followup:${deal.id}:${due}`, sourceType: 'stock-alert', sourceId: deal.id,
+        title: `追問廠商：${names.slice(0, 2).join('、')}${names.length > 2 ? `等 ${names.length} 項` : ''}`,
+        due, state: 'todo', caseId: linkedCase.id, clientId: deal.clientId, clientName, caseTitle: linkedCase.title || '' });
+    }
     const workflow = normalizeDeliveryWorkflow(deal);
     workflow.filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {
       const waitingOn = getWaitingOn(step, workflow);
@@ -288,6 +308,6 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     });
   });
   const order = { overdue: 0, today: 1, waiting: 2, next: 3 };
-  return rows.sort((a, b) => (order[a.group] - order[b.group]) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.title).localeCompare(String(b.title)));
+  return rows.sort((a, b) => (order[a.group] - order[b.group]) || Number(b.urgent) - Number(a.urgent) || String(a.due || '9999').localeCompare(String(b.due || '9999')) || String(a.title).localeCompare(String(b.title)));
 }
 

@@ -350,10 +350,12 @@ function shortHash(str) {
  * 建立報價單：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
  * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
-export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onClose }) {
+export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onRequestConfirmDeal, onClose }) {
   const { quotePresets, costCatalog, pricingRecords, cases, heightConfig } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
+  const [recordError, setRecordError] = useState('');
+  const [recordSaving, setRecordSaving] = useState(false);
   const existingPricingRecord = pricingRecords.find((row) => row.id === `quote:${quoteId}`) || null;
   const synchronizedQuote = quote ? synchronizeQuoteDiscounts(quote, existingPricingRecord) : null;
   const normalizedInitial = normalizeQuoteItems(synchronizedQuote?.items || []);
@@ -935,7 +937,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     }
   }
 
-  async function handleRecord() {
+  async function handleRecord(_event, confirmAfterSave = false) {
+    if (recordSaving) return;
     if (!confirmAddonReview()) return;
     if (!client?.id && customerMode === 'new' && !customerName.trim()) {
       setCustomerError('請先填客戶姓名／公司名，才能建立客戶追蹤。');
@@ -952,12 +955,21 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       return;
     }
     const payload = makeQuotePayload();
-    await onSaveQuote({
-      ...payload,
-      clientId: client?.id || (customerMode === 'existing' ? linkedClientId : null),
-      _customerMode: client?.id ? 'existing' : customerMode,
-      _pricingRecord: pricingForCurrentQuote(),
-    });
+    setRecordSaving(true);
+    setRecordError('');
+    try {
+      await onSaveQuote({
+        ...payload,
+        clientId: client?.id || (customerMode === 'existing' ? linkedClientId : null),
+        _customerMode: client?.id ? 'existing' : customerMode,
+        _pricingRecord: pricingForCurrentQuote(),
+      });
+      if (confirmAfterSave) onRequestConfirmDeal?.(quoteId);
+    } catch (cause) {
+      setRecordError(cause?.message || '儲存報價失敗，請重試。');
+    } finally {
+      setRecordSaving(false);
+    }
   }
 
   const previewGroups = [
@@ -1810,11 +1822,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           {exportError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
           <div className="flex gap-2 mt-3">
             <button onClick={requestClose} className="btn-outline flex-1">關閉</button>
-            <button onClick={handleRecord} disabled={selectedItems.length === 0}
+            <button onClick={handleRecord} disabled={selectedItems.length === 0 || recordSaving}
               className="btn-outline flex-1 disabled:opacity-40">
-              💾 {isEdit ? '儲存修改' : (client?.id ? '記錄報價' : customerMode === 'new' ? '建立客戶並儲存報價' : '儲存報價')}
+              💾 {recordSaving ? '儲存中…' : isEdit ? '儲存修改' : (client?.id ? '記錄報價' : customerMode === 'new' ? '建立客戶並儲存報價' : '儲存報價')}
             </button>
           </div>
+          {recordError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 p-2 text-sm text-danger">{recordError}</p>}
+          {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="btn-primary mt-2 min-h-12 w-full disabled:opacity-40">✓ 儲存這張報價並確認成交</button>}
         </div>
       </div>
       {showCloseConfirm && (

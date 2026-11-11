@@ -11,6 +11,7 @@ import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../u
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
 import dayjs from 'dayjs';
+import { stockAlert } from '../../utils/stock';
 
 const SORT_OPTIONS = [
   { value: 'createdAt', label: '建立時間' },
@@ -461,6 +462,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
     });
     return map;
   }, [workQueue]);
+  const dealByCase = useMemo(() => new Map(deals.filter((deal) => !deal.caseArchivedAt && deal.caseId).map((deal) => [deal.caseId, deal])), [deals]);
   const visibleCases = useMemo(() => (cases || [])
     .filter((item) => !item.deletedAt && allowedClientIds.has(item.clientId))
     .filter((item) => typeFilter === 'all' || item.type === typeFilter),
@@ -468,7 +470,10 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
   const byStage = useMemo(() => {
     const map = Object.fromEntries(CASE_PIPELINE_STAGES.map((stage) => [stage.id, []]));
     for (const item of visibleCases) map[getCasePipelineStageId(item, { deals, quotes })].push(item);
-    Object.values(map).forEach((list) => list.sort((a, b) => (
+    Object.entries(map).forEach(([stageId, list]) => list.sort((a, b) => (
+      (stageId !== 'completed' ? Number(Boolean(b.urgent)) - Number(Boolean(a.urgent)) : 0)
+      || (stageId !== 'completed' ? String(a.desiredDeliveryDate || '9999-12-31').localeCompare(String(b.desiredDeliveryDate || '9999-12-31')) : 0)
+      ||
       String(getCasePipelineUpdatedAt(b, { deals, quotes })).localeCompare(String(getCasePipelineUpdatedAt(a, { deals, quotes })))
       || String(a.clientName || '').localeCompare(String(b.clientName || ''), 'zh-Hant')
     )));
@@ -501,6 +506,10 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
   }, [byStage]);
 
   function requestMove(item, stageId) {
+    if (CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId) >= 2 && !deals.some((deal) => deal.id === item.dealId || deal.caseId === item.id)) {
+      setSaveError('請先到報價單確認成交版本，再安排施工與交車。');
+      return;
+    }
     const from = getCasePipelineStageId(item, { deals, quotes });
     if (from !== stageId) setPendingMove({ item, from, to: stageId });
   }
@@ -584,6 +593,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
                     key={item.id} item={item} client={clientMap.get(item.clientId)}
                     stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })}
                     pendingItems={pendingByCase.get(item.id) || []}
+                    deal={dealByCase.get(item.id)}
                     stageId={stage.id} dragging={dragId === item.id}
                     onDragStart={() => setDragId(item.id)} onDragEnd={() => { setDragId(null); setOverStage(null); }}
                     onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)}
@@ -605,7 +615,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
         </div>
         <div className="h-full overflow-y-auto p-3 md:hidden">
           <div className="space-y-3">
-            {(expandedStages.has(mobileStage) ? byStage[mobileStage] : byStage[mobileStage].slice(0, defaultVisibleCount)).map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })} pendingItems={pendingByCase.get(item.id) || []} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
+            {(expandedStages.has(mobileStage) ? byStage[mobileStage] : byStage[mobileStage].slice(0, defaultVisibleCount)).map((item) => <BoardCard key={item.id} item={item} client={clientMap.get(item.clientId)} stageId={mobileStage} stageUpdatedAt={getCasePipelineUpdatedAt(item, { deals, quotes })} pendingItems={pendingByCase.get(item.id) || []} deal={dealByCase.get(item.id)} onOpen={() => onOpenCase?.(item.id)} onMove={(to) => requestMove(item, to)} onSetType={(type) => setCaseType(item, type)} />)}
             {byStage[mobileStage].length > defaultVisibleCount && <button type="button" onClick={() => toggleStageExpanded(mobileStage)} className="min-h-12 w-full rounded-xl border border-bdr bg-s1 px-3 text-sm font-bold text-ink-2">{expandedStages.has(mobileStage) ? `收合，只顯示最近 ${defaultVisibleCount} 筆` : `顯示其餘 ${byStage[mobileStage].length - defaultVisibleCount} 筆`}</button>}
             {byStage[mobileStage].length === 0 && <div className="rounded-2xl border border-dashed border-bdr py-12 text-center text-sm text-ink-3">目前沒有案件</div>}
           </div>
@@ -616,12 +626,13 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
   );
 }
 
-function BoardCard({ item, client, stageId, stageUpdatedAt, pendingItems = [], dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
+function BoardCard({ item, client, stageId, stageUpdatedAt, pendingItems = [], deal, dragging, onDragStart, onDragEnd, onOpen, onMove, onSetType }) {
   const stageIndex = CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === stageId);
   const nextStage = CASE_PIPELINE_STAGES[stageIndex + 1];
   const followUpDiff = item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
   const stageDays = getCasePipelineElapsedDays({ ...item, pipelineStageUpdatedAt: stageUpdatedAt });
   const totalDays = getCaseTotalElapsedDays({ ...item, pipelineStageUpdatedAt: stageUpdatedAt });
+  const stock = stockAlert(deal, item);
   return (
     <article
       draggable={Boolean(onDragStart)}
@@ -635,6 +646,7 @@ function BoardCard({ item, client, stageId, stageUpdatedAt, pendingItems = [], d
         <div className="flex items-start justify-between gap-2"><div className="min-w-0"><p className="truncate font-bold text-ink">{item.clientName || client?.name || '未命名客戶'}</p><p className="mt-1 truncate text-sm text-ink-2">{item.title || '未命名案件'}</p></div><span className="text-ink-3">›</span></div>
       </button>
       {stageId === 'completed' && stageUpdatedAt && <p className="mt-2 inline-flex rounded-full bg-ok/15 px-2 py-1 text-[10px] font-bold text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</p>}
+      {(item.urgent || item.desiredDeliveryDate || deal?.quoteId) && <p className={`mt-2 text-[11px] font-bold ${stock.deliveryRisk ? 'text-danger' : 'text-copper'}`}>{item.urgent ? '🔴 急件・' : ''}{item.desiredDeliveryDate ? `希望 ${dayjs(item.desiredDeliveryDate).format('MM/DD')} 交車・` : ''}{deal?.quoteId ? `備品尚缺 ${stock.missing} 項` : '成交配件待核對'}</p>}
       <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
             <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? (kind === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>

@@ -17,7 +17,7 @@ function requirementPendingCount(quote) {
 
 export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed }) {
   const {
-    clients, cases, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft,
+    clients, cases, deals, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft, confirmQuoteDeal,
     savePricingRecord, saveClient, updateClient, cats, stages,
   } = useApp();
   const [editing, setEditing] = useState(null);
@@ -25,6 +25,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [stageFilter, setStageFilter] = useState('all');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveNotice, setSaveNotice] = useState(null);
+  const [confirmDealId, setConfirmDealId] = useState(null);
+  const [viewWonQuoteId, setViewWonQuoteId] = useState(null);
+  const [dealError, setDealError] = useState('');
 
   useEffect(() => {
     if (startNewToken) {
@@ -36,9 +39,12 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   useEffect(() => {
     if (!focusId) return;
     const quote = quoteDrafts.find((row) => row.id === focusId);
-    if (quote) setEditing({ mode: 'edit', quote });
+    if (quote) {
+      if (deals.some((deal) => deal.quoteId === quote.id && !deal.caseArchivedAt)) setViewWonQuoteId(quote.id);
+      else setEditing({ mode: 'edit', quote });
+    }
     onFocusConsumed?.();
-  }, [focusId, quoteDrafts, onFocusConsumed]);
+  }, [focusId, quoteDrafts, deals, onFocusConsumed]);
 
   useEffect(() => {
     if (!caseContext?.token) return;
@@ -54,37 +60,39 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     return map;
   }, [cases]);
   const linkedCaseFor = (quote) => caseById.get(quote.caseId) || caseByQuoteId.get(quote.id) || null;
+  const dealByCase = useMemo(() => new Map(deals.filter((deal) => !deal.caseArchivedAt && deal.caseId).map((deal) => [deal.caseId, deal])), [deals]);
+  const quoteState = (quote) => {
+    const caseItem = linkedCaseFor(quote);
+    if (!caseItem) return 'unlinked';
+    const deal = dealByCase.get(caseItem.id);
+    return deal?.quoteId === quote.id ? 'won' : deal?.quoteId ? 'not_chosen' : 'pending';
+  };
   const activeQuotes = useMemo(() => quoteDrafts.filter((quote) => !quote.archivedAt), [quoteDrafts]);
   const archivedQuotes = useMemo(() => quoteDrafts.filter((quote) => quote.archivedAt), [quoteDrafts]);
-  const stageCounts = useMemo(() => activeQuotes.reduce((counts, quote) => {
-    const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
-    if (!linkedCase) counts.unlinked += 1;
-    else {
-      const stageId = getCasePipelineStageId(linkedCase, { quotes: quoteDrafts });
-      counts[stageId] = (counts[stageId] || 0) + 1;
-    }
+  const stageCounts = activeQuotes.reduce((counts, quote) => {
+    counts[quoteState(quote)] += 1;
     return counts;
-  }, { new: 0, follow_up: 0, won: 0, delivery: 0, completed: 0, unlinked: 0 }), [activeQuotes, quoteDrafts, caseById, caseByQuoteId]);
+  }, { pending: 0, won: 0, not_chosen: 0, unlinked: 0 });
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const source = stageFilter === 'trash' ? archivedQuotes : activeQuotes;
     return [...source]
       .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))
       .filter((quote) => {
-        const linkedCase = caseById.get(quote.caseId) || caseByQuoteId.get(quote.id);
+        const linkedCase = linkedCaseFor(quote);
         const quoteType = linkedCase?.type || inferCaseType(quote);
-        const pipelineStage = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : 'unlinked';
-        if (stageFilter !== 'all' && stageFilter !== 'trash' && pipelineStage !== stageFilter) return false;
+        if (stageFilter !== 'all' && stageFilter !== 'trash' && quoteState(quote) !== stageFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
         return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
-  }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId]);
+  }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, ...quotePayload } = payload;
     const previousQuote = quoteDrafts.find((row) => row.id === quotePayload.id);
+    if (previousQuote && deals.some((deal) => deal.quoteId === previousQuote.id && !deal.caseArchivedAt)) throw new Error('成交報價已鎖定，不能直接覆蓋；若內容變更，請另建報價並核對成交內容。');
     let clientId = quotePayload.clientId || null;
     let createdClient = null;
 
@@ -171,6 +179,17 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     setSaveNotice({ clientId: null, text: '報價已從垃圾車恢復。' });
   }
 
+  async function confirmDeal() {
+    setDealError('');
+    try {
+      const deal = await confirmQuoteDeal(confirmDealId);
+      setConfirmDealId(null);
+      setSaveNotice({ clientId: deal.clientId, text: '已指定此張報價成交，並建立本案件配件核對表。' });
+    } catch (cause) {
+      setDealError(cause?.message || '確認成交失敗，請稍後重試。');
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-3 md:px-5 py-4 md:py-6 space-y-4">
       <section className="rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/16 via-s1 to-copper/8 p-4 md:p-5 shadow-card">
@@ -196,7 +215,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       <div className="flex gap-2 overflow-x-auto pb-1" aria-label="案件進度篩選">
         {[
           ['all', '全部', activeQuotes.length],
-          ...CASE_PIPELINE_STAGES.map((stage, index) => [stage.id, `${index + 1} ${stage.label}`, stageCounts[stage.id]]),
+          ['pending', '待成交', stageCounts.pending],
+          ['won', '成交報價', stageCounts.won],
+          ['not_chosen', '未採用', stageCounts.not_chosen],
           ['unlinked', '未歸入案件', stageCounts.unlinked],
           ['trash', '🗑 垃圾車', archivedQuotes.length],
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
@@ -232,6 +253,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const linked = clientMap.get(quote.clientId);
             const customer = quote.customerName || linked?.name || '未填客戶';
             const linkedCase = linkedCaseFor(quote);
+            const linkedDeal = linkedCase ? dealByCase.get(linkedCase.id) : null;
+            const isWon = linkedDeal?.quoteId === quote.id;
             const quoteType = linkedCase?.type || inferCaseType(quote);
             const pipelineStageId = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : null;
             const pipelineStage = CASE_PIPELINE_STAGES.find((stage) => stage.id === pipelineStageId);
@@ -250,8 +273,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
-                      {pipelineStage && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
-                      {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
+                      {pipelineStage && (['new', 'follow_up'].includes(pipelineStage.id) || isWon) && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
+                      {isWon && <span className="badge bg-ok/15 text-ok">✓ 本張報價成交</span>}
+                      {linkedDeal?.quoteId && !isWon && <span className="badge bg-s2 text-ink-3">未採用</span>}
+                      {linkedDeal && !linkedDeal.quoteId && <span className="badge bg-warn/10 text-warn">成交報價待核對</span>}
+                      {isWon && pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       {attention.unassignedOverdue && <span className="badge bg-danger text-white">未分配客戶超過 30 天</span>}
                       {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
@@ -265,7 +291,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
                     {attention.ageDays != null && <p className={`mt-1 text-[11px] font-semibold ${attention.unassignedOverdue ? 'text-danger' : attention.linkedStale ? 'text-ink-3' : 'text-ink-2'}`}>報價已建立第 {attention.ageDays} 天{attention.linked ? '・已分配客戶' : '・尚未分配客戶'}</p>}
-                    {pipelineStage && <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入{pipelineStage.label}・階段第 {stageDays} 天｜案件總計 {totalDays} 天</p>}
+                    {pipelineStage && (['new', 'follow_up'].includes(pipelineStage.id) || isWon) && <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入{pipelineStage.label}・階段第 {stageDays} 天｜案件總計 {totalDays} 天</p>}
                   </div>
                   <p className="text-right shrink-0">
                     <span className="block text-[10px] text-ink-3">{pending > 0 ? '目前金額' : '專案價'}</span>
@@ -278,15 +304,16 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 )}
 
                 <div className="flex items-center gap-2">
-                  {!quote.archivedAt && <button onClick={() => setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
-                    ✏️ 開啟／輸出圖片
+                  {!quote.archivedAt && <button onClick={() => isWon ? setViewWonQuoteId(quote.id) : setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
+                    {isWon ? '查看成交版本' : '✏️ 開啟／輸出圖片'}
                   </button>}
+                  {!quote.archivedAt && linkedCase && (!linkedDeal || !linkedDeal.quoteId) && <button type="button" onClick={() => { setDealError(''); setConfirmDealId(quote.id); }} className="btn-outline min-h-11 text-xs">{linkedDeal ? '核對成交報價' : '確認此報價成交'}</button>}
                   {!quote.archivedAt && linked && onOpenClient && (
                     <button onClick={() => onOpenClient(linked.id)} className="btn-outline text-xs">看客戶</button>
                   )}
                   {quote.archivedAt ? (
                     <button onClick={() => restoreQuote(quote.id)} className="btn-primary flex-1 text-xs">↩ 恢復報價</button>
-                  ) : confirmDeleteId === quote.id ? (
+                  ) : isWon ? null : confirmDeleteId === quote.id ? (
                     <div className="flex items-center gap-1">
                       <button onClick={() => moveQuoteToTrash(quote.id)} className="btn-danger text-[10px]">確認放入垃圾車</button>
                       <button onClick={() => setConfirmDeleteId(null)} className="btn-outline text-[10px]">取消</button>
@@ -309,9 +336,20 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           quote={editing.mode === 'edit' ? editing.quote : null}
           initialCaseId={editing.caseId || ''}
           onSaveQuote={handleSave}
+          onRequestConfirmDeal={(id) => { setDealError(''); setConfirmDealId(id); }}
           onClose={() => setEditing(null)}
         />
       )}
+      {confirmDealId && (() => {
+        const quote = quoteDrafts.find((row) => row.id === confirmDealId);
+        const priorDeal = quote ? dealByCase.get(linkedCaseFor(quote)?.id) : null;
+        return quote ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="w-full max-w-md rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><h2 className="text-lg font-bold text-ink">{priorDeal ? '核對既有成交的報價' : '確認這張報價成交？'}</h2><p className="mt-2 text-sm text-ink-2">{quote.customerName}・{quote.model || '未填車型'}<br />報價 NT$ {formatMoney(quote.total)}</p>{priorDeal && <p className="mt-2 text-xs font-bold text-warn">既有成交價 NT$ {formatMoney(priorDeal.amount)} 將保留；若與報價不同，請到後台核對成本與利潤。</p>}<p className="mt-3 text-xs text-copper">只會使用這張報價的配件建立核對表；同案其他報價不計入。</p>{pendingCount(quote) > 0 && <p className="mt-2 text-xs font-bold text-warn">仍有 {pendingCount(quote)} 項待廠商確認，成交後須繼續追蹤。</p>}{dealError && <p role="alert" className="mt-2 text-sm text-danger">{dealError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConfirmDealId(null)} className="btn-outline min-h-12">先不要</button><button type="button" onClick={confirmDeal} className="btn-primary min-h-12">確認成交</button></div></div></div> : null;
+      })()}
+      {viewWonQuoteId && (() => {
+        const deal = deals.find((row) => row.quoteId === viewWonQuoteId && !row.caseArchivedAt);
+        const snapshot = deal?.quoteSnapshot || quoteDrafts.find((row) => row.id === viewWonQuoteId);
+        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
+      })()}
     </div>
   );
 }
