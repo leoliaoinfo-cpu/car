@@ -106,7 +106,7 @@ test('改裝報價會建立改車案件，且已被成交引用的報價不重�
 });
 
 test('案件相容轉換使用固定 id，可安全重跑', () => {
-  const args = { quotes: [{ id: 'q1', customerName: '甲' }] };
+  const args = { quotes: [{ id: 'q1', clientId: 'c1', customerName: '甲' }] };
   const first = buildLegacyCaseSeeds(args);
   const second = buildLegacyCaseSeeds({ ...args, existingCases: first });
   assert.equal(first[0].id, 'case:quote:q1');

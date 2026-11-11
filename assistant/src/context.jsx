@@ -14,7 +14,7 @@ import {
   buildPricingRecord, collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
 } from './utils/pricing';
 import { stockItemsFromQuote } from './utils/stock';
-import { canonicalizeQuotes } from './utils/quotes';
+import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, planQuoteCaseLink } from './utils/quotes';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 import { advanceCasePipeline, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 import { changedPatch, pricingRecordsToDropForClients, recTs } from './utils/dataMerge.js';
@@ -346,7 +346,14 @@ export function AppProvider({ children }) {
           deals, quotes: canonical.quoteDrafts, clients: canonical.clients, existingCases: cases,
         });
         for (const item of caseSeeds) await db.put('cases', item);
-        const numberedCases = assignCaseNumbers([...cases, ...caseSeeds], caseNumberSequenceRow?.nextNumber);
+        // 舊版替「只做報價」長出的空殼「未命名客戶」案件：沒有任何使用者資料才移除（報價保留）。
+        const ghostCaseIds = new Set(findGhostQuoteCases({
+          cases, quotes: canonical.quoteDrafts,
+          referencedCaseIds: collectReferencedCaseIds(workItems, activities, tasks, deals, events),
+        }));
+        for (const id of ghostCaseIds) await db.delete('cases', id).catch(() => {});
+        const keptCases = cases.filter((row) => !ghostCaseIds.has(row.id));
+        const numberedCases = assignCaseNumbers([...keptCases, ...caseSeeds], caseNumberSequenceRow?.nextNumber);
         const changedCaseIds = new Set(numberedCases.changedIds);
         for (const item of numberedCases.cases) if (changedCaseIds.has(item.id)) await db.put('cases', item);
         caseNumberNextRef.current = numberedCases.nextNumber;
@@ -647,39 +654,33 @@ export function AppProvider({ children }) {
   // ── 報價管理工作區 ───────────────────────────────────────────────────────
   const saveQuoteDraft = useCallback(async (quote) => {
     const now = new Date().toISOString();
-    let full = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
-    const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
-    const caseType = inferCaseType(full);
-    const previousLinked = allCases.find((row) => (row.quoteIds || []).includes(full.id));
-    const candidates = allCases.filter((row) => row.clientId && row.clientId === full.clientId
-      && row.type === caseType && row.status !== 'completed');
-    const linked = allCases.find((row) => row.id === full.caseId)
-      || previousLinked
-      || (candidates.length === 1 ? candidates[0] : null);
-    const keepDetached = Boolean(full.caseArchivedAt);
-    let caseRow = null;
-    if (!keepDetached && (linked || full.clientId || full.customerName)) {
-      caseRow = advanceCasePipeline({
-        ...(linked || {}), id: linked?.id || `case:quote:${full.id}`,
-        clientId: full.clientId || linked?.clientId || null,
-        clientName: full.customerName || linked?.clientName || '未命名客戶',
-        type: inferCaseType(full), title: full.model || linked?.title || (inferCaseType(full) === 'modification' ? '改裝報價' : '購車報價'),
-        status: linked?.status || 'active', dealId: linked?.dealId || null,
-        quoteIds: [...new Set([...(linked?.quoteIds || []), full.id])], source: linked?.source || 'quote',
-        createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
-      }, 'new', now, { allowBackward: false });
-      full = { ...full, caseId: caseRow.id };
+    const draft = { ...quote, createdAt: quote.createdAt || now, updatedAt: now };
+    const allCases = await db.getAll('cases').catch(() => []);
+    const allQuotes = await db.getAll('quoteDrafts').catch(() => []);
+    // 歸屬決策在 utils/quotes.js（純函式、有測試）：沒客戶不建案件；歸入既有案件不改標題；舊空殼案件移除。
+    let plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, now });
+    if (plan.deleteCaseIds.length) {
+      const [workItems, activities, tasks, deals, events] = await Promise.all(
+        ['workItems', 'activities', 'tasks', 'deals', 'events'].map((store) => db.getAll(store).catch(() => [])));
+      const referencedCaseIds = collectReferencedCaseIds(workItems, activities, tasks, deals, events);
+      plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, referencedCaseIds, now });
     }
+    const full = plan.quote;
+    const caseRow = plan.caseRow ? advanceCasePipeline(plan.caseRow, 'new', now, { allowBackward: false }) : null;
     dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });
     await db.put('quoteDrafts', full);
-    if (previousLinked && caseRow && previousLinked.id !== caseRow.id) {
-      const previous = { ...previousLinked, quoteIds: (previousLinked.quoteIds || []).filter((id) => id !== full.id), updatedAt: now };
-      dispatch({ type: 'UPSERT_CASE', payload: previous });
-      await db.put('cases', previous);
+    if (plan.previousCase) {
+      dispatch({ type: 'UPSERT_CASE', payload: plan.previousCase });
+      await db.put('cases', plan.previousCase);
     }
     if (caseRow) {
       dispatch({ type: 'UPSERT_CASE', payload: caseRow });
       await db.put('cases', caseRow);
+    }
+    for (const id of plan.deleteCaseIds) {
+      dispatch({ type: 'DELETE_CASE', id });
+      casesRef.current = casesRef.current.filter((row) => row.id !== id);
+      await db.delete('cases', id);
     }
     return full;
   }, []);
