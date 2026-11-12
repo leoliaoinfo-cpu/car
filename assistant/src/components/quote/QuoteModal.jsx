@@ -977,6 +977,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   ].filter((group) => group.rows.length > 0);
 
   function requestClose() {
+    // 還沒選任何品項就直接關閉，不用再確認
+    if (selectedItems.length === 0) { onClose(); return; }
     setShowCloseConfirm(true);
   }
 
@@ -1069,11 +1071,6 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 </div>
               </details>
             )}
-            <Field label="客戶需求／用途（內部備忘，不會出現在報價圖片）">
-              <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3}
-                placeholder="例：市場載貨、需要防滑底板、尾門載重與平台尺寸待確認…"
-                className="w-full text-sm resize-y" />
-            </Field>
             <Field label="車型">
               <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
                 <input type="number" min="2000" max="2100" value={modelYear}
@@ -1533,6 +1530,14 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <p className="text-[10px] text-ink-3 leading-relaxed">以上僅供概算；實際利率、額度、頭期款與還款方式仍以金融機構正式核定為準。</p>
             </div>
 
+            <details className="rounded-xl border border-bdr bg-s2/50 p-3">
+              <summary className="cursor-pointer text-sm font-semibold text-ink-2">更多選項（需求備忘、備註、業務資料）</summary>
+              <div className="mt-3 space-y-2">
+            <Field label="客戶需求／用途（內部備忘，不會出現在報價圖片）">
+              <textarea value={requirements} onChange={(e) => setRequirements(e.target.value)} rows={3}
+                placeholder="例：市場載貨、需要防滑底板、尾門載重與平台尺寸待確認…"
+                className="w-full text-sm resize-y" />
+            </Field>
             <Field label="備註">
               <input value={note} onChange={(e) => setNote(e.target.value)}
                 placeholder="有效期限、交車條件…" className="w-full text-sm" />
@@ -1547,6 +1552,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   className="w-full text-sm min-w-0" />
               </Field>
             </div>
+              </div>
+            </details>
           </div>
 
           {/* 報價單預覽 — 固定淺色、專業排版，可下載成整張 PNG */}

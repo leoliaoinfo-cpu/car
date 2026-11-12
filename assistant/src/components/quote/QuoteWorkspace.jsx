@@ -6,6 +6,7 @@ import { addDays, today } from '../../utils/date';
 import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType, findDealForCase } from '../../utils/cases';
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
+import { ClientPicker } from '../ui';
 
 function pendingCount(quote) {
   return (quote?.items || []).filter((item) => item.pending).length;
@@ -30,6 +31,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [dealError, setDealError] = useState('');
   const [dealSaving, setDealSaving] = useState(false);
   const dealBusy = useRef(false);
+  const [assigningId, setAssigningId] = useState(null);
+  const [assignClientId, setAssignClientId] = useState('');
+  const [assignBusy, setAssignBusy] = useState(false);
   const [fromCaseId, setFromCaseId] = useState(null); // 從案件開的報價：存檔、關閉或成交後回到該案件
 
   function finishAndReturn() {
@@ -179,6 +183,22 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     if (!_confirmAfterSave && (editing?.caseId || fromCaseId)) finishAndReturn();
   }
 
+  async function assignQuoteToClient(quote) {
+    const client = clientMap.get(assignClientId);
+    if (!client || assignBusy) return;
+    setAssignBusy(true);
+    try {
+      await handleSave({ ...quote, clientId: client.id, customerName: client.name, customerPhone: client.phone || quote.customerPhone || '', _customerMode: 'existing', _confirmAfterSave: true });
+      setAssigningId(null);
+      setAssignClientId('');
+      setSaveNotice({ clientId: client.id, text: `報價已歸入「${client.name}」。` });
+    } catch (cause) {
+      setSaveNotice({ clientId: null, text: cause?.message || '歸入客戶失敗，請再試一次。' });
+    } finally {
+      setAssignBusy(false);
+    }
+  }
+
   async function moveQuoteToTrash(id) {
     await archiveQuoteDraft(id);
     setConfirmDeleteId(null);
@@ -317,6 +337,17 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                     <strong className="text-accent">NT$ {formatMoney(quote.total)}</strong>
                   </p>
                 </div>
+
+                {!quote.archivedAt && !quote.clientId && (assigningId === quote.id ? (
+                  <div className="rounded-xl border border-teal/30 bg-teal/8 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-teal">歸入哪位客戶？</p>
+                    <ClientPicker clients={clients} value={assignClientId} onChange={setAssignClientId} placeholder="輸入姓名或電話搜尋客戶…" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => { setAssigningId(null); setAssignClientId(''); }} className="btn-outline min-h-10 text-xs">先不要</button>
+                      <button type="button" disabled={!assignClientId || assignBusy} onClick={() => assignQuoteToClient(quote)} className="btn-primary min-h-10 text-xs disabled:opacity-40">{assignBusy ? '歸入中…' : '確定歸入'}</button>
+                    </div>
+                  </div>
+                ) : <button type="button" onClick={() => { setAssigningId(quote.id); setAssignClientId(''); }} className="btn-outline min-h-10 w-full text-xs">👤 歸入客戶</button>)}
 
                 {quote.requirements && (
                   <p className="text-xs text-ink-2 bg-s2 rounded-lg px-3 py-2 line-clamp-3 whitespace-pre-wrap">{quote.requirements}</p>
