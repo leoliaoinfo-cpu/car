@@ -810,7 +810,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                     {workflow.length === 0 ? (
                       <div className="rounded-2xl border border-dashed border-accent/40 bg-accent/5 p-4 text-center">
                         <p className="font-bold text-ink">這筆成交還沒有施工流程</p>
-                        <p className="mt-1 text-xs leading-5 text-ink-3">系統可以依成交配備建立尾門、帆布、烤漆、箱體、洗車與交車步驟。</p>
+                        <p className="mt-1 text-xs leading-5 text-ink-3">系統可以依成交配件建立尾門、帆布、烤漆、箱體、洗車與交車步驟。</p>
                         <button type="button" onClick={() => saveWorkflow(deal, generateDeliveryWorkflow({ deal, pricing }))} className="btn-primary mt-4 min-h-12 w-full">依成交內容建立流程</button>
                       </div>
                     ) : dailyStep ? (
@@ -889,7 +889,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                   <button type="button" onClick={() => saveWorkflow(deal, mergeSuggestedWorkflow(latestWorkflow(deal), generateDeliveryWorkflow({ deal, pricing })))} className="btn-primary min-h-10 text-xs">
                     {workflow.length ? '＋ 補上建議步驟' : '依成交內容建立流程'}
                   </button>
-                  <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline min-h-10 text-xs">成本與成交配備</button>
+                  <button type="button" onClick={() => onOpenPricing(deal)} className="btn-outline min-h-10 text-xs">成本與成交配件</button>
                   <button type="button" onClick={() => addStepDealId === deal.id ? setAddStepDealId(null) : openAddStep(deal, workflow)} className="min-h-11 rounded-xl border border-copper/50 bg-copper/12 px-4 text-sm font-bold text-copper">＋ 新增施工階段／狀態</button>
                   {workflow.length > 0 && <button type="button" onClick={() => toggleSortMode(deal, workflow, !isSortMode)} className={`min-h-10 rounded-lg border px-3 text-xs font-bold ${isSortMode ? 'border-gold bg-gold/12 text-gold' : 'border-bdr text-ink-2'}`}>{isSortMode ? '完成排序' : '拖拉排序'}</button>}
                 </div>
@@ -906,7 +906,7 @@ export default function DeliveryWorkflowPanel({ deals, cases = [], clients, pric
                     <button type="button" onClick={() => setViewModeByDeal((current) => ({ ...current, [deal.id]: 'timeline' }))} className={`min-h-10 rounded-lg text-xs font-bold ${viewMode === 'timeline' ? 'bg-s1 text-accent shadow-sm' : 'text-ink-3'}`}>排程圖</button>
                   </div>
                 )}
-                {workflow.length === 0 && <p className="rounded-lg bg-s2 p-3 text-xs text-ink-3">系統可從成交配備辨識尾門、帆布、烤漆、H 架或箱體；建立後仍可逐項調整。</p>}
+                {workflow.length === 0 && <p className="rounded-lg bg-s2 p-3 text-xs text-ink-3">系統可從成交配件辨識尾門、帆布、烤漆、H 架或箱體；建立後仍可逐項調整。</p>}
                 {viewMode === 'steps' && visibleWorkflow.map((step) => {
                   const index = displayWorkflow.findIndex((candidate) => candidate.id === step.id);
                   const waiting = getWaitingOn(step, workflow);

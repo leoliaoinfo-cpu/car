@@ -10,82 +10,37 @@ description: Build, run, and drive the 汽車銷售業務系統 app (assistant/)
 ```bash
 cd assistant
 npm ci            # Node 20+
-npm run build     # single-file dist/index.html (must run INSIDE assistant/, root has no package.json)
-npm run preview -- --port 4173 &   # serves dist/ — closest to GitHub Pages production
+npm run build     # single-file dist/index.html (run INSIDE assistant/)
+npm run preview -- --port 4173 &   # serves dist/，最接近 GitHub Pages
+node --test $(find src -name '*.test.js')   # 單元測試（目前 199 項）
 ```
 
 ## Drive with Playwright
 
-Chromium executable (remote env): `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
-(NOT `/opt/pw-browsers/chromium/chrome`). Install `playwright-core` in a scratch dir.
+- Chromium：`/opt/pw-browsers/chromium`（`launch({ executablePath, args:['--no-sandbox'] })`），`playwright-core` 裝在暫存資料夾。
+- 手機尺寸 `viewport 390×844`；截圖用 `deviceScaleFactor: 2`。
+- 測試資料庫 `car_sales_assistant_v1`：先開頁面讓它建好，再用 IndexedDB `put` 種資料，`reload` 後驗證。**不要碰使用者真實資料。**
+- 端對端腳本：`assistant/e2e/stock-flow.mjs`（成交→配件核對→中央點貨→今天頁提醒）。
 
-Wipe state for a clean run:
+## 導覽（階段 1 之後）
 
-```js
-await page.evaluate(() => new Promise((res) => {
-  const r = indexedDB.deleteDatabase('car_sales_assistant_v1');
-  r.onsuccess = r.onerror = r.onblocked = () => res();
-}));
-await page.reload();
-```
+- 底部／桌面頂部：今天（`work`）、案件、報價、客戶。右上：🔎 搜尋案件、🧰 工具、⚙ 設定。
+- 浮動 ＋ 只開「新增客戶／案件／報價」。沒有「更多」頁、沒有客戶接待入口、沒有 ⏱ 膠囊。
+- 兩個 `<nav>`/header 同時存在（桌面隱藏）：點底部導覽用 `p.locator('nav').getByText('案件',{exact:true})`；右上按鈕用 `p.locator('header:visible').getByLabel('工具')`。
+- 首次啟動橫幅可用 `getByLabel('關閉提示')` 關掉。
 
-## Flows worth driving
+## 要驗證的流程
 
-- Four tabs exist: 今日工作 (default), 行事曆, 客戶追蹤, 業績表 — 薪資計算 and 工作日誌
-  were removed on purpose; their IndexedDB stores remain for old-backup import compat.
-- Theme: Morandi blue-grey, dark by default via `html.dark` + CSS variables (`--c-*`
-  in index.css; dark body bg = rgb(23,28,33), light = rgb(236,240,243));
-  localStorage key `theme` ('dark'|'light'), toggle button in settings header.
-  Wipe localStorage 'theme' for a deterministic theme test.
-- 記錄「交車」 creates 6 timers by default: 3/7/30-day aftercare + 3 adjustable annual
-  reminders (保險續保/驗車 +11 months, 舊換新評估 +54 months; each can be unchecked).
-- New-client modal name placeholder is 「姓名 / 公司名 *」 — match with
-  `input[placeholder*="姓名"]`. Clients have clientType/taxId/industry/contacts[]/
-  referrerId/referralFee; search also matches industry, taxId, contact name/phone.
-- Quote generator has preset chips (addons + negative subsidies, editable at
-  設定 → 🚚 報價選單) and a loan block (down/months/rate/monthly-revenue →
-  月付 + 每月淨賺 shown on the sheet). quote.loan persists — check edit mode keeps it.
-- Date-type custom fields support recurrence (每年/一次性/連續N年) — occurrences show
-  grouped-by-field on Today and as 🎉 events on the calendar.
-- 報價單產生器: client detail → 「＋ 建立報價單」; quotes are saved on client.quotes
-  and editable afterwards (✏️ in the 🧾 報價單 section; timeline amount syncs on edit;
-  deleting a quote keeps its timeline event). Signature persists via settings
-  'quoteProfile' (loads async — wait for the input value, don't read immediately).
-- Today page has 📋 待辦事項 (central tasks, quick-add input, tasks store) and
-  👤 客戶待辦 (undone client todos across all clients). Checking a client-todo row
-  removes it — use .click() not .check(): Playwright check() retries on the
-  controlled checkbox and will tick EVERY row one by one.
-- Timeline entries are editable (✏️ inline form) and deletable (two-step ✕).
-- 交車待辦範本 is editable at 設定 → 📋 待辦範本 (settings key 'todoTemplate').
-- When settings panel is open over the CRM page, scope button selectors with
-  `.anim-slide-right` — the CRM toolbar also has a "+ 新增" button behind the overlay.
-- 行事曆: events = client nextDate (追蹤), unconfirmed timers (提醒), deals (成交);
-  click a day → event list; click an event row → jumps to the client in CRM;
-  追蹤 rows have an inline 已聯繫 button that clears nextDate.
-- 業績表: archive a deal via client detail 「＋ 歸檔到業績表」 (amount prefills from the
-  latest quote/order event); 單月 view shows per-field totals, 總表 groups by month.
-  Deal fields are editable in 設定 → 🏆 業績欄位. Deleting a deal keeps the client's
-  timeline entry (by design).
-- Today page: empty state shows 「今天沒有待辦事項」; recording events on clients makes
-  an auto-computed 「📊 本日成果」 section appear (counts + NT$ amounts from timeline).
-- CRM: 新增 client → detail → 業務進度記錄 quick-event buttons (報價 has amount field);
-  記錄「交車」 must create 3 timers (floating `⏱ 3` button) and set nextDate +3 days.
-- Pin (📌 button in detail header) → 即將簽約 section (note + todos) → shows on Today page.
-- Settings → 備份還原: upload garbage JSON → 「無法讀取備份」; upload real export →
-  summary confirm card, confirming triggers a `pre-restore-backup-*.json` download first.
-- Reload page → data persists (IndexedDB).
+- 今天：預設「逾期＋今天」清單；點上方數字只看某類；右上「清單｜月曆」；月曆同一份資料。
+- 案件：卡片追蹤資訊列、篩選（全部／要追蹤／已報價／已成交／已交車／回收筒）；新增案件追蹤日選填（預設 3 天後），只產生一筆待辦。
+- 報價：底部固定操作列；沒有原生 alert/confirm（用 `page.on('dialog')` 檢查為 0）；預覽圖不含 利率／成本／利潤／貸款公司／內部備忘；從案件開的報價存檔後回到案件。
+- 成交到交車：案件內「建立施工進度」→ 每步一按 ✓；配件沒備妥時完成安裝／交車會跳「仍要繼續」；「確認交車」後 `timers` 為 0、案件 `completed`；施工進度不需密碼；🧰→業績與成本新裝置先要求設定數字密碼。
+- 客戶：搜尋框全寬；詳情沒有 建立報價單／建立成交案／預計交車日／計時提醒／生日；歷程與待辦筆數不變。
+- 設定：常用（報價選單、雲端同步、備份還原）／進階，可搜尋。
 
 ## Gotchas
 
-- Text 「逾期追蹤」 matches both the stat tile (always present) and the section title —
-  assert on `⚠️ 逾期追蹤` for the section.
-- Checkboxes are controlled inputs updated after an async save — use `.click()` +
-  wait for the count text, not Playwright `.check()`.
-- Console shows ERR_CONNECTION_RESET for fonts.googleapis.com (sandbox proxy) and a
-  favicon 404 — environment noise, not app errors.
-- 記錄「交車」 overwrites nextDate to +3 days — if a test needs an overdue client,
-  don't record delivery on that client.
-- Two `<nav>` elements exist (hidden desktop header nav + mobile bottom nav) — target
-  the bottom one with `nav.md\\:hidden >> text=…`.
-- Today page shows a backup-reminder banner when clients exist and lastBackupAt
-  (settings store) is missing or ≥7 days old; 立即備份 downloads `auto-sales-backup-*.json`.
+- 勾選列用 `.click()` 不要 `.check()`（Playwright 會逐列重勾）。
+- 案件詳情是全螢幕覆蓋層，點底部導覽前要先按「←」返回。
+- 配件警示視窗開著時，底下的按鈕會被遮住，先按「仍要繼續」或「先去核對」。
+- sandbox 會出現 fonts.googleapis.com 連線被擋與 favicon 404，屬環境雜訊。

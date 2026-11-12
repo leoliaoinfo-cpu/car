@@ -711,10 +711,10 @@ export function AppProvider({ children }) {
     }
   }, [saveClient]);
 
-  /** 報價垃圾車：只隱藏、不刪除報價、成本、客戶或案件關聯，可隨時恢復。 */
+  /** 報價回收筒：只隱藏、不刪除報價、成本、客戶或案件關聯，可隨時恢復。 */
   const archiveQuoteDraft = useCallback(async (id) => {
     const current = await db.get('quoteDrafts', id).catch(() => null);
-    if (!current) throw new Error('找不到要放入垃圾車的報價。');
+    if (!current) throw new Error('找不到要放入回收筒的報價。');
     const now = new Date().toISOString();
     const archived = { ...current, archivedAt: now, updatedAt: now };
     dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: archived });
@@ -746,7 +746,7 @@ export function AppProvider({ children }) {
     await db.delete('receptionSessions', id);
   }, []);
 
-  // ── 合作廠商（成交後施工指派用）────────────────────────────────────────
+  // ── 廠商名冊（成交後施工指派用）────────────────────────────────────────
   const saveSupplier = useCallback(async (supplier) => {
     const now = new Date().toISOString();
     const full = { active: true, createdAt: now, ...supplier, updatedAt: now };
@@ -886,7 +886,7 @@ export function AppProvider({ children }) {
     await db.put('settings', { key: 'todoTemplate', items }).catch(() => {});
   }, []);
 
-  // ── 報價選單（車體配備 / 補助折抵，設定頁可編輯）────────────────────────
+  // ── 報價選單（車體配件 / 補助折抵，設定頁可編輯）────────────────────────
   const saveQuotePresets = useCallback(async (presets) => {
     dispatch({ type: 'SET_QUOTE_PRESETS', payload: presets });
     await db.put('settings', { key: 'quotePresets', ...presets }).catch(() => {});

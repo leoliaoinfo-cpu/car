@@ -214,7 +214,7 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null, in
     ['quotes', '報價利潤試算'],
     ['costs', '傭金與成本設定'],
     ['customPricing', '客製價格庫'],
-    ['suppliers', '合作廠商'],
+    ['suppliers', '廠商名冊'],
     ['fulfillment', '交車施工進度'],
   ];
   const focusedWorkflow = Boolean(focusDealId);

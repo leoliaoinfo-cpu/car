@@ -29,7 +29,7 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 198 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 199 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
@@ -42,6 +42,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **`src/storageKeys.js`**：所有儲存名稱的唯一來源，**一律帶專屬前綴**（見 §6 儲存隔離）。
 - **「今天」是唯一來源（階段 2）**：`utils/cases.js` 的 `buildWorkQueue` 產生所有該做的事（案件追蹤日、案件待辦、一般待辦、客戶待辦、配件缺貨／再追日、施工步驟、今天的自建活動、**太久沒追**＝沒追蹤日且 ≥14 天沒動靜的進行中案件；舊客戶 `nextDate` 只在「沒有進行中案件」時唯讀入列）。`WorkPage` 清單／月曆兩種檢視讀同一份；`CalendarPage`（內嵌）經 `utils/tracking.js` 的 `buildAgendaByDate` 讀佇列。完整工作總覽（`TodayPage`）入口已移除、程式保留；計時提醒、紀念日不進佇列。案件卡的追蹤資訊列與篩選（全部／要追蹤／已報價／已成交／已交車／回收筒）來自 `tracking.js`。新增案件追蹤日選填（預設 3 天後），「下一步」存在 `case.followUpNote`，不再另建待辦。
 - **報價流程（階段 3）**：`QuoteModal` 底部固定「儲存／預覽出圖／LINE 文字」（可成交時多一顆「儲存並確認成交」）；不再強制逐一確認 27 個配備分類、不再有原生 alert/confirm（缺規格改成行內紅字）。從案件開的報價（`QuoteWorkspace` 的 `fromCaseId`）存檔、關閉或成交後回到該案件（`onReturnToCase`）。「更多選項」收納、未歸戶報價的「歸入客戶」入口**尚未做**。
+- **客戶頁（階段 5）**：客戶詳情只留 基本資料、客戶案件（連到案件）、照片、待辦、「記錄聯繫」、互動時間軸；已移除 建立報價單／建立成交案／預計交車日／生日重要日子／計時提醒 與客戶頁案件流程看板（程式內部分狀態變數仍在、資料不動）。「記錄聯繫」不含「交車」（舊流程會建回訪提醒）。客戶清單搜尋框全寬。
+- **設定與用語（階段 6）**：設定分「常用（報價選單、雲端同步、備份還原）／進階」並可搜尋；客戶階段、自訂欄位、待辦範本、通知設定已收起（資料保留）。UI 用語統一：配件、廠商、客戶、回收筒。產品型錄（原廠文字）與接待、今天舊頁不改字。
 - **成交到交車（階段 4）**：案件詳情內直接有「施工進度」（`deals/CaseDeliveryChecklist.jsx`，一點完成、不需密碼）與配件核對；配件未備妥時完成「改裝配件安裝／交車」會跳警示（可選「仍要繼續」）；最後一步「確認交車」（`context.confirmDelivery`）只記錄交車日、案件標完成、收掉成交前待辦、認列薪資，**不再建立任何回訪／年度提醒、也不再設客戶追蹤日**。已交車的案件不再顯示缺配件警示。金額／成本頁（`OperationsPage`）新裝置首次進入要先設定數字密碼（不再有預設密碼）；密碼雜湊只存在該裝置 localStorage。e2e `assistant/e2e/stock-flow.mjs` 已更新為新導覽並全過。
 - `src/utils/`：純邏輯（可單元測試）。`dataMerge.js` 同步／還原的合併決策、`cases.js` 案件階段與工作佇列、`pricing.js` 報價成本利潤、`stock.js` 成交配件核對與缺貨、`delivery.js` 交車流程、`quotes.js`、`reception.js`、`presentationLock.js`、`lock.js`、`ics.js`。
 - `src/components/`：`cases/`（案件主流程）、`quote/`（QuoteModal 報價編輯、QuoteWorkspace 獨立報價工作區）、`work/`（工作清單）、`crm/`、`deals/`、`reception/`、`today/`、`calendar/`、`catalog/`、`SettingsPanel.jsx`。
@@ -78,10 +80,10 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - 已完成：案件主流程、獨立報價工作區、成交報價指定與配件點貨／缺貨提醒、交車施工流程與廠商名冊、套餐與自訂品項、車高計算機、業績／成本中心、型錄、iOS 風工作頁、平板 RWD、雲端同步、PWA。
 - 待處理：
   - 分支 `hotfix/pages-storage-isolation` 尚未與開發分支整理（Codex 處理 Pages 儲存隔離的修正線），動它前先問使用者。
-  - 配件核對表目前每項的狀態/再追日藏在折疊區；若使用者覺得手機難操作，可把「再追日」直接露出。
+  - （已完成）配件核對的再追日已直接露出。
   - 2026-11-11 全面檢視後已修：同步／還原掉資料、畫面 bug 共 24 項。**尚未做、等使用者決定**：(1) 簡化 10 項（報價拿掉 27 分類逐一確認、施工進度移出密碼區、客戶頁瘦身、移除「完整工作總覽」入口、用語統一等）；(2) 內部成本入口：本檔 §5 寫「設定＋就讀的國小」，程式實際是「成交與施工管理＋數字密碼」，以使用者回覆為準；(3) 同一客戶兩台裝置同時改只留一邊（需逐筆合併 `client.log`／`todos`，設計見 HANDOFF）。
   - 已知未修 bug：手機上「⏱ 提醒」膠囊蓋住「＋」；交車完成後卡片仍顯示尚缺配件、缺配件可直接交車無提醒；新建案件產生兩張重複待辦；行事曆與完整工作總覽看不到案件追蹤日。
-  - **2026-11-12 使用者決定走全面精簡**：依 `docs/SIMPLIFY_SPEC.md` 逐階段執行（**一次一階段**，先前三組同時跑三次撞用量上限）。**階段 0、1、2、3 已完成，下一步＝階段 4（成交到交車，高風險、單獨做）**。
+  - **2026-11-12 使用者決定走全面精簡**：依 `docs/SIMPLIFY_SPEC.md` 逐階段執行（**一次一階段**，先前三組同時跑三次撞用量上限）。**階段 0～6 已全部完成**（2026-11-12）。後續只剩下方「待處理」與使用者口述的新需求。
   - 階段 0 結論：`backup/simp-quote` 的完整 commit（1ca7f7b）**已採用**＝修好「無客戶報價重整後長出未命名客戶案件」（舊空殼案件啟動時清掉，有追蹤日／備註等使用者資料的一律保留；其 WIP commit 捨棄）。`backup/simp-delivery` 留到階段 4 **部分採用**（保留配件警示、planDeliveryCompletion、完成階段不降級修正、PIN 工具；**拿掉** buildDeliveryReminders 與回訪／年度提醒）。`backup/simp-work` 留到階段 2 **部分採用**（保留佇列單一來源、buildAgendaByDate、太久沒追、案件追蹤摘要 tracking.js；**拿掉**計時提醒、紀念日進佇列；WIP 的 WorkPage 重寫需重驗）。階段 2 已部分採用 `backup/simp-work` 的第一個 commit（佇列、追蹤摘要；拿掉計時提醒與紀念日），其 WIP commit 捨棄。三條都已確認能建置、測試全過，備份分支勿刪。
   - 使用者已回覆的決定：內部成本用**數字密碼**；業績與成本每天看、車高試算、產品型錄、K2500 規格（要從客戶接待獨立出來）要好找；廠商名冊要更顯眼；客戶接待、競品比較、紀念日、計時提醒不用，移除入口但資料保留。**交車後的自動提醒全部取消**：3／7／30 天回訪與年度提醒（續保／驗車／舊換新）都不再建立；既有資料不刪。
   - 半成品備份在遠端 `backup/simp-quote`、`backup/simp-delivery`、`backup/simp-work`（未合併、未完整驗證，部分 WIP 可能無法建置；內容與說明見規格階段 0）。

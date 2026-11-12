@@ -176,8 +176,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     setSaveNotice(clientId ? {
       clientId,
       text: createdClient
-        ? `已建立「${createdClient.name}」並把報價連結到客戶追蹤。`
-        : '報價已儲存並連結到客戶追蹤。',
+        ? `已建立「${createdClient.name}」並把報價連結到客戶。`
+        : '報價已儲存並連結到客戶。',
     } : { clientId: null, text: '報價已儲存；未建立客戶資料。' });
     setEditing(null);
     if (!_confirmAfterSave && (editing?.caseId || fromCaseId)) finishAndReturn();
@@ -202,12 +202,12 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   async function moveQuoteToTrash(id) {
     await archiveQuoteDraft(id);
     setConfirmDeleteId(null);
-    setSaveNotice({ clientId: null, text: '報價已放入垃圾車，資料仍保留並可隨時恢復。' });
+    setSaveNotice({ clientId: null, text: '報價已放入回收筒，資料仍保留並可隨時恢復。' });
   }
 
   async function restoreQuote(id) {
     await restoreQuoteDraft(id);
-    setSaveNotice({ clientId: null, text: '報價已從垃圾車恢復。' });
+    setSaveNotice({ clientId: null, text: '報價已從回收筒恢復。' });
   }
 
   async function confirmDeal() {
@@ -258,7 +258,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           ['won', '成交報價', stageCounts.won],
           ['not_chosen', '未採用', stageCounts.not_chosen],
           ['unlinked', '未歸入案件', stageCounts.unlinked],
-          ['trash', '🗑 垃圾車', archivedQuotes.length],
+          ['trash', '🗑 回收筒', archivedQuotes.length],
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
       {stageFilter !== 'trash' && (
@@ -282,8 +282,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {rows.length === 0 ? (
         <section className="card p-8 text-center">
           <div className="text-4xl">🧾</div>
-          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : stageFilter === 'trash' ? '垃圾車目前是空的' : '還沒有報價'}</h2>
-          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : stageFilter === 'trash' ? '放入垃圾車的報價會保留在這裡，可隨時恢復。' : '按「新報價」建立第一張報價單。'}</p>
+          <h2 className="font-semibold text-ink mt-3">{query ? '找不到符合的報價' : stageFilter === 'trash' ? '回收筒目前是空的' : '還沒有報價'}</h2>
+          <p className="text-sm text-ink-3 mt-1">{query ? '換個關鍵字試試看。' : stageFilter === 'trash' ? '放入回收筒的報價會保留在這裡，可隨時恢復。' : '按「新報價」建立第一張報價單。'}</p>
           {!query && stageFilter !== 'trash' && <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary mt-4">＋ 建立報價</button>}
         </section>
       ) : (
@@ -320,7 +320,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
                       {attention.unassignedOverdue && <span className="badge bg-danger text-white">未分配客戶超過 30 天</span>}
                       {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
-                      {quote.archivedAt && <span className="badge bg-ink-3 text-white">垃圾車</span>}
+                      {quote.archivedAt && <span className="badge bg-ink-3 text-white">回收筒</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
                       {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
                       {pending > 0
@@ -365,11 +365,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                     <button onClick={() => restoreQuote(quote.id)} className="btn-primary flex-1 text-xs">↩ 恢復報價</button>
                   ) : isWon ? null : confirmDeleteId === quote.id ? (
                     <div className="flex items-center gap-1">
-                      <button onClick={() => moveQuoteToTrash(quote.id)} className="btn-danger text-[10px]">確認放入垃圾車</button>
+                      <button onClick={() => moveQuoteToTrash(quote.id)} className="btn-danger text-[10px]">確認放入回收筒</button>
                       <button onClick={() => setConfirmDeleteId(null)} className="btn-outline text-[10px]">取消</button>
                     </div>
                   ) : (
-                    <button onClick={() => setConfirmDeleteId(quote.id)} className="btn-ghost text-danger/70 px-2" title="放入垃圾車（可恢復）">🗑</button>
+                    <button onClick={() => setConfirmDeleteId(quote.id)} className="btn-ghost text-danger/70 px-2" title="放入回收筒（可恢復）">🗑</button>
                   )}
                 </div>
               </article>

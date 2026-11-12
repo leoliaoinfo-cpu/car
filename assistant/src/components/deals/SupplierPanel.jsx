@@ -44,7 +44,7 @@ export default function SupplierPanel({ suppliers, onSave, onDelete }) {
       <div className="card p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-bold text-ink">🤝 合作廠商名冊</h2>
+            <h2 className="font-bold text-ink">🤝 廠商名冊名冊</h2>
             <p className="text-xs text-ink-3 mt-1">記住廠商聯絡方式、承作項目、付款與保固；施工流程可直接指派。</p>
           </div>
           <button type="button" onClick={startCreate} className="btn-primary text-xs shrink-0">＋ 新增廠商</button>
@@ -80,7 +80,7 @@ export default function SupplierPanel({ suppliers, onSave, onDelete }) {
         </form>
       )}
 
-      {shown.length === 0 && <p className="card p-6 text-center text-sm text-ink-3">尚未建立合作廠商。</p>}
+      {shown.length === 0 && <p className="card p-6 text-center text-sm text-ink-3">尚未建立廠商名冊。</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {shown.map((supplier) => (
           <article key={supplier.id} className={`card p-3 space-y-2 ${supplier.active === false ? 'opacity-60' : ''}`}>

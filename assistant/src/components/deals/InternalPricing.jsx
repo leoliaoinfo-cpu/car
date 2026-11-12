@@ -94,7 +94,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
       .some((row) => !String(row.supplier || '').trim() || row.cost === '' || row.cost == null
         || !Number.isFinite(Number(row.cost)) || Number(row.cost) < 0));
     if (incomplete) {
-      setMessage('⚠️ 供應商成本有未填的廠商名稱或金額，請補齊後再儲存。');
+      setMessage('⚠️ 廠商成本有未填的廠商名稱或金額，請補齊後再儲存。');
       return;
     }
     const addons = Object.fromEntries(Object.entries(draft.addons || {}).map(([id, entry]) => [id, {
@@ -200,24 +200,24 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
           <div className="px-3 pb-2.5">
             <button type="button" onClick={() => setExpandedAddon(expandedAddon === item.id ? null : item.id)}
               className="text-[11px] text-accent font-medium">
-              {expandedAddon === item.id ? '▼' : '▶'} 供應商／車型成本（{supplierCosts.length} 筆）
+              {expandedAddon === item.id ? '▼' : '▶'} 廠商／車型成本（{supplierCosts.length} 筆）
             </button>
             {expandedAddon === item.id && (
               <div className="mt-2 space-y-2 rounded-lg bg-s2/60 p-2.5">
-                <p className="text-[10px] text-ink-3">有供應商資料時，依車型套用；未指定供應商先取適用的最高成本。基本成本保留作舊資料參考，不覆蓋已設定的供應商成本。</p>
+                <p className="text-[10px] text-ink-3">有廠商資料時，依車型套用；未指定廠商先取適用的最高成本。基本成本保留作舊資料參考，不覆蓋已設定的廠商成本。</p>
                 {supplierCosts.map((entry) => (
                   <div key={entry.id} className="rounded-lg border border-bdr/60 bg-s1 p-2 space-y-1">
                     <div className="grid grid-cols-[minmax(0,1fr)_88px_24px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_92px_24px] gap-1.5 items-center">
                       <input value={entry.supplier} onChange={(event) => changeSupplierCost(item.id, entry.id, { supplier: event.target.value })}
-                        placeholder="供應商名稱" aria-label={`${item.name}供應商名稱`} className="text-xs min-w-0" />
+                        placeholder="廠商名稱" aria-label={`${item.name}廠商名稱`} className="text-xs min-w-0" />
                       <select value={entry.modelId || ''} onChange={(event) => changeSupplierCost(item.id, entry.id, { modelId: event.target.value })}
                         aria-label={`${item.name}適用車型`} className="text-xs min-w-0 col-start-1 row-start-2 sm:col-start-auto sm:row-start-auto">
                         <option value="">全部車型</option>
                         {allModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
                       </select>
                       <input type="number" min="0" value={entry.cost} onChange={(event) => changeSupplierCost(item.id, entry.id, { cost: event.target.value })}
-                        placeholder="拿貨成本" aria-label={`${item.name}供應商成本`} className="text-xs min-w-0 col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto" />
-                      <button type="button" onClick={() => removeSupplierCost(item.id, entry.id)} aria-label={`刪除${item.name}供應商成本`}
+                        placeholder="拿貨成本" aria-label={`${item.name}廠商成本`} className="text-xs min-w-0 col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto" />
+                      <button type="button" onClick={() => removeSupplierCost(item.id, entry.id)} aria-label={`刪除${item.name}廠商成本`}
                         className="text-danger/70 text-sm col-start-3 row-start-1 sm:col-start-auto sm:row-start-auto">✕</button>
                     </div>
                     <label className="inline-flex items-center gap-1.5 text-[10px] text-ink-2 cursor-pointer">
@@ -232,7 +232,7 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
                     )}
                   </div>
                 ))}
-                <button type="button" onClick={() => addSupplierCost(item.id)} className="btn-outline text-[11px]">＋ 新增供應商價格</button>
+                <button type="button" onClick={() => addSupplierCost(item.id)} className="btn-outline text-[11px]">＋ 新增廠商價格</button>
               </div>
             )}
           </div>
@@ -562,7 +562,7 @@ export function QuotePricingPanel({
     <div className="space-y-3">
       <div className="card p-4">
         <h2 className="font-bold text-ink">🧮 報價利潤試算</h2>
-        <p className="text-xs text-ink-3 mt-1">車輛利潤直接帶入每台傭金；配件依供應商實際成本計算，尚未選供應商時先用適用的最高成本保守估算。</p>
+        <p className="text-xs text-ink-3 mt-1">車輛利潤直接帶入每台傭金；配件依廠商實際成本計算，尚未選廠商時先用適用的最高成本保守估算。</p>
       </div>
       <div className="card overflow-hidden">
         {quotes.length === 0 && <p className="text-center text-sm text-ink-3 py-10">尚無報價紀錄</p>}
@@ -961,7 +961,7 @@ export function PricingEditorModal({
                       )}
                       <select value={supplierSelections[line.id] || ''}
                         onChange={(event) => selectSupplier(line, event.target.value)}
-                        aria-label={`${line.name}指派供應商`} className="text-[11px] w-full">
+                        aria-label={`${line.name}指派廠商`} className="text-[11px] w-full">
                         <option value="">{lineCostSources[line.id] === 'manual' ? '手動成本・未指派廠商' : '未指派廠商・以最高適用成本估算'}</option>
                         {supplierOptions.map((option) => (
                           <option key={option.id} value={option.id}>
@@ -969,7 +969,7 @@ export function PricingEditorModal({
                           </option>
                         ))}
                       </select>
-                      {supplierOptions.length === 0 && <p className="text-[10px] text-warn">⚠️ 此車型沒有適用的供應商成本，請到傭金與成本設定補上。</p>}
+                      {supplierOptions.length === 0 && <p className="text-[10px] text-warn">⚠️ 此車型沒有適用的廠商成本，請到傭金與成本設定補上。</p>}
                       {!supplierSelections[line.id] && supplierOptions.length > 0 && lineCostSources[line.id] !== 'manual' && (
                         <p className="text-[10px] text-warn">未指派廠商，暫以最高成本 NT$ {formatMoney(Math.max(...supplierOptions.map((option) => option.cost)))} 試算；簽約後可在此指派。</p>
                       )}

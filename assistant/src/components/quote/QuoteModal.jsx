@@ -14,7 +14,7 @@ import { buildQuoteMessage, DEFAULT_QUOTE_MODEL_YEAR } from '../../utils/quoteTe
 import { addonHeightImpact, calculateHeightCapacity } from '../../utils/reception';
 import { getVehicleVariant } from '../../utils/vehicles';
 
-/** 依類別分組配備，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
+/** 依類別分組配件，照 QUOTE_ADDON_CATS 順序排列（未知類別歸「其他」放最後）；
  *  每組內金額由高到低排序 */
 function groupAddonsByCat(addons, categoryOrder = QUOTE_ADDON_CATS) {
   const map = new Map();
@@ -415,7 +415,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [extraAddon, setExtraAddon] = useState({ name: '', price: '', pending: false });
   const [profile, setProfile] = useState({ name: '', phone: '' });
   const [watermark, setWatermark] = useState('報價僅供參考'); // 浮水印文字（設定可改，留空不顯示）
-  const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
+  const [showDesc, setShowDesc] = useState(false); // 配件介紹展開
   const [expandedAddonCategories, setExpandedAddonCategories] = useState({});
   const [expandedAddonSections, setExpandedAddonSections] = useState({});
   const [noOptionCategories, setNoOptionCategories] = useState(() =>
@@ -581,7 +581,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     }
   }
 
-  // 此配備/折抵是否已在報價項目中（用於顯示已選狀態）
+  // 此配件/折抵是否已在報價項目中（用於顯示已選狀態）
   const isCatalogPicked = (catalogId) => items.some((it) => it.catalogId === catalogId);
   const isPicked = (addon) => items.some((it) => it.catalogId === addon.id || it.name.trim() === addon.name);
   const selectedCatalogIds = new Set(items.map((item) => item.catalogId).filter(Boolean));
@@ -810,7 +810,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       setExportError(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
       return false;
     }
-    // 不再逐一確認 27 個配備分類，也不跳原生確認視窗。
+    // 不再逐一確認 27 個配件分類，也不跳原生確認視窗。
     return true;
   }
 
@@ -938,7 +938,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     if (recordSaving) return;
     if (!confirmAddonReview()) return;
     if (!client?.id && customerMode === 'new' && !customerName.trim()) {
-      setCustomerError('請先填客戶姓名／公司名，才能建立客戶追蹤。');
+      setCustomerError('請先填客戶姓名／公司名，才能建立客戶。');
       return;
     }
     if (!client?.id && customerMode === 'existing' && !linkedClientId) {
@@ -1001,7 +1001,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div className="bg-s2 rounded-xl p-3 space-y-3">
                 <div>
                   <p className="text-xs font-semibold text-ink-2">👤 客戶資料</p>
-                  <p className="text-[11px] text-ink-3 mt-0.5">不用先走接待流程；可在儲存報價時直接建立客戶追蹤。</p>
+                  <p className="text-[11px] text-ink-3 mt-0.5">不用先走接待流程；可在儲存報價時直接建立客戶。</p>
                 </div>
                 <div className="grid grid-cols-3 gap-1 rounded-xl bg-s1 p-1 border border-bdr">
                   <button type="button" onClick={() => switchCustomerMode('new')}
@@ -1031,7 +1031,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   </div>
                 )}
                 {customerMode === 'new' && (
-                  <p className="text-[11px] text-ok">儲存後會自動進入「客戶追蹤」，客戶階段設為「報價」，並連結這張報價。</p>
+                  <p className="text-[11px] text-ok">儲存後會自動進入「客戶」，客戶階段設為「報價」，並連結這張報價。</p>
                 )}
                 {duplicateClient && (
                   <div className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 flex items-center gap-2">
@@ -1099,11 +1099,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               {excludeVehiclePrice && <p className="text-[11px] text-ink-3 mt-1">保留車型供選配與成本比對；車價不計入總額，也不顯示在報價圖片。</p>}
             </Field>
 
-            {/* 選購配備（依類別分組、組內金額由高到低；可展開看產品介紹） */}
+            {/* 選購配件（依類別分組、組內金額由高到低；可展開看產品介紹） */}
             {quotePresets.addons.length > 0 && (
               <div className="bg-s2 rounded-xl p-2.5 md:p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-ink-2">🚚 選購配備</span>
+                  <span className="text-xs font-semibold text-ink-2">🚚 選購配件</span>
                   <button type="button" onClick={() => setShowDesc((v) => !v)}
                     className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                       showDesc ? 'bg-accent text-on-accent' : 'text-accent hover:bg-accent/10'}`}>
@@ -1359,7 +1359,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
                   <div className="flex gap-2">
                     <input value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value })}
-                      placeholder="配備 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
+                      placeholder="配件 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
                     <input type="number" min="0" value={it.price}
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
                       disabled={it.pending} placeholder={it.pending ? '待廠商報價' : it.gift ? '贈送價值' : '0'}

@@ -19,22 +19,12 @@ import {
 import { calculateHeightCapacity } from '../utils/reception';
 
 const HELP_CARDS = [
-  { icon: '☀️', title: '今日工作', desc: '一眼看完今日/逾期追蹤、到期提醒與即將簽約客戶，點擊可直接開啟客戶。' },
-  { icon: '📅', title: '行事曆', desc: '月曆總覽追蹤、提醒與成交事件；點日期看當天清單，點事件直接跳到該客戶。' },
-  { icon: '🗓', title: '行事曆活動', desc: '點日曆任一天的「＋新增活動」記生日、紀念日或重要日子，可設每年重複、關聯客戶；到期當天會出現在今日工作與行事曆。客戶詳情也有「生日/重要日子」可直接記錄。' },
-  { icon: '🌙', title: '莫蘭迪主題', desc: '低彩度藍灰色調，預設深色，可在設定右上角切換深/淺色，選擇會記在此裝置。' },
-  { icon: '🎉', title: '紀念日提醒', desc: '日期型自訂欄位可設每年/一次性/連續N年提醒，到期出現在今日工作（依欄位分組）與行事曆。' },
-  { icon: '🧾', title: '報價管理', desc: '可直接建立客戶與報價，帶入車型、配件與優惠折扣，試算貸款月付並輸出圖片或文字；存檔後可隨時編輯。' },
-  { icon: '🏢', title: '公司戶/轉介紹', desc: '客戶分個人/公司戶（統編）、產業標籤、多聯絡人；轉介紹記錄誰介紹誰與介紹金。' },
-  { icon: '📋', title: '中央待辦', desc: '今日工作頁直接新增/勾銷雜事待辦；各客戶簽約前待辦也集中在「客戶待辦」區逐一處理。範本可在「待辦範本」編輯。' },
-  { icon: '📊', title: '本日成果', desc: '自動統計今天記錄的聯繫、報價、試乘、下訂、交車數量與金額，不需手動填寫日報。' },
-  { icon: '👥', title: '客戶追蹤 CRM', desc: '管理所有客戶聯繫狀態、分類、意願度與追蹤日期。' },
-  { icon: '🚛', title: '互動與成交紀錄', desc: '在客戶詳情記錄 LINE 摘要、報價、看車試乘、貸款補件、下訂、交車、售後回訪；記錄交車會自動建立 3/7/30 天回訪提醒。' },
-  { icon: '📌', title: '即將簽約', desc: '置頂重點客戶，可寫重點備註並管理簽約前待辦清單。' },
-  { icon: '📈', title: '業績表', desc: '客戶成交後按「建立成交案」帶入當月業績，單月細項與成交總表自動加總成交金額、保險金額、收入等（欄位可自訂）。' },
-  { icon: '💡', title: '客戶狀態', desc: '🟢追蹤中 / 🟡待聯繫（到期）/ 🟠久未聯繫 / 🔴長期未聯繫。天數門檻可在「追蹤規則」調整（預設 180 / 365 天）。' },
-  { icon: '⏰', title: '計時提醒', desc: '可在客戶詳情頁設定提醒，到期後強制彈出 Modal 確認。' },
-  { icon: '☁️', title: '雲端同步', desc: '第一次使用先到設定連線汽車系統專用的私人 GitHub repo；完成後可跨裝置同步文字資料。照片仍以 LINE 相簿分享。' },
+  { icon: '✓', title: '今天', desc: '一打開就是「逾期＋今天」要做的事：該聯繫的案件、待辦、配件缺貨、施工步驟。每張卡有主按鈕與「延後」。右上可切「月曆」，內容和清單是同一份。沒追蹤日又超過 14 天沒動靜的案件會自動出現。' },
+  { icon: '📁', title: '案件', desc: '一位客戶可以有多筆買車／改裝案件。案件卡會顯示幾天沒聯絡、下次追蹤日、已報價幾天未回覆。點進去是唯一的工作台：記錄聯繫、報價、配件核對、施工進度、確認交車。' },
+  { icon: '🧾', title: '報價', desc: '從案件按「建立報價」，存檔後會回到該案件。底部固定「儲存／預覽出圖／LINE 文字」。客戶看到的圖不會有成本、利潤、利率或內部備忘。可先不選客戶，之後在報價清單按「歸入客戶」。' },
+  { icon: '🚚', title: '成交到交車', desc: '在案件裡指定一張報價成交，系統會建立配件核對表和施工進度。配件沒備妥就完成安裝或交車時會提醒。最後按「確認交車」，案件完成；不會再自動建立回訪提醒，需要時自己加待辦。' },
+  { icon: '🧰', title: '工具', desc: '右上 🧰：業績與成本（要數字密碼，第一次使用先設定）、車高試算、產品型錄、K2500 規格、廠商名冊。' },
+  { icon: '☁️', title: '同步與備份', desc: '到「設定 → 雲端同步」連線自己的私人 GitHub repo；換手機前先到「備份還原」手動備份一次。照片只存在這支手機，不會上雲端。' },
 ];
 
 const SECTION_LABELS = {
@@ -54,10 +44,10 @@ const SECTION_LABELS = {
   help: '📖 使用說明',
 };
 
+// 客戶階段、自訂欄位、待辦範本、通知：對應功能已移除入口，設定一併收起（資料與預設值保留）。
 const SETTING_GROUPS = [
-  { title: '報價與商品', keys: ['quoteMenu', 'height', 'dealFields', 'template'] },
-  { title: '客戶與工作', keys: ['cats', 'stages', 'industries', 'fields', 'rules', 'notify'] },
-  { title: '資料與系統', keys: ['security', 'sync', 'backup', 'help'] },
+  { title: '常用', keys: ['quoteMenu', 'sync', 'backup'] },
+  { title: '進階', keys: ['cats', 'industries', 'dealFields', 'rules', 'security', 'height', 'help'] },
 ];
 
 export default function SettingsPanel({ onClose }) {
@@ -67,6 +57,7 @@ export default function SettingsPanel({ onClose }) {
     saveTodoTemplate, saveQuotePresets, saveIndustries, saveHeightConfig, reloadAll,
   } = useApp();
   const [activeSection, setActiveSection] = useState('sync');
+  const [settingQuery, setSettingQuery] = useState('');
   const [showHeightCalculator, setShowHeightCalculator] = useState(false);
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.theme) || 'dark'; } catch { return 'dark'; }
@@ -99,8 +90,9 @@ export default function SettingsPanel({ onClose }) {
         </div>
       </div>
 
+      <input value={settingQuery} onChange={(event) => setSettingQuery(event.target.value)} placeholder="搜尋設定項目（例如：密碼、報價、同步）" className="w-full min-h-11" />
       <div className="space-y-4">
-        {SETTING_GROUPS.map((group) => (
+        {SETTING_GROUPS.map((group) => ({ ...group, keys: group.keys.filter((key) => !settingQuery.trim() || SECTION_LABELS[key].includes(settingQuery.trim())) })).filter((group) => group.keys.length > 0).map((group) => (
           <section key={group.title}>
             <h2 className="mb-2 text-xs font-bold text-ink-3">{group.title}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -203,7 +195,7 @@ export default function SettingsPanel({ onClose }) {
           {activeSection === 'quoteMenu' && (
             <div className="space-y-5">
               <button type="button" onClick={() => document.getElementById('settings-addon-editor')?.scrollIntoView({ behavior: 'smooth' })}
-                className="btn-outline text-xs">跳到配備分類管理 ↓</button>
+                className="btn-outline text-xs">跳到配件分類管理 ↓</button>
               <LoanTermsEditor />
               <WatermarkEditor />
               <LoadCatalogButton onLoad={() => saveQuotePresets(DEFAULT_QUOTE_PRESETS)} />
@@ -398,7 +390,7 @@ function WatermarkEditor() {
   );
 }
 
-// ── LoadCatalogButton（一鍵載入系統內建車型與配備選單）─────────────────────
+// ── LoadCatalogButton（一鍵載入系統內建車型與配件選單）─────────────────────
 function LoadCatalogButton({ onLoad }) {
   const [confirm, setConfirm] = useState(false);
   if (!confirm) {
@@ -406,7 +398,7 @@ function LoadCatalogButton({ onLoad }) {
       <div className="card p-3 flex items-center gap-3">
         <span className="text-lg shrink-0">🚚</span>
         <p className="flex-1 text-xs text-ink-2">
-          載入系統內建的 <strong>Kia 卡旺車型與配備選單</strong>（{DEFAULT_QUOTE_PRESETS.models.length} 車型 + {DEFAULT_QUOTE_PRESETS.addons.length} 配備）；載入後請確認最新年式與售價。
+          載入系統內建的 <strong>Kia 卡旺車型與配件選單</strong>（{DEFAULT_QUOTE_PRESETS.models.length} 車型 + {DEFAULT_QUOTE_PRESETS.addons.length} 配件）；載入後請確認最新年式與售價。
         </p>
         <button onClick={() => setConfirm(true)} className="btn-primary text-xs shrink-0">載入內建選單</button>
       </div>
@@ -415,7 +407,7 @@ function LoadCatalogButton({ onLoad }) {
   return (
     <div className="card p-3 border-warn/40 space-y-2" style={{ borderColor: '#bf8a5e66' }}>
       <p className="text-xs text-ink-2">
-        會以系統內建選單<strong>覆蓋</strong>目前的車型與配備選單（你自己新增的項目會被取代）。確定嗎？
+        會以系統內建選單<strong>覆蓋</strong>目前的車型與配件選單（你自己新增的項目會被取代）。確定嗎？
       </p>
       <div className="flex gap-2">
         <button onClick={() => { onLoad(); setConfirm(false); }} className="btn-primary text-xs flex-1">確定載入</button>
@@ -425,7 +417,7 @@ function LoadCatalogButton({ onLoad }) {
   );
 }
 
-// ── AddonPresetEditor（配備分類直接沿用報價單的 cat 欄位）──────────────────
+// ── AddonPresetEditor（配件分類直接沿用報價單的 cat 欄位）──────────────────
 function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenameCategory, reservedCategoryNames = [] }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [addCategory, setAddCategory] = useState('配件');
@@ -499,7 +491,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
 
   function add(category = addCategory) {
     const target = categoryOptions.includes(category) ? category : '配件';
-    onChange([...items, { id: generateId('preset'), cat: target, name: '新配備', price: 0, pendingPrice: false }]);
+    onChange([...items, { id: generateId('preset'), cat: target, name: '新配件', price: 0, pendingPrice: false }]);
     setAddCategory(target);
     setActiveCategory(target);
     setExpanded((current) => ({ ...current, [target]: true }));
@@ -517,19 +509,19 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
   return (
     <section id="settings-addon-editor" className="space-y-3">
       <div>
-        <h3 className="font-semibold text-ink text-sm">🚚 選購配備選單</h3>
-        <p className="text-xs text-ink-3 mt-0.5">按分類管理配備；調整分類會同步到客戶報價與報價管理。尚未取得廠商價格時可標記待廠商報價。</p>
+        <h3 className="font-semibold text-ink text-sm">🚚 選購配件選單</h3>
+        <p className="text-xs text-ink-3 mt-0.5">按分類管理配件；調整分類會同步到客戶報價與報價管理。尚未取得廠商價格時可標記待廠商報價。</p>
       </div>
 
       <div className="card p-3 space-y-3 bg-s2/60">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-ink">配備分類</p>
-            <p className="text-[11px] text-ink-3">選分類整理配備；移動項目後留在目前分類。</p>
+            <p className="text-sm font-semibold text-ink">配件分類</p>
+            <p className="text-[11px] text-ink-3">選分類整理配件；移動項目後留在目前分類。</p>
           </div>
           <span className="text-[11px] text-ink-3 shrink-0">{categories.length} 類・{items.length} 項</span>
         </div>
-        <div className={`grid gap-1.5 ${fullscreen ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3'}`} aria-label="配備分類篩選">
+        <div className={`grid gap-1.5 ${fullscreen ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3'}`} aria-label="配件分類篩選">
           <button type="button" onClick={() => setActiveCategory('all')}
             className={`text-xs rounded-lg border px-2.5 py-2 flex items-center justify-between gap-1 min-w-0 ${selectedCategory === 'all' ? 'bg-accent text-on-accent border-accent' : 'bg-s1 border-bdr text-ink-2'}`}>
             <span className="truncate">全部分類</span><span className="shrink-0 font-semibold">{items.length}</span>
@@ -592,14 +584,14 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
         <div className="flex flex-wrap items-center gap-2 border-t border-bdr/60 pt-3">
           <span className="text-xs text-ink-3">新增至</span>
           <select value={selectedAddCategory} onChange={(event) => setAddCategory(event.target.value)}
-            aria-label="新配備分類" className="text-xs flex-1 min-w-[120px] max-w-[210px]">
+            aria-label="新配件分類" className="text-xs flex-1 min-w-[120px] max-w-[210px]">
             {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
           </select>
-          <button type="button" onClick={() => add()} className="btn-primary text-xs shrink-0">＋ 新增配備</button>
+          <button type="button" onClick={() => add()} className="btn-primary text-xs shrink-0">＋ 新增配件</button>
         </div>
       </div>
 
-      {items.length === 0 && <p className="text-center text-ink-3 text-sm py-4">尚無配備，請先選分類再新增。</p>}
+      {items.length === 0 && <p className="text-center text-ink-3 text-sm py-4">尚無配件，請先選分類再新增。</p>}
       {visibleCategories.map((category, index) => {
         const list = grouped.get(category) || [];
         const isExpanded = expanded[category] ?? (selectedCategory !== 'all' || index === 0);
@@ -616,7 +608,7 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
             </div>
             {isExpanded && (
               <div className={`p-2.5 ${fullscreen ? 'grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2' : 'space-y-2'}`}>
-                {list.length === 0 && <p className="text-xs text-ink-3 p-2">這個分類目前沒有配備，可在此新增或從其他分類移入。</p>}
+                {list.length === 0 && <p className="text-xs text-ink-3 p-2">這個分類目前沒有配件，可在此新增或從其他分類移入。</p>}
                 {list.map((item) => (
                   <div key={item.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
                     <div className="grid grid-cols-[minmax(0,1fr)_105px] gap-2">
