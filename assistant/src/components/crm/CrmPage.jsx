@@ -64,7 +64,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
   const [view, setView] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEYS.crmView) === 'board' ? 'board' : 'list'; } catch { return 'list'; }
   });
-  const effectiveView = view === 'board' ? 'board' : 'list';
+  const effectiveView = 'list'; // 案件流程看板入口已移除（案件請到「案件」頁）
   function changeView(v) {
     setView(v);
     if (v === 'board') setSelectedId(null);
@@ -218,25 +218,12 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜尋客戶…"
-                className="flex-1 min-w-0 text-sm max-w-xs"
+                placeholder="搜尋姓名、電話…"
+                className="order-first basis-full w-full min-w-0 text-sm"
               />
               <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              <div className="flex rounded-lg border border-bdr overflow-hidden shrink-0">
-                {[{ v: 'list', label: '☰ 客戶' }, { v: 'board', label: '▦ 案件流程' }].map(({ v, label }) => (
-                  <button
-                    key={v}
-                    onClick={() => changeView(v)}
-                    className={`px-2.5 py-1 text-xs transition-colors ${
-                      view === v ? 'bg-accent text-on-accent font-medium' : 'text-ink-2 hover:bg-s2'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
               {effectiveView === 'list' && (
                 <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="hidden md:inline-flex btn-outline text-sm">
                   ☑ 選取

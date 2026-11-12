@@ -888,66 +888,11 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           <p className="mt-1 text-xs leading-relaxed text-ink-2">請從上方的買車或改裝案件記錄聯繫與下次追蹤，不會再把同一客戶的多個案件混在一起。</p>
         </section>
 
-        {/* 預計交車日：到期會出現在「今日工作 → 今日交車」；記錄「交車」事件後自動清除 */}
-        <section className="card p-4 space-y-3">
-          <h3 className="font-semibold text-sm text-ink-2">🚚 預計交車日</h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="date"
-              value={client.deliveryDate || ''}
-              onChange={(e) => setDeliveryDate(e.target.value)}
-              className="text-sm"
-            />
-            <span className="text-xs text-ink-3">快速：</span>
-            {[{ label: '今天', days: 0 }, { label: '明天', days: 1 }, { label: '3 天後', days: 3 }, { label: '7 天後', days: 7 }].map(({ label, days }) => (
-              <button key={label} onClick={() => setDeliveryDate(addDays(today(), days))} className="btn-outline text-xs px-2 py-1">
-                {label}
-              </button>
-            ))}
-            {client.deliveryDate && (
-              <button onClick={() => setDeliveryDate('')} className="text-danger/60 hover:text-danger text-xs px-1">清除</button>
-            )}
-          </div>
-          <p className="text-[11px] text-ink-3">安排好交車日期後，到當天會在「完整工作總覽」提醒你。實際交車時到下方「互動與成交紀錄」按「🚚 交車」，系統會記錄交車並建立售後回訪。</p>
-        </section>
-
-        {/* 生日 / 重要日子（行事曆活動，可每年重複提醒） */}
-        <section className="card p-4 space-y-2">
-          <h3 className="font-semibold text-sm text-ink-2">🎂 生日 / 重要日子</h3>
-          {clientEvents.length === 0 && (
-            <p className="text-xs text-ink-3">記錄客戶生日或重要日子，到期會出現在「完整工作總覽」與行事曆。</p>
-          )}
-          {clientEvents.map((e) => (
-            <div key={e.id} className="flex items-center gap-2 text-sm bg-s2 rounded-lg px-3 py-2">
-              <span className="text-ink-3 font-mono text-xs shrink-0">
-                {e.repeat === 'yearly' ? dayjs(e.date).format('MM/DD') : dayjs(e.date).format('YYYY/MM/DD')}
-              </span>
-              <span className="flex-1 truncate text-ink-2">{e.title}</span>
-              {e.repeat === 'yearly' && <span className="text-[10px] text-ink-3 shrink-0">🔁 每年</span>}
-              <button onClick={() => deleteEvent(e.id)} className="text-danger/40 hover:text-danger text-xs shrink-0">✕</button>
-            </div>
-          ))}
-          <div className="flex gap-2 items-end pt-1">
-            <Field label="名稱" className="flex-1">
-              <input value={evTitle} onChange={(e) => setEvTitle(e.target.value)}
-                placeholder="例：老闆生日" className="w-full text-sm" />
-            </Field>
-            <Field label="日期" className="w-32 shrink-0">
-              <input type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} className="w-full text-sm" />
-            </Field>
-            <button onClick={addClientEvent} className="btn-primary text-xs mb-0.5 shrink-0">加入</button>
-          </div>
-          <label className="flex items-center gap-2 text-xs text-ink-3 cursor-pointer">
-            <input type="checkbox" checked={evYearly} onChange={(e) => setEvYearly(e.target.checked)} className="shrink-0" />
-            每年重複（生日、紀念日建議勾選）
-          </label>
-        </section>
-
         {/* 業務流程事件 */}
         <section ref={transactionSectionRef} className={`card p-4 space-y-3 transition-shadow ${handoffHighlight ? 'ring-2 ring-copper/55 shadow-panel' : ''}`}>
-          <h3 className="font-semibold text-sm text-ink-2">🚛 互動與成交紀錄</h3>
+          <h3 className="font-semibold text-sm text-ink-2">📞 記錄聯繫</h3>
           <div className="flex gap-1.5 flex-wrap">
-            {QUICK_EVENT_KEYS.map((key) => {
+            {QUICK_EVENT_KEYS.filter((key) => key !== 'delivery').map((key) => {
               const def = EVENT_TYPES[key];
               const active = eventType === key;
               return (
@@ -1066,62 +1011,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           </section>
         )}
 
-        {/* 報價單（可回頭編輯） */}
-        <section className="card p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm text-ink-2">🧾 報價單</h3>
-            <button onClick={() => setQuoteModal('new')} className="btn-primary text-xs">
-              ＋ 建立報價單
-            </button>
-          </div>
-          {clientQuotes.length === 0 && (
-            <p className="text-xs text-ink-3">填車型與項目價格，產生可截圖的報價單；建立後可隨時回來編輯。</p>
-          )}
-          {clientQuotes.map((q) => (
-            <div key={q.id} className="flex items-center gap-2 text-xs bg-s2 rounded-lg px-3 py-2">
-              <span className="text-ink-3 font-mono shrink-0">{dayjs(q.date).format('MM/DD')}</span>
-              <span className="flex-1 truncate text-ink-2">{q.model || '未填車型'}</span>
-              <span className="font-semibold text-accent shrink-0">NT$ {formatMoney(q.total)}</span>
-              <button onClick={() => setQuoteModal(q)} className="text-ink-3 hover:text-ink shrink-0">✏️</button>
-              {confirmDeleteQuoteId === q.id ? (
-                <span className="flex gap-1 shrink-0">
-                  <button onClick={() => removeQuote(q.id)} className="btn-danger text-[10px] px-1.5 py-0.5">刪除</button>
-                  <button onClick={() => setConfirmDeleteQuoteId(null)} className="btn-outline text-[10px] px-1.5 py-0.5">取消</button>
-                </span>
-              ) : (
-                <button onClick={() => setConfirmDeleteQuoteId(q.id)} className="text-danger/40 hover:text-danger shrink-0">✕</button>
-              )}
-            </div>
-          ))}
-        </section>
-
-        {/* 成交歸檔 */}
-        <section className="card p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm text-ink-2">🏆 建立成交案</h3>
-            <button onClick={() => setShowDealModal(true)} className="btn-primary text-xs">
-              ＋ 建立成交案並加入業績
-            </button>
-          </div>
-          {needsArchive && (
-            <div className="bg-accent/10 border border-accent/30 rounded-lg px-3 py-2 flex items-center gap-2">
-              <span className="text-sm shrink-0">🏆</span>
-              <span className="flex-1 text-xs text-accent">已記錄下訂 / 交車，建立成交案後才會計入業績表並進入交車 SOP。</span>
-              <button onClick={() => setShowDealModal(true)} className="btn-primary text-[10px] px-2 py-1 shrink-0">建立成交案</button>
-            </div>
-          )}
-          <p className="text-xs text-ink-3">
-            成交後把金額歸入當月業績表，可記錄保險金額、收入等欄位並自動加總（欄位可在設定自訂）。
-          </p>
-          {clientDeals.map((d) => (
-            <div key={d.id} className="flex items-center gap-2 text-xs bg-s2 rounded-lg px-3 py-2">
-              <span className="text-ink-3 font-mono">{dayjs(d.date).format('YYYY/MM/DD')}</span>
-              <span className="font-semibold text-accent">NT$ {formatMoney(d.amount)}</span>
-              {d.note && <span className="text-ink-2 truncate">{d.note}</span>}
-            </div>
-          ))}
-        </section>
-
         {/* 即將簽約：重點備註（置頂客戶專屬） */}
         {client.pinned && (
           <section className="card p-4 space-y-3 border-accent/40">
@@ -1208,48 +1097,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
 
         {/* 照片 / 名片（本機儲存、壓縮、刪客戶一併刪） */}
         <ClientPhotos clientId={client.id} />
-
-        {/* Timer section */}
-        <section className="card p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-sm text-ink-2">⏰ 計時提醒</h3>
-            <button onClick={() => setShowAddTimer(!showAddTimer)} className="btn-outline text-xs">
-              {showAddTimer ? '取消' : '+ 新增提醒'}
-            </button>
-          </div>
-
-          {showAddTimer && (
-            <div className="space-y-2 bg-s2 rounded-lg p-3">
-              <Field label="提醒內容">
-                <input
-                  value={timerNote}
-                  onChange={(e) => setTimerNote(e.target.value)}
-                  className="w-full text-sm"
-                />
-              </Field>
-              <Field label="提醒時間">
-                <input
-                  type="datetime-local"
-                  value={timerTime}
-                  min={dayjs().format('YYYY-MM-DDTHH:mm')}
-                  onChange={(e) => setTimerTime(e.target.value)}
-                  className="w-full text-sm"
-                />
-              </Field>
-              <button onClick={handleAddTimer} className="btn-primary text-xs w-full">確認新增</button>
-            </div>
-          )}
-
-          {clientTimers.length === 0 && !showAddTimer && (
-            <p className="text-xs text-ink-3">無待確認提醒</p>
-          )}
-          {clientTimers.map((t) => (
-            <div key={t.id} className="flex items-center justify-between text-xs bg-s2 rounded-lg px-3 py-2">
-              <span className="text-ink-2">{t.note}</span>
-              <span className="text-ink-3 shrink-0 ml-2">{dayjs(t.triggerAt).format('MM/DD HH:mm')}</span>
-            </div>
-          ))}
-        </section>
 
         {/* 互動時間軸 */}
         {(client.log || []).length > 0 && (
