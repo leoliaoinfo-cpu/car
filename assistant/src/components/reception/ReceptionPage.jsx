@@ -532,7 +532,7 @@ function RequirementCard({ name, value, session, heightPlan, update, onOpenCatal
   </div>;
 }
 
-function VehicleQuickReference() {
+export function VehicleQuickReference() {
   const [drive, setDrive] = useState('2WD');
   const [transmission, setTransmission] = useState('自排');
   const [presentation, setPresentation] = useState(false);

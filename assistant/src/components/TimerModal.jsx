@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context';
-import { generateId } from '../utils/crm';
 import { showSystemNotification, notifyPermission, registerPeriodicReminderCheck } from '../notify';
 import dayjs from 'dayjs';
-import { Field } from './ui';
 
 export default function TimerModal() {
-  const { timers, saveTimer, deleteTimer } = useApp();
+  const { timers, saveTimer } = useApp();
   const [expiredTimer, setExpiredTimer] = useState(null);
-  const [showList, setShowList] = useState(false);
   const intervalRef = useRef(null);
   const notifiedIdsRef = useRef(new Set());
 
@@ -55,20 +52,8 @@ export default function TimerModal() {
     setExpiredTimer(null);
   }, [timers, saveTimer]);
 
-  const pendingTimers = timers.filter((t) => !t.confirmedAt);
-
   return (
     <>
-      {/* Floating timer button if there are pending timers */}
-      {pendingTimers.length > 0 && !expiredTimer && (
-        <button
-          onClick={() => setShowList(true)}
-          className="fixed bottom-24 right-4 md:bottom-6 bg-accent text-on-accent rounded-full px-3 py-2 text-sm font-medium shadow-panel z-40 flex items-center gap-1.5"
-        >
-          ⏱ {pendingTimers.length}
-        </button>
-      )}
-
       {/* Forced confirm modal for expired timer */}
       {expiredTimer && (
         <div className="modal">
@@ -95,75 +80,6 @@ export default function TimerModal() {
         </div>
       )}
 
-      {/* Timer list panel */}
-      {showList && (
-        <>
-          <div className="overlay" onClick={() => setShowList(false)} />
-          <div className="fixed bottom-0 left-0 right-0 md:right-auto md:left-auto md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:right-6 md:w-80 bg-s1 rounded-t-2xl md:rounded-2xl border border-bdr shadow-panel z-50 p-4 anim-slide-up md:anim-scale-in">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-ink">計時提醒列表</h3>
-              <button onClick={() => setShowList(false)} className="text-ink-3 hover:text-ink text-lg">✕</button>
-            </div>
-            <AddTimerForm onAdd={async (t) => { await saveTimer(t); }} />
-            <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
-              {pendingTimers.length === 0 && (
-                <p className="text-center text-ink-3 text-sm py-4">暫無計時提醒</p>
-              )}
-              {pendingTimers.map((t) => (
-                <div key={t.id} className="flex items-center justify-between bg-s2 rounded-lg px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{t.note || t.clientName}</p>
-                    <p className="text-xs text-ink-3">{dayjs(t.triggerAt).format('MM/DD HH:mm')}</p>
-                  </div>
-                  <button onClick={() => deleteTimer(t.id)} className="text-danger text-sm hover:opacity-70">刪除</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
     </>
-  );
-}
-
-function AddTimerForm({ onAdd }) {
-  const [note, setNote] = useState('');
-  const [time, setTime] = useState('');
-
-  function handleAdd() {
-    if (!note.trim() || !time) return;
-    onAdd({
-      id: generateId('timer'),
-      note: note.trim(),
-      triggerAt: new Date(time).toISOString(),
-      confirmedAt: null,
-      clientName: '',
-    });
-    setNote('');
-    setTime('');
-  }
-
-  const minDate = dayjs().format('YYYY-MM-DDTHH:mm');
-
-  return (
-    <div className="flex gap-2 items-end">
-      <Field label="提醒內容" className="flex-1">
-        <input
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="w-full text-sm"
-        />
-      </Field>
-      <Field label="提醒時間" className="w-36 shrink-0">
-        <input
-          type="datetime-local"
-          value={time}
-          min={minDate}
-          onChange={(e) => setTime(e.target.value)}
-          className="text-sm w-full"
-        />
-      </Field>
-      <button onClick={handleAdd} className="btn-primary text-xs px-2 mb-0.5">加入</button>
-    </div>
   );
 }

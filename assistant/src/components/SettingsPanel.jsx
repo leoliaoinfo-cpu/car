@@ -833,7 +833,7 @@ function HeightConfigEditor({ value, onSave }) {
   </div>;
 }
 
-function HeightCalculatorDialog({ value, onClose }) {
+export function HeightCalculatorDialog({ value, onClose }) {
   const [calculator, setCalculator] = useState({
     drive: '2WD', suspensionPlan: '原廠高度', mode: 'general',
     clearanceCm: '', reserveCm: '', bodyType: '箱體', bodyHeightCm: '', vehicleHeightCm: '',

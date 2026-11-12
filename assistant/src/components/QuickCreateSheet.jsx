@@ -1,8 +1,7 @@
 const ACTIONS = [
-  { key: 'case', icon: '📁', title: '新增案件', note: '購車或改車' },
-  { key: 'reception', icon: '🤝', title: '開始接待', note: '快速記錄需求' },
-  { key: 'quote', icon: '🧾', title: '建立報價', note: '直接開新報價' },
   { key: 'client', icon: '👤', title: '新增客戶', note: '只建立基本資料' },
+  { key: 'case', icon: '📁', title: '新增案件', note: '購車或改車' },
+  { key: 'quote', icon: '🧾', title: '建立報價', note: '直接開新報價' },
 ];
 
 export default function QuickCreateSheet({ onClose, onAction }) {
@@ -15,8 +14,8 @@ export default function QuickCreateSheet({ onClose, onAction }) {
           <div><p className="text-[11px] tracking-[0.16em] text-accent font-bold">QUICK CREATE</p><h2 className="text-xl font-bold text-ink mt-1">要新增什麼？</h2></div>
           <button type="button" onClick={onClose} className="btn-ghost w-11 h-11 px-0 text-xl">×</button>
         </div>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {ACTIONS.map((item) => <button key={item.key} type="button" onClick={() => onAction(item.key)} className="card min-h-28 p-4 text-left active:scale-[0.98] transition-transform"><span className="text-2xl">{item.icon}</span><strong className="block text-ink mt-2">{item.title}</strong><span className="block text-[11px] text-ink-3 mt-1">{item.note}</span></button>)}
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {ACTIONS.map((item) => <button key={item.key} type="button" onClick={() => onAction(item.key)} className="card min-h-28 p-3 text-left active:scale-[0.98] transition-transform"><span className="text-2xl">{item.icon}</span><strong className="block text-ink mt-2">{item.title}</strong><span className="block text-[11px] text-ink-3 mt-1">{item.note}</span></button>)}
         </div>
       </section>
     </div>

@@ -19,7 +19,7 @@ function sessionTimeLabel(seconds = 0) {
   return minutes > 0 ? `剩餘 ${minutes} 分鐘` : '即將自動上鎖';
 }
 
-export default function DealsPage({ onOpenClient, onBack, focusDealId = null, sessionRemainingSeconds = 0, onLock }) {
+export default function DealsPage({ onOpenClient, onBack, focusDealId = null, initialSection = null, sessionRemainingSeconds = 0, onLock }) {
   const {
     deals,
     cases,
@@ -40,7 +40,7 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null, se
     saveSupplier,
     deleteSupplier,
   } = useApp();
-  const [section, setSection] = useState(focusDealId ? 'fulfillment' : 'performance');
+  const [section, setSection] = useState(focusDealId ? 'fulfillment' : (initialSection || 'performance'));
   const [view, setView] = useState('month');
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [editingDeal, setEditingDeal] = useState(null);

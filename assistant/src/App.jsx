@@ -1,15 +1,15 @@
 import { useState, Component } from 'react';
 import { useApp } from './context';
-import Header from './components/Header';
+import Header, { MAIN_TABS } from './components/Header';
+import ToolsSheet from './components/ToolsSheet';
 import TodayPage from './components/today/TodayPage';
 import CalendarPage from './components/calendar/CalendarPage';
 import CrmPage from './components/crm/CrmPage';
 import OperationsPage from './components/deals/OperationsPage';
-import SettingsPanel from './components/SettingsPanel';
-import MorePage from './components/MorePage';
+import SettingsPanel, { HeightCalculatorDialog } from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
-import ReceptionPage from './components/reception/ReceptionPage';
+import ReceptionPage, { VehicleQuickReference } from './components/reception/ReceptionPage';
 import TimerModal from './components/TimerModal';
 import WorkPage from './components/work/WorkPage';
 import CasesPage from './components/cases/CasesPage';
@@ -54,7 +54,7 @@ class ErrorBoundary extends Component {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AppInner() {
-  const { loading, dbUnavailable, dbBlocked } = useApp();
+  const { loading, dbUnavailable, dbBlocked, heightConfig } = useApp();
   const [tab, setTab] = useState('work');
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
@@ -69,6 +69,10 @@ function AppInner() {
   const [caseFocusId, setCaseFocusId] = useState(null);
   const [operationsFocusDealId, setOperationsFocusDealId] = useState(null);
   const [operationsReturn, setOperationsReturn] = useState(null);
+  const [operationsSection, setOperationsSection] = useState(null);
+  const [showTools, setShowTools] = useState(false);
+  const [showSpecs, setShowSpecs] = useState(false);
+  const [showHeightCalc, setShowHeightCalc] = useState(false);
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [showCaseSearch, setShowCaseSearch] = useState(false);
   const [showIsolationNotice, setShowIsolationNotice] = useState(() => {
@@ -106,13 +110,29 @@ function AppInner() {
   function openCaseOperations(dealId = null, caseId = null) {
     setOperationsReturn({ tab, caseId: caseId || null });
     setOperationsFocusDealId(dealId);
+    setOperationsSection(null);
     setShowQuickCreate(false);
     setShowCaseSearch(false);
     setTab('operations');
   }
 
+  function toolAction(key) {
+    setShowTools(false);
+    if (key === 'performance' || key === 'suppliers') {
+      setOperationsReturn({ tab, caseId: null });
+      setOperationsFocusDealId(null);
+      setOperationsSection(key);
+      setTab('operations');
+    }
+    if (key === 'height') setShowHeightCalc(true);
+    if (key === 'catalog') setShowCatalog(true);
+    if (key === 'specs') setShowSpecs(true);
+    if (key === 'calendar') setTab('calendar');
+    if (key === 'today') setTab('today');
+  }
+
   function closeOperations() {
-    const returnTab = operationsReturn?.tab && operationsReturn.tab !== 'operations' ? operationsReturn.tab : 'more';
+    const returnTab = operationsReturn?.tab && operationsReturn.tab !== 'operations' ? operationsReturn.tab : 'work';
     if (operationsReturn?.caseId) {
       setCaseFocusId(operationsReturn.caseId);
       setTab('cases');
@@ -120,6 +140,7 @@ function AppInner() {
       setTab(returnTab);
     }
     setOperationsFocusDealId(null);
+    setOperationsSection(null);
     setOperationsReturn(null);
   }
 
@@ -127,7 +148,6 @@ function AppInner() {
     const token = Date.now();
     setShowQuickCreate(false);
     if (action === 'case') { setCaseCreateClientId(null); setCaseStartToken(token); setTab('cases'); }
-    if (action === 'reception') { setReceptionStartToken(token); setTab('reception'); }
     if (action === 'quote') { setQuoteStartToken(token); setTab('quotes'); }
     if (action === 'client') { setClientStartToken(token); setTab('crm'); }
   }
@@ -165,17 +185,16 @@ function AppInner() {
       )}
 
       {showIsolationNotice && !focusedOperations && (
-        <div className="bg-accent/10 border-b border-accent/30 px-4 py-2.5 text-xs text-ink-2 flex items-start gap-3">
-          <div className="flex-1 leading-relaxed">
-            <strong className="text-accent">✅ 汽車系統已改用獨立儲存空間。</strong>
-            舊的共用資料沒有刪除。若此頁暫時沒有汽車資料，請到「設定 → 雲端同步」重新連線汽車系統專用的私人 repo。
-          </div>
-          <button onClick={() => setTab('settings')} className="btn-outline text-[11px] shrink-0">開啟設定</button>
-          <button onClick={dismissIsolationNotice} className="text-ink-3 text-lg leading-none shrink-0" aria-label="關閉提示">×</button>
+        <div className="bg-accent/10 border-b border-accent/30 pl-4 pr-1 py-2 text-xs text-ink-2 flex items-center gap-2">
+          <p className="flex-1 leading-relaxed">
+            資料改存在這支手機專用的空間，舊資料沒有刪。看不到客戶時，請到「⚙ 設定 → 雲端同步」重新連線。
+          </p>
+          <button onClick={() => setTab('settings')} className="btn-outline text-[11px] shrink-0 min-h-11">去設定</button>
+          <button onClick={dismissIsolationNotice} className="text-ink-2 text-2xl leading-none shrink-0 min-h-11 min-w-11" aria-label="關閉提示">×</button>
         </div>
       )}
 
-      {!focusedOperations && <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} />}
+      {!focusedOperations && <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} onOpenTools={() => setShowTools(true)} />}
 
       <main className={focusedOperations ? '' : 'pb-44 lg:pb-0'}>
         <div className="anim-fade-in" key={tab}>
@@ -189,9 +208,8 @@ function AppInner() {
           )}
           {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} />}
           {tab === 'catalog' && <ProductCatalog />}
-          {tab === 'operations' && <OperationsPage onBack={closeOperations} onOpenClient={openClient} focusDealId={operationsFocusDealId} />}
-          {tab === 'settings' && <SettingsPanel onClose={() => setTab('more')} />}
-          {tab === 'more' && <MorePage onNavigate={setTab} />}
+          {tab === 'operations' && <OperationsPage onBack={closeOperations} onOpenClient={openClient} focusDealId={operationsFocusDealId} initialSection={operationsSection} />}
+          {tab === 'settings' && <SettingsPanel onClose={() => setTab('work')} />}
         </div>
       </main>
 
@@ -204,23 +222,14 @@ function AppInner() {
         ＋
       </button>}
 
-      {!focusedOperations && <button type="button" onClick={() => setShowCaseSearch(true)}
-        className="lg:hidden fixed left-4 bottom-24 z-40 min-h-14 min-w-14 rounded-full border border-teal/40 bg-s1 text-teal shadow-panel flex items-center justify-center active:scale-95 transition-transform text-xl"
-        title="快速搜尋案件" aria-label="快速搜尋案件">🔎</button>}
-
       {/* Mobile bottom navigation */}
       {!focusedOperations && <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-s1 border-t border-bdr flex z-30 pb-safe">
-        {[
-          { key: 'work', icon: '✓', label: '工作', active: 'text-copper bg-copper/10' },
-          { key: 'cases', icon: '📁', label: '案件', active: 'text-teal bg-teal/10' },
-          { key: 'crm', icon: '👥', label: '客戶', active: 'text-sage bg-sage/10' },
-          { key: 'more', icon: '•••', label: '更多', active: 'text-violet bg-violet/10' },
-        ].map((item) => (
+        {MAIN_TABS.map((item) => (
           <button
             key={item.key}
             onClick={() => setTab(item.key)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
-              (tab === item.key || (item.key === 'more' && ['today', 'reception', 'quotes', 'calendar', 'catalog', 'operations', 'settings'].includes(tab))) ? item.active : 'text-ink-3'
+              tab === item.key ? item.mobile : 'text-ink-3'
             }`}
           >
             <span className="text-lg leading-none">{item.icon}</span>
@@ -230,6 +239,19 @@ function AppInner() {
       </nav>}
       {showQuickCreate && <QuickCreateSheet onClose={() => setShowQuickCreate(false)} onAction={quickCreate} />}
       {showCaseSearch && <CaseQuickSearch onClose={() => setShowCaseSearch(false)} onOpenCase={openCase} />}
+      {showTools && <ToolsSheet onClose={() => setShowTools(false)} onAction={toolAction} />}
+      {showHeightCalc && <HeightCalculatorDialog value={heightConfig} onClose={() => setShowHeightCalc(false)} />}
+      {showSpecs && (
+        <div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3 md:p-5">
+          <div className="max-w-5xl mx-auto space-y-3">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-2xl border border-bdr bg-s1/95 backdrop-blur p-3 shadow-card">
+              <div><h2 className="font-bold">K2500 規格</h2><p className="text-xs text-ink-3">車型、售價、尺寸、載重與油耗速查</p></div>
+              <button type="button" onClick={() => setShowSpecs(false)} className="btn-outline shrink-0 min-h-11">關閉</button>
+            </div>
+            <VehicleQuickReference />
+          </div>
+        </div>
+      )}
       {showCatalog && <ProductCatalog onClose={() => setShowCatalog(false)} />}
       <TimerModal />
     </div>

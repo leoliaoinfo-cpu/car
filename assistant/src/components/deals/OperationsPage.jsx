@@ -26,7 +26,7 @@ function clearUnlockSession() {
   catch { /* sessionStorage unavailable: local state still locks the current page */ }
 }
 
-export default function OperationsPage({ onOpenClient, onBack, focusDealId = null }) {
+export default function OperationsPage({ onOpenClient, onBack, focusDealId = null, initialSection = null }) {
   const initialUnlockUntil = readUnlockUntil();
   const [unlockUntil, setUnlockUntil] = useState(initialUnlockUntil);
   const [unlocked, setUnlocked] = useState(() => isBackendSessionUnlocked(initialUnlockUntil));
@@ -99,7 +99,7 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     }
   }
 
-  if (unlocked) return <DealsPage onOpenClient={onOpenClient} onBack={onBack} focusDealId={focusDealId} sessionRemainingSeconds={sessionRemainingSeconds} onLock={lockNow} />;
+  if (unlocked) return <DealsPage onOpenClient={onOpenClient} onBack={onBack} focusDealId={focusDealId} initialSection={initialSection} sessionRemainingSeconds={sessionRemainingSeconds} onLock={lockNow} />;
 
   return (
     <div className="max-w-md mx-auto px-4 py-8 sm:py-14">
