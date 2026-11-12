@@ -15,7 +15,7 @@ function requirementPendingCount(quote) {
   return Array.isArray(quote?.pendingRequirements) ? quote.pendingRequirements.length : 0;
 }
 
-export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed }) {
+export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed, onReturnToCase }) {
   const {
     clients, cases, deals, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft, confirmQuoteDeal,
     savePricingRecord, saveClient, updateClient, cats, stages,
@@ -30,6 +30,13 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [dealError, setDealError] = useState('');
   const [dealSaving, setDealSaving] = useState(false);
   const dealBusy = useRef(false);
+  const [fromCaseId, setFromCaseId] = useState(null); // 從案件開的報價：存檔、關閉或成交後回到該案件
+
+  function finishAndReturn() {
+    const target = fromCaseId;
+    setFromCaseId(null);
+    if (target) onReturnToCase?.(target);
+  }
 
   useEffect(() => {
     if (startNewToken) {
@@ -43,7 +50,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     const quote = quoteDrafts.find((row) => row.id === focusId);
     if (quote) {
       if (deals.some((deal) => deal.quoteId === quote.id && !deal.caseArchivedAt)) setViewWonQuoteId(quote.id);
-      else setEditing({ mode: 'edit', quote });
+      else { setEditing({ mode: 'edit', quote }); if (quote.caseId) setFromCaseId(quote.caseId); }
     }
     onFocusConsumed?.();
   }, [focusId, quoteDrafts, deals, onFocusConsumed]);
@@ -51,6 +58,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   useEffect(() => {
     if (!caseContext?.token) return;
     setEditing({ mode: 'new', caseId: caseContext.caseId, clientId: caseContext.clientId });
+    setFromCaseId(caseContext.caseId || null);
     onCaseContextConsumed?.();
   }, [caseContext, onCaseContextConsumed]);
 
@@ -92,7 +100,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
 
   async function handleSave(payload) {
-    const { _pricingRecord, _customerMode, ...quotePayload } = payload;
+    const { _pricingRecord, _customerMode, _confirmAfterSave, ...quotePayload } = payload;
     const previousQuote = quoteDrafts.find((row) => row.id === quotePayload.id);
     if (previousQuote && deals.some((deal) => deal.quoteId === previousQuote.id && !deal.caseArchivedAt)) throw new Error('成交報價已鎖定，不能直接覆蓋；若內容變更，請另建報價並核對成交內容。');
     let clientId = quotePayload.clientId || null;
@@ -168,6 +176,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         : '報價已儲存並連結到客戶追蹤。',
     } : { clientId: null, text: '報價已儲存；未建立客戶資料。' });
     setEditing(null);
+    if (!_confirmAfterSave && (editing?.caseId || fromCaseId)) finishAndReturn();
   }
 
   async function moveQuoteToTrash(id) {
@@ -190,6 +199,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       const deal = await confirmQuoteDeal(confirmDealId);
       setConfirmDealId(null);
       setSaveNotice({ clientId: deal.clientId, text: '已指定此張報價成交，並建立本案件配件核對表。' });
+      setEditing(null);
+      finishAndReturn();
     } catch (cause) {
       setDealError(cause?.message || '確認成交失敗，請稍後重試。');
     } finally {
@@ -345,7 +356,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           initialCaseId={editing.caseId || ''}
           onSaveQuote={handleSave}
           onRequestConfirmDeal={(id) => { setDealError(''); setConfirmDealId(id); }}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); finishAndReturn(); }}
         />
       )}
       {confirmDealId && (() => {

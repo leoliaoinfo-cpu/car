@@ -166,8 +166,8 @@ function AddonCategoryCard({
         <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
         <span className="text-[10px] text-ink-3">{list.length} 項</span>
         {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
-        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
-          {pickedCount ? `已選 ${pickedCount}・已處理` : noOption ? '沒有選配・已處理' : '未確認'}
+        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : ''}`}>
+          {pickedCount ? `已選 ${pickedCount}` : noOption ? '沒有選配' : ''}
         </span>
         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
       </button>
@@ -807,14 +807,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     });
     if (missingChoice) {
       const addon = quotePresets.addons.find((candidate) => candidate.id === missingChoice.catalogId);
-      window.alert(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
+      setExportError(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
       return false;
     }
-    const unreviewed = addonGroups
-      .filter(([cat, list]) => !reviewedNoOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
-    return unreviewed.length === 0 || window.confirm(
-      `還有 ${unreviewed.length} 個配備分類未確認（例如：${unreviewed.slice(0, 3).map(([cat]) => cat).join('、')}）。請先問客戶並選配，或勾選「沒有選配」。確定仍要繼續嗎？`,
-    );
+    // 不再逐一確認 27 個配備分類，也不跳原生確認視窗。
+    return true;
   }
 
   function closeExportPreview() {
@@ -963,6 +960,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         clientId: client?.id || (customerMode === 'existing' ? linkedClientId : null),
         _customerMode: client?.id ? 'existing' : customerMode,
         _pricingRecord: pricingForCurrentQuote(),
+        _confirmAfterSave: Boolean(confirmAfterSave),
       });
       if (confirmAfterSave) onRequestConfirmDeal?.(quoteId);
     } catch (cause) {
@@ -1109,14 +1107,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div className="bg-s2 rounded-xl p-2.5 md:p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-ink-2">🚚 選購配備</span>
-                  <span className="text-[10px] text-ink-3">已處理 {reviewedAddonCount}/{addonGroups.length} 類</span>
                   <button type="button" onClick={() => setShowDesc((v) => !v)}
                     className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                       showDesc ? 'bg-accent text-on-accent' : 'text-accent hover:bg-accent/10'}`}>
                     {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
-                <p className="text-[10px] text-ink-3 -mt-1">逐類打開，選配件或勾「沒有選配」才算已處理；未確認的分類會保留提醒。</p>
+                <p className="text-[10px] text-ink-3 -mt-1">點分類展開，勾選客戶要的配件即可；不用的分類不必處理。</p>
                 {addonSections.map((section) => {
                   if (!section.nested) {
                     const [cat, list] = section.groups[0];
@@ -1807,28 +1804,24 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             </div>
           </div>
 
-          {/* 圖片版與 LINE 純文字版 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-            <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
-              className="btn-primary w-full disabled:opacity-40">
-              {capturing ? '產生圖片中…' : '🖼️ 產生報價單圖片'}
-            </button>
-            <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
-              className="btn-outline w-full disabled:opacity-40">📝 文字版報價（LINE）</button>
-          </div>
-          <p className="text-center text-[11px] text-ink-3 mt-1.5">
-            先預覽確認，再分享、存到相簿或傳 LINE
-          </p>
           {exportError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
-          <div className="flex gap-2 mt-3">
-            <button onClick={requestClose} className="btn-outline flex-1">關閉</button>
-            <button onClick={handleRecord} disabled={selectedItems.length === 0 || recordSaving}
-              className="btn-outline flex-1 disabled:opacity-40">
-              💾 {recordSaving ? '儲存中…' : isEdit ? '儲存修改' : (client?.id ? '記錄報價' : customerMode === 'new' ? '建立客戶並儲存報價' : '儲存報價')}
-            </button>
-          </div>
           {recordError && <p role="alert" className="mt-2 rounded-lg bg-danger/10 p-2 text-sm text-danger">{recordError}</p>}
-          {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="btn-primary mt-2 min-h-12 w-full disabled:opacity-40">✓ 儲存這張報價並確認成交</button>}
+          {/* 固定在底部：儲存、預覽／出圖、文字版（成交鈕在可用時一起出現） */}
+          <div className="sticky -bottom-4 -mx-4 md:-mx-5 -mb-4 md:-mb-5 mt-4 px-4 md:px-5 pt-2 pb-[calc(1rem+max(0.5rem,env(safe-area-inset-bottom)))] bg-s1/95 backdrop-blur border-t border-bdr rounded-b-2xl z-10 space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <button onClick={handleRecord} disabled={selectedItems.length === 0 || recordSaving}
+                className="btn-primary min-h-12 disabled:opacity-40">
+                💾 {recordSaving ? '儲存中…' : isEdit ? '儲存' : (customerMode === 'new' && !client?.id ? '建客戶並儲存' : '儲存')}
+              </button>
+              <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
+                className="btn-outline min-h-12 disabled:opacity-40">
+                {capturing ? '產生中…' : '🖼️ 預覽出圖'}
+              </button>
+              <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
+                className="btn-outline min-h-12 disabled:opacity-40">📝 LINE 文字</button>
+            </div>
+            {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="btn-outline min-h-11 w-full text-sm disabled:opacity-40">✓ 儲存並確認成交</button>}
+          </div>
         </div>
       </div>
       {showCloseConfirm && (

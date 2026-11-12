@@ -200,7 +200,7 @@ function AppInner() {
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} focusIntent={crmFocusIntent} onFocusConsumed={() => setCrmFocusId(null)} onFocusIntentConsumed={() => setCrmFocusIntent(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
-          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} />}
+          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} onReturnToCase={openCase} />}
           {tab === 'catalog' && <ProductCatalog />}
           {tab === 'operations' && <OperationsPage onBack={closeOperations} onOpenClient={openClient} focusDealId={operationsFocusDealId} initialSection={operationsSection} />}
           {tab === 'settings' && <SettingsPanel onClose={() => setTab('work')} />}
