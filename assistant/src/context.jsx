@@ -7,7 +7,7 @@ import {
   DEFAULT_THRESHOLDS, normalizeThresholds, DEFAULT_TODO_TEMPLATE, DEFAULT_QUOTE_PRESETS,
   resolveQuotePresets, INDUSTRY_SUGGESTIONS,
 } from './utils/crm';
-import { today } from './utils/date';
+import { today, addDays } from './utils/date';
 import dayjs from 'dayjs';
 import { STORAGE_KEYS } from './storageKeys';
 import {
@@ -15,6 +15,8 @@ import {
 } from './utils/pricing';
 import { stockItemsFromQuote } from './utils/stock';
 import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, planQuoteCaseLink } from './utils/quotes';
+import { normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
+import { generateId } from './utils/crm';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
 import { advanceCasePipeline, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 import { changedPatch, pricingRecordsToDropForClients, recTs } from './utils/dataMerge.js';
@@ -937,6 +939,86 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_TIMER', id });
   }, []);
 
+  /**
+   * 確認交車（施工流程最後一步）：一次完成交車該有的所有紀錄。
+   * 可重複執行不會重複建立（提醒、紀錄、活動都有去重），最後才寫成交與案件狀態，
+   * 所以中途失敗時再按一次即可補完。
+   */
+  const confirmDelivery = useCallback(async ({ dealId, date = today() }) => {
+    const deal = await db.get('deals', dealId);
+    if (!deal) throw new Error('找不到這筆成交，無法確認交車。');
+    const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
+    const caseItem = allCases.find((row) => row.id === deal.caseId || row.dealId === deal.id) || null;
+    const client = clientsRef.current.find((row) => row.id === deal.clientId) || null;
+    const pricing = await db.get('pricingRecords', `deal:${deal.id}`).catch(() => null);
+    const isPurchase = caseItem ? caseItem.type !== 'modification' : (pricing?.lines || []).some((line) => line.kind === 'vehicle');
+    const stamp = new Date().toISOString();
+
+    // 1) 交車後不再自動建立任何回訪或年度提醒（使用者決定，2026-11-12）；需要時在案件手動加待辦。
+    const createdTimers = [];
+
+    // 2) 收掉成交前的自動待辦（標記完成，不刪除）
+    if (caseItem) {
+      const [workItems, tasks] = await Promise.all([db.getAll('workItems').catch(() => []), db.getAll('tasks').catch(() => [])]);
+      const toClose = selectPreSaleItemsToClose({ caseId: caseItem.id, deal, workItems, tasks, clients: clientsRef.current });
+      for (const row of workItems.filter((item) => toClose.workItems.includes(item.id))) {
+        const next = { ...row, state: 'done', completedAt: stamp, autoClosedBy: 'delivery', updatedAt: stamp };
+        await db.put('workItems', next);
+        dispatch({ type: 'UPSERT_WORK_ITEM', payload: next });
+      }
+      for (const row of tasks.filter((item) => toClose.tasks.includes(item.id))) {
+        const next = { ...row, done: true, doneAt: stamp, autoClosedBy: 'delivery' };
+        await db.put('tasks', next);
+        dispatch({ type: 'UPSERT_TASK', payload: next });
+      }
+      for (const clientId of new Set(toClose.clientTodos.map((row) => row.clientId))) {
+        const ids = new Set(toClose.clientTodos.filter((row) => row.clientId === clientId).map((row) => row.todoId));
+        await updateClient(clientId, (c) => ({ ...c, todos: (c.todos || []).map((todo) => ids.has(todo.id) ? { ...todo, done: true, doneAt: stamp } : todo) }));
+      }
+    }
+
+    // 3) 客戶：交車紀錄、階段改「售後」、清掉舊的追蹤日與預計交車日
+    if (client) {
+      const logId = `log:delivery:${deal.id}`;
+      const afterSales = state.stages.find((item) => item.name === '售後');
+      await updateClient(client.id, (c) => ({
+        ...c, lastContact: date, missedCalls: 0,
+        log: (c.log || []).some((entry) => entry.id === logId) ? c.log
+          : [...(c.log || []), { id: logId, date, type: 'delivery', text: '交車' }],
+        ...(afterSales ? { stageId: afterSales.id } : {}),
+        nextDate: '', deliveryDate: '',
+      }));
+    }
+    const activity = {
+      id: `activity:delivery:${deal.id}`, clientId: deal.clientId || null, caseId: caseItem?.id || deal.caseId || null,
+      type: 'delivery', text: `確認交車${isPurchase ? `並認列 ${dayjs(date).format('YYYY 年 M 月')}薪資` : ''}`, date, createdAt: stamp, updatedAt: stamp,
+    };
+    await db.put('activities', activity);
+    dispatch({ type: 'UPSERT_ACTIVITY', payload: activity });
+
+    // 4) 最後才寫成交與案件狀態（畫面上的「已交車」以這兩筆為準）
+    const flow = planDeliveryCompletion(normalizeDeliveryWorkflowSafe(deal), stamp);
+    const nextDeal = {
+      ...deal, deliveryWorkflow: flow.workflow, deliveryWorkflowUpdatedAt: stamp,
+      deliveredAt: deal.deliveredAt || date,
+      ...(isPurchase ? { commissionRecognizedAt: deal.commissionRecognizedAt || date } : {}),
+      updatedAt: stamp,
+    };
+    await db.put('deals', nextDeal);
+    dispatch({ type: 'UPSERT_DEAL', payload: nextDeal });
+    let nextCase = null;
+    if (caseItem) {
+      nextCase = {
+        ...advanceCasePipeline(caseItem, 'completed', stamp), dealId: deal.id, status: 'completed',
+        nextFollowUpDate: '', followUpPlanMode: null, completedAt: caseItem.completedAt || stamp, updatedAt: stamp,
+      };
+      casesRef.current = [...casesRef.current.filter((row) => row.id !== nextCase.id), nextCase];
+      await db.put('cases', nextCase);
+      dispatch({ type: 'UPSERT_CASE', payload: nextCase });
+    }
+    return { deal: nextDeal, caseItem: nextCase, createdTimers, skipped: flow.skipped };
+  }, [updateClient, state.stages]);
+
   // ── Full reload (after import) ────────────────────────────────────────────
   const reloadAll = useCallback(async () => {
     const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, customPricingHistoryRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
@@ -1060,6 +1142,7 @@ export function AppProvider({ children }) {
     saveHeightConfig,
     saveTimer,
     deleteTimer,
+    confirmDelivery,
     reloadAll,
   };
 

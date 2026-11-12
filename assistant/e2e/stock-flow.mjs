@@ -28,7 +28,7 @@ await p.goto('http://localhost:4173/',{waitUntil:'domcontentloaded'}); await p.w
 await p.evaluate(seed); await p.reload({waitUntil:'domcontentloaded'}); await p.waitForTimeout(1500);
 await p.screenshot({path:`${S}/s0.png`});
 
-const goQuotes=async()=>{await p.locator('button:has-text("更多")').last().click();await p.locator('text=報價管理').first().click();await p.waitForTimeout(700);};
+const goQuotes=async()=>{await p.locator('nav').getByText('報價',{exact:true}).click();await p.waitForTimeout(700);};
 await goQuotes();
 await step('報價列表顯示兩張報價', async()=>{await p.locator('text=測試新客').first().waitFor();await p.locator('text=舊成交客').first().waitFor();await p.screenshot({path:`${S}/s2.png`,fullPage:true});});
 
@@ -63,7 +63,7 @@ await step('舊成交案件：核對成交報價 → 原成交價/成本保留�
 });
 
 // 案件頁：手機操作核對表
-await p.locator('button:has-text("案件")').last().click(); await p.waitForTimeout(700);
+await p.locator('nav').getByText('案件',{exact:true}).click(); await p.waitForTimeout(700);
 await step('案件列表顯示尚缺配件＋交車將近', async()=>{
   await p.locator('text=尚缺 2 項配件・交車將近').first().waitFor();
   await p.screenshot({path:`${S}/s4.png`,fullPage:true});
@@ -75,24 +75,24 @@ await step('中央點貨彙總尚缺配件', async()=>{
   await p.locator('text=返回案件列表').click();
 });
 await step('工作頁出現「交車將近，尚缺 2 項配件」提醒（核對前）', async()=>{
-  await p.locator('button:has-text("工作")').last().click(); await p.waitForTimeout(800);
+  await p.locator('nav').getByText('今天',{exact:true}).click(); await p.waitForTimeout(800);
   await p.locator('text=交車將近，尚缺 2 項配件').first().waitFor();
   await p.screenshot({path:`${S}/s8.png`,fullPage:true});
-  await p.locator('button:has-text("案件")').last().click(); await p.waitForTimeout(500);
+  await p.locator('nav').getByText('案件',{exact:true}).click(); await p.waitForTimeout(500);
 });
 await step('開案件→逐項核對：設再追日、標已備妥、警示解除', async()=>{
   await p.locator('text=測試新客').first().click(); await p.waitForTimeout(600);
   await p.locator('text=成交配件逐項核對').waitFor();
   await p.locator('text=尚缺 2 項').first().waitFor();
-  await p.locator('text=待廠商確認，尚未設定再追日期').waitFor();
+  await p.locator('text=待廠商確認，請設定再追日期').waitFor();
   const row=(n)=>p.locator('div.rounded-xl:has(> div p:has-text("'+n+'"))').first();
   // 客製帆布：打開折疊→設再追日
-  await row('客製帆布').locator('summary').click();
+  // 再追日已直接露出，不必展開
   const fu=new Date(Date.now()+2*864e5).toISOString().slice(0,10);
   await p.locator('input[aria-label="客製帆布再追日期"]').fill(fu); await p.waitForTimeout(600);
   let d=(await dump('deals')).find(x=>x.quoteId==='qA');
   if(d.stockItems.find(x=>x.name==='客製帆布').followUpDate!==fu) throw new Error('再追日未存');
-  await p.locator('text=待廠商確認，尚未設定再追日期').waitFor({state:'detached'});
+  await p.locator('text=待廠商確認，請設定再追日期').waitFor({state:'detached'});
   await p.screenshot({path:`${S}/s6.png`,fullPage:true});
   // 後照鏡：一鍵標已備妥；帆布改狀態為已備妥
   await row('韓版後照鏡').locator('button:has-text("備妥")').first().click(); await p.waitForTimeout(500);
@@ -104,7 +104,7 @@ await step('開案件→逐項核對：設再追日、標已備妥、警示解�
 });
 await step('全部備妥後工作清單不再有該案件缺貨警示', async()=>{
   await p.locator('button:text-is("←")').last().click(); await p.waitForTimeout(400);
-  await p.locator('button:has-text("工作")').last().click(); await p.waitForTimeout(800);
+  await p.locator('nav').getByText('今天',{exact:true}).click(); await p.waitForTimeout(800);
   if(await p.locator('text=交車將近').count()) throw new Error('交車將近警示仍在');
   if(await p.locator('text=尚缺 2 項配件').count()) throw new Error('警示仍在');
   if(await p.locator('text=尚缺 1 項配件').count()) throw new Error('警示仍在(1)');

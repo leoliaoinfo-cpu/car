@@ -1,3 +1,6 @@
+import dayjs from 'dayjs';
+import { missingStockItems } from './stock.js';
+
 const STATUS_VALUES = new Set(['todo', 'contacted', 'scheduled', 'doing', 'blocked', 'done', 'na']);
 const FINISHED_STATUSES = new Set(['done', 'na']);
 
@@ -28,7 +31,7 @@ export const DELIVERY_STATUS_OPTIONS = [
 ];
 
 const LEGACY_LABELS = {
-  contract: '簽約資料確認', supplier: '比較並指派配件供應商', orders: '配件訂貨與廠商進度確認',
+  contract: '簽約資料確認', supplier: '比較並指派配件廠商', orders: '配件訂貨與廠商進度確認',
   tailgate: '升降尾門施作與完工確認', paint: '車身噴漆與外觀確認', plate: '驗車與領牌',
   install: '其餘改裝配件安裝確認', delivery: '交車前驗收與交車',
 };
@@ -391,3 +394,62 @@ export function getCurrentWorkflowStep(workflow) {
   ))[0];
 }
 
+
+
+// ── 交車確認：配件警示、最後一步「確認交車」、收尾待辦（不再建立任何回訪／年度提醒） ─────────────────
+
+/** 這兩步完成前，配件還沒備妥就要提醒（改裝配件安裝、正式交車）。 */
+const STOCK_GUARD_STEP_IDS = new Set(['install-accessories', 'delivery']);
+
+export function isDeliveryFinalStep(step) {
+  return step?.id === 'delivery';
+}
+
+/** 要完成 step 時，若配件核對表還有沒備妥的項目就回傳那些項目，否則回傳空陣列。 */
+export function stockGuardItems(step, deal) {
+  if (!step || !STOCK_GUARD_STEP_IDS.has(step.id)) return [];
+  return missingStockItems(deal);
+}
+
+/**
+ * 交車當下的流程狀態：最後一步 done，其餘沒做完的步驟標為「不適用」（不刪除、可復原查證）。
+ * 純函式；回傳 { workflow, skipped: 被標為不適用的步驟名稱 }。
+ */
+export function planDeliveryCompletion(workflow, at = new Date().toISOString()) {
+  const before = workflow || [];
+  const skipped = before
+    .filter((step) => !isDeliveryFinalStep(step) && !FINISHED_STATUSES.has(step.status))
+    .map((step) => step.label);
+  let next = before.map((step) => ({ ...step }));
+  for (const step of next) {
+    if (isDeliveryFinalStep(step) || FINISHED_STATUSES.has(step.status)) continue;
+    next = updateWorkflowStepStatus(next, step.id, 'na', at)
+      .map((row) => row.id === step.id ? { ...row, note: row.note || '交車時略過' } : row);
+  }
+  if (next.some(isDeliveryFinalStep)) {
+    next = updateWorkflowStepStatus(next, 'delivery', 'done', at)
+      .map((row) => isDeliveryFinalStep(row) ? { ...row, note: row.note || '已記錄交車' } : row);
+  }
+  return { workflow: next, skipped };
+}
+
+/**
+ * 交車後要收尾的「成交前」待辦：案件下、建立時間不晚於成交確認的未完成項目
+ * （例如建立案件時自動產生的「確認客戶需求」）。成交後使用者自己加的工作不動。
+ * 純函式；回傳各來源要標為完成的 id。
+ */
+export function selectPreSaleItemsToClose({ caseId, deal, workItems = [], tasks = [], clients = [] }) {
+  const cutoff = deal?.confirmedAt || deal?.createdAt || '';
+  const preSale = (row) => !cutoff || !row.createdAt || String(row.createdAt) <= cutoff;
+  return {
+    workItems: workItems
+      .filter((row) => row.caseId === caseId && !['done', 'cancelled'].includes(row.state) && preSale(row))
+      .map((row) => row.id),
+    tasks: tasks
+      .filter((row) => row.caseId === caseId && !row.done && !row.canceled && preSale(row))
+      .map((row) => row.id),
+    clientTodos: clients.flatMap((client) => (client.todos || [])
+      .filter((todo) => todo.caseId === caseId && !todo.done && !todo.canceled && preSale(todo))
+      .map((todo) => ({ clientId: client.id, todoId: todo.id }))),
+  };
+}
