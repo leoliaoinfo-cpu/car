@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
-import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
+import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field, ConfirmDeleteButton } from '../ui';
@@ -130,13 +130,12 @@ function isPackageAddon(addon) {
 }
 
 function AddonCategoryCard({
-  cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
-  setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
+  cat, list, expanded, isPicked,
+  setExpandedAddonCategories, showDesc, toggleLine, bundleLocks,
   allAddons, selectedItemForAddon, updateVendorInquiryNote, heightConfig,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
-  const noOption = pickedCount === 0 && reviewedNoOptionCategories.includes(cat);
   const groupSet = new Set(list.map((addon) => addon.group || ''));
   const allOneGroup = list.length > 1 && groupSet.size === 1 && !groupSet.has('');
   const numberedDescription = (addon) => {
@@ -161,29 +160,16 @@ function AddonCategoryCard({
     <div className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
       <button type="button"
         onClick={() => setExpandedAddonCategories((current) => ({ ...current, [cat]: !expanded }))}
-        aria-expanded={expanded} className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left">
+        aria-expanded={expanded} className="w-full min-h-11 flex items-center gap-1.5 px-2.5 py-2 text-left">
         <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
         <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
         <span className="text-[10px] text-ink-3">{list.length} 項</span>
         {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
-        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
-          {pickedCount ? `已選 ${pickedCount}・已處理` : noOption ? '沒有選配・已處理' : '未確認'}
-        </span>
+        {pickedCount > 0 && <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5 text-on-accent bg-accent">已選 {pickedCount}</span>}
         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
       </button>
       {expanded && (
         <div className="px-2.5 pb-2.5 space-y-2">
-          <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
-            <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
-              onChange={(event) => setNoOptionCategories((current) => {
-                const canonical = canonicalAddonCategories(current, aliases);
-                return event.target.checked
-                  ? [...new Set([...canonical, cat])]
-                  : canonical.filter((category) => category !== cat);
-              })} />
-            沒有選配（已向客戶確認）
-          </label>
-          {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
           {cat === '貨斗底板' && (
             <p className="rounded-md border border-orange-300 bg-orange-50 px-2 py-1.5 text-[11px] font-bold text-black">
               統一說明：本分類所有貨斗底板材質厚度均為 5mm。
@@ -418,8 +404,6 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [showDesc, setShowDesc] = useState(false); // 配備介紹展開
   const [expandedAddonCategories, setExpandedAddonCategories] = useState({});
   const [expandedAddonSections, setExpandedAddonSections] = useState({});
-  const [noOptionCategories, setNoOptionCategories] = useState(() =>
-    Array.isArray(quote?.noOptionCategories) ? quote.noOptionCategories : []);
   const [capturing, setCapturing] = useState(false);
   const [exportedImage, setExportedImage] = useState(null);
   const [exportError, setExportError] = useState('');
@@ -597,29 +581,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
   const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
   const addonSections = groupAddonSections(addonGroups, quotePresets.addonCategoryAliases);
-  const reviewedNoOptionCategories = canonicalAddonCategories(noOptionCategories, quotePresets.addonCategoryAliases);
-  const reviewedAddonCount = addonGroups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
-    || list.some((addon) => isPicked(addon))).length;
-
-  function setSectionNoOptions(section, noOptions) {
-    const sectionCategories = section.groups.map(([cat]) => cat);
-    setNoOptionCategories((current) => {
-      const canonical = canonicalAddonCategories(current, quotePresets.addonCategoryAliases);
-      if (noOptions) return [...new Set([...canonical, ...sectionCategories])];
-      return canonical.filter((category) => !sectionCategories.includes(category));
-    });
-  }
 
   /** 切換一筆項目：已選→移除；未選→加入。有 group 者為擇一，加入時先移除同組其他項 */
   function toggleLine(addon) {
-    const { id: catalogId, name, price, group, cat, desc = '', pendingPrice = false } = addon;
+    const { id: catalogId, name, price, group, desc = '', pendingPrice = false } = addon;
     if (bundleLocks.has(catalogId)) return;
-    const currentlyPicked = isPicked({ id: catalogId, name });
-    // 產品介紹是否展開完全由使用者控制；選擇套餐或其他產品不可擅自重新展開。
-    if (!currentlyPicked && cat) {
-      setNoOptionCategories((list) => canonicalAddonCategories(list, quotePresets.addonCategoryAliases)
-        .filter((category) => category !== cat));
-    }
     setItems((list) => {
       const picked = list.some((it) => it.catalogId === catalogId || it.name.trim() === name);
       if (picked) {
@@ -741,7 +707,6 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       modelYear: Number(modelYear) || null,
       modelId,
       excludeVehiclePrice,
-      noOptionCategories: reviewedNoOptionCategories,
       items: selectedItems.map((it) => ({
         id: it.id,
         catalogId: it.catalogId || null,
@@ -800,7 +765,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     return buildPricingRecord({ quote: draft, costCatalog, existing });
   }
 
-  function confirmAddonReview() {
+  /** 只檢查「必選規格」（例如霧燈顏色）；不再要求逐類確認配件分類。 */
+  function checkRequiredChoices() {
     const missingChoice = selectedItems.find((item) => {
       const addon = quotePresets.addons.find((candidate) => candidate.id === item.catalogId);
       return Array.isArray(addon?.choices) && addon.choices.length > 0 && !String(item.optionValue || '').trim();
@@ -810,11 +776,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       window.alert(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
       return false;
     }
-    const unreviewed = addonGroups
-      .filter(([cat, list]) => !reviewedNoOptionCategories.includes(cat) && !list.some((addon) => isPicked(addon)));
-    return unreviewed.length === 0 || window.confirm(
-      `還有 ${unreviewed.length} 個配備分類未確認（例如：${unreviewed.slice(0, 3).map(([cat]) => cat).join('、')}）。請先問客戶並選配，或勾選「沒有選配」。確定仍要繼續嗎？`,
-    );
+    return true;
   }
 
   function closeExportPreview() {
@@ -823,7 +785,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   }
 
   function openTextQuote() {
-    if (!confirmAddonReview()) return;
+    if (!checkRequiredChoices()) return;
     setTextCopyStatus('');
     setShowTextQuote(true);
   }
@@ -883,7 +845,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   async function downloadImage() {
     const src = previewRef.current;
     if (!src || capturing) return;
-    if (!confirmAddonReview()) return;
+    if (!checkRequiredChoices()) return;
     setCapturing(true);
     setExportError('');
     // 複製一份到頁面底層、完整展開（脫離捲動容器），避免 WebKit 不繪製超出畫面很遠的元素。
@@ -939,7 +901,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
 
   async function handleRecord(_event, confirmAfterSave = false) {
     if (recordSaving) return;
-    if (!confirmAddonReview()) return;
+    if (!checkRequiredChoices()) return;
     if (!client?.id && customerMode === 'new' && !customerName.trim()) {
       setCustomerError('請先填客戶姓名／公司名，才能建立客戶追蹤。');
       return;
@@ -1109,22 +1071,19 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <div className="bg-s2 rounded-xl p-2.5 md:p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-ink-2">🚚 選購配備</span>
-                  <span className="text-[10px] text-ink-3">已處理 {reviewedAddonCount}/{addonGroups.length} 類</span>
                   <button type="button" onClick={() => setShowDesc((v) => !v)}
                     className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                       showDesc ? 'bg-accent text-on-accent' : 'text-accent hover:bg-accent/10'}`}>
                     {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
-                <p className="text-[10px] text-ink-3 -mt-1">逐類打開，選配件或勾「沒有選配」才算已處理；未確認的分類會保留提醒。</p>
+                <p className="text-[10px] text-ink-3 -mt-1">點分類打開來選；有選的分類會顯示「已選」數量。</p>
                 {addonSections.map((section) => {
                   if (!section.nested) {
                     const [cat, list] = section.groups[0];
                     return <AddonCategoryCard key={section.key} cat={cat} list={list}
-                      aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
-                      isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
-                      setExpandedAddonCategories={setExpandedAddonCategories}
-                      setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
+                      expanded={!!expandedAddonCategories[cat]} isPicked={isPicked}
+                      setExpandedAddonCategories={setExpandedAddonCategories} showDesc={showDesc} toggleLine={toggleLine}
                       bundleLocks={bundleLocks} allAddons={quotePresets.addons}
                       heightConfig={heightConfig}
                       selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
@@ -1134,50 +1093,24 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
                   const pickedCount = section.groups.reduce((total, [, list]) =>
                     total + list.filter((addon) => isPicked(addon)).length, 0);
-                  const reviewedCount = section.groups.filter(([cat, list]) => reviewedNoOptionCategories.includes(cat)
-                    || list.some((addon) => isPicked(addon))).length;
-                  const complete = reviewedCount === section.groups.length;
-                  const sectionCategories = section.groups.map(([cat]) => cat);
-                  const sectionNoOptions = pickedCount === 0
-                    && sectionCategories.every((cat) => reviewedNoOptionCategories.includes(cat));
-                  const partiallyMarkedNoOptions = !sectionNoOptions && pickedCount === 0
-                    && sectionCategories.some((cat) => reviewedNoOptionCategories.includes(cat));
                   const color = catColor(section.label);
                   return (
                     <div key={section.key} className="rounded-xl border-2 border-bdr/70 bg-s1/45 overflow-hidden">
                       <button type="button"
                         onClick={() => setExpandedAddonSections((current) => ({ ...current, [section.key]: !expanded }))}
-                        aria-expanded={expanded} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+                        aria-expanded={expanded} className="w-full min-h-11 flex items-center gap-2 px-3 py-2.5 text-left">
                         <span className="w-1.5 h-5 rounded-full shrink-0" style={{ background: color }} />
                         <span className="text-xs font-bold text-ink flex-1">{section.label}</span>
                         <span className="text-[10px] text-ink-3">{section.groups.length} 類・{itemCount} 項</span>
-                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${complete || pickedCount ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
-                          {complete ? '全部已處理' : pickedCount ? `已選 ${pickedCount}` : '待確認'}
-                        </span>
+                        {pickedCount > 0 && <span className="text-[10px] font-bold rounded-full px-1.5 py-0.5 text-on-accent bg-accent">已選 {pickedCount}</span>}
                         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
                       </button>
-                      <label className={`mx-2 mb-2 flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs ${pickedCount > 0 ? 'cursor-not-allowed border-bdr bg-s2 text-ink-3 opacity-70' : 'cursor-pointer border-accent/30 bg-accent/5 text-ink-2'}`}>
-                        <input type="checkbox" checked={sectionNoOptions} disabled={pickedCount > 0}
-                          onChange={(event) => setSectionNoOptions(section, event.target.checked)} />
-                        <span className="min-w-0 flex-1">
-                          <strong className="block text-ink">整個「{section.label}」沒有選配</strong>
-                          <span className="block text-[10px] text-ink-3">
-                            {pickedCount > 0
-                              ? `已有 ${pickedCount} 項選配，先取消選配後才能整組標記`
-                              : partiallyMarkedNoOptions
-                                ? '目前只有部分子分類已標記；勾選後會一次完成全部'
-                                : `一次完成下方 ${section.groups.length} 個分類`}
-                          </span>
-                        </span>
-                      </label>
                       {expanded && (
                         <div className="border-t border-bdr/60 bg-s2/45 p-2 space-y-2">
                           {section.groups.map(([cat, list]) => (
                             <AddonCategoryCard key={cat} cat={cat} list={list}
-                              aliases={quotePresets.addonCategoryAliases} expanded={!!expandedAddonCategories[cat]}
-                              isPicked={isPicked} reviewedNoOptionCategories={reviewedNoOptionCategories}
-                              setExpandedAddonCategories={setExpandedAddonCategories}
-                              setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
+                              expanded={!!expandedAddonCategories[cat]} isPicked={isPicked}
+                              setExpandedAddonCategories={setExpandedAddonCategories} showDesc={showDesc} toggleLine={toggleLine}
                               bundleLocks={bundleLocks} allAddons={quotePresets.addons}
                               heightConfig={heightConfig}
                               selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
