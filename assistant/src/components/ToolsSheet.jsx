@@ -4,8 +4,6 @@ const TOOLS = [
   { key: 'catalog', icon: '📖', title: '產品型錄', note: '原廠圖文' },
   { key: 'specs', icon: '🚚', title: 'K2500 規格', note: '車型、售價、載重' },
   { key: 'suppliers', icon: '🏭', title: '廠商名冊', note: '合作廠商聯絡' },
-  { key: 'calendar', icon: '📅', title: '行事曆', note: '月曆檢視' },
-  { key: 'today', icon: '📋', title: '完整工作總覽', note: '舊版總覽（之後併入今天）' },
 ];
 
 export default function ToolsSheet({ onClose, onAction }) {

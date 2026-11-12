@@ -1,74 +1,30 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../../context';
-import { getClientStatus, STATUS_COLOR, formatMoney, generateId, getOccasionsOnDate } from '../../utils/crm';
+import { buildWorkQueue } from '../../utils/cases';
+import { buildAgendaByDate } from '../../utils/tracking';
 import { today } from '../../utils/date';
 import { downloadICS } from '../../utils/ics';
 import { Field, ClientPicker } from '../ui';
+import { generateId } from '../../utils/crm';
 import dayjs from 'dayjs';
 
-// 行事曆事件型別（活動 / 追蹤 / 提醒 / 成交 / 紀念日）
+// 行事曆事件型別：事項一律來自「今天」的工作佇列（utils/cases.js buildWorkQueue），行事曆不自己算
 const EV = {
   event:    { icon: '🗓', label: '活動', color: '#6f9a9c' },
   follow:   { icon: '📅', label: '追蹤', color: '#bf8a5e' },
   todo:     { icon: '✅', label: '待辦', color: '#7291a8' },
-  timer:    { icon: '⏰', label: '提醒', color: '#9382a5' },
-  deal:     { icon: '🏆', label: '成交', color: '#a99760' },
-  occasion: { icon: '🎉', label: '紀念日', color: '#b58a96' },
 };
+const FOLLOW_TYPES = new Set(['case-follow-up', 'client-follow', 'case-stale']);
 
-export default function CalendarPage({ onOpenClient }) {
-  const { clients, timers, deals, customFields, events, tasks, saveEvent, deleteEvent, saveTask, updateClient, thresholds } = useApp();
+export default function CalendarPage({ onOpenClient, onOpenCase, embedded = false }) {
+  const { clients, timers, deals, cases, workItems, events, tasks, saveEvent, deleteEvent } = useApp();
   const todayStr = today();
   const [monthKey, setMonthKey] = useState(dayjs().format('YYYY-MM'));
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [eventModal, setEventModal] = useState(null); // null | {date} 新增 | event 物件 編輯
   const [exportMsg, setExportMsg] = useState('');
 
-  // date(YYYY-MM-DD) -> 事件列表
-  const eventsByDate = useMemo(() => {
-    const map = {};
-    const push = (date, ev) => {
-      if (!date) return;
-      (map[date] = map[date] || []).push(ev);
-    };
-    for (const c of clients) {
-      if (c.nextDate) {
-        push(c.nextDate, {
-          type: 'follow', clientId: c.id, title: c.name,
-          sub: c.phone || '', client: c,
-        });
-      }
-    }
-    for (const t of timers) {
-      if (t.confirmedAt) continue;
-      push(dayjs(t.triggerAt).format('YYYY-MM-DD'), {
-        type: 'timer', clientId: t.clientId || null, title: t.note || t.clientName,
-        sub: t.clientName || '', time: dayjs(t.triggerAt).format('HH:mm'),
-      });
-    }
-    for (const d of deals) {
-      push(d.date, {
-        type: 'deal', clientId: d.clientId, title: d.clientName || '成交',
-        sub: `NT$ ${formatMoney(d.amount)}${d.note ? `・${d.note}` : ''}`,
-      });
-    }
-    // 待辦（有處理日期、未完成）：中央待辦 ＋ 各客戶待辦
-    for (const t of tasks) {
-      if (!t.done && t.due)
-        push(t.due, { type: 'todo', clientId: t.clientId || null, title: t.text, sub: t.clientName || '', todoRef: { kind: 'task', task: t } });
-    }
-    for (const c of clients) {
-      for (const td of c.todos || []) {
-        if (!td.done && td.due)
-          push(td.due, { type: 'todo', clientId: c.id, title: td.text, sub: c.name, todoRef: { kind: 'client', client: c, todoId: td.id } });
-      }
-    }
-    // 提醒依時間排序、追蹤在前
-    for (const k of Object.keys(map)) {
-      map[k].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-    }
-    return map;
-  }, [clients, timers, deals, tasks]);
+  const queue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases, events }), [workItems, tasks, clients, deals, cases, events]);
 
   // 月曆格子：從該月第一週的週一到最後一週的週日
   const weeks = useMemo(() => {
@@ -85,55 +41,18 @@ export default function CalendarPage({ onOpenClient }) {
     return out;
   }, [monthKey]);
 
-  // 紀念日（自訂日期欄位）：僅需計算目前顯示的月曆範圍
-  const occasionsByDate = useMemo(() => {
-    const map = {};
-    for (const week of weeks) {
-      for (const d of week) {
-        const ds = d.format('YYYY-MM-DD');
-        const os = getOccasionsOnDate(clients, customFields, ds);
-        for (const o of os) {
-          (map[ds] = map[ds] || []).push({
-            type: 'occasion',
-            clientId: o.client.id,
-            title: `${o.field.name}｜${o.client.name}`,
-            sub: o.years > 0 ? `滿 ${o.years} 年` : '',
-          });
-        }
-      }
-    }
-    return map;
-  }, [weeks, clients, customFields]);
+  // 佇列的項目依日期排好；今天以外的日子再補上當天的自建活動（佇列只放今天的）
+  const agenda = useMemo(() => {
+    const dates = weeks.flat().map((d) => d.format('YYYY-MM-DD'));
+    return buildAgendaByDate({ queue, events, clients }, dates);
+  }, [queue, events, clients, weeks]);
 
-  // 使用者自建活動（生日 / 紀念日 / 重要日子）：一次性比對日期，每年重複比對月日
-  const customEventsByDate = useMemo(() => {
-    const map = {};
-    for (const week of weeks) {
-      for (const d of week) {
-        const ds = d.format('YYYY-MM-DD');
-        const md = ds.slice(5);
-        for (const e of events) {
-          if (!e.date) continue;
-          const match = e.repeat === 'yearly' ? e.date.slice(5) === md : e.date === ds;
-          if (!match) continue;
-          const years = e.repeat === 'yearly' ? Number(ds.slice(0, 4)) - Number(e.date.slice(0, 4)) : 0;
-          if (years < 0) continue;
-          (map[ds] = map[ds] || []).push({
-            type: 'event', event: e, clientId: e.clientId || null,
-            title: e.title, time: e.time || '',
-            sub: e.repeat === 'yearly' && years > 0 ? `滿 ${years} 年` : (e.note || ''),
-          });
-        }
-      }
-    }
-    return map;
-  }, [weeks, events]);
-
-  const getEvents = (dateStr) => [
-    ...(customEventsByDate[dateStr] || []),
-    ...(eventsByDate[dateStr] || []),
-    ...(occasionsByDate[dateStr] || []),
-  ];
+  const getEvents = (dateStr) => (agenda[dateStr] || []).map((row) => ({
+    type: row.sourceType === 'event' ? 'event' : FOLLOW_TYPES.has(row.sourceType) ? 'follow' : 'todo',
+    row, event: row.event, caseId: row.caseId || null, clientId: row.clientId || null,
+    title: row.sourceType === 'event' ? row.title : [row.clientName, row.title].filter(Boolean).join('・'),
+    time: row.time || '', sub: row.note || row.caseTitle || '',
+  }));
 
   const weekdayLabels = useMemo(() => {
     // 依 locale 的週起始日排列（zh-tw 週一開始）
@@ -152,32 +71,6 @@ export default function CalendarPage({ onOpenClient }) {
     setSelectedDate(todayStr);
   }
 
-  async function markContacted(client) {
-    await updateClient(client.id, (c) => ({
-      ...c,
-      lastContact: todayStr,
-      missedCalls: 0,
-      nextDate: null,
-      log: [...(c.log || []), {
-        id: generateId('log'),
-        date: todayStr, text: '已聯繫', type: 'contact',
-      }],
-    }));
-  }
-
-  async function completeTodo(e) {
-    const r = e.todoRef;
-    if (!r) return;
-    if (r.kind === 'task') {
-      await saveTask({ ...r.task, done: true, doneAt: todayStr });
-    } else {
-      await updateClient(r.client.id, (c) => ({
-        ...c,
-        todos: (c.todos || []).map((td) => td.id === r.todoId ? { ...td, done: true } : td),
-      }));
-    }
-  }
-
   function handleExportICS() {
     const n = downloadICS({ events, timers, clients });
     if (n === 0) {
@@ -189,7 +82,7 @@ export default function CalendarPage({ onOpenClient }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4 space-y-4">
+    <div className={embedded ? 'space-y-4' : 'max-w-3xl mx-auto p-4 space-y-4'}>
       {/* 標題 + 月份導覽 */}
       <div className="flex items-center justify-between flex-wrap gap-3 rounded-2xl border border-violet/25 bg-gradient-to-r from-violet/14 via-s1 to-s1 px-4 py-3 shadow-card">
         <div className="flex items-center gap-2">
@@ -300,12 +193,13 @@ export default function CalendarPage({ onOpenClient }) {
         {selectedEvents.map((e, i) => {
           const def = EV[e.type];
           const isUserEvent = e.type === 'event';
-          const clickable = isUserEvent || !!e.clientId;
+          const clickable = isUserEvent || !!e.clientId || !!e.caseId;
           return (
             <div key={i}
               className={`flex items-center gap-3 px-3 py-2.5 border-b border-bdr/50 last:border-0 ${clickable ? 'cursor-pointer hover:bg-s2' : ''}`}
               onClick={() => {
                 if (isUserEvent) setEventModal(e.event);
+                else if (e.caseId && onOpenCase) onOpenCase(e.caseId);
                 else if (e.clientId) onOpenClient(e.clientId);
               }}
             >
@@ -329,32 +223,8 @@ export default function CalendarPage({ onOpenClient }) {
                   </button>
                 )}
               </div>
-              {e.type === 'follow' && e.client && (
-                <>
-                  <span className="text-[10px] font-medium shrink-0"
-                    style={{ color: STATUS_COLOR[getClientStatus(e.client, thresholds)] }}>
-                    {selectedDate < todayStr ? '已逾期' : selectedDate === todayStr ? '今日' : '排定'}
-                  </span>
-                  <button
-                    onClick={(ev) => { ev.stopPropagation(); markContacted(e.client); }}
-                    className="btn-primary text-xs shrink-0"
-                  >
-                    已聯繫
-                  </button>
-                </>
-              )}
-              {e.type === 'todo' && (
-                <>
-                  <span className="text-[10px] font-medium shrink-0"
-                    style={{ color: selectedDate < todayStr ? '#b26b6b' : '#7291a8' }}>
-                    {selectedDate < todayStr ? '已逾期' : selectedDate === todayStr ? '今日' : '排定'}
-                  </span>
-                  <button onClick={(ev) => { ev.stopPropagation(); completeTodo(e); }}
-                    className="btn-primary text-xs shrink-0">完成</button>
-                </>
-              )}
               {isUserEvent && <span className="text-ink-3 text-xs shrink-0">✏️</span>}
-              {!isUserEvent && e.type !== 'todo' && e.clientId && <span className="text-ink-3 text-xs shrink-0">›</span>}
+              {!isUserEvent && (e.caseId || e.clientId) && <span className="text-ink-3 text-xs shrink-0">›</span>}
             </div>
           );
         })}

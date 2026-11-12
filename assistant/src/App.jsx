@@ -2,8 +2,6 @@ import { useState, Component } from 'react';
 import { useApp } from './context';
 import Header, { MAIN_TABS } from './components/Header';
 import ToolsSheet from './components/ToolsSheet';
-import TodayPage from './components/today/TodayPage';
-import CalendarPage from './components/calendar/CalendarPage';
 import CrmPage from './components/crm/CrmPage';
 import OperationsPage from './components/deals/OperationsPage';
 import SettingsPanel, { HeightCalculatorDialog } from './components/SettingsPanel';
@@ -127,8 +125,6 @@ function AppInner() {
     if (key === 'height') setShowHeightCalc(true);
     if (key === 'catalog') setShowCatalog(true);
     if (key === 'specs') setShowSpecs(true);
-    if (key === 'calendar') setTab('calendar');
-    if (key === 'today') setTab('today');
   }
 
   function closeOperations() {
@@ -200,9 +196,7 @@ function AppInner() {
         <div className="anim-fade-in" key={tab}>
           {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
           {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
-          {tab === 'today' && <TodayPage onOpenClient={openClient} onOpenSettings={() => setTab('settings')} onOpenReception={() => { setReceptionStartToken(Date.now()); setTab('reception'); }} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
-          {tab === 'calendar' && <CalendarPage onOpenClient={openClient} />}
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} focusIntent={crmFocusIntent} onFocusConsumed={() => setCrmFocusId(null)} onFocusIntentConsumed={() => setCrmFocusIntent(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
