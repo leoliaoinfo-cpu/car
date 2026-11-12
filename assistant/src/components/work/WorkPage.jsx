@@ -1,220 +1,217 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
-import { buildWorkQueue } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
-import { generateId } from '../../utils/crm';
-import { normalizeDeliveryWorkflow } from '../../utils/delivery';
+import { EVENT_TYPES, generateId } from '../../utils/crm';
+import { canCancel, canSnooze, primaryLabel, useWorkActions } from './useWorkActions';
 
 const FILTERS = [
-  ['overdue', '逾期'], ['today', '今天'], ['waiting', '等待'], ['next', '接下來'],
+  ['overdue', '逾期'], ['today', '今天'], ['next', '接下來'], ['waiting', '還在等'],
 ];
+const EMPTY_TEXT = {
+  overdue: '沒有逾期的事',
+  today: '今天的事都做完了',
+  next: '接下來沒有排好的事',
+  waiting: '沒有在等別人的事',
+};
+const WHO_FALLBACK = { task: '我的待辦', timer: '提醒', event: '活動', workItem: '我的待辦' };
+const STALE_PREVIEW = 3;
 
 function dueText(row) {
-  if (row.followUpReminder && row.group === 'overdue') return `該追了・${dayjs(row.due).format('MM/DD')}`;
+  if (row.stale) return '太久沒追';
+  if (row.followUpReminder && row.group === 'overdue') return `該追了 ${dayjs(row.due).format('M/D')}`;
   if (row.followUpReminder && row.group === 'today') return '今天要追';
-  if (row.waitingOn) return `等待：${row.waitingOn}`;
-  if (!row.due) return '尚未排日期';
-  if (row.group === 'overdue') return `逾期 ${dayjs(row.due).format('MM/DD')}`;
-  if (row.group === 'today') return '今天';
-  return dayjs(row.due).format('MM/DD（ddd）');
+  if (row.waitingOn) return `等：${row.waitingOn}`;
+  if (!row.due) return '沒排日期';
+  const time = row.time ? ` ${row.time}` : '';
+  if (row.group === 'overdue') return `逾期 ${dayjs(row.due).format('M/D')}`;
+  if (row.group === 'today') return `今天${time}`;
+  return `${dayjs(row.due).format('M/D（dd）')}${time}`;
 }
 
-export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, onQuickCreate }) {
-  const {
-    workItems, tasks, clients, deals, cases,
-    saveWorkItem, saveTask, updateClient, saveActivity, saveCase, saveDeal,
-  } = useApp();
-  const queue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases }), [workItems, tasks, clients, deals, cases]);
+function badgeTone(row) {
+  if (row.group === 'overdue' || row.stale) return 'bg-danger/12 text-danger';
+  if (row.group === 'waiting') return 'bg-gold/12 text-gold';
+  return 'bg-accent/10 text-accent';
+}
+
+export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, onOpenCalendar, onOpenCases, onQuickCreate }) {
+  const { clients, saveTask } = useApp();
+  const { queue, busyId, complete, snoozeTo, cancel, openRow } = useWorkActions({ onOpenClient, onOpenCase, onOpenOperations, onOpenCalendar });
   const counts = useMemo(() => Object.fromEntries(FILTERS.map(([key]) => [key, queue.filter((row) => row.group === key).length])), [queue]);
   const firstActive = FILTERS.find(([key]) => counts[key] > 0)?.[0] || 'today';
   const [filter, setFilter] = useState(firstActive);
-  const [snoozing, setSnoozing] = useState(null);
-  const [canceling, setCanceling] = useState(null);
-  const [completingId, setCompletingId] = useState(null);
-  const completeBusy = useRef(false);
-  const visible = queue.filter((row) => row.group === filter);
+  const [openId, setOpenId] = useState(null); // 點卡片展開的其他動作
+  const [snoozingId, setSnoozingId] = useState(null);
+  const [cancelingId, setCancelingId] = useState(null);
+  const [showAllStale, setShowAllStale] = useState(false);
+
+  const inGroup = queue.filter((row) => row.group === filter);
+  const staleRows = inGroup.filter((row) => row.stale);
+  const visible = showAllStale || staleRows.length <= STALE_PREVIEW
+    ? inGroup
+    : [...inGroup.filter((row) => !row.stale), ...staleRows.slice(0, STALE_PREVIEW)];
+  const hiddenStale = inGroup.length - visible.length;
   const nextAvailableFilter = FILTERS.find(([key]) => key !== filter && counts[key] > 0);
 
-  async function writeActivity(row, text) {
-    if (!row.caseId && !row.clientId) return;
-    await saveActivity({
-      id: generateId('activity'), caseId: row.caseId || null, clientId: row.clientId || null,
-      type: 'work', text, date: today(),
-    });
-  }
-
-  async function complete(row) {
-    if (completeBusy.current) return;
-    const navigates = ['stock-alert', 'delivery', 'case-follow-up'].includes(row.sourceType);
-    if (!navigates) { completeBusy.current = true; setCompletingId(row.id); }
-    try {
-      await completeInner(row);
-    } catch (err) {
-      console.error(err);
-      window.alert(err?.message || '完成失敗，請再試一次。');
-    } finally {
-      completeBusy.current = false;
-      setCompletingId(null);
-    }
-  }
-
-  async function completeInner(row) {
-    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); return; }
-    if (row.sourceType === 'delivery') {
-      onOpenOperations?.(row.dealId, row.caseId);
-      return;
-    }
-    if (row.sourceType === 'case-follow-up') {
-      onOpenCase?.(row.caseId);
-      return;
-    }
-    if (row.sourceType === 'workItem') {
-      const current = workItems.find((item) => item.id === row.sourceId);
-      if (current) await saveWorkItem({ ...current, state: 'done', completedAt: new Date().toISOString() });
-    } else if (row.sourceType === 'task') {
-      const current = tasks.find((item) => item.id === row.sourceId);
-      if (current) await saveTask({ ...current, done: true, doneAt: new Date().toISOString() });
-    } else if (row.sourceType === 'client-todo') {
-      await updateClient(row.clientId, (client) => ({
-        ...client, todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, done: true, doneAt: new Date().toISOString() } : item),
-      }));
-    }
-    await writeActivity(row, `完成：${row.title}`);
-  }
-
-  async function snooze(row, days) {
-    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); return; }
-    if (row.sourceType === 'delivery') {
-      onOpenOperations?.(row.dealId, row.caseId);
-      setSnoozing(null);
-      return;
-    }
-    const due = addDays(today(), days);
-    if (row.sourceType === 'case-follow-up') {
-      const current = cases.find((item) => item.id === row.caseId);
-      if (current) await saveCase({ ...current, nextFollowUpDate: due, updatedAt: new Date().toISOString() });
-      setSnoozing(null);
-      return;
-    }
-    if (row.sourceType === 'workItem') {
-      const current = workItems.find((item) => item.id === row.sourceId);
-      if (current) await saveWorkItem({ ...current, due, state: 'todo' });
-    }
-    if (row.sourceType === 'task') {
-      const current = tasks.find((item) => item.id === row.sourceId);
-      if (current) await saveTask({ ...current, due });
-    }
-    if (row.sourceType === 'client-todo') await updateClient(row.clientId, (client) => ({ ...client, todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, due } : item) }));
-    setSnoozing(null);
-  }
-
-  async function cancel(row) {
-    if (row.sourceType === 'stock-alert') { onOpenCase?.(row.caseId); setCanceling(null); return; }
-    const canceledAt = new Date().toISOString();
-    if (row.sourceType === 'case-follow-up') {
-      const current = cases.find((item) => item.id === row.caseId);
-      if (current) await saveCase({ ...current, nextFollowUpDate: '', updatedAt: canceledAt });
-    } else if (row.sourceType === 'delivery') {
-      const deal = deals.find((item) => item.id === row.dealId);
-      if (deal) {
-        const deliveryWorkflow = normalizeDeliveryWorkflow(deal).map((step) => step.id === row.sourceId
-          ? { ...step, status: 'na', completedAt: canceledAt, statusChangedAt: canceledAt }
-          : step);
-        await saveDeal({ ...deal, deliveryWorkflow });
-      }
-    } else if (row.sourceType === 'workItem') {
-      const current = workItems.find((item) => item.id === row.sourceId);
-      if (current) await saveWorkItem({ ...current, state: 'cancelled', canceledAt });
-    } else if (row.sourceType === 'task') {
-      const current = tasks.find((item) => item.id === row.sourceId);
-      if (current) await saveTask({ ...current, done: true, canceled: true, doneAt: canceledAt, canceledAt });
-    } else if (row.sourceType === 'client-todo') {
-      await updateClient(row.clientId, (client) => ({
-        ...client,
-        todos: (client.todos || []).map((item) => item.id === row.sourceId ? { ...item, done: true, canceled: true, doneAt: canceledAt, canceledAt } : item),
-      }));
-    }
-    await writeActivity(row, `取消：${row.title}`);
-    setCanceling(null);
-  }
-
-  function openRow(row) {
-    if (row.sourceType === 'delivery') onOpenOperations?.(row.dealId, row.caseId);
-    else if (row.caseId && onOpenCase) onOpenCase(row.caseId);
-    else if (row.clientId) onOpenClient?.(row.clientId);
+  async function doSnooze(row, due) {
+    await snoozeTo(row, due);
+    setSnoozingId(null);
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-3 md:px-5 py-4 md:py-6 space-y-4">
-      <section className="rounded-2xl border border-copper/30 bg-gradient-to-br from-copper/15 via-s1 to-accent/8 p-4 shadow-card">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-bold tracking-[0.16em] text-copper">ACTION WORKBENCH</p>
-            <h1 className="text-2xl font-bold text-ink mt-1">今天先做什麼</h1>
-            <p className="text-sm text-ink-2 mt-1">只顯示需要處理的下一步。</p>
-          </div>
-          <button type="button" onClick={onQuickCreate} className="btn-primary min-h-11 shrink-0">＋ 新增</button>
-        </div>
-      </section>
+    <div className="max-w-3xl mx-auto px-3 md:px-5 py-3 md:py-6 space-y-2.5">
+      <header className="flex items-center justify-between gap-3 px-1">
+        <h1 className="text-lg font-bold text-ink">{dayjs().format('M月D日 dddd')}</h1>
+        <button type="button" onClick={onQuickCreate} className="hidden lg:inline-flex btn-primary min-h-10 shrink-0">＋ 新增</button>
+      </header>
 
-      <div className="grid grid-cols-4 gap-2" role="tablist" aria-label="工作篩選">
+      <div className="grid grid-cols-4 gap-1.5" role="tablist" aria-label="工作篩選">
         {FILTERS.map(([key, label]) => (
-          <button key={key} type="button" onClick={() => setFilter(key)}
-            className={`min-h-14 rounded-xl border px-1.5 py-2 text-center transition-colors ${filter === key ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink-2'}`}>
-            <strong className="block text-lg leading-none">{counts[key]}</strong>
-            <span className="block text-[11px] mt-1">{label}</span>
+          <button key={key} type="button" role="tab" aria-selected={filter === key} onClick={() => setFilter(key)}
+            className={`min-h-11 rounded-xl border px-1 text-sm transition-colors ${filter === key ? 'border-copper bg-copper/12 text-copper font-bold' : 'border-bdr bg-s1 text-ink-2'}`}>
+            {label} <strong className={key === 'overdue' && counts[key] > 0 ? 'text-danger' : ''}>{counts[key]}</strong>
           </button>
         ))}
       </div>
 
       {visible.length === 0 ? (
-        <section className="card px-5 py-10 text-center">
-          <div className="text-4xl">✓</div>
-          <h2 className="font-bold text-ink mt-3">這一區目前沒有工作</h2>
-          <p className="text-sm text-ink-3 mt-1">{nextAvailableFilter ? `還有 ${counts[nextAvailableFilter[0]]} 件「${nextAvailableFilter[1]}」工作。` : '目前所有工作都已處理完畢。'}</p>
-          {nextAvailableFilter && <button type="button" onClick={() => setFilter(nextAvailableFilter[0])} className="btn-primary mt-4 min-h-11 px-5">前往{nextAvailableFilter[1]}工作</button>}
+        <section className="card px-5 py-8 text-center">
+          <h2 className="font-bold text-ink">{EMPTY_TEXT[filter]}</h2>
+          {nextAvailableFilter && <button type="button" onClick={() => setFilter(nextAvailableFilter[0])} className="btn-primary mt-4 min-h-11 px-5">看「{nextAvailableFilter[1]}」{counts[nextAvailableFilter[0]]} 件</button>}
         </section>
       ) : (
-        <div className="space-y-3">
-          {visible.map((row) => (
-            <article key={row.id} className={`card p-4 border-l-4 ${row.group === 'overdue' ? 'border-l-danger' : row.group === 'waiting' ? 'border-l-gold' : 'border-l-copper'}`}>
-              <button type="button" onClick={() => openRow(row)} className="w-full text-left">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-bold text-ink leading-snug">{row.title}</p>
-                    {row.urgent && <p className="mt-1 text-xs font-bold text-danger">🔴 急件</p>}
-                    {(row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
-                    {row.followUpReminder && row.waitingOn && <p className="mt-1 text-xs font-semibold text-danger">{row.waitingOn}</p>}
+        <div className="space-y-2" data-testid="work-list">
+          {visible.map((row) => {
+            const who = row.clientName || WHO_FALLBACK[row.sourceType] || '待辦';
+            const what = [row.title, row.caseTitle].filter(Boolean).join('・');
+            const open = openId === row.id;
+            return (
+              <article key={row.id} data-work-id={row.id} className={`card px-3 py-2.5 border-l-4 ${row.group === 'overdue' || row.stale ? 'border-l-danger' : row.group === 'waiting' ? 'border-l-gold' : 'border-l-copper'}`}>
+                <button type="button" onClick={() => { setOpenId(open ? null : row.id); setSnoozingId(null); setCancelingId(null); }} className="w-full text-left" aria-expanded={open}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="min-w-0 truncate font-bold text-ink">{row.urgent && <span className="text-danger">急件 </span>}{who}</p>
+                    <span className={`badge shrink-0 ${badgeTone(row)}`}>{dueText(row)}</span>
                   </div>
-                  <span className={`badge shrink-0 ${row.group === 'overdue' ? 'bg-danger/12 text-danger' : row.group === 'waiting' ? 'bg-gold/12 text-gold' : 'bg-accent/10 text-accent'}`}>{dueText(row)}</span>
+                  <p className={`mt-0.5 text-sm text-ink-2 ${open ? '' : 'truncate'}`}>{what}{row.note ? `・${row.note}` : ''}</p>
+                </button>
+                <div className="mt-2 flex gap-2">
+                  <button type="button" disabled={busyId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{primaryLabel(row)}</button>
+                  {canSnooze(row) && <button type="button" disabled={busyId != null} onClick={() => { setSnoozingId(snoozingId === row.id ? null : row.id); setCancelingId(null); }} className="btn-outline min-h-10 px-4">{row.stale ? '排日期' : '延後'}</button>}
                 </div>
-              </button>
-              <div className="mt-3 flex gap-2">
-                <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : row.sourceType === 'case-follow-up' ? '記錄聯繫' : '✓ 完成'}</button>
-                {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
-                {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
-                {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>}
-              </div>
-              {canceling === row.id && (
-                <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
-                  <p className="text-sm font-bold text-danger">確定取消「{row.title}」？</p>
-                  <p className="mt-1 text-xs text-ink-3">取消後會從工作台隱藏，但案件紀錄仍會保留。</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setCanceling(null)} className="btn-outline min-h-10">先不要</button>
-                    <button type="button" onClick={() => cancel(row)} className="btn-danger min-h-10">確認取消</button>
+                {snoozingId === row.id && (
+                  <div className="mt-2 grid grid-cols-3 gap-2 rounded-xl bg-s2 p-2">
+                    <button type="button" onClick={() => doSnooze(row, addDays(today(), 1))} className="btn-outline bg-s1 min-h-10">明天</button>
+                    <button type="button" onClick={() => doSnooze(row, addDays(today(), 3))} className="btn-outline bg-s1 min-h-10">3 天後</button>
+                    <label className="btn-outline bg-s1 min-h-10 relative overflow-hidden">選日期
+                      <input type="date" aria-label="延後到指定日期" min={today()} onChange={(event) => event.target.value && doSnooze(row, event.target.value)} className="absolute inset-0 h-full w-full opacity-0" />
+                    </label>
                   </div>
-                </div>
-              )}
-              {snoozing === row.id && (
-                <div className="grid grid-cols-3 gap-2 mt-2 rounded-xl bg-s2 p-2">
-                  {[1, 3, 7].map((days) => <button key={days} type="button" onClick={() => snooze(row, days)} className="btn-outline bg-s1 min-h-10">＋{days} 天</button>)}
-                </div>
-              )}
-            </article>
-          ))}
+                )}
+                {open && (
+                  <div className="mt-2 flex flex-wrap gap-2 border-t border-bdr pt-2">
+                    {row.caseId && <button type="button" onClick={() => onOpenCase?.(row.caseId)} className="btn-outline min-h-10 text-xs">看案件</button>}
+                    {row.clientId && <button type="button" onClick={() => onOpenClient?.(row.clientId)} className="btn-outline min-h-10 text-xs">看客戶</button>}
+                    {row.sourceType === 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-outline min-h-10 text-xs">看施工進度</button>}
+                    {canCancel(row) && <button type="button" onClick={() => setCancelingId(row.id)} className="btn-ghost min-h-10 text-xs text-danger">不用做了</button>}
+                  </div>
+                )}
+                {cancelingId === row.id && (
+                  <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
+                    <p className="text-sm font-bold text-danger">確定不做「{row.title}」？</p>
+                    <p className="mt-1 text-xs text-ink-3">會從工作清單拿掉，案件紀錄還在。</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setCancelingId(null)} className="btn-outline min-h-10">先留著</button>
+                      <button type="button" onClick={async () => { await cancel(row); setCancelingId(null); }} className="btn-danger min-h-10">確定不做</button>
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+          {hiddenStale > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setShowAllStale(true)} className="btn-outline min-h-11 text-sm">還有 {hiddenStale} 件太久沒追</button>
+              <button type="button" onClick={onOpenCases} className="btn-outline min-h-11 text-sm">到案件頁整理</button>
+            </div>
+          )}
         </div>
       )}
+
+      <AddTask clients={clients} onSave={saveTask} />
+      <TodayResults clients={clients} />
     </div>
+  );
+}
+
+/** 記一件不屬於任何案件的待辦（原本在「完整工作總覽」）。 */
+function AddTask({ onSave }) {
+  const [text, setText] = useState('');
+  const [due, setDue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState('');
+
+  async function submit(event) {
+    event.preventDefault();
+    const value = text.trim();
+    if (!value || saving) return;
+    setSaving(true);
+    try {
+      await onSave({ id: generateId('task'), text: value, done: false, doneAt: null, due: due || null, clientId: null, clientName: null });
+      setSaved(due ? `已加入，${dayjs(due).format('M/D')} 會提醒` : '已加入「接下來」');
+      setText('');
+      setDue('');
+    } catch (cause) {
+      window.alert(cause?.message || '待辦儲存失敗。');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <details className="card">
+      <summary className="min-h-11 cursor-pointer px-3 py-3 text-sm font-bold text-ink-2">📝 記一件待辦</summary>
+      <form onSubmit={submit} className="space-y-2 border-t border-bdr p-3">
+        <input value={text} onChange={(event) => { setText(event.target.value); setSaved(''); }} placeholder="例：繳牌照稅、回電給保險" aria-label="待辦內容" className="min-h-11 w-full" />
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <input type="date" value={due} onChange={(event) => setDue(event.target.value)} aria-label="哪一天要做（可不填）" className="min-h-11 w-full" />
+          <button disabled={saving || !text.trim()} className="btn-primary min-h-11 px-5 disabled:opacity-50">{saving ? '加入中…' : '加入'}</button>
+        </div>
+        <p className="text-xs text-ink-3">{saved || '日期可以不填，會放在「接下來」。'}</p>
+      </form>
+    </details>
+  );
+}
+
+/** 今天做了什麼：從客戶紀錄自動統計，不用自己寫日報。 */
+function TodayResults({ clients }) {
+  const results = useMemo(() => {
+    const date = today();
+    const counts = {};
+    const amounts = {};
+    for (const client of clients) {
+      for (const entry of client.log || []) {
+        if (entry.date !== date) continue;
+        counts[entry.type] = (counts[entry.type] || 0) + 1;
+        if (entry.amount > 0) amounts[entry.type] = (amounts[entry.type] || 0) + entry.amount;
+      }
+    }
+    return ['deal', 'contact', 'line', 'quote', 'visit', 'loan', 'order', 'delivery', 'aftercare', 'missed']
+      .filter((type) => counts[type])
+      .map((type) => ({ type, ...EVENT_TYPES[type], count: counts[type], amount: amounts[type] }));
+  }, [clients]);
+  if (results.length === 0) return null;
+  const total = results.reduce((sum, row) => sum + row.count, 0);
+  return (
+    <details className="card">
+      <summary className="min-h-11 cursor-pointer px-3 py-3 text-sm font-bold text-ink-2">📊 今天做了 {total} 件事</summary>
+      <div className="flex flex-wrap gap-2 border-t border-bdr p-3">
+        {results.map((row) => (
+          <span key={row.type} className="rounded-lg px-2.5 py-1.5 text-xs font-medium" style={{ background: `${row.color}14`, color: row.color }}>
+            {row.icon} {row.label} × {row.count}{row.amount > 0 ? `　NT$ ${row.amount.toLocaleString('zh-TW')}` : ''}
+          </span>
+        ))}
+      </div>
+    </details>
   );
 }
