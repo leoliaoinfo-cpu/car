@@ -316,6 +316,9 @@ function CasePipeline({ item, currentId, deals, quotes, onChangeStage, onOpenQuo
   const nextStage = CASE_PIPELINE_STAGES[currentIndex + 1] || null;
   const hasDeal = deals.some((row) => row.id === item.dealId || row.caseId === item.id);
   const confirmStage = CASE_PIPELINE_STAGES.find((stage) => stage.id === confirmStageId);
+  // 已成交但還沒指定是哪一張報價成交（案件有報價時）→ 先指定，才能往交車走
+  const needsWinner = currentId === 'won' && (item.quoteIds || []).length > 0
+    && !deals.some((row) => (row.id === item.dealId || row.caseId === item.id) && row.quoteId);
 
   async function applyStage() {
     if (!confirmStage || saving) return;
@@ -342,7 +345,7 @@ function CasePipeline({ item, currentId, deals, quotes, onChangeStage, onOpenQuo
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className="h-full rounded-full bg-copper" style={{ width: `${((currentIndex + 1) / CASE_PIPELINE_STAGES.length) * 100}%` }} /></div>
       <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
         {nextStage
-          ? <button type="button" onClick={() => nextStage.id === 'won' && !hasDeal ? onOpenQuote?.(item, (item.quoteIds || [])[0] || null) : setConfirmStageId(nextStage.id)} className="btn-primary min-h-12">{nextStage.id === 'won' && !hasDeal ? '先選擇成交報價 →' : `下一階段：${nextStage.label} →`}</button>
+          ? <button type="button" onClick={() => needsWinner ? document.getElementById('case-quotes')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : nextStage.id === 'won' && !hasDeal ? onOpenQuote?.(item, (item.quoteIds || [])[0] || null) : setConfirmStageId(nextStage.id)} className="btn-primary min-h-12">{needsWinner ? '先指定是哪張報價成交 ↓' : nextStage.id === 'won' && !hasDeal ? '先選擇成交報價 →' : `下一階段：${nextStage.label} →`}</button>
           : <div className="flex min-h-12 items-center justify-center rounded-xl bg-ok/10 text-sm font-bold text-ok">✓ 案件已完成</div>}
         <button type="button" onClick={() => setShowStages((value) => !value)} className="btn-outline min-h-12 px-3">{showStages ? '收起' : '調整'}</button>
       </div>
@@ -468,6 +471,17 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const [contactError, setContactError] = useState('');
   const [contactSaving, setContactSaving] = useState(false);
   const linkedDeal = findDealForCase(deals, item);
+  const { confirmQuoteDeal } = useApp();
+  const [pickWinnerId, setPickWinnerId] = useState(null);
+  const [winnerBusy, setWinnerBusy] = useState(false);
+  const [winnerError, setWinnerError] = useState('');
+  async function pickWinner(quoteId) {
+    if (winnerBusy) return;
+    setWinnerBusy(true); setWinnerError('');
+    try { await confirmQuoteDeal(quoteId); setPickWinnerId(null); }
+    catch (cause) { setWinnerError(cause?.message || '指定成交報價失敗，請再試一次。'); }
+    finally { setWinnerBusy(false); }
+  }
   const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
   const pipelineStage = getCasePipelineStage(item, { deals, quotes });
   const pipelineStageId = getCasePipelineStageId(item, { deals, quotes });
@@ -622,7 +636,12 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
             </form>
           </section>}
 
-          {(section === 'overview' || section === 'quotes') && <section className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{linkedQuotes.map((quote) => <button type="button" onClick={() => onOpenQuote?.(item, quote.id)} key={quote.id} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">{linkedDeal?.quoteId === quote.id ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
+          {(section === 'overview' || section === 'quotes') && <section id="case-quotes" className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{!linkedDeal?.quoteId && ['won', 'delivery', 'completed'].includes(getCasePipelineStageId(item, { deals, quotes })) && linkedQuotes.length > 0 && <p role="alert" className="mt-3 rounded-xl border border-copper/40 bg-copper/10 px-3 py-2 text-xs font-bold text-copper">⚠ 已標為成交，但還沒指定是哪一張報價成交。請在下方選一張「指定這張成交」。</p>}
+{winnerError && <p role="alert" className="mt-2 text-xs font-semibold text-danger">{winnerError}</p>}
+{linkedQuotes.map((quote) => <div key={quote.id} className="mt-3"><button type="button" onClick={() => onOpenQuote?.(item, quote.id)} className="w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">{linkedDeal?.quoteId === quote.id ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}{quote.note ? `・${quote.note}` : ''}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>
+{!linkedDeal?.quoteId && item.status !== 'completed' && (pickWinnerId === quote.id
+  ? <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-s2 p-2"><p className="col-span-2 text-xs text-ink-2">確定客戶選的是這一張（NT$ {formatMoney(quote.total)}）？其他報價會標為「未採用」，內容保留。</p><button type="button" disabled={winnerBusy} onClick={() => setPickWinnerId(null)} className="btn-outline min-h-10 text-xs">先不要</button><button type="button" disabled={winnerBusy} onClick={() => pickWinner(quote.id)} className="btn-primary min-h-10 text-xs disabled:opacity-50">{winnerBusy ? '儲存中…' : '確定成交'}</button></div>
+  : <button type="button" onClick={() => { setPickWinnerId(quote.id); setWinnerError(''); }} className="btn-outline mt-2 min-h-10 w-full text-xs">✓ 指定這張成交</button>)}</div>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
 
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
