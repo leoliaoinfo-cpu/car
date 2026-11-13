@@ -162,3 +162,12 @@ test('編輯既有客戶案件內的報價：不改標題、不另建案件', ()
   assert.equal(plan.previousCase, null);
   assert.deepEqual(plan.deleteCaseIds, []);
 });
+
+test('已存在的報價重新儲存時，客戶只剩已完成案件也不會長出新案件', () => {
+  const done = { id: 'k1', clientId: 'c1', clientName: '邱老闆', type: 'modification', title: '改車案件', status: 'completed', quoteIds: [] };
+  const quote = { id: 'q9', clientId: 'c1', customerName: '邱老闆', items: [{ kind: 'addon', name: '尾門', price: 1 }] };
+  const again = planQuoteCaseLink({ quote, cases: [done], quotes: [quote], isExisting: true, now: NOW });
+  assert.equal(again.caseRow, null);
+  const fresh = planQuoteCaseLink({ quote, cases: [done], quotes: [], isExisting: false, now: NOW });
+  assert.equal(fresh.caseRow.type, 'modification'); // 沒有車輛品項 → 改裝，不是買車
+});

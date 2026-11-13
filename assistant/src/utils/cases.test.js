@@ -258,3 +258,20 @@ test('報價只記在既有案件的 quoteIds 時不重複建立案件', () => {
   });
   assert.deepEqual(seeds, []);
 });
+
+test('沒有車輛品項的報價判為改裝；客戶已有案件時舊資料轉換不再另外長案件；列出可能重複的案件', async () => {
+  const { inferCaseType, buildLegacyCaseSeeds, findPossibleDuplicateCases } = await import('./cases.js');
+  assert.equal(inferCaseType({ items: [{ kind: 'addon' }] }), 'modification');
+  assert.equal(inferCaseType({ items: [{ kind: 'vehicle' }, { kind: 'addon' }] }), 'purchase');
+  const real = { id: 'k1', clientId: 'c1', clientName: '邱', type: 'modification', source: 'manual', status: 'completed' };
+  const seeds = buildLegacyCaseSeeds({
+    deals: [{ id: 'd2', clientId: 'c1', clientName: '邱' }], quotes: [{ id: 'q2', clientId: 'c1', customerName: '邱' }],
+    clients: [{ id: 'c1', name: '邱' }], existingCases: [real],
+  });
+  assert.deepEqual(seeds, []);
+  const ghost = { id: 'case:deal:d2', clientId: 'c1', clientName: '邱', type: 'purchase', source: 'legacy-deal' };
+  const groups = findPossibleDuplicateCases([real, ghost, { ...ghost, id: 'g2', source: 'quote' }, { id: 'solo', clientId: 'c9', source: 'legacy-deal' }]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].autoCases.map((row) => row.id), ['case:deal:d2', 'g2']);
+  assert.deepEqual(groups[0].otherCases.map((row) => row.id), ['k1']);
+});

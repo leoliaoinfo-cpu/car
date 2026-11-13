@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { CASE_LIST_FILTERS, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
 import { useApp } from '../../context';
 import {
-  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase,
+  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, findPossibleDuplicateCases,
 } from '../../utils/cases';
 import { today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
@@ -23,6 +23,8 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
   const [restoringId, setRestoringId] = useState(null);
   const [restoreError, setRestoreError] = useState('');
   const [showStock, setShowStock] = useState(false);
+  const [showDup, setShowDup] = useState(false);
+  const dupGroups = useMemo(() => findPossibleDuplicateCases(cases), [cases]);
 
   useEffect(() => {
     if (focusId) { setSelectedId(focusId); onFocusConsumed?.(); }
@@ -60,6 +62,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
         <button type="button" onClick={() => setShowNew(true)} className="btn-primary min-h-11 shrink-0">＋ 新案件</button>
       </div>
 
+      {dupGroups.length > 0 && <button type="button" onClick={() => setShowDup(true)} className="min-h-12 w-full rounded-xl border border-warn/50 bg-warn/10 px-4 text-left text-sm font-bold text-warn">⚠ {dupGroups.map((g) => g.clientName).slice(0, 3).join('、')}{dupGroups.length > 3 ? '等' : ''} 有案件可能重複・點這裡整理</button>}
       <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : '中央配件點貨・查看尚缺項目'}</button>
       {showStock ? <StockCenter deals={deals} cases={cases} onOpenCase={(id) => { setShowStock(false); setSelectedId(id); }} /> : <>
 
@@ -136,6 +139,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       )}
       </>}
 
+      {showDup && <DuplicateCasesModal groups={dupGroups} deals={deals} quotes={quoteDrafts} onClose={() => setShowDup(false)} onTrash={deleteCase} />}
       {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id) => { setShowNew(false); onNewClosed?.(); setSelectedId(id); }} />}
       {selected && <CaseDetail key={selected.id} item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
     </div>
@@ -648,6 +652,50 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
         </div>
         {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div><label className="mt-4 block text-xs font-bold text-ink-2">這次聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowContact(false)} className="btn-outline min-h-12">取消</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></form></div>}
         {showEdit && <CaseEditSheet item={item} currentPipeline={pipelineStageId} workItems={caseWork} hasLinkedDeal={Boolean(linkedDeal)} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
+      </div>
+    </div>
+  );
+}
+
+// 舊資料轉換時自動長出的案件，和同一位客戶的其他案件可能是同一筆生意。只列出來，由使用者決定；移到回收筒隨時可恢復。
+function DuplicateCasesModal({ groups, deals, quotes, onClose, onTrash }) {
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState('');
+  const describe = (item) => {
+    const deal = findDealForCase(deals, item);
+    const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
+    const stage = getCasePipelineStage(item, { deals, quotes });
+    return [CASE_TYPE_LABEL[item.type] || '案件', item.title || '未命名案件', stage, deal ? `成交 NT$ ${formatMoney(deal.amount)}` : '', linkedQuotes.length ? `${linkedQuotes.length} 張報價` : ''].filter(Boolean).join('・');
+  };
+  async function trash(id) {
+    if (busyId) return;
+    setBusyId(id); setError('');
+    try { await onTrash(id); } catch (cause) { setError(cause?.message || '移到回收筒失敗，請再試一次。'); } finally { setBusyId(null); }
+  }
+  return (
+    <div className="fixed inset-0 z-50 bg-bg safe-panel overflow-y-auto anim-slide-up">
+      <div className="max-w-xl mx-auto min-h-full bg-s1 md:my-8 md:min-h-0 md:rounded-2xl md:border md:border-bdr">
+        <header className="sticky top-0 z-10 bg-s1/95 backdrop-blur border-b border-bdr px-4 py-3 flex items-center gap-3">
+          <button type="button" onClick={onClose} className="btn-ghost min-h-11 px-3">←</button>
+          <h2 className="font-bold text-lg text-ink flex-1">整理重複案件</h2>
+        </header>
+        <div className="p-4 space-y-5 pb-24">
+          <p className="text-sm text-ink-2">下面標「自動產生」的案件，是系統轉換舊成交／舊報價時長出來的，可能和你自己建的案件是同一筆生意。確認重複就移到回收筒（隨時可在「回收筒」恢復，成交與報價資料不會刪）。</p>
+          {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
+          {groups.length === 0 && <p className="text-center text-ink-3 py-8">已經整理完了 ✓</p>}
+          {groups.map((group) => (
+            <section key={group.clientId} className="card p-4 space-y-3">
+              <h3 className="font-bold text-ink">{group.clientName || '未命名客戶'}</h3>
+              {group.otherCases.map((item) => <div key={item.id} className="rounded-xl bg-s2 px-3 py-2 text-xs text-ink-2"><span className="font-bold text-ok">保留</span>・{describe(item)}</div>)}
+              {group.autoCases.map((item) => (
+                <div key={item.id} className="rounded-xl border border-warn/40 bg-warn/5 px-3 py-2">
+                  <p className="text-xs text-ink-2"><span className="font-bold text-warn">自動產生</span>・{describe(item)}</p>
+                  <button type="button" disabled={busyId === item.id} onClick={() => trash(item.id)} className="btn-outline mt-2 min-h-10 w-full text-xs disabled:opacity-50">{busyId === item.id ? '處理中…' : '🗑 這是重複的，移到回收筒'}</button>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );

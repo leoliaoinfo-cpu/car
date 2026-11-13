@@ -151,7 +151,37 @@ export function resolveCaseFollowUpTarget({ mode, date, amount, unit, baseDate }
 }
 
 export function inferCaseType(quote) {
-  return quote?.excludeVehiclePrice ? 'modification' : 'purchase';
+  if (quote?.excludeVehiclePrice) return 'modification';
+  // 沒有任何車輛品項（只有配件／費用）的報價也是改裝，不是買車。
+  const items = Array.isArray(quote?.items) ? quote.items : [];
+  if (items.length > 0 && !items.some((item) => item?.kind === 'vehicle')) return 'modification';
+  return 'purchase';
+}
+
+/** 系統自動長出來的案件（舊資料轉換，或存報價／成交時順手建的），不是使用者在「新案件」自己建的。 */
+export const isAutoSeededCase = (item) => ['legacy-deal', 'legacy-quote', 'deal', 'quote'].includes(item?.source);
+
+/**
+ * 找出「可能重複」的案件：同一位客戶有 2 筆以上案件，且其中有舊資料自動長出來的。
+ * 只列出來讓使用者決定，不自動刪除。回傳 [{ clientId, clientName, autoCases, otherCases }]。
+ */
+export function findPossibleDuplicateCases(cases = []) {
+  const byClient = new Map();
+  for (const item of cases) {
+    if (item.deletedAt || !item.clientId) continue;
+    const list = byClient.get(item.clientId) || [];
+    list.push(item);
+    byClient.set(item.clientId, list);
+  }
+  const groups = [];
+  for (const [clientId, list] of byClient) {
+    const autoCases = list.filter(isAutoSeededCase);
+    const otherCases = list.filter((row) => !isAutoSeededCase(row));
+    if (list.length >= 2 && autoCases.length > 0 && otherCases.length > 0) {
+      groups.push({ clientId, clientName: list[0].clientName || '', autoCases, otherCases });
+    }
+  }
+  return groups;
 }
 
 export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], existingCases = [] } = {}) {
@@ -165,12 +195,15 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
   const caseQuoteIds = new Set(existingCases.flatMap((row) => row.quoteIds || []));
   const now = new Date().toISOString();
   const seeds = [];
+  // 客戶已經有（未刪除的）案件時，不再替舊成交／舊報價另外長出新案件，避免同一筆生意重複出現。
+  const hasLiveCase = (clientId) => Boolean(clientId) && existingCases.some((row) => row.clientId === clientId && !row.deletedAt);
 
   for (const deal of deals) {
     const id = `case:deal:${deal.id}`;
     if (deal.caseId && existingIds.has(deal.caseId)) continue;
     if (existingIds.has(id) || caseDealIds.has(deal.id)) continue;
     const quote = quoteMap.get(deal.quoteId);
+    if (hasLiveCase(deal.clientId || quote?.clientId)) continue;
     const client = clientMap.get(deal.clientId);
     seeds.push({
       id,
@@ -195,6 +228,7 @@ export function buildLegacyCaseSeeds({ deals = [], quotes = [], clients = [], ex
     if (quote.caseId && existingIds.has(quote.caseId)) continue;
     const id = `case:quote:${quote.id}`;
     if (linkedQuoteIds.has(quote.id) || existingIds.has(id) || caseQuoteIds.has(quote.id)) continue;
+    if (hasLiveCase(quote.clientId)) continue;
     const client = clientMap.get(quote.clientId);
     seeds.push({
       id,

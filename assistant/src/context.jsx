@@ -563,12 +563,19 @@ export function AppProvider({ children }) {
     }
     const allCases = (await db.getAll('cases').catch(() => [])).filter((row) => !row.deletedAt);
     const quote = full.quoteId ? await db.get('quoteDrafts', full.quoteId).catch(() => null) : null;
+    const existingDeal = await db.get('deals', full.id).catch(() => null);
     const caseType = inferCaseType(quote);
     const candidates = allCases.filter((row) => row.clientId && row.clientId === (full.clientId || quote?.clientId)
       && row.type === caseType && row.status !== 'completed');
     const linked = allCases.find((row) => row.id === full.caseId || row.id === quote?.caseId
       || row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)))
       || (candidates.length === 1 ? candidates[0] : null);
+    // 已存在的成交重新儲存時，找不到案件也不再另外長出新案件（案件已完成後再改成交，會冒出重複的「購車案件」）。
+    if (!linked && existingDeal) {
+      dispatch({ type: 'UPSERT_DEAL', payload: full });
+      await db.put('deals', full);
+      return full;
+    }
     const caseRow = advanceCasePipeline({
       ...(linked || {}),
       id: linked?.id || `case:deal:${full.id}`,
@@ -660,12 +667,13 @@ export function AppProvider({ children }) {
     const allCases = await db.getAll('cases').catch(() => []);
     const allQuotes = await db.getAll('quoteDrafts').catch(() => []);
     // 歸屬決策在 utils/quotes.js（純函式、有測試）：沒客戶不建案件；歸入既有案件不改標題；舊空殼案件移除。
-    let plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, now });
+    const existingQuote = allQuotes.find((row) => row.id === draft.id) || null;
+    let plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, now, isExisting: Boolean(existingQuote) });
     if (plan.deleteCaseIds.length) {
       const [workItems, activities, tasks, deals, events] = await Promise.all(
         ['workItems', 'activities', 'tasks', 'deals', 'events'].map((store) => db.getAll(store).catch(() => [])));
       const referencedCaseIds = collectReferencedCaseIds(workItems, activities, tasks, deals, events);
-      plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, referencedCaseIds, now });
+      plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, referencedCaseIds, now, isExisting: Boolean(existingQuote) });
     }
     const full = plan.quote;
     const caseRow = plan.caseRow ? advanceCasePipeline(plan.caseRow, 'new', now, { allowBackward: false }) : null;

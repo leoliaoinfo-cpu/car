@@ -1,3 +1,4 @@
+import { inferCaseType } from "./cases.js";
 /**
  * 報價唯一來源：quoteDrafts。
  * 舊版本曾把完整報價再複製進 client.quotes，容易造成兩份資料分岔。
@@ -80,7 +81,7 @@ function isEmptyValue(value) {
 }
 
 function quoteCaseType(quote) {
-  return quote?.excludeVehiclePrice ? 'modification' : 'purchase';
+  return inferCaseType(quote);
 }
 
 /** 案件是否被工作、紀錄、待辦、成交等使用者資料引用（傳入的任一陣列有 caseId 指向它）。 */
@@ -126,7 +127,7 @@ export function findGhostQuoteCases({ cases = [], quotes = [], referencedCaseIds
  * - 報價離開的舊案件若因此變成空殼就列入刪除；有使用者資料的一律保留。
  * 回傳 { quote, caseRow, previousCase, deleteCaseIds }。
  */
-export function planQuoteCaseLink({ quote, cases = [], quotes = [], referencedCaseIds = new Set(), now = new Date().toISOString() }) {
+export function planQuoteCaseLink({ quote, cases = [], quotes = [], referencedCaseIds = new Set(), now = new Date().toISOString(), isExisting = false }) {
   const live = cases.filter((row) => !row.deletedAt);
   const type = quoteCaseType(quote);
   const previous = live.find((row) => (row.quoteIds || []).includes(quote.id)) || null;
@@ -142,6 +143,8 @@ export function planQuoteCaseLink({ quote, cases = [], quotes = [], referencedCa
       || (previous && previous.clientId === quote.clientId ? previous : null)
       || (candidates.length === 1 ? candidates[0] : null)
       || (previous && !previous.clientId ? previous : null);
+    // 已存在的報價重新儲存時找不到案件，不再另外長出新案件（例如案件已交車後又改了報價）。
+    if (!linked && isExisting) return result;
     const ownedByClient = Boolean(linked?.clientId);
     const fallbackTitle = type === 'modification' ? '改裝報價' : '購車報價';
     result.caseRow = {
