@@ -1,13 +1,13 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
-  getClientStatus, clientMatchesFilter, sortClients,
-  CAT_COLORS, STATUS_COLOR, STATUS_LABEL,
+  clientMatchesFilter, sortClients,
+  CAT_COLORS,
   generateId, findDuplicateClient,
 } from '../../utils/crm';
 import { advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, findDealForCase } from '../../utils/cases';
-import { today, formatDate, formatDateFull, addDays, QUICK_DATES } from '../../utils/date';
+import { formatDate } from '../../utils/date';
 import ClientDetail from './ClientDetail';
 import { Field } from '../ui';
 import dayjs from 'dayjs';

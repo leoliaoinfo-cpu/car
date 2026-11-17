@@ -7,7 +7,6 @@ import { today, formatDateFull, addDays } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
-import TruckComparison from '../reception/TruckComparison';
 import { Field, ClientPicker } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
@@ -80,7 +79,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   const [form, setForm] = useState(() => pickEditable(client));
   const [heightCopyStatus, setHeightCopyStatus] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showTruckComparison, setShowTruckComparison] = useState(false);
   const [showAddTimer, setShowAddTimer] = useState(false);
   const [timerNote, setTimerNote] = useState('');
   const [timerTime, setTimerTime] = useState('');
@@ -659,10 +657,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           )}
         </section>
 
-        <button type="button" onClick={() => setShowTruckComparison(true)} className="btn-outline w-full min-h-11">
-          🚚 K2500 與競品比較{client.truckComparison?.competitorId ? '・繼續上次比較' : ''}
-        </button>
-
         {client.missedCalls >= 5 && (
           <div className="bg-danger/10 border border-danger/30 rounded-lg px-3 py-2 text-xs text-danger">
             ⚠️ 未接次數達 {client.missedCalls} 次，建議考慮從名單中移除
@@ -1177,9 +1171,6 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
           />
         )}
 
-        {showTruckComparison && (
-          <><div className="overlay" onClick={() => setShowTruckComparison(false)} /><div className="safe-screen fixed inset-0 z-[80] overflow-y-auto bg-bg/95 p-3"><div className="max-w-4xl mx-auto"><TruckComparison selection={client.truckComparison || { competitorId: '', k2500Id: 'k2500-01' }} onSelectionChange={(truckComparison) => updateClient(client.id, (current) => ({ ...current, truckComparison }))} onClose={() => setShowTruckComparison(false)} /></div></div></>
-        )}
 
         {showDealModal && (
           <DealModal

@@ -12,7 +12,7 @@ cd assistant
 npm ci            # Node 20+
 npm run build     # single-file dist/index.html (run INSIDE assistant/)
 npm run preview -- --port 4173 &   # serves dist/，最接近 GitHub Pages
-node --test $(find src -name '*.test.js')   # 單元測試（目前 205 項）
+node --test $(find src -name '*.test.js')   # 單元測試（目前 199 項）
 ```
 
 ## Drive with Playwright

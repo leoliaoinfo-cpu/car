@@ -29,18 +29,18 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 205 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 199 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
 
 ## 4. 架構速覽
 
-- **導覽**（`src/App.jsx`，階段 1 已改）：底部／桌面頂部 今天（key `work`）/ 案件 / 報價 / 客戶（定義在 `Header.jsx` 的 `MAIN_TABS`）；右上 🔎搜尋、🧰工具（`ToolsSheet.jsx`：業績與成本、車高試算、產品型錄、K2500 規格、廠商名冊）、⚙設定。「更多」頁與客戶接待入口已移除（`ReceptionPage` 程式與資料保留）；浮動鈕只剩 ＋（新增客戶／案件／報價）；⏱ 膠囊與計時提醒新增入口已移除（到期的舊提醒仍會跳出確認）。
+- **導覽**（`src/App.jsx`，階段 1 已改）：底部／桌面頂部 今天（key `work`）/ 案件 / 報價 / 客戶（定義在 `Header.jsx` 的 `MAIN_TABS`）；右上 🔎搜尋、🧰工具（`ToolsSheet.jsx`：業績與成本、車高試算、產品型錄、K2500 規格、廠商名冊）、⚙設定。「更多」頁與客戶接待已移除（程式於 2026-11-18 刪除，資料表 `receptionSessions` 保留）；浮動鈕只剩 ＋（新增客戶／案件／報價）；⏱ 膠囊與計時提醒新增入口已移除（到期的舊提醒仍會跳出確認）。
 - **`src/context.jsx`**：全域狀態與所有存取（saveDeal、confirmQuoteDeal、deleteClient…），改資料一律走這裡，別在元件裡直接寫 DB（照片除外）。
 - **`src/db.js`**：IndexedDB（idb），目前 **DB v12**，stores：clients cats stages customFields journalEntries archivedJournal salaryMonths timers timerHistory settings deals dealFields tasks tombstones events photos pricingRecords quoteDrafts receptionSessions suppliers cases workItems activities。所有 `put` 自動蓋 `_ts`、`delete` 自動寫墓碑供同步。
 - **`src/storageKeys.js`**：所有儲存名稱的唯一來源，**一律帶專屬前綴**（見 §6 儲存隔離）。
-- **「今天」是唯一來源（階段 2）**：`utils/cases.js` 的 `buildWorkQueue` 產生所有該做的事（案件追蹤日、案件待辦、一般待辦、客戶待辦、配件缺貨／再追日、施工步驟、今天的自建活動、**太久沒追**＝沒追蹤日且 ≥14 天沒動靜的進行中案件；舊客戶 `nextDate` 只在「沒有進行中案件」時唯讀入列）。`WorkPage` 清單／月曆兩種檢視讀同一份；`CalendarPage`（內嵌）經 `utils/tracking.js` 的 `buildAgendaByDate` 讀佇列。完整工作總覽（`TodayPage`）入口已移除、程式保留；計時提醒、紀念日不進佇列。案件卡的追蹤資訊列與篩選（全部／要追蹤／已報價／已成交／已交車／回收筒）來自 `tracking.js`。新增案件追蹤日選填（預設 3 天後），「下一步」存在 `case.followUpNote`，不再另建待辦。
+- **「今天」是唯一來源（階段 2）**：`utils/cases.js` 的 `buildWorkQueue` 產生所有該做的事（案件追蹤日、案件待辦、一般待辦、客戶待辦、配件缺貨／再追日、施工步驟、今天的自建活動、**太久沒追**＝沒追蹤日且 ≥14 天沒動靜的進行中案件；舊客戶 `nextDate` 只在「沒有進行中案件」時唯讀入列）。`WorkPage` 清單／月曆兩種檢視讀同一份；`CalendarPage`（內嵌）經 `utils/tracking.js` 的 `buildAgendaByDate` 讀佇列。完整工作總覽（`TodayPage`）已刪除；計時提醒、紀念日不進佇列。案件卡的追蹤資訊列與篩選（全部／要追蹤／已報價／已成交／已交車／回收筒）來自 `tracking.js`。新增案件追蹤日選填（預設 3 天後），「下一步」存在 `case.followUpNote`，不再另建待辦。
 - **報價流程（階段 3）**：`QuoteModal` 底部固定「儲存／預覽出圖／LINE 文字」（成交鈕已於 2026-11-18 拿掉，見下方）；不再強制逐一確認 27 個配備分類、不再有原生 alert/confirm（缺規格改成行內紅字）。從案件開的報價（`QuoteWorkspace` 的 `fromCaseId`）存檔、關閉或成交後回到該案件（`onReturnToCase`）。「更多選項」收納（需求備忘／備註／業務資料）、未歸戶報價的「歸入客戶」已做。
 - **指定成交報價**：案件標為已成交但 `deal.quoteId` 還沒有時，案件詳情「案件報價與成交」會出現警示，每張報價有「指定這張成交」（兩段確認 → `confirmQuoteDeal`，其他報價自動標「未採用」且保留）；主按鈕變「先指定是哪張報價成交」，指定前不能往交車走。
 - **重複案件（2026-11-13 修）**：根因＝`saveDeal`／`saveQuoteDraft` 在「已存在的成交／報價重新儲存、而客戶只剩已完成案件」時，會另外長出新案件（`case:deal:`／`case:quote:`，常被當成購車）。現在已存在的成交／報價找不到案件時不再建新案件；沒有車輛品項的報價判為改裝（`inferCaseType`）；舊資料轉換遇到客戶已有案件就不再長案件。案件頁偵測到可能重複時出現橘色提示，「整理重複案件」只列出系統自動產生的案件，由使用者逐筆移到回收筒（可恢復，不自動刪）。
@@ -51,12 +51,13 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **報價單與今天頁再簡化（2026-11-18）**：今天卡片改單行（左：客戶名＋「逾期日・要做的事」，右：📞／記錄／延後），一屏約 7 張。報價單：車型改成「點一下就帶入」的清單，選好收成一行（按「換車型」再展開；自己輸入車名／年式在折疊內，狀態 `showModelPicker`）；配件改成等寬清單列（左勾選框、右價格），拿掉「沒有選配（已向客戶確認）」勾選（舊資料的 `noOptionCategories` 保留）；需選規格的配件（如燈光顏色）勾了就在該分類原地選（`AddonCategoryCard` 的 `onPickChoice`）；底部固定列顯示「已選 N 項＋合計金額」；「加入型錄沒有的配件」收進折疊；歸入案件只有一筆時縮成一行。**送出報價自動記錄**：分享／下載報價圖或複製 LINE 文字後，`context.markQuoteSent`（規則 `utils/cases.js` 的 `planQuoteSent`）自動記「已傳報價給客戶」並排 2 天後追蹤——只限成交前的進行中案件、同一天只記一次、已排未來追蹤日就不改日期。
 - **少按鈕、自動存（2026-11-18 第二輪）**：報價清單拿掉說明文字、顏色圖例、「已連結客戶」「報價已建立第 N 天」與階段標籤，按鈕改「開啟報價」；案件清單卡拿掉階段標籤（追蹤列已有白話階段），「中央配件點貨」改成**有缺貨才出現**的「尚缺配件 N 項」；案件詳情的交車日／急件改了就自動存（`saveDeliveryTarget`，沒有儲存鈕，已交車不顯示）；待廠商確認的配件一律自動帶 3 天後再追日（成交時 `confirmQuoteDeal`、手動改狀態時 `StockRow`），不再跳「未排再追日」。
 - **報價單不放成交鈕（2026-11-18，使用者反映很礙眼、容易誤按）**：`QuoteModal` 底部只有「儲存／預覽出圖／LINE 文字」，**不要再把「儲存並確認成交」加回來**；報價清單卡的「確認此報價成交／核對成交報價」改成主按鈕列下方的小字連結（仍有二次確認）。成交的正規入口是案件詳情的「指定這張成交」。
+- **清掉停用功能（2026-11-18，使用者要求）**：刪除 `reception/ReceptionPage.jsx`（客戶接待、展示模式）、`reception/TruckComparison.jsx`＋`utils/truckComparison.js`（競品比較，含客戶頁的入口按鈕）、`today/TodayPage.jsx`（舊今天頁）。工具選單的「K2500 規格」獨立成 `components/vehicles/VehicleQuickReference.jsx`。**只刪畫面程式，資料一筆都沒動**：`receptionSessions`、`client.truckComparison`、timers、events 等資料表與同步照舊，`context.jsx` 的存取函式與 `utils/reception.js`（車高參數仍在用）保留。`TimerModal` 保留（以前設過的提醒到期仍會跳出）。客戶頁（`ClientDetail`／`CrmPage`）內還有一些沒人呼叫的舊函式（紀念日、計時提醒、客戶階段），因為跟現用功能纏在一起，沒有硬拆。
 - **設定的密碼保護（2026-11-17）**：設定→報價選單（車型售價、配件價格、貸款、浮水印）要數字密碼才能看／改，用 `components/PinGate.jsx`（與「業績與成本」共用同一組密碼與 30 分鐘解鎖；沒設過密碼會先要求設定）。設定頁只留 常用（報價選單、雲端同步、備份還原、後台密碼）／其他（車高參數、使用說明）；客戶分類、產業選項、業績欄位、追蹤規則入口收起（資料與預設值保留）。
 - **客戶頁（階段 5）**：客戶詳情只留 基本資料、客戶案件（連到案件）、照片、待辦、「記錄聯繫」、互動時間軸；已移除 建立報價單／建立成交案／預計交車日／生日重要日子／計時提醒 與客戶頁案件流程看板（程式內部分狀態變數仍在、資料不動）。「記錄聯繫」不含「交車」（舊流程會建回訪提醒）。客戶清單搜尋框全寬。
 - **設定與用語（階段 6）**：設定分「常用（報價選單、雲端同步、備份還原）／進階」並可搜尋；客戶階段、自訂欄位、待辦範本、通知設定已收起（資料保留）。UI 用語統一：配件、廠商、客戶、回收筒。產品型錄（原廠文字）與接待、今天舊頁不改字。
 - **成交到交車（階段 4）**：案件詳情內直接有「施工進度」（`deals/CaseDeliveryChecklist.jsx`，一點完成、不需密碼）與配件核對；配件未備妥時完成「改裝配件安裝／交車」會跳警示（可選「仍要繼續」）；最後一步「確認交車」（`context.confirmDelivery`）只記錄交車日、案件標完成、收掉成交前待辦、認列薪資，**不再建立任何回訪／年度提醒、也不再設客戶追蹤日**。已交車的案件不再顯示缺配件警示。金額／成本頁（`OperationsPage`）新裝置首次進入要先設定數字密碼（不再有預設密碼）；密碼雜湊只存在該裝置 localStorage。e2e `assistant/e2e/stock-flow.mjs` 已更新為新導覽並全過。
-- `src/utils/`：純邏輯（可單元測試）。`dataMerge.js` 同步／還原的合併決策、`cases.js` 案件階段與工作佇列、`pricing.js` 報價成本利潤、`stock.js` 成交配件核對與缺貨、`delivery.js` 交車流程、`quotes.js`、`reception.js`、`presentationLock.js`、`lock.js`、`ics.js`。
-- `src/components/`：`cases/`（案件主流程）、`quote/`（QuoteModal 報價編輯、QuoteWorkspace 獨立報價工作區）、`work/`（工作清單）、`crm/`、`deals/`、`reception/`、`today/`、`calendar/`、`catalog/`、`SettingsPanel.jsx`。
+- `src/utils/`：純邏輯（可單元測試）。`dataMerge.js` 同步／還原的合併決策、`cases.js` 案件階段與工作佇列、`pricing.js` 報價成本利潤、`stock.js` 成交配件核對與缺貨、`delivery.js` 交車流程、`quotes.js`、`reception.js`（車高與需求摘要）、`presentationLock.js`、`lock.js`、`ics.js`。
+- `src/components/`：`cases/`（案件主流程）、`quote/`（QuoteModal 報價編輯、QuoteWorkspace 獨立報價工作區）、`work/`（工作清單）、`crm/`、`deals/`、`vehicles/`（K2500 規格）、`calendar/`、`catalog/`、`SettingsPanel.jsx`。
 
 ## 5. 核心業務模型與流程
 
@@ -92,7 +93,7 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
   - 分支 `hotfix/pages-storage-isolation` 尚未與開發分支整理（Codex 的 Pages 儲存隔離修正線），動它前先問使用者。
   - 同一客戶兩台裝置同時改只留一邊（需逐筆合併 `client.log`／`todos`，設計見 HANDOFF）。
   - 報價單仍是長表單（16 個配件大類＋已選項目＋貸款＋預覽圖）；已用底部合計與原地選規格減少來回捲動，沒有改成分步精靈。
-  - 客戶 9 階段、自訂欄位、紀念日、計時提醒、接待、完整工作總覽（`TodayPage`）：入口已移除，程式與資料保留；日後可整批清掉。
+  - 接待、競品比較、舊今天頁的程式已刪（資料保留）。客戶頁內殘留的舊函式（紀念日、計時提醒、客戶 9 階段、自訂欄位）未拆，動它要逐一實測客戶頁。
   - 客戶頁待辦區只顯示既有待辦（可完成／刪除），新增請到案件。
   - 已知小問題：今天頁交車步驟卡沒有「取消」（請進案件的施工進度）。
   - 今天／案件只有撥號鍵，沒有「開 LINE 聊天」捷徑（客戶資料沒有可靠的 LINE 連結，未做）。

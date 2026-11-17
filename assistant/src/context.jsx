@@ -1,5 +1,5 @@
 import {
-  createContext, useContext, useReducer, useEffect, useCallback, useRef, useState,
+  createContext, useContext, useReducer, useEffect, useCallback, useRef,
 } from 'react';
 import { db, setOnBlocked } from './db';
 import { startSync, setOnRemoteApplied } from './sync';

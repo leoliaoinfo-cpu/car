@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { findDuplicateClient, formatMoney, generateId } from '../../utils/crm';
 import { addDays, today } from '../../utils/date';
-import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, inferCaseType, findDealForCase } from '../../utils/cases';
+import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId, getCasePipelineUpdatedAt, inferCaseType, findDealForCase } from '../../utils/cases';
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 import { ClientPicker } from '../ui';

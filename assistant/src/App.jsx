@@ -7,7 +7,7 @@ import OperationsPage from './components/deals/OperationsPage';
 import SettingsPanel, { HeightCalculatorDialog } from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
-import ReceptionPage, { VehicleQuickReference } from './components/reception/ReceptionPage';
+import VehicleQuickReference from './components/vehicles/VehicleQuickReference';
 import TimerModal from './components/TimerModal';
 import WorkPage from './components/work/WorkPage';
 import CasesPage from './components/cases/CasesPage';
@@ -57,7 +57,6 @@ function AppInner() {
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
   const [crmFocusIntent, setCrmFocusIntent] = useState(null);
-  const [receptionStartToken, setReceptionStartToken] = useState(null);
   const [quoteStartToken, setQuoteStartToken] = useState(null);
   const [quoteFocusId, setQuoteFocusId] = useState(null);
   const [quoteCaseContext, setQuoteCaseContext] = useState(null);
@@ -218,7 +217,6 @@ function AppInner() {
         <div className="anim-fade-in" key={tab}>
           {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={(id) => openCase(id, 'work')} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
           {tab === 'cases' && <CasesPage onDetailClosed={handleCaseDetailClosed} focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
-          {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} focusIntent={crmFocusIntent} onFocusConsumed={() => setCrmFocusId(null)} onFocusIntentConsumed={() => setCrmFocusIntent(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
