@@ -1039,13 +1039,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                 </span>
               )}
             </h3>
-            <button onClick={applyTodoTemplate} className="text-xs text-accent hover:underline">
-              ＋套用交車待辦範本
-            </button>
           </div>
           <div className="space-y-1">
             {(client.todos || []).length === 0 && (
-              <p className="text-xs text-ink-3">尚無待辦，下方可新增（或套用交車待辦範本）。</p>
+              <p className="text-xs text-ink-3">尚無待辦。</p>
             )}
             {[...(client.todos || [])]
               .sort((a, b) => {
@@ -1081,18 +1078,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                 );
               })}
           </div>
-          <div className="flex gap-2 mt-1 flex-wrap">
-            <input
-              value={todoInput}
-              onChange={(e) => setTodoInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addTodo(); }}
-              placeholder="新增待辦（保險、車貸文件…）"
-              className="flex-1 text-sm min-w-0"
-            />
-            <input type="date" value={todoDue} onChange={(e) => setTodoDue(e.target.value)}
-              className="text-xs shrink-0" title="處理日期（選填，不填＝無期限）" />
-            <button onClick={addTodo} className="btn-outline text-xs shrink-0">加入</button>
-          </div>
+          <p className="text-[11px] text-ink-3">要新增待辦，請到對應的「案件」裡加；這裡只顯示既有的待辦，可完成或刪除。</p>
         </section>
 
         {/* 照片 / 名片（本機儲存、壓縮、刪客戶一併刪） */}

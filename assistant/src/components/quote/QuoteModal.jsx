@@ -977,9 +977,18 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     { key: 'other', label: '其他費用', rows: sortQuoteRows(selectedItems.filter((item) => item.kind !== 'vehicle' && item.kind !== 'addon')) },
   ].filter((group) => group.rows.length > 0);
 
+  // 沒有改動（或還沒選任何品項）就直接關閉，有改動才問一次
+  const editSnapshot = JSON.stringify([model, items, note, requirements, customerName]);
+  const baselineRef = useRef(null);
+  useEffect(() => {
+    const timer = setTimeout(() => { baselineRef.current = editSnapshot; }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function requestClose() {
-    // 還沒選任何品項就直接關閉，不用再確認
     if (selectedItems.length === 0) { onClose(); return; }
+    if (baselineRef.current !== null && baselineRef.current === editSnapshot) { onClose(); return; }
     setShowCloseConfirm(true);
   }
 
@@ -1146,25 +1155,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                         <span className="w-1.5 h-5 rounded-full shrink-0" style={{ background: color }} />
                         <span className="text-xs font-bold text-ink flex-1">{section.label}</span>
                         <span className="text-[10px] text-ink-3">{section.groups.length} 類・{itemCount} 項</span>
-                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${complete || pickedCount ? 'text-ok bg-ok/10' : 'text-warn bg-warn/10'}`}>
-                          {complete ? '全部已處理' : pickedCount ? `已選 ${pickedCount}` : '待確認'}
+                        <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount ? 'text-ok bg-ok/10' : ''}`}>
+                          {pickedCount ? `已選 ${pickedCount}` : ''}
                         </span>
                         <span className="text-xs text-ink-3">{expanded ? '▲' : '▼'}</span>
                       </button>
-                      <label className={`mx-2 mb-2 flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs ${pickedCount > 0 ? 'cursor-not-allowed border-bdr bg-s2 text-ink-3 opacity-70' : 'cursor-pointer border-accent/30 bg-accent/5 text-ink-2'}`}>
-                        <input type="checkbox" checked={sectionNoOptions} disabled={pickedCount > 0}
-                          onChange={(event) => setSectionNoOptions(section, event.target.checked)} />
-                        <span className="min-w-0 flex-1">
-                          <strong className="block text-ink">整個「{section.label}」沒有選配</strong>
-                          <span className="block text-[10px] text-ink-3">
-                            {pickedCount > 0
-                              ? `已有 ${pickedCount} 項選配，先取消選配後才能整組標記`
-                              : partiallyMarkedNoOptions
-                                ? '目前只有部分子分類已標記；勾選後會一次完成全部'
-                                : `一次完成下方 ${section.groups.length} 個分類`}
-                          </span>
-                        </span>
-                      </label>
                       {expanded && (
                         <div className="border-t border-bdr/60 bg-s2/45 p-2 space-y-2">
                           {section.groups.map(([cat, list]) => (

@@ -220,8 +220,6 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               <div className="mt-2 flex gap-2">
                 <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄聯繫' : row.sourceType === 'event' ? '看月曆' : row.sourceType === 'client-delivery' ? '開客戶' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
                 {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
-                {row.sourceType !== 'delivery' && <button type="button" onClick={() => openRow(row)} className="btn-ghost min-h-10 px-3">開啟</button>}
-                {row.sourceType !== 'stock-alert' && <button type="button" onClick={() => setCanceling(canceling === row.id ? null : row.id)} className="btn-ghost min-h-10 px-3 text-danger">取消</button>}
               </div>
               {canceling === row.id && (
                 <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
@@ -236,6 +234,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               {snoozing === row.id && (
                 <div className="grid grid-cols-3 gap-2 mt-2 rounded-xl bg-s2 p-2">
                   {[1, 3, 7].map((days) => <button key={days} type="button" onClick={() => snooze(row, days)} className="btn-outline bg-s1 min-h-10">＋{days} 天</button>)}
+                  {!['stock-alert', 'event', 'client-delivery', 'delivery'].includes(row.sourceType) && <button type="button" onClick={() => { setSnoozing(null); setCanceling(row.id); }} className="col-span-3 min-h-10 rounded-lg text-sm font-semibold text-danger">不用做了（取消這件）</button>}
                 </div>
               )}
             </article>

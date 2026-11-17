@@ -5,12 +5,20 @@ import { useApp } from '../../context';
 import {
   advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, findPossibleDuplicateCases,
 } from '../../utils/cases';
-import { today } from '../../utils/date';
+import { addDays, today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
 import { normalizeDeliveryWorkflow } from '../../utils/delivery';
 import CaseDeliveryChecklist from '../deals/CaseDeliveryChecklist';
 import { ClientPicker } from '../ui';
 import { STOCK_STATUSES, stockAlert, summarizeStock } from '../../utils/stock';
+
+// 聯繫後常用的幾種結果：一按就記好並排下次追蹤日
+const CONTACT_PRESETS = [
+  { label: '已聯絡・3 天後再追', result: '已聯絡', days: 3 },
+  { label: '沒接・明天再打', result: '沒接電話', days: 1 },
+  { label: '再考慮・7 天後', result: '客戶說再考慮', days: 7 },
+  { label: '已傳 LINE・2 天後看', result: '已傳 LINE 等回覆', days: 2 },
+];
 
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
 
@@ -140,7 +148,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       </>}
 
       {showDup && <DuplicateCasesModal groups={dupGroups} deals={deals} quotes={quoteDrafts} onClose={() => setShowDup(false)} onTrash={deleteCase} />}
-      {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id) => { setShowNew(false); onNewClosed?.(); setSelectedId(id); }} />}
+      {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id, opts) => { setShowNew(false); onNewClosed?.(); if (opts?.quote && opts.item) onOpenQuote?.(opts.item, null); else setSelectedId(id); }} />}
       {selected && <CaseDetail key={selected.id} item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
     </div>
   );
@@ -205,6 +213,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
   const [type, setType] = useState('purchase');
   const [title, setTitle] = useState('');
   const [nextTitle, setNextTitle] = useState('確認客戶需求');
+  const [startQuote, setStartQuote] = useState(true);
   const [followUpMode, setFollowUpMode] = useState('relative');
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpAmount, setFollowUpAmount] = useState('3');
@@ -244,7 +253,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
     }, 'new', createdAt));
     // 建案時寫的「下一步」存在案件上，只會在「今天」出現一張卡（不再另外建重複待辦）。
     await onSaveActivity({ id: generateId('activity'), caseId: id, clientId: client.id, type: 'created', text: `建立${CASE_TYPE_LABEL[type]}案件`, date: today() });
-    onCreated(item.id);
+    onCreated(item.id, { quote: startQuote, item });
   }
 
   return (
@@ -275,6 +284,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
             <label className="section-title block px-0">3. 案件與下一步</label>
             <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === 'purchase' ? '例：K2500 雙廂購車' : '例：尾門＋帆布改裝'} className="w-full min-h-12" />
             <input value={nextTitle} onChange={(event) => setNextTitle(event.target.value)} placeholder="下一步要做什麼" className="w-full min-h-12" />
+            <label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" checked={startQuote} onChange={(event) => setStartQuote(event.target.checked)} className="h-5 w-5" />建好後直接做報價</label>
           </section>
           <section>
             <label className="section-title block px-0">4. 下次追蹤日 <span className="text-ink-3 font-normal">（選填，預設 3 天後）</span></label>
@@ -501,10 +511,13 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
     ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day')
     : null;
 
-  async function recordContact(event) {
-    event.preventDefault();
-    if (!contactResult.trim()) { setContactError('請填寫這次聯繫結果。'); return; }
-    if (pipelineStageId !== 'completed' && !contactNextDate) { setContactError('請設定這筆案件的下次追蹤日。'); return; }
+  async function recordContact(event, preset = null) {
+    event?.preventDefault?.();
+    if (contactSaving) return;
+    const resultText = (preset?.result ?? contactResult).trim();
+    const nextDate = preset ? addDays(today(), preset.days) : contactNextDate;
+    if (!resultText) { setContactError('請填寫這次聯繫結果。'); return; }
+    if (pipelineStageId !== 'completed' && !nextDate) { setContactError('請設定這筆案件的下次追蹤日。'); return; }
     setContactSaving(true);
     setContactError('');
     const timestamp = new Date().toISOString();
@@ -512,10 +525,10 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
       await onSaveCase({
         ...advanceCasePipeline(item, pipelineStageId === 'new' ? 'follow_up' : pipelineStageId, timestamp),
         lastContactAt: timestamp,
-        nextFollowUpDate: pipelineStageId === 'completed' ? '' : contactNextDate,
+        nextFollowUpDate: pipelineStageId === 'completed' ? '' : nextDate,
         updatedAt: timestamp,
       });
-      await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'contact', text: `聯繫：${contactResult.trim()}`, date: timestamp });
+      await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'contact', text: `聯繫：${resultText}`, date: timestamp });
       setContactResult('');
       setShowContact(false);
     } catch (cause) {
@@ -650,7 +663,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
         </div>
-        {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div><label className="mt-4 block text-xs font-bold text-ink-2">這次聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowContact(false)} className="btn-outline min-h-12">取消</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></form></div>}
+        {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div>{pipelineStageId !== 'completed' && <div className="mt-4"><p className="text-xs font-bold text-ink-2">一鍵記錄（按下就存好、並排好下次追蹤）</p><div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-outline min-h-12 text-xs font-bold disabled:opacity-50">{preset.label}</button>)}</div></div>}<label className="mt-4 block text-xs font-bold text-ink-2">或自己寫聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowContact(false)} className="btn-outline min-h-12">取消</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></form></div>}
         {showEdit && <CaseEditSheet item={item} currentPipeline={pipelineStageId} workItems={caseWork} hasLinkedDeal={Boolean(linkedDeal)} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
       </div>
     </div>
