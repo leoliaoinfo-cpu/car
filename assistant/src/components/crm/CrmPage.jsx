@@ -543,7 +543,7 @@ function BoardView({ clients, cases, deals, quotes, workQueue, onOpenCase, onSav
         <div><p className="text-xs font-bold text-ink">案件流程</p><p className="mt-0.5 text-[11px] text-ink-3">每個案件的聯繫與追蹤日都獨立儲存。</p></div>
         <div className="flex gap-2 overflow-x-auto">
           {[['all', '全部'], ['purchase', '🚚 買車'], ['modification', '🛠 改裝']].map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? (id === 'purchase' ? 'border-danger bg-danger text-white' : id === 'modification' ? 'border-warn bg-warn text-ink' : 'border-teal bg-teal text-white') : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
+            <button key={id} type="button" onClick={() => setTypeFilter(id)} className={`min-h-10 shrink-0 rounded-full border px-3 text-xs font-bold ${typeFilter === id ? (id === 'purchase' ? 'border-danger bg-danger text-white' : id === 'modification' ? 'border-warn bg-warn text-black' : 'border-teal bg-teal text-white') : 'border-bdr bg-s1 text-ink-2'}`}>{label}</button>
           ))}
           <button type="button" onClick={toggleCompletedVisibility} className="min-h-10 shrink-0 rounded-full border border-bdr bg-s1 px-3 text-xs font-bold text-ink-2">{hideCompleted ? `顯示已完工 ${byStage.completed.length}` : '隱藏已完工'}</button>
         </div>
@@ -636,7 +636,7 @@ function BoardCard({ item, client, stageId, stageUpdatedAt, pendingItems = [], d
       {(item.urgent || item.desiredDeliveryDate || deal?.quoteId) && <p className={`mt-2 text-[11px] font-bold ${stock.deliveryRisk ? 'text-danger' : 'text-copper'}`}>{item.urgent ? '🔴 急件・' : ''}{item.desiredDeliveryDate ? `希望 ${dayjs(item.desiredDeliveryDate).format('MM/DD')} 交車・` : ''}{deal?.quoteId ? `備品尚缺 ${stock.missing} 項` : '成交配件待核對'}</p>}
       <div className="mt-2 grid grid-cols-2 gap-1.5">
           {[['modification', '🛠 改裝'], ['purchase', '🚚 買車']].map(([kind, label]) => (
-            <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? (kind === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
+            <button key={kind} type="button" onClick={() => onSetType(kind)} className={`min-h-10 rounded-lg border text-[11px] font-bold ${item.type === kind ? (kind === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-black') : 'border-bdr bg-s1 text-ink-3'}`}>{label}</button>
           ))}
       </div>
       <div className="mt-2 rounded-lg bg-s1 px-2.5 py-2 text-[11px]">

@@ -298,7 +298,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
+                      <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-black' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
                       {isWon && <span className="badge bg-ok/15 text-ok">✓ 本張報價成交</span>}
                       {linkedDeal?.quoteId && !isWon && <span className="badge bg-s2 text-ink-3">未採用</span>}
                       {linkedDeal && !linkedDeal.quoteId && <span className="badge bg-warn/10 text-warn">成交報價待核對</span>}

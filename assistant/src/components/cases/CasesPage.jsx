@@ -99,7 +99,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
               <article key={item.id} className="card border-danger/25 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5"><span className="badge bg-danger/10 text-danger">已刪除</span><span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span></div>
+                    <div className="flex flex-wrap items-center gap-1.5"><span className="badge bg-danger/10 text-danger">已刪除</span><span className={`badge ${item.type === 'modification' ? 'bg-warn text-black' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span></div>
                     <h2 className="mt-2 truncate font-bold text-ink">{item.clientName || '未命名客戶'}</h2>
                     <p className="truncate text-sm text-ink-2">{item.title || '未命名案件'}</p>
                     <p className="mt-1 text-[11px] text-ink-3">刪除於 {dayjs(item.deletedAt).format('YYYY/MM/DD HH:mm')}</p>
@@ -122,7 +122,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
+                      <span className={`badge ${item.type === 'modification' ? 'bg-warn text-black' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
                       {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
@@ -273,7 +273,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
           <section>
             <label className="section-title block px-0">買車還是改車</label>
             <div className="grid grid-cols-2 gap-2 mt-2">
-              {[['purchase', '🚛 購車'], ['modification', '🛠️ 改車']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-16 rounded-xl border text-base font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr'}`}>{label}</button>)}
+              {[['purchase', '🚛 購車'], ['modification', '🛠️ 改車']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-16 rounded-xl border text-base font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-black') : 'border-bdr'}`}>{label}</button>)}
             </div>
           </section>
           <label className="flex min-h-12 items-center gap-3 rounded-xl border border-bdr bg-s2 px-3 text-sm font-semibold text-ink"><input type="checkbox" checked={startQuote} onChange={(event) => setStartQuote(event.target.checked)} className="h-6 w-6" />建好後直接做報價</label>
@@ -439,7 +439,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
         </div>
         <div className="mt-5 space-y-5">
           <label className="block text-xs font-bold text-ink-2">案件名稱<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：尾門＋帆布改裝" className="mt-2 min-h-12 w-full" /></label>
-          <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
+          <section><p className="text-xs font-bold text-ink-2">案件種類</p><div className="mt-2 grid grid-cols-2 gap-2">{[['purchase', '🚛 購車案件'], ['modification', '🛠️ 改車案件']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-12 rounded-xl border font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-black') : 'border-bdr text-ink-2'}`}>{label}</button>)}</div></section>
           {pipelineStage !== 'completed' && <section><p className="text-xs font-bold text-ink-2">下次追蹤日</p><p className="mt-1 text-xs text-ink-3">只會更新這一筆案件。</p><FollowUpTargetChooser mode={followUpMode} onModeChange={(nextMode) => { if (nextMode === 'relative' && followUpMode !== 'relative') setFollowUpBaseDate(today()); setFollowUpMode(nextMode); }} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} /></section>}
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
           <div className="grid grid-cols-2 gap-3"><button type="button" onClick={onClose} className="btn-outline min-h-12">取消</button><button type="submit" disabled={saving} className="btn-primary min-h-12">{saving ? '儲存中…' : '確認儲存案件'}</button></div>

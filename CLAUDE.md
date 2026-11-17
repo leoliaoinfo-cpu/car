@@ -82,6 +82,7 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **照片只搬不刪**：合併客戶用 `db.reassignPhotos`；每日保養只刪「客戶有墓碑」的孤兒照片。刪客戶時，成交或報價還在的成本紀錄要保留。墓碑保留 2 年。
 - **客戶頁建立成交也要建配件核對表**（`stockItemsFromQuote`），且先用 `findDealForCase` 找既有成交；客戶報價預覽／PNG 不可出現「年利率」字樣。
 - 刪除類小按鈕一律用 `ui.jsx` 的 `ConfirmDeleteButton`（兩段式）；會寫資料的按鈕要有送出中鎖定，避免連點重複建立。
+- **顏色名稱要先定義才有效**：Tailwind 顏色都走 `index.css` 的 CSS 變數＋`tailwind.config.js`。2026-11-18 發現 `warn`（琥珀色，提醒／改裝）從來沒定義，全站 `bg-warn`／`text-warn`／`border-warn` 都沒顏色（使用者回報「選改車沒顏色，像沒點到」）；已補上 `--c-warn`（淺、深色各一）。琥珀底上的字用 `text-black`，不要用 `text-ink`（深色主題會變淺字看不清）。使用者實際用**淺色主題**，改畫面要淺、深色都截圖檢查。
 - 手機輸入框字級須 ≥16px（index.css 已設），否則 iPhone 點了會自動放大。
 - 測試踩雷：Playwright 的勾選列會消失，用 `.click()` 不要 `.check()`；配件核對列的「狀態/數量/再追日」在折疊 `<details>` 內，要先點開；案件詳情是全螢幕覆蓋層，點底部導覽前要先按「←」返回。
 - Pages 部署：Actions 只在改動 `assistant/**` 或 deploy.yml 時觸發；部署後已安裝的 PWA 需關掉重開才拿到新版（SW 網路優先）。

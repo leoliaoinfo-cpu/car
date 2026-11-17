@@ -45,6 +45,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（目前 199 項）
 
 ## Gotchas
 
+- 使用者用淺色主題：測試時 `localStorage.setItem('car-sales.theme','light')` 後重新整理，淺、深色都要看。
+
 - 勾選列用 `.click()` 不要 `.check()`（Playwright 會逐列重勾）。
 - 案件詳情是全螢幕覆蓋層，點底部導覽前要先按「←」返回。
 - 配件警示視窗開著時，底下的按鈕會被遮住，先按「仍要繼續」或「先去核對」。

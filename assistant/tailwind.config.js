@@ -18,6 +18,7 @@ export default {
         danger: {
           DEFAULT: 'rgb(var(--c-danger) / <alpha-value>)',
         },
+        warn: 'rgb(var(--c-warn) / <alpha-value>)',
         ok: {
           DEFAULT: 'rgb(var(--c-ok) / <alpha-value>)',
         },
