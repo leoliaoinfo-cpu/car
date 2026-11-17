@@ -10,6 +10,22 @@ export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', co
 /** 結案不追蹤的原因（一鍵選）。結案＝status 'closed'：不再進今天、不算進行中，可隨時重新追蹤。 */
 export const CASE_CLOSE_REASONS = ['沒興趣了', '買別家了', '聯絡不上', '暫時不買'];
 /** 還在進行中的案件（沒交車完成、也沒結案不追蹤）。 */
+// 聯繫後常用的幾種結果：一按就記好並排下次追蹤日（今天頁與案件頁共用）
+export const CONTACT_PRESETS = [
+  { label: '已聯絡・3 天後再追', result: '已聯絡', days: 3 },
+  { label: '沒接・明天再打', result: '沒接電話', days: 1 },
+  { label: '再考慮・7 天後', result: '客戶說再考慮', days: 7 },
+  { label: '已傳 LINE・2 天後看', result: '已傳 LINE 等回覆', days: 2 },
+];
+// 建案時沒填名稱的預設標題；之後存報價時會自動換成車型，方便在清單上分辨。
+export const DEFAULT_CASE_TITLES = ['買車案件', '改裝案件', '購車案件'];
+/** 案件名稱還是預設值（使用者沒自己取名）時，用報價的車型命名；自己取過名的一律不動。 */
+export function autoCaseTitle(caseItem, quote) {
+  const current = String(caseItem?.title || '').trim();
+  const model = String(quote?.model || '').trim();
+  if (!model || (current && !DEFAULT_CASE_TITLES.includes(current))) return caseItem?.title || '';
+  return caseItem?.type === 'modification' ? `改裝・${model}` : model;
+}
 export const isOpenCase = (item) => !['completed', 'closed'].includes(item?.status);
 export const FIRST_CASE_NUMBER = 100;
 export const CASE_PIPELINE_STAGES = [
@@ -132,6 +148,16 @@ export function advanceCasePipeline(item = {}, stageId, enteredAt = new Date().t
     pipelineStage: stageId,
     pipelineStageUpdatedAt: changed ? enteredAt : item.pipelineStageUpdatedAt,
     pipelineStageHistory: history,
+  };
+}
+
+/** 記錄一次聯繫後案件要寫回的內容：新開發自動進「有意願在追蹤」、更新最近聯繫與下次追蹤日。 */
+export function applyCaseContact(item, stageId, { nextDate = '', timestamp = new Date().toISOString() } = {}) {
+  return {
+    ...advanceCasePipeline(item, stageId === 'new' ? 'follow_up' : stageId, timestamp),
+    lastContactAt: timestamp,
+    nextFollowUpDate: stageId === 'completed' ? '' : nextDate,
+    updatedAt: timestamp,
   };
 }
 

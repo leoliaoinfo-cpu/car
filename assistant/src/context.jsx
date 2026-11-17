@@ -15,10 +15,10 @@ import {
 } from './utils/pricing';
 import { stockItemsFromQuote } from './utils/stock';
 import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, planQuoteCaseLink } from './utils/quotes';
-import { normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
+import { generateDeliveryWorkflow, normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
 import { generateId } from './utils/crm';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
-import { advanceCasePipeline, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
+import { advanceCasePipeline, autoCaseTitle, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 import { changedPatch, pricingRecordsToDropForClients, recTs } from './utils/dataMerge.js';
 
 const AppContext = createContext(null);
@@ -586,7 +586,8 @@ export function AppProvider({ children }) {
       status: linked?.status || 'active', dealId: full.id,
       quoteIds: [...new Set([...(linked?.quoteIds || []), full.quoteId].filter(Boolean))],
       source: linked?.source || 'deal', createdAt: linked?.createdAt || full.createdAt || now, updatedAt: now,
-    }, 'won', now, { allowBackward: false });
+    // 施工進度有任何一步做完，階段自動走到「安排交車事項」；不會把已完工的案件往回拉。
+    }, (full.deliveryWorkflow || []).some((step) => step.status === 'done') ? 'delivery' : 'won', now, { allowBackward: false });
     full = { ...full, caseId: caseRow.id };
     dispatch({ type: 'UPSERT_DEAL', payload: full });
     await db.put('deals', full);
@@ -640,6 +641,13 @@ export function AppProvider({ children }) {
       quoteSnapshot: structuredClone(quote),
       stockItems: stockItemsFromQuote(quote, state.quotePresets?.addons || []),
     };
+    // 新成交直接依這張報價的配件建好施工進度（不用再另外按「建立施工進度」）。
+    // 舊成交（priorDeal）可能早就交車了，不自動建，免得今天頁冒出一排施工步驟；要的話案件內仍可手動建立。
+    if (!priorDeal && (!Array.isArray(deal.deliveryWorkflow) || deal.deliveryWorkflow.length === 0)) {
+      deal.deliveryWorkflow = generateDeliveryWorkflow({ deal, pricing: { lines: quote.items || [] } });
+      deal.deliveryWorkflowUpdatedAt = timestamp;
+      deal.deliveryWorkflowStartDate = deal.deliveryWorkflowStartDate || today();
+    }
     const sourcePricing = await db.get('pricingRecords', `quote:${quoteId}`).catch(() => null);
     const previousDealPricing = priorDeal ? await db.get('pricingRecords', `deal:${dealId}`).catch(() => null) : null;
     const pricing = buildPricingRecord({ quote, costCatalog: state.costCatalog, existing: sourcePricing || previousDealPricing, kind: 'deal', dealId });
@@ -676,7 +684,10 @@ export function AppProvider({ children }) {
       plan = planQuoteCaseLink({ quote: draft, cases: allCases, quotes: allQuotes, referencedCaseIds, now, isExisting: Boolean(existingQuote) });
     }
     const full = plan.quote;
-    const caseRow = plan.caseRow ? advanceCasePipeline(plan.caseRow, 'new', now, { allowBackward: false }) : null;
+    // 案件名稱還是預設的「買車案件／改裝案件」時，自動換成這張報價的車型，清單上才分得出是哪台車。
+    const caseRow = plan.caseRow
+      ? { ...advanceCasePipeline(plan.caseRow, 'new', now, { allowBackward: false }), title: autoCaseTitle(plan.caseRow, full) || plan.caseRow.title }
+      : null;
     dispatch({ type: 'UPSERT_QUOTE_DRAFT', payload: full });
     await db.put('quoteDrafts', full);
     if (plan.previousCase) {

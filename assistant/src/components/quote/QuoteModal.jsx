@@ -1814,15 +1814,15 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             {selectedItems.length === 0 && <p className="text-[11px] text-ink-3 text-center">先選車型或配件，才能儲存、出圖</p>}
             <div className="grid grid-cols-3 gap-2">
               <button onClick={handleRecord} disabled={selectedItems.length === 0 || recordSaving}
-                className="btn-primary min-h-12 disabled:opacity-40">
-                💾 {recordSaving ? '儲存中…' : isEdit ? '儲存' : (customerMode === 'new' && !client?.id ? '建客戶並儲存' : '儲存')}
+                className="btn-primary min-h-12 px-1 text-sm disabled:opacity-40">
+                {recordSaving ? '儲存中…' : isEdit ? '儲存' : (customerMode === 'new' && !client?.id ? '建客戶並儲存' : '儲存')}
               </button>
               <button onClick={downloadImage} disabled={selectedItems.length === 0 || capturing}
-                className="btn-outline min-h-12 disabled:opacity-40">
-                {capturing ? '產生中…' : '🖼️ 預覽出圖'}
+                className="btn-outline min-h-12 px-1 text-sm whitespace-nowrap disabled:opacity-40">
+                {capturing ? '產生中…' : '預覽出圖'}
               </button>
               <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
-                className="btn-outline min-h-12 disabled:opacity-40">📝 LINE 文字</button>
+                className="btn-outline min-h-12 px-1 text-sm whitespace-nowrap disabled:opacity-40">LINE 文字</button>
             </div>
             {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="btn-outline min-h-11 w-full text-sm disabled:opacity-40">✓ 儲存並確認成交</button>}
           </div>

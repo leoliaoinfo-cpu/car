@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { CASE_LIST_FILTERS, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
 import { useApp } from '../../context';
 import {
-  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases,
+  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases, applyCaseContact, CONTACT_PRESETS,
 } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
@@ -12,21 +12,15 @@ import CaseDeliveryChecklist from '../deals/CaseDeliveryChecklist';
 import { ClientPicker } from '../ui';
 import { STOCK_STATUSES, stockAlert, summarizeStock } from '../../utils/stock';
 
-// 聯繫後常用的幾種結果：一按就記好並排下次追蹤日
-const CONTACT_PRESETS = [
-  { label: '已聯絡・3 天後再追', result: '已聯絡', days: 3 },
-  { label: '沒接・明天再打', result: '沒接電話', days: 1 },
-  { label: '再考慮・7 天後', result: '客戶說再考慮', days: 7 },
-  { label: '已傳 LINE・2 天後看', result: '已傳 LINE 等回覆', days: 2 },
-];
-
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
 
-export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
+export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onDetailClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
   const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, events, cats, stages, saveCase, saveDeal, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(null);
+  // 從「今天」等其他頁面直接開進來的案件，按返回時要回到原本那一頁（由 App 決定）。
+  const openedByFocus = useRef(false);
   const [showNew, setShowNew] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
   const [restoreError, setRestoreError] = useState('');
@@ -35,7 +29,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
   const dupGroups = useMemo(() => findPossibleDuplicateCases(cases), [cases]);
 
   useEffect(() => {
-    if (focusId) { setSelectedId(focusId); onFocusConsumed?.(); }
+    if (focusId) { openedByFocus.current = true; setSelectedId(focusId); onFocusConsumed?.(); }
   }, [focusId, onFocusConsumed]);
   useEffect(() => {
     if (startNewToken) { setShowNew(true); onStartConsumed?.(); }
@@ -72,7 +66,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
       {dupGroups.length > 0 && <button type="button" onClick={() => setShowDup(true)} className="min-h-12 w-full rounded-xl border border-warn/50 bg-warn/10 px-4 text-left text-sm font-bold text-warn">⚠ {dupGroups.map((g) => g.clientName).slice(0, 3).join('、')}{dupGroups.length > 3 ? '等' : ''} 有案件可能重複・點這裡整理</button>}
       <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : '中央配件點貨・查看尚缺項目'}</button>
-      {showStock ? <StockCenter deals={deals} cases={cases} onOpenCase={(id) => { setShowStock(false); setSelectedId(id); }} /> : <>
+      {showStock ? <StockCenter deals={deals} cases={cases} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
 
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋姓名、電話、車牌、車型或案件名稱…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -117,7 +111,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
             const stageDays = getCasePipelineElapsedDays(item, { deals, quotes: quoteDrafts });
             const totalDays = getCaseTotalElapsedDays(item, { deals, quotes: quoteDrafts });
             return (
-              <button key={item.id} type="button" onClick={() => setSelectedId(item.id)} className="card p-4 text-left hover:border-teal/50 active:scale-[0.99] transition-all">
+              <button key={item.id} type="button" onClick={() => { openedByFocus.current = false; setSelectedId(item.id); }} className="card p-4 text-left hover:border-teal/50 active:scale-[0.99] transition-all">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
@@ -149,7 +143,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
       {showDup && <DuplicateCasesModal groups={dupGroups} deals={deals} quotes={quoteDrafts} onClose={() => setShowDup(false)} onTrash={deleteCase} />}
       {showNew && <NewCaseModal clients={clients} cats={cats} stages={stages} initialClientId={initialClientId} onClose={() => { setShowNew(false); onNewClosed?.(); }} onSaveCase={saveCase} onSaveClient={saveClient} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onCreated={(id, opts) => { setShowNew(false); onNewClosed?.(); if (opts?.quote && opts.item) onOpenQuote?.(opts.item, null); else setSelectedId(id); }} />}
-      {selected && <CaseDetail key={selected.id} item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} onClose={() => setSelectedId(null)} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
+      {selected && <CaseDetail key={selected.id} item={selected} workItems={workItems} tasks={tasks} caseQueue={workQueue.filter((row) => row.caseId === selected.id)} activities={activities} deals={deals} quotes={quoteDrafts} phone={clients.find((row) => row.id === selected.clientId)?.phone || ''} onClose={() => { setSelectedId(null); if (openedByFocus.current) { openedByFocus.current = false; onDetailClosed?.(); } }} onSaveCase={saveCase} onSaveDeal={saveDeal} onDeleteCase={deleteCase} onSaveWorkItem={saveWorkItem} onSaveActivity={saveActivity} onSaveTask={saveTask} onUpdateClient={updateClient} onOpenClient={onOpenClient} onOpenQuote={onOpenQuote} onOpenOperations={onOpenOperations} />}
     </div>
   );
 }
@@ -272,7 +266,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
               <button type="button" onClick={() => setClientMode('new')} className={`min-h-12 rounded-xl border ${clientMode === 'new' ? 'border-teal bg-teal/12 text-teal' : 'border-bdr'}`}>建立新客戶</button>
             </div>
             {clientMode === 'existing' ? <div className="mt-3"><ClientPicker clients={clients} value={clientId} onChange={setClientId} placeholder="輸入姓名或電話搜尋客戶…" /></div>
-              : <div className="grid grid-cols-1 gap-2 mt-3"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="客戶姓名或公司名稱（必填）" className="min-h-12" /><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="電話（選填）" className="min-h-12" /></div>}
+              : <div className="grid grid-cols-1 gap-2 mt-3"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="客戶姓名或公司名稱（必填）" className="min-h-12" /><input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" inputMode="tel" placeholder="電話（選填）" className="min-h-12" /></div>}
           </section>
           <section>
             <label className="section-title block px-0">2. 案件種類</label>
@@ -469,7 +463,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
   );
 }
 
-function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onSaveDeal, onDeleteCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
+function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onSaveDeal, onDeleteCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
   const [newTitle, setNewTitle] = useState('');
   const [addingWork, setAddingWork] = useState(false);
   const [due, setDue] = useState('');
@@ -544,12 +538,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
     setContactError('');
     const timestamp = new Date().toISOString();
     try {
-      await onSaveCase({
-        ...advanceCasePipeline(item, pipelineStageId === 'new' ? 'follow_up' : pipelineStageId, timestamp),
-        lastContactAt: timestamp,
-        nextFollowUpDate: pipelineStageId === 'completed' ? '' : nextDate,
-        updatedAt: timestamp,
-      });
+      await onSaveCase(applyCaseContact(item, pipelineStageId, { nextDate, timestamp }));
       await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'contact', text: `聯繫：${resultText}`, date: timestamp });
       setContactResult('');
       setShowContact(false);
@@ -661,7 +650,7 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
           {section === 'overview' && (
             <section className={`card p-4 ${item.nextFollowUpDate ? 'border-copper/35' : item.status === 'completed' ? '' : 'border-gold/55 bg-gold/5'}`}>
               <div className="grid grid-cols-2 gap-3"><div><p className="text-[11px] font-bold text-teal">最近聯繫</p><p className="mt-1 text-base font-bold text-ink">{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}</p></div><div><p className="text-[11px] font-bold text-copper">下次追蹤</p><p className="mt-1 text-base font-bold text-ink">{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : item.status === 'completed' ? '案件已完成' : '尚未設定'}</p>{item.nextFollowUpDate && <p className={`mt-1 text-xs ${followUpTiming < 0 ? 'font-bold text-danger' : 'text-ink-3'}`}>{followUpTiming < 0 ? `已逾期 ${Math.abs(followUpTiming)} 天` : followUpTiming === 0 ? '今天需要追蹤' : `${followUpTiming} 天後追蹤`}</p>}</div></div>
-              <button type="button" onClick={() => { setContactNextDate(item.nextFollowUpDate || ''); setShowContact(true); }} className="btn-primary mt-4 min-h-12 w-full">📞 記錄這筆案件的聯繫</button>
+              <div className="mt-4 flex gap-2">{phone && <a href={`tel:${phone}`} aria-label={`撥打 ${phone}`} className="btn-outline min-h-12 shrink-0 px-4 font-bold">📞 撥號</a>}<button type="button" onClick={() => { setContactNextDate(item.nextFollowUpDate || ''); setShowContact(true); }} className="btn-primary min-h-12 flex-1">✍️ 記錄聯繫</button></div>
             </section>
           )}
 

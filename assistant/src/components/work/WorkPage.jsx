@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
-import { buildWorkQueue, CASE_CLOSE_REASONS } from '../../utils/cases';
+import { applyCaseContact, buildWorkQueue, CASE_CLOSE_REASONS, CONTACT_PRESETS, getCasePipelineStageId } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { generateId } from '../../utils/crm';
 import { normalizeDeliveryWorkflow } from '../../utils/delivery';
@@ -23,7 +23,7 @@ function dueText(row) {
 
 export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, onQuickCreate }) {
   const {
-    workItems, tasks, clients, deals, cases, events,
+    workItems, tasks, clients, deals, cases, events, quoteDrafts = [],
     saveWorkItem, saveTask, updateClient, saveActivity, saveCase, saveDeal,
   } = useApp();
   const queue = useMemo(() => buildWorkQueue({ workItems, tasks, clients, deals, cases, events }), [workItems, tasks, clients, deals, cases, events]);
@@ -41,6 +41,43 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   const [bulkBusy, setBulkBusy] = useState(false);
   const staleRows = useMemo(() => queue.filter((row) => row.sourceType === 'case-stale'), [queue]);
   const [completingId, setCompletingId] = useState(null);
+  // 直接在今天頁記錄聯繫（不用跳進案件）：contact＝正在記錄的那一列
+  const [contact, setContact] = useState(null);
+  const [contactText, setContactText] = useState('');
+  const [contactDate, setContactDate] = useState('');
+  const [contactError, setContactError] = useState('');
+  const [contactSaving, setContactSaving] = useState(false);
+  const phoneByClient = useMemo(() => new Map(clients.map((row) => [row.id, String(row.phone || '').trim()])), [clients]);
+
+  function startContact(row) {
+    setContact(row); setContactText(''); setContactError('');
+    setContactDate(addDays(today(), 3));
+    setSnoozing(null); setClosing(null); setCanceling(null);
+  }
+
+  async function recordContact(event, preset = null) {
+    event?.preventDefault?.();
+    if (contactSaving || !contact) return;
+    const current = cases.find((item) => item.id === contact.caseId);
+    if (!current) { setContactError('找不到這筆案件，請重新整理後再試。'); return; }
+    const resultText = (preset?.result ?? contactText).trim();
+    const nextDate = preset ? addDays(today(), preset.days) : contactDate;
+    if (!resultText) { setContactError('請填寫這次聯繫結果，或直接按上面的一鍵記錄。'); return; }
+    if (!nextDate) { setContactError('請設定下次追蹤日。'); return; }
+    setContactSaving(true);
+    setContactError('');
+    const timestamp = new Date().toISOString();
+    try {
+      const stageId = getCasePipelineStageId(current, { deals, quotes: quoteDrafts });
+      await saveCase(applyCaseContact(current, stageId, { nextDate, timestamp }));
+      await saveActivity({ id: generateId('activity'), caseId: current.id, clientId: current.clientId, clientName: current.clientName, type: 'contact', text: `聯繫：${resultText}`, date: timestamp });
+      setContact(null);
+    } catch (cause) {
+      setContactError(cause?.message || '聯繫紀錄儲存失敗，請再試一次。');
+    } finally {
+      setContactSaving(false);
+    }
+  }
   const completeBusy = useRef(false);
   const visible = filter ? queue.filter((row) => row.group === filter) : queue.filter((row) => ['overdue', 'today'].includes(row.group));
   const nextAvailableFilter = FILTERS.find(([key]) => key !== filter && counts[key] > 0 && (filter || !['overdue', 'today'].includes(key)));
@@ -75,7 +112,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       return;
     }
     if (row.sourceType === 'case-follow-up' || row.sourceType === 'case-stale') {
-      onOpenCase?.(row.caseId);
+      startContact(row);
       return;
     }
     if (row.sourceType === 'event') { setView('calendar'); return; }
@@ -236,7 +273,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
         </div>
       </div>
 
-      {staleRows.length >= 2 && view !== 'calendar' && <button type="button" onClick={() => { setShowBulk(true); setBulkIds([]); }} className="w-full min-h-11 rounded-xl border border-gold/40 bg-gold/10 px-4 text-left text-sm font-bold text-gold">🧹 有 {staleRows.length} 筆太久沒追的案件・一次整理（不追的批次結案）</button>}
+      {staleRows.length >= 2 && view !== 'calendar' && <button type="button" onClick={() => { setShowBulk(true); setBulkIds([]); }} className="w-full min-h-11 rounded-xl border border-gold/40 bg-gold/10 px-4 text-left text-sm font-bold text-gold">🧹 {staleRows.length} 筆太久沒追・一次整理</button>}
       {showBulk && <div className="fixed inset-0 z-50 bg-bg safe-panel overflow-y-auto anim-slide-up"><div className="max-w-xl mx-auto min-h-full bg-s1 md:my-8 md:min-h-0 md:rounded-2xl md:border md:border-bdr">
         <header className="sticky top-0 z-10 bg-s1/95 backdrop-blur border-b border-bdr px-4 py-3 flex items-center gap-3"><button type="button" onClick={() => setShowBulk(false)} className="btn-ghost min-h-11 px-3">←</button><h2 className="font-bold text-lg text-ink flex-1">整理太久沒追的案件</h2><button type="button" onClick={() => setBulkIds(bulkIds.length === staleRows.length ? [] : staleRows.map((row) => row.caseId))} className="btn-outline min-h-10 text-xs">{bulkIds.length === staleRows.length ? '取消全選' : '全選'}</button></header>
         <div className="p-4 space-y-2 pb-44">
@@ -270,21 +307,19 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               <button type="button" onClick={() => openRow(row)} className="w-full text-left">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-bold text-ink leading-snug">{row.title}</p>
-                    {row.urgent && <p className="mt-1 text-xs font-bold text-danger">🔴 急件</p>}
-                    {(row.clientName || row.caseTitle) && <p className="text-xs text-ink-2 mt-1 truncate">{[row.clientName, row.caseTitle].filter(Boolean).join('・')}</p>}
+                    <p className="font-bold text-ink leading-snug truncate">{row.urgent && <span className="text-danger">🔴 </span>}{row.clientName || row.title}</p>
+                    <p className="text-xs text-ink-2 mt-0.5 truncate">{[row.clientName ? row.title : '', row.caseTitle].filter(Boolean).join('・')}</p>
                     {row.followUpReminder && row.waitingOn && <p className="mt-1 text-xs font-semibold text-danger">{row.waitingOn}</p>}
                   </div>
                   <span className={`badge shrink-0 ${row.group === 'overdue' ? 'bg-danger/12 text-danger' : row.group === 'waiting' ? 'bg-gold/12 text-gold' : 'bg-accent/10 text-accent'}`}>{dueText(row)}</span>
                 </div>
               </button>
               <div className="mt-2 flex gap-2">
+                {phoneByClient.get(row.clientId) && <a href={`tel:${phoneByClient.get(row.clientId)}`} aria-label={`撥打給${row.clientName || '客戶'}`} className="btn-outline min-h-10 shrink-0 px-3 text-base">📞</a>}
                 <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄聯繫' : row.sourceType === 'event' ? '看月曆' : row.sourceType === 'client-delivery' ? '開客戶' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
-                {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
+                {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => { if (row.sourceType === 'delivery') { row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId); return; } setClosing(null); setCanceling(null); setSnoozing(snoozing === row.id ? null : row.id); }} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
               </div>
-              {['case-stale', 'case-follow-up', 'client-follow'].includes(row.sourceType) && (closing === row.id
-                ? <div className="mt-2 rounded-xl bg-s2 p-2"><p className="px-1 text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，之後不會再出現）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" onClick={() => closeRow(row, reason)} className="btn-outline bg-s1 min-h-10 text-xs font-bold">{reason}</button>)}</div><button type="button" onClick={() => setClosing(null)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></div>
-                : <button type="button" onClick={() => { setClosing(row.id); setSnoozing(null); setCanceling(null); }} className="mt-2 w-full min-h-9 rounded-lg text-xs font-semibold text-ink-3 hover:bg-s2">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>)}
+              {closing === row.id && <div className="mt-2 rounded-xl bg-s2 p-2"><p className="px-1 text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，之後不會再出現）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" onClick={() => closeRow(row, reason)} className="btn-outline bg-s1 min-h-10 text-xs font-bold">{reason}</button>)}</div><button type="button" onClick={() => setClosing(null)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></div>}
               {canceling === row.id && (
                 <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
                   <p className="text-sm font-bold text-danger">確定取消「{row.title}」？</p>
@@ -298,7 +333,9 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
               {snoozing === row.id && (
                 <div className="grid grid-cols-3 gap-2 mt-2 rounded-xl bg-s2 p-2">
                   {[1, 3, 7].map((days) => <button key={days} type="button" onClick={() => snooze(row, days)} className="btn-outline bg-s1 min-h-10">＋{days} 天</button>)}
-                  {!['stock-alert', 'event', 'client-delivery', 'delivery'].includes(row.sourceType) && <button type="button" onClick={() => { setSnoozing(null); setCanceling(row.id); }} className="col-span-3 min-h-10 rounded-lg text-sm font-semibold text-danger">不用做了（取消這件）</button>}
+                  {['case-stale', 'case-follow-up', 'client-follow'].includes(row.sourceType)
+                    ? <button type="button" onClick={() => { setSnoozing(null); setClosing(row.id); }} className="col-span-3 min-h-10 rounded-lg text-sm font-semibold text-ink-2">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>
+                    : !['stock-alert', 'event', 'client-delivery', 'delivery'].includes(row.sourceType) && <button type="button" onClick={() => { setSnoozing(null); setCanceling(row.id); }} className="col-span-3 min-h-10 rounded-lg text-sm font-semibold text-danger">不用做了（取消這件）</button>}
                 </div>
               )}
             </article>
@@ -306,6 +343,15 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
         </div>
       )}
       </>}
+      {contact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl">
+        <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold text-teal">記錄聯繫</p><h2 className="truncate text-lg font-bold text-ink">{contact.clientName || '未命名客戶'}</h2><p className="truncate text-xs text-ink-3">{contact.caseTitle}</p></div><button type="button" onClick={() => setContact(null)} className="h-11 w-11 shrink-0 rounded-xl border border-bdr" aria-label="關閉">×</button></div>
+        <p className="mt-4 text-xs font-bold text-ink-2">一鍵記錄（按下就存好、並排好下次追蹤）</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-outline min-h-12 text-xs font-bold disabled:opacity-50">{preset.label}</button>)}</div>
+        <label className="mt-4 block text-xs font-bold text-ink-2">或自己寫聯繫結果<textarea value={contactText} onChange={(event) => setContactText(event.target.value)} rows={2} placeholder="例：客戶確認要雙廂自排，等待貸款資料" className="mt-2 w-full resize-none" /></label>
+        <label className="mt-3 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactDate} onChange={(event) => setContactDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>
+        {contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}
+        <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => { const id = contact.caseId; setContact(null); onOpenCase?.(id); }} className="btn-outline min-h-12">打開案件</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div>
+      </form></div>}
     </div>
   );
 }

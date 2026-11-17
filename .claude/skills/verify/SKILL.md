@@ -12,7 +12,7 @@ cd assistant
 npm ci            # Node 20+
 npm run build     # single-file dist/index.html (run INSIDE assistant/)
 npm run preview -- --port 4173 &   # serves dist/，最接近 GitHub Pages
-node --test $(find src -name '*.test.js')   # 單元測試（目前 199 項）
+node --test $(find src -name '*.test.js')   # 單元測試（目前 204 項）
 ```
 
 ## Drive with Playwright
@@ -31,6 +31,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（目前 199 項）
 
 ## 要驗證的流程
 
+- 今天：卡片大字是客戶名，有 📞（`a[href^="tel:"]`）；案件追蹤列按「記錄聯繫」直接跳一鍵記錄並留在今天頁；「不追了」在「延後」面板裡；從今天開的案件按 ← 回到今天。
+- 新成交（指定這張成交）後施工進度自動建立，不再有「建立施工進度」按鈕（舊成交仍有）；完成第一步後 `case.pipelineStage` 變 `delivery`。空白名稱的案件存報價後標題變車型。
 - 今天：預設「逾期＋今天」清單；點上方數字只看某類；右上「清單｜月曆」；月曆同一份資料。
 - 案件：卡片追蹤資訊列、篩選（全部／要追蹤／已報價／已成交／已交車／回收筒）；新增案件追蹤日選填（預設 3 天後），只產生一筆待辦。
 - 報價：底部固定操作列；沒有原生 alert/confirm（用 `page.on('dialog')` 檢查為 0）；預覽圖不含 利率／成本／利潤／貸款公司／內部備忘；從案件開的報價存檔後回到案件。

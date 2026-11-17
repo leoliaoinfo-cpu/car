@@ -275,3 +275,25 @@ test('沒有車輛品項的報價判為改裝；客戶已有案件時舊資料�
   assert.deepEqual(groups[0].autoCases.map((row) => row.id), ['case:deal:d2', 'g2']);
   assert.deepEqual(groups[0].otherCases.map((row) => row.id), ['k1']);
 });
+
+test('autoCaseTitle：預設名稱才換成車型，自己取的名字不動', async () => {
+  const { autoCaseTitle } = await import('./cases.js');
+  assert.equal(autoCaseTitle({ title: '買車案件', type: 'purchase' }, { model: '雙廂6人座 6速手排' }), '雙廂6人座 6速手排');
+  assert.equal(autoCaseTitle({ title: '改裝案件', type: 'modification' }, { model: '單廂3人座' }), '改裝・單廂3人座');
+  assert.equal(autoCaseTitle({ title: '', type: 'purchase' }, { model: '單廂3人座' }), '單廂3人座');
+  assert.equal(autoCaseTitle({ title: '王老闆第二台', type: 'purchase' }, { model: '單廂3人座' }), '王老闆第二台');
+  assert.equal(autoCaseTitle({ title: '買車案件', type: 'purchase' }, { model: '' }), '買車案件');
+});
+
+test('applyCaseContact：新開發進追蹤、寫入最近聯繫與下次追蹤日；已交車不排追蹤', async () => {
+  const { applyCaseContact } = await import('./cases.js');
+  const stamp = '2026-11-17T03:00:00.000Z';
+  const next = applyCaseContact({ id: 'k1', pipelineStage: 'new' }, 'new', { nextDate: '2026-11-20', timestamp: stamp });
+  assert.equal(next.pipelineStage, 'follow_up');
+  assert.equal(next.lastContactAt, stamp);
+  assert.equal(next.nextFollowUpDate, '2026-11-20');
+  const won = applyCaseContact({ id: 'k2', pipelineStage: 'won' }, 'won', { nextDate: '2026-11-21', timestamp: stamp });
+  assert.equal(won.pipelineStage, 'won');
+  const done = applyCaseContact({ id: 'k3', pipelineStage: 'completed' }, 'completed', { nextDate: '2026-11-21', timestamp: stamp });
+  assert.equal(done.nextFollowUpDate, '');
+});

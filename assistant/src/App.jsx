@@ -1,4 +1,4 @@
-import { useState, Component } from 'react';
+import { useRef, useState, Component } from 'react';
 import { useApp } from './context';
 import Header, { MAIN_TABS } from './components/Header';
 import ToolsSheet from './components/ToolsSheet';
@@ -65,6 +65,7 @@ function AppInner() {
   const [caseStartToken, setCaseStartToken] = useState(null);
   const [caseCreateClientId, setCaseCreateClientId] = useState(null);
   const [caseFocusId, setCaseFocusId] = useState(null);
+  const caseOriginRef = useRef(null);
   const [operationsFocusDealId, setOperationsFocusDealId] = useState(null);
   const [operationsReturn, setOperationsReturn] = useState(null);
   const [operationsSection, setOperationsSection] = useState(null);
@@ -88,9 +89,23 @@ function AppInner() {
     setTab('crm');
   }
 
-  function openCase(id) {
+  // origin：從哪一頁開的案件（例如 'work'＝今天）；關掉案件時回到那一頁。傳 'keep' 表示沿用上一次的來源（報價存檔後回案件）。
+  function openCase(id, origin = null) {
+    if (origin !== 'keep') caseOriginRef.current = origin;
     setCaseFocusId(id);
     setTab('cases');
+  }
+
+  // 使用者自己點主導覽換頁時，忘掉「案件是從哪一頁開的」。
+  function navTo(key) {
+    caseOriginRef.current = null;
+    setTab(key);
+  }
+
+  function handleCaseDetailClosed() {
+    const origin = caseOriginRef.current;
+    caseOriginRef.current = null;
+    if (origin) setTab(origin);
   }
 
   function createCaseForClient(clientId) {
@@ -110,7 +125,7 @@ function AppInner() {
     if (caseId) {
       setShowQuickCreate(false);
       setShowCaseSearch(false);
-      openCase(caseId);
+      openCase(caseId, tab === 'work' ? 'work' : null);
       return;
     }
     setOperationsReturn({ tab, caseId: caseId || null });
@@ -150,7 +165,7 @@ function AppInner() {
   function quickCreate(action) {
     const token = Date.now();
     setShowQuickCreate(false);
-    if (action === 'case') { setCaseCreateClientId(null); setCaseStartToken(token); setTab('cases'); }
+    if (action === 'case') { caseOriginRef.current = null; setCaseCreateClientId(null); setCaseStartToken(token); setTab('cases'); }
     if (action === 'quote') { setQuoteStartToken(token); setTab('quotes'); }
     if (action === 'client') { setClientStartToken(token); setTab('crm'); }
   }
@@ -197,17 +212,17 @@ function AppInner() {
         </div>
       )}
 
-      {!focusedOperations && <Header tab={tab} setTab={setTab} onOpenCaseSearch={() => setShowCaseSearch(true)} onOpenTools={() => setShowTools(true)} />}
+      {!focusedOperations && <Header tab={tab} setTab={navTo} onOpenCaseSearch={() => setShowCaseSearch(true)} onOpenTools={() => setShowTools(true)} />}
 
       <main className={focusedOperations ? '' : 'pb-44 lg:pb-0'}>
         <div className="anim-fade-in" key={tab}>
-          {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={openCase} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
-          {tab === 'cases' && <CasesPage focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
+          {tab === 'work' && <WorkPage onOpenClient={openClient} onOpenCase={(id) => openCase(id, 'work')} onOpenOperations={openCaseOperations} onQuickCreate={() => setShowQuickCreate(true)} />}
+          {tab === 'cases' && <CasesPage onDetailClosed={handleCaseDetailClosed} focusId={caseFocusId} onFocusConsumed={() => setCaseFocusId(null)} startNewToken={caseStartToken} initialClientId={caseCreateClientId} onStartConsumed={() => setCaseStartToken(null)} onNewClosed={() => setCaseCreateClientId(null)} onOpenClient={openClient} onOpenQuote={openCaseQuote} onOpenOperations={openCaseOperations} />}
           {tab === 'reception' && <ReceptionPage startNewToken={receptionStartToken} onStartConsumed={() => setReceptionStartToken(null)} onOpenClient={openClient} onOpenQuotes={() => setTab('quotes')} onOpenCatalog={() => setShowCatalog(true)} />}
           {tab === 'crm' && (
             <CrmPage focusId={crmFocusId} focusIntent={crmFocusIntent} onFocusConsumed={() => setCrmFocusId(null)} onFocusIntentConsumed={() => setCrmFocusIntent(null)} startNewToken={clientStartToken} onStartConsumed={() => setClientStartToken(null)} onOpenCase={openCase} onCreateCase={createCaseForClient} />
           )}
-          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} onReturnToCase={openCase} />}
+          {tab === 'quotes' && <QuoteWorkspace onOpenClient={openClient} startNewToken={quoteStartToken} onStartConsumed={() => setQuoteStartToken(null)} focusId={quoteFocusId} onFocusConsumed={() => setQuoteFocusId(null)} caseContext={quoteCaseContext} onCaseContextConsumed={() => setQuoteCaseContext(null)} onReturnToCase={(id) => openCase(id, 'keep')} />}
           {tab === 'catalog' && <ProductCatalog />}
           {tab === 'operations' && <OperationsPage onBack={closeOperations} onOpenClient={openClient} focusDealId={operationsFocusDealId} initialSection={operationsSection} />}
           {tab === 'settings' && <SettingsPanel onClose={() => setTab('work')} />}
@@ -228,7 +243,7 @@ function AppInner() {
         {MAIN_TABS.map((item) => (
           <button
             key={item.key}
-            onClick={() => setTab(item.key)}
+            onClick={() => navTo(item.key)}
             className={`flex-1 flex flex-col items-center py-2.5 gap-0.5 transition-colors ${
               tab === item.key ? item.mobile : 'text-ink-3'
             }`}

@@ -234,10 +234,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       <section className="rounded-2xl border border-gold/30 bg-gradient-to-br from-gold/16 via-s1 to-copper/8 p-4 md:p-5 shadow-card">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold tracking-widest text-gold">QUOTATION WORKSPACE</p>
-            <h1 className="text-xl md:text-2xl font-bold text-ink mt-1">🧾 報價管理</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-ink">🧾 報價管理</h1>
             <p className="text-sm text-ink-2 mt-2 leading-relaxed max-w-2xl">
-              可直接建立客戶並開始報價，不必先走接待流程；也能連結既有客戶或只做匿名報價。完成後可輸出圖片或 LINE 文字版。
+              可以先開報價、之後再歸入客戶案件；做好可輸出圖片或 LINE 文字版。
             </p>
           </div>
           <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary shrink-0">
@@ -298,8 +297,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const pipelineStageId = linkedCase ? getCasePipelineStageId(linkedCase, { quotes: quoteDrafts }) : null;
             const pipelineStage = CASE_PIPELINE_STAGES.find((stage) => stage.id === pipelineStageId);
             const stageUpdatedAt = linkedCase ? getCasePipelineUpdatedAt(linkedCase, { quotes: quoteDrafts }) : '';
-            const stageDays = linkedCase ? getCasePipelineElapsedDays(linkedCase, { quotes: quoteDrafts }) : null;
-            const totalDays = linkedCase ? getCaseTotalElapsedDays(linkedCase, { quotes: quoteDrafts }) : null;
             const pending = pendingCount(quote);
             const pendingRequirements = requirementPendingCount(quote);
             const attention = getQuoteAttention(quote);
@@ -330,7 +327,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
                     {attention.ageDays != null && <p className={`mt-1 text-[11px] font-semibold ${attention.unassignedOverdue ? 'text-danger' : attention.linkedStale ? 'text-ink-3' : 'text-ink-2'}`}>報價已建立第 {attention.ageDays} 天{attention.linked ? '・已分配客戶' : '・尚未分配客戶'}</p>}
-                    {pipelineStage && (['new', 'follow_up'].includes(pipelineStage.id) || isWon) && <p className="mt-1 text-[11px] font-semibold text-ink-2">{dayjs(stageUpdatedAt).format('YYYY/MM/DD')} 進入{pipelineStage.label}・階段第 {stageDays} 天｜案件總計 {totalDays} 天</p>}
                   </div>
                   <p className="text-right shrink-0">
                     <span className="block text-[10px] text-ink-3">{pending > 0 ? '目前金額' : '專案價'}</span>
