@@ -1,3 +1,4 @@
+import PinGate from './PinGate';
 import { useState, useEffect } from 'react';
 import { db } from '../db';
 import { useApp } from '../context';
@@ -44,10 +45,10 @@ const SECTION_LABELS = {
   help: '📖 使用說明',
 };
 
-// 客戶階段、自訂欄位、待辦範本、通知：對應功能已移除入口，設定一併收起（資料與預設值保留）。
+// 客戶分類、產業選項、業績欄位、追蹤規則、客戶階段、自訂欄位、待辦範本、通知：日常用不到，設定入口收起（資料與預設值保留）。
 const SETTING_GROUPS = [
-  { title: '常用', keys: ['quoteMenu', 'sync', 'backup'] },
-  { title: '進階', keys: ['cats', 'industries', 'dealFields', 'rules', 'security', 'height', 'help'] },
+  { title: '常用', keys: ['quoteMenu', 'sync', 'backup', 'security'] },
+  { title: '其他', keys: ['height', 'help'] },
 ];
 
 export default function SettingsPanel({ onClose }) {
@@ -193,6 +194,7 @@ export default function SettingsPanel({ onClose }) {
 
           {/* ── Quote presets ── */}
           {activeSection === 'quoteMenu' && (
+            <PinGate title="報價選單（價格設定）需要密碼">
             <div className="space-y-5">
               <button type="button" onClick={() => document.getElementById('settings-addon-editor')?.scrollIntoView({ behavior: 'smooth' })}
                 className="btn-outline text-xs">跳到配件分類管理 ↓</button>
@@ -223,6 +225,7 @@ export default function SettingsPanel({ onClose }) {
                 onChange={(subsidies) => saveQuotePresets({ ...quotePresets, subsidies })}
               />
             </div>
+            </PinGate>
           )}
 
           {activeSection === 'height' && (
