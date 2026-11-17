@@ -36,7 +36,7 @@ export function stockItemsFromQuote(quote, addons = []) {
 }
 
 export function summarizeStock(deals = [], cases = []) {
-  const activeCaseIds = new Set(cases.filter((item) => !item.deletedAt && item.status !== 'completed').map((item) => item.id));
+  const activeCaseIds = new Set(cases.filter((item) => !item.deletedAt && !['completed', 'closed'].includes(item.status)).map((item) => item.id));
   const rows = [];
   for (const deal of deals) {
     if (!deal.quoteId || deal.caseArchivedAt || !activeCaseIds.has(deal.caseId)) continue;

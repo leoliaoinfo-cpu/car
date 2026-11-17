@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { CASE_LIST_FILTERS, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
 import { useApp } from '../../context';
 import {
-  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, findPossibleDuplicateCases,
+  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases,
 } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
@@ -486,6 +486,28 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
   const [contactSaving, setContactSaving] = useState(false);
   const linkedDeal = findDealForCase(deals, item);
   const { confirmQuoteDeal } = useApp();
+  const [showClose, setShowClose] = useState(false);
+  const [closeBusy, setCloseBusy] = useState(false);
+  async function closeCase(reason) {
+    if (closeBusy) return;
+    setCloseBusy(true);
+    const stamp = new Date().toISOString();
+    try {
+      await onSaveCase({ ...item, status: 'closed', closedReason: reason, closedAt: stamp, nextFollowUpDate: '', updatedAt: stamp });
+      await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'work', text: `結案不追蹤：${reason}`, date: today() });
+      setShowClose(false);
+    } finally { setCloseBusy(false); }
+  }
+  async function reopenCase() {
+    if (closeBusy) return;
+    setCloseBusy(true);
+    const stamp = new Date().toISOString();
+    try {
+      const { closedReason, closedAt, ...rest } = item;
+      await onSaveCase({ ...rest, status: 'active', nextFollowUpDate: addDays(today(), 3), updatedAt: stamp });
+      await onSaveActivity({ id: generateId('activity'), caseId: item.id, clientId: item.clientId, clientName: item.clientName, type: 'work', text: '重新追蹤', date: today() });
+    } finally { setCloseBusy(false); }
+  }
   const [pickWinnerId, setPickWinnerId] = useState(null);
   const [winnerBusy, setWinnerBusy] = useState(false);
   const [winnerError, setWinnerError] = useState('');
@@ -618,7 +640,14 @@ function CaseDetail({ item, workItems, tasks, caseQueue, activities, deals, quot
         </header>
 
         <div className="p-3 md:p-5 space-y-4 pb-28">
+          {item.status === 'closed'
+            ? <section className="card border-ink-3/40 bg-s2 p-4"><p className="font-bold text-ink">⏹ 已結案・不追蹤{item.closedReason ? `（${item.closedReason}）` : ''}</p><p className="mt-1 text-xs text-ink-3">這筆案件不會再出現在「今天」。客戶又有興趣時，按下面重新追蹤。</p><button type="button" disabled={closeBusy} onClick={reopenCase} className="btn-primary mt-3 min-h-11 w-full disabled:opacity-50">{closeBusy ? '處理中…' : '重新追蹤（3 天後再聯繫）'}</button></section>
+            : <>
           <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} onChangeStage={changePipelineStage} onOpenQuote={onOpenQuote} />
+          {pipelineStageId !== 'completed' && (showClose
+            ? <section className="card p-3"><p className="text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，可隨時重新追蹤）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" disabled={closeBusy} onClick={() => closeCase(reason)} className="btn-outline min-h-11 text-xs font-bold disabled:opacity-50">{reason}</button>)}</div><button type="button" onClick={() => setShowClose(false)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></section>
+            : <button type="button" onClick={() => setShowClose(true)} className="w-full min-h-10 rounded-xl border border-dashed border-bdr text-xs font-semibold text-ink-3">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>)}
+          </>}
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>

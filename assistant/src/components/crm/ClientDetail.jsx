@@ -176,7 +176,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
 
   const cat = cats.find((c) => c.id === client.catId);
   const daysSinceCreated = dayjs().diff(dayjs(client.createdAt), 'day');
-  const activeCases = clientCases.filter((row) => row.status !== 'completed');
+  const activeCases = clientCases.filter((row) => !['completed', 'closed'].includes(row.status));
   const nextCaseFollowUp = [...activeCases].filter((row) => row.nextFollowUpDate).sort((a, b) => a.nextFollowUpDate.localeCompare(b.nextFollowUpDate))[0];
 
   // Timers belonging to this client
@@ -288,7 +288,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
     let deal = activeDeal;
     if (isSaleEvent && !deal) {
       const latestQuote = clientQuotes[0] || null;
-      const openCases = clientCases.filter((row) => row.status !== 'completed');
+      const openCases = clientCases.filter((row) => !['completed', 'closed'].includes(row.status));
       const linkedCase = clientCases.find((row) => row.id === latestQuote?.caseId)
         || (openCases.length === 1 ? openCases[0] : null);
       const existingCaseDeal = linkedCase ? findDealForCase(deals, linkedCase) : null;
@@ -485,7 +485,7 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
   /** 成交歸檔：寫入業績表 + 客戶時間軸 */
   async function handleArchiveDeal(deal) {
     const latestQuote = clientQuotes[0] || null;
-    const openCases = clientCases.filter((row) => row.status !== 'completed');
+    const openCases = clientCases.filter((row) => !['completed', 'closed'].includes(row.status));
     const resolvedCaseId = deal.caseId || latestQuote?.caseId || (openCases.length === 1 ? openCases[0].id : null);
     const caseForDeal = resolvedCaseId ? cases.find((row) => row.id === resolvedCaseId) : null;
     const priorCaseDeal = caseForDeal ? findDealForCase(deals, caseForDeal) : null;

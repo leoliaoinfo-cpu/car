@@ -566,7 +566,7 @@ export function AppProvider({ children }) {
     const existingDeal = await db.get('deals', full.id).catch(() => null);
     const caseType = inferCaseType(quote);
     const candidates = allCases.filter((row) => row.clientId && row.clientId === (full.clientId || quote?.clientId)
-      && row.type === caseType && row.status !== 'completed');
+      && row.type === caseType && !['completed', 'closed'].includes(row.status));
     const linked = allCases.find((row) => row.id === full.caseId || row.id === quote?.caseId
       || row.dealId === full.id || (full.quoteId && (row.quoteIds || []).includes(full.quoteId)))
       || (candidates.length === 1 ? candidates[0] : null);

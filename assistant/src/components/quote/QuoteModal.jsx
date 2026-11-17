@@ -401,7 +401,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [requirements, setRequirements] = useState(quote?.requirements || '');
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
   const initialClientId = quote?.clientId || client?.id || '';
-  const initialCaseCandidates = cases.filter((row) => row.clientId === initialClientId && row.status !== 'completed');
+  const initialCaseCandidates = cases.filter((row) => row.clientId === initialClientId && !['completed', 'closed'].includes(row.status));
   const [linkedCaseId, setLinkedCaseId] = useState(quote?.caseId || initialCaseId
     || (initialCaseCandidates.length === 1 ? initialCaseCandidates[0].id : ''));
   const [caseError, setCaseError] = useState('');
@@ -562,7 +562,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       setCustomerName(picked.pendingCustomerDetails ? '' : (picked.name || ''));
       setCustomerPhone(picked.phone || '');
     }
-    const matches = cases.filter((row) => row.clientId === clientId && row.status !== 'completed');
+    const matches = cases.filter((row) => row.clientId === clientId && !['completed', 'closed'].includes(row.status));
     setLinkedCaseId(matches.length === 1 ? matches[0].id : '');
     setCaseError('');
   }
@@ -947,7 +947,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       return;
     }
     const effectiveClientId = client?.id || (customerMode === 'existing' ? linkedClientId : null);
-    const activeCases = cases.filter((row) => row.clientId === effectiveClientId && row.status !== 'completed');
+    const activeCases = cases.filter((row) => row.clientId === effectiveClientId && !['completed', 'closed'].includes(row.status));
     if (effectiveClientId && activeCases.length > 1 && !linkedCaseId) {
       setCaseError('這位客戶有多筆進行中案件，請先選擇報價要歸入哪一筆。');
       return;
@@ -1057,7 +1057,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             )}
             {(client?.id || (customerMode === 'existing' && linkedClientId)) && (() => {
               const effectiveClientId = client?.id || linkedClientId;
-              const activeCases = cases.filter((row) => row.clientId === effectiveClientId && row.status !== 'completed');
+              const activeCases = cases.filter((row) => row.clientId === effectiveClientId && !['completed', 'closed'].includes(row.status));
               return (
                 <div className="rounded-xl border border-teal/30 bg-teal/8 p-3 space-y-2">
                   <div><p className="text-xs font-semibold text-teal">📁 歸入客戶案件</p><p className="text-[11px] text-ink-3 mt-0.5">報價會直接留在這筆案件，不會另外產生重複案件。</p></div>

@@ -362,7 +362,7 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
 // ── ClientRow ─────────────────────────────────────────────────────────────────
 function ClientRow({ client, cats, cases = [], selected, selectMode, checked, onClick }) {
   const cat = cats.find((c) => c.id === client.catId);
-  const openCases = cases.filter((item) => item.status !== 'completed');
+  const openCases = cases.filter((item) => !['completed', 'closed'].includes(item.status));
   const nextCase = [...openCases].filter((item) => item.nextFollowUpDate).sort((a, b) => a.nextFollowUpDate.localeCompare(b.nextFollowUpDate))[0];
 
   return (

@@ -147,3 +147,16 @@ test('把「今天」調到任一天：清單的今天項目與月曆該日項�
   const q = buildWorkQueue({ ...data, today: '2026-12-07' });
   assert.ok(q.some((row) => row.sourceType === 'client-follow' && row.clientId === 'c9'));
 });
+
+test('結案不追蹤的案件不再進今天／太久沒追，只出現在「不追蹤」篩選', () => {
+  const closed = { id: 'z', clientId: 'c1', clientName: '丙', status: 'closed', closedReason: '沒興趣了', nextFollowUpDate: '2026-11-01', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' };
+  const open = { id: 'o', clientId: 'c2', clientName: '丁', status: 'active', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' };
+  const queue = buildWorkQueue({ cases: [closed, open], today: '2026-11-17' });
+  assert.deepEqual(queue.map((row) => row.caseId), ['o']);
+  const tClosed = getCaseTracking(closed, { queue }, new Date('2026-11-17'));
+  assert.equal(matchesCaseListFilter('closed', tClosed), true);
+  assert.equal(matchesCaseListFilter('all', tClosed), false);
+  assert.equal(matchesCaseListFilter('follow', tClosed), false);
+  assert.deepEqual(caseTrackingParts(closed, tClosed).map((part) => part.text), ['不追蹤・沒興趣了']);
+  assert.equal(matchesCaseListFilter('follow', getCaseTracking(open, { queue }, new Date('2026-11-17'))), true);
+});

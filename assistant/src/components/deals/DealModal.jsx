@@ -10,8 +10,8 @@ import { Field } from '../ui';
 export default function DealModal({ deal, client, cases = [], dealFields, onSave, onClose }) {
   const isEdit = !!deal;
   const availableCases = cases.filter((row) => !client?.id || row.clientId === client.id || row.id === deal?.caseId);
-  const initialCaseId = deal?.caseId || (availableCases.filter((row) => row.status !== 'completed').length === 1
-    ? availableCases.find((row) => row.status !== 'completed')?.id
+  const initialCaseId = deal?.caseId || (availableCases.filter((row) => !['completed', 'closed'].includes(row.status)).length === 1
+    ? availableCases.find((row) => !['completed', 'closed'].includes(row.status))?.id
     : '');
   const [date, setDate] = useState(deal?.date || today());
   const [note, setNote] = useState(deal?.note || '');
@@ -41,7 +41,7 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
   async function handleSubmit(e) {
     e.preventDefault();
     if (busy.current) return;
-    const activeCases = availableCases.filter((row) => row.status !== 'completed');
+    const activeCases = availableCases.filter((row) => !['completed', 'closed'].includes(row.status));
     if (!isEdit && activeCases.length > 1 && !caseId) {
       setCaseError('這位客戶有多筆進行中案件，請先選擇本次成交屬於哪一筆。');
       return;

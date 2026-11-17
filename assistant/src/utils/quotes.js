@@ -138,7 +138,7 @@ export function planQuoteCaseLink({ quote, cases = [], quotes = [], referencedCa
 
   if (quote.clientId) {
     const byId = quote.caseId ? live.find((row) => row.id === quote.caseId) : null;
-    const candidates = live.filter((row) => row.clientId === quote.clientId && row.type === type && row.status !== 'completed');
+    const candidates = live.filter((row) => row.clientId === quote.clientId && row.type === type && !['completed', 'closed'].includes(row.status));
     const linked = (byId && byId.clientId === quote.clientId ? byId : null)
       || (previous && previous.clientId === quote.clientId ? previous : null)
       || (candidates.length === 1 ? candidates[0] : null)

@@ -6,7 +6,11 @@ import { stockAlert } from './stock.js';
 export const STALE_CASE_DAYS = 14;
 
 export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
-export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成' };
+export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成', closed: '已結案（不追蹤）' };
+/** 結案不追蹤的原因（一鍵選）。結案＝status 'closed'：不再進今天、不算進行中，可隨時重新追蹤。 */
+export const CASE_CLOSE_REASONS = ['沒興趣了', '買別家了', '聯絡不上', '暫時不買'];
+/** 還在進行中的案件（沒交車完成、也沒結案不追蹤）。 */
+export const isOpenCase = (item) => !['completed', 'closed'].includes(item?.status);
 export const FIRST_CASE_NUMBER = 100;
 export const CASE_PIPELINE_STAGES = [
   { id: 'new', label: '新開發（報價）' },
@@ -307,7 +311,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   const clientMap = new Map(clients.map((row) => [row.id, row]));
   const rows = [];
   const activeCasesByClient = new Map();
-  cases.filter((row) => row.clientId && row.status !== 'completed').forEach((row) => {
+  cases.filter((row) => row.clientId && isOpenCase(row)).forEach((row) => {
     const list = activeCasesByClient.get(row.clientId) || [];
     list.push(row);
     activeCasesByClient.set(row.clientId, list);
@@ -320,7 +324,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     .map((row) => row.caseNumber).filter(Boolean).sort((a, b) => a - b);
   const push = (row) => rows.push({ ...row, urgent: Boolean(caseMap.get(row.caseId)?.urgent), group: dueGroup(row.due, row.state, row.waitingOn, row.followUpReminder, todayString) });
 
-  cases.filter((row) => row.status !== 'completed' && row.nextFollowUpDate).forEach((row) => {
+  cases.filter((row) => isOpenCase(row) && row.nextFollowUpDate).forEach((row) => {
     push({
       id: `case-follow-up:${row.id}`, sourceType: 'case-follow-up', sourceId: row.id,
       // 建案時寫的「要確認什麼」只當第一次聯繫前的提示；聯繫過後回到一般的「聯繫客戶」。
@@ -352,7 +356,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   });
   deals.filter((deal) => !deal.caseArchivedAt).forEach((deal) => {
     const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
-    if (linkedCase && !linkedCase.deletedAt && linkedCase.status !== 'completed' && deal.quoteId) {
+    if (linkedCase && !linkedCase.deletedAt && isOpenCase(linkedCase) && deal.quoteId) {
       const alert = stockAlert(deal, linkedCase);
       const clientName = linkedCase.clientName || clientMap.get(deal.clientId)?.name || '';
       if (alert.deliveryRisk) push({ id: `stock-risk:${deal.id}`, sourceType: 'stock-alert', sourceId: deal.id,
@@ -408,7 +412,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
 
   // 太久沒追：沒排追蹤日、也沒有任何排了日期的工作，且超過 STALE_CASE_DAYS 天沒動靜。
   const datedCaseIds = new Set(rows.filter((row) => row.caseId && row.due).map((row) => row.caseId));
-  cases.filter((row) => row.status !== 'completed' && !row.deletedAt && !row.nextFollowUpDate && !datedCaseIds.has(row.id)).forEach((row) => {
+  cases.filter((row) => isOpenCase(row) && !row.deletedAt && !row.nextFollowUpDate && !datedCaseIds.has(row.id)).forEach((row) => {
     const touchedAt = getCaseLastTouchedAt(row);
     if (!touchedAt) return;
     const staleDays = dayjs(todayString).startOf('day').diff(dayjs(touchedAt).startOf('day'), 'day');

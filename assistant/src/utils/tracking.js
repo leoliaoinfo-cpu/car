@@ -19,6 +19,7 @@ export const CASE_LIST_FILTERS = [
   ['quoted', '已報價'],
   ['won', '已成交'],
   ['delivered', '已交車'],
+  ['closed', '不追蹤'],
 ];
 
 /**
@@ -58,7 +59,8 @@ function dayDiff(from, to) {
 export function getCaseTracking(item, { deals = [], quotes = [], queue = [] } = {}, now = new Date()) {
   const stageId = getCasePipelineStageId(item, { deals, quotes });
   const deal = findDealForCase(deals, item);
-  const completed = stageId === 'completed' || item?.status === 'completed';
+  const closed = item?.status === 'closed';
+  const completed = !closed && (stageId === 'completed' || item?.status === 'completed');
   const contactDays = item?.lastContactAt && dayjs(item.lastContactAt).isValid() ? Math.max(0, dayDiff(item.lastContactAt, now)) : null;
   const createdDays = item?.createdAt && dayjs(item.createdAt).isValid() ? Math.max(0, dayDiff(item.createdAt, now)) : null;
   const followUpIn = item?.nextFollowUpDate && dayjs(item.nextFollowUpDate).isValid() ? dayDiff(now, item.nextFollowUpDate) : null;
@@ -79,19 +81,20 @@ export function getCaseTracking(item, { deals = [], quotes = [], queue = [] } = 
   const touchedAt = getCaseLastTouchedAt(item);
   const idleDays = touchedAt ? Math.max(0, dayDiff(touchedAt, now)) : null;
   const hasDatedWork = queue.some((row) => row.caseId === item?.id && row.due && row.sourceType !== 'case-stale');
-  const stale = !completed && !item?.nextFollowUpDate && !hasDatedWork && idleDays != null && idleDays >= STALE_CASE_DAYS;
-  const overdueDays = !completed && followUpIn != null && followUpIn < 0 ? -followUpIn : 0;
+  const stale = !closed && !completed && !item?.nextFollowUpDate && !hasDatedWork && idleDays != null && idleDays >= STALE_CASE_DAYS;
+  const overdueDays = !closed && !completed && followUpIn != null && followUpIn < 0 ? -followUpIn : 0;
 
   // 排序：逾期（越久越前）→ 太久沒追 → 今天要追 → 之後要追（近的在前）→ 沒排日期 → 已交車。
   let rank = 4;
-  if (completed) rank = 5;
+  if (closed) rank = 6;
+  else if (completed) rank = 5;
   else if (overdueDays) rank = 0;
   else if (stale) rank = 1;
   else if (followUpIn === 0) rank = 2;
   else if (followUpIn != null) rank = 3;
 
   return {
-    stageId, stageLabel: CASE_STAGE_PLAIN[stageId] || '洽談中', completed, hasDeal: Boolean(deal),
+    stageId, stageLabel: CASE_STAGE_PLAIN[stageId] || '洽談中', completed, closed, hasDeal: Boolean(deal),
     contactDays, createdDays, followUpIn, overdueDays, quoteOutstanding, quoteDays, quoteUnanswered,
     stale, idleDays, rank,
   };
@@ -100,6 +103,7 @@ export function getCaseTracking(item, { deals = [], quotes = [], queue = [] } = 
 /** 案件列表那一行追蹤文字的各段（畫面自己決定顏色）。 */
 export function caseTrackingParts(item, tracking) {
   const parts = [{ key: 'stage', text: tracking.stageLabel }];
+  if (tracking.closed) return [{ key: 'stage', text: `不追蹤${item?.closedReason ? `・${item.closedReason}` : ''}` }];
   if (tracking.completed) return parts;
   if (tracking.contactDays != null) parts.push({ key: 'contact', text: tracking.contactDays === 0 ? '今天聯絡過' : `${tracking.contactDays} 天沒聯絡` });
   else parts.push({ key: 'contact', text: tracking.createdDays ? `建立 ${tracking.createdDays} 天還沒聯絡` : '還沒聯絡' });
@@ -113,6 +117,8 @@ export function caseTrackingParts(item, tracking) {
 }
 
 export function matchesCaseListFilter(filter, tracking) {
+  if (filter === 'closed') return tracking.closed;
+  if (tracking.closed) return false; // 結案不追蹤的只出現在「不追蹤」
   if (filter === 'follow') return ['new', 'follow_up'].includes(tracking.stageId);
   if (filter === 'quoted') return tracking.quoteOutstanding;
   if (filter === 'won') return ['won', 'delivery'].includes(tracking.stageId);

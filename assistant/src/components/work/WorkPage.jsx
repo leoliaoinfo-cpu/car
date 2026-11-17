@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import { useApp } from '../../context';
-import { buildWorkQueue } from '../../utils/cases';
+import { buildWorkQueue, CASE_CLOSE_REASONS } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { generateId } from '../../utils/crm';
 import { normalizeDeliveryWorkflow } from '../../utils/delivery';
@@ -35,6 +35,11 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
   const [view, setView] = useState('list'); // list 清單｜calendar 月曆（同一份佇列）
   const [snoozing, setSnoozing] = useState(null);
   const [canceling, setCanceling] = useState(null);
+  const [closing, setClosing] = useState(null);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkIds, setBulkIds] = useState([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const staleRows = useMemo(() => queue.filter((row) => row.sourceType === 'case-stale'), [queue]);
   const [completingId, setCompletingId] = useState(null);
   const completeBusy = useRef(false);
   const visible = filter ? queue.filter((row) => row.group === filter) : queue.filter((row) => ['overdue', 'today'].includes(row.group));
@@ -128,6 +133,53 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
     setSnoozing(null);
   }
 
+  // 不追了：案件改成「結案（不追蹤）」，之後不再出現在今天；客戶層追蹤日則直接清掉。隨時可在案件頁「不追蹤」重新追蹤。
+  async function closeRow(row, reason) {
+    if (completeBusy.current) return;
+    completeBusy.current = true;
+    try {
+      const stamp = new Date().toISOString();
+      if (row.caseId) {
+        const current = cases.find((item) => item.id === row.caseId);
+        if (current) await saveCase({ ...current, status: 'closed', closedReason: reason, closedAt: stamp, nextFollowUpDate: '', updatedAt: stamp });
+      }
+      if (row.sourceType === 'client-follow') {
+        await updateClient(row.clientId, (client) => ({
+          ...client, nextDate: null,
+          log: [...(client.log || []), { id: generateId('log'), date: today(), text: `不再追蹤：${reason}`, type: 'contact' }],
+        }));
+      }
+      await writeActivity(row, `結案不追蹤：${reason}`);
+      setClosing(null);
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || '儲存失敗，請再試一次。');
+    } finally {
+      completeBusy.current = false;
+    }
+  }
+
+  async function bulkClose(reason) {
+    if (bulkBusy || bulkIds.length === 0) return;
+    setBulkBusy(true);
+    const stamp = new Date().toISOString();
+    try {
+      for (const caseId of bulkIds) {
+        const current = cases.find((item) => item.id === caseId);
+        if (!current) continue;
+        await saveCase({ ...current, status: 'closed', closedReason: reason, closedAt: stamp, nextFollowUpDate: '', updatedAt: stamp });
+        await saveActivity({ id: generateId('activity'), caseId, clientId: current.clientId || null, type: 'work', text: `結案不追蹤：${reason}`, date: today() });
+      }
+      setBulkIds([]);
+      setShowBulk(false);
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || '批次結案失敗，請再試一次。');
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function cancel(row) {
     if (row.sourceType === 'stock-alert' || row.sourceType === 'event' || row.sourceType === 'client-delivery' || row.sourceType === 'case-stale') { if (row.caseId) onOpenCase?.(row.caseId); setCanceling(null); return; }
     const canceledAt = new Date().toISOString();
@@ -184,6 +236,15 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
         </div>
       </div>
 
+      {staleRows.length >= 2 && view !== 'calendar' && <button type="button" onClick={() => { setShowBulk(true); setBulkIds([]); }} className="w-full min-h-11 rounded-xl border border-gold/40 bg-gold/10 px-4 text-left text-sm font-bold text-gold">🧹 有 {staleRows.length} 筆太久沒追的案件・一次整理（不追的批次結案）</button>}
+      {showBulk && <div className="fixed inset-0 z-50 bg-bg safe-panel overflow-y-auto anim-slide-up"><div className="max-w-xl mx-auto min-h-full bg-s1 md:my-8 md:min-h-0 md:rounded-2xl md:border md:border-bdr">
+        <header className="sticky top-0 z-10 bg-s1/95 backdrop-blur border-b border-bdr px-4 py-3 flex items-center gap-3"><button type="button" onClick={() => setShowBulk(false)} className="btn-ghost min-h-11 px-3">←</button><h2 className="font-bold text-lg text-ink flex-1">整理太久沒追的案件</h2><button type="button" onClick={() => setBulkIds(bulkIds.length === staleRows.length ? [] : staleRows.map((row) => row.caseId))} className="btn-outline min-h-10 text-xs">{bulkIds.length === staleRows.length ? '取消全選' : '全選'}</button></header>
+        <div className="p-4 space-y-2 pb-44">
+          <p className="text-sm text-ink-2">勾選「已經沒興趣」的，下面選原因，一次結案。結案的不會再出現在今天，可到「案件 → 不追蹤」隨時重新追蹤。沒勾的維持原樣。</p>
+          {staleRows.map((row) => <label key={row.id} className="card flex items-center gap-3 p-3"><input type="checkbox" checked={bulkIds.includes(row.caseId)} onChange={(event) => setBulkIds((ids) => event.target.checked ? [...ids, row.caseId] : ids.filter((id) => id !== row.caseId))} className="h-6 w-6 shrink-0" /><span className="min-w-0 flex-1"><strong className="block truncate text-ink">{row.clientName || '未命名客戶'}</strong><span className="block truncate text-xs text-ink-3">{row.caseTitle}・{row.title}</span></span></label>)}
+        </div>
+        <div className="fixed bottom-0 left-0 right-0 bg-s1/95 backdrop-blur border-t border-bdr p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"><div className="max-w-xl mx-auto"><p className="mb-2 text-xs font-bold text-ink-2">已勾 {bulkIds.length} 筆・選原因結案</p><div className="grid grid-cols-4 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" disabled={bulkBusy || bulkIds.length === 0} onClick={() => bulkClose(reason)} className="btn-primary min-h-11 px-1 text-[11px] font-bold disabled:opacity-40">{reason}</button>)}</div></div></div>
+      </div></div>}
       {view === 'calendar' ? <CalendarPage embedded onOpenClient={onOpenClient} onOpenCase={onOpenCase} /> : <>
       <div className="grid grid-cols-4 gap-2" role="tablist" aria-label="工作篩選">
         {FILTERS.map(([key, label]) => (
@@ -221,6 +282,9 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄聯繫' : row.sourceType === 'event' ? '看月曆' : row.sourceType === 'client-delivery' ? '開客戶' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
                 {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => row.sourceType === 'delivery' ? (row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId)) : setSnoozing(snoozing === row.id ? null : row.id)} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
               </div>
+              {['case-stale', 'case-follow-up', 'client-follow'].includes(row.sourceType) && (closing === row.id
+                ? <div className="mt-2 rounded-xl bg-s2 p-2"><p className="px-1 text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，之後不會再出現）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" onClick={() => closeRow(row, reason)} className="btn-outline bg-s1 min-h-10 text-xs font-bold">{reason}</button>)}</div><button type="button" onClick={() => setClosing(null)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></div>
+                : <button type="button" onClick={() => { setClosing(row.id); setSnoozing(null); setCanceling(null); }} className="mt-2 w-full min-h-9 rounded-lg text-xs font-semibold text-ink-3 hover:bg-s2">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>)}
               {canceling === row.id && (
                 <div role="alert" className="mt-2 rounded-xl border border-danger/35 bg-danger/5 p-3">
                   <p className="text-sm font-bold text-danger">確定取消「{row.title}」？</p>
