@@ -162,6 +162,19 @@ export function applyCaseContact(item, stageId, { nextDate = '', timestamp = new
 }
 
 /**
+ * 報價圖／LINE 文字送出後自動記一筆（使用者不愛手動記錄）：
+ * 只處理成交前、進行中的案件；同一天只記一次；已排了未來的追蹤日就不動，否則排 followDays 天後。
+ * 回傳 null 表示不用記；否則回傳 { caseRow, nextDate }。
+ */
+export function planQuoteSent(item, stageId, todayString, followDate) {
+  if (!item || item.deletedAt || !isOpenCase(item)) return null;
+  if (!['new', 'follow_up'].includes(stageId)) return null;
+  if (item.quoteSentOn === todayString) return null;
+  const nextDate = item.nextFollowUpDate && item.nextFollowUpDate > todayString ? item.nextFollowUpDate : followDate;
+  return { nextDate, caseRow: { ...applyCaseContact(item, stageId, { nextDate }), quoteSentOn: todayString } };
+}
+
+/**
  * 把使用者親自選擇的案件追蹤規劃換算成日期。
  * 沒選模式、日期或有效天數時回傳空字串，不替使用者偷偷帶預設值。
  */

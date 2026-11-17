@@ -297,3 +297,17 @@ test('applyCaseContact：新開發進追蹤、寫入最近聯繫與下次追蹤�
   const done = applyCaseContact({ id: 'k3', pipelineStage: 'completed' }, 'completed', { nextDate: '2026-11-21', timestamp: stamp });
   assert.equal(done.nextFollowUpDate, '');
 });
+
+test('planQuoteSent：成交前才記、同天只記一次、已排未來追蹤日不動', async () => {
+  const { planQuoteSent } = await import('./cases.js');
+  const base = { id: 'k1', status: 'active', pipelineStage: 'new' };
+  const first = planQuoteSent(base, 'new', '2026-11-17', '2026-11-19');
+  assert.equal(first.nextDate, '2026-11-19');
+  assert.equal(first.caseRow.quoteSentOn, '2026-11-17');
+  assert.equal(first.caseRow.pipelineStage, 'follow_up');
+  assert.equal(planQuoteSent(first.caseRow, 'follow_up', '2026-11-17', '2026-11-19'), null);
+  assert.equal(planQuoteSent({ ...base, nextFollowUpDate: '2026-11-25' }, 'new', '2026-11-17', '2026-11-19').nextDate, '2026-11-25');
+  assert.equal(planQuoteSent({ ...base, nextFollowUpDate: '2026-11-10' }, 'new', '2026-11-17', '2026-11-19').nextDate, '2026-11-19');
+  assert.equal(planQuoteSent(base, 'won', '2026-11-17', '2026-11-19'), null);
+  assert.equal(planQuoteSent({ ...base, status: 'closed' }, 'new', '2026-11-17', '2026-11-19'), null);
+});

@@ -303,21 +303,16 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       ) : (
         <div className="space-y-2">
           {visible.map((row) => (
-            <article key={row.id} className={`card p-3 border-l-4 ${row.group === 'overdue' ? 'border-l-danger' : row.group === 'waiting' ? 'border-l-gold' : 'border-l-copper'}`}>
-              <button type="button" onClick={() => openRow(row)} className="w-full text-left">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-bold text-ink leading-snug truncate">{row.urgent && <span className="text-danger">🔴 </span>}{row.clientName || row.title}</p>
-                    <p className="text-xs text-ink-2 mt-0.5 truncate">{[row.clientName ? row.title : '', row.caseTitle].filter(Boolean).join('・')}</p>
-                    {row.followUpReminder && row.waitingOn && <p className="mt-1 text-xs font-semibold text-danger">{row.waitingOn}</p>}
-                  </div>
-                  <span className={`badge shrink-0 ${row.group === 'overdue' ? 'bg-danger/12 text-danger' : row.group === 'waiting' ? 'bg-gold/12 text-gold' : 'bg-accent/10 text-accent'}`}>{dueText(row)}</span>
-                </div>
-              </button>
-              <div className="mt-2 flex gap-2">
-                {phoneByClient.get(row.clientId) && <a href={`tel:${phoneByClient.get(row.clientId)}`} onClick={() => { if (['case-follow-up', 'case-stale'].includes(row.sourceType)) startContact(row); }} aria-label={`撥打給${row.clientName || '客戶'}`} className="btn-outline min-h-10 shrink-0 px-3 text-base">📞</a>}
-                <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄聯繫' : row.sourceType === 'event' ? '看月曆' : row.sourceType === 'client-delivery' ? '開客戶' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
-                {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => { if (row.sourceType === 'delivery') { row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId); return; } setClosing(null); setCanceling(null); setSnoozing(snoozing === row.id ? null : row.id); }} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
+            <article key={row.id} className={`card px-3 py-2.5 border-l-4 ${row.group === 'overdue' ? 'border-l-danger' : row.group === 'waiting' ? 'border-l-gold' : 'border-l-copper'}`}>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => openRow(row)} className="min-w-0 flex-1 text-left">
+                  <p className="font-bold text-ink leading-snug truncate">{row.urgent && <span className="text-danger">🔴 </span>}{row.clientName || row.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-2"><span className={`font-semibold ${row.group === 'overdue' ? 'text-danger' : row.group === 'waiting' ? 'text-gold' : 'text-accent'}`}>{dueText(row)}</span>{[row.clientName ? row.title : '', row.caseTitle].filter(Boolean).map((text) => `・${text}`).join('')}</p>
+                  {row.followUpReminder && row.waitingOn && <p className="mt-0.5 truncate text-xs font-semibold text-danger">{row.waitingOn}</p>}
+                </button>
+                {phoneByClient.get(row.clientId) && <a href={`tel:${phoneByClient.get(row.clientId)}`} onClick={() => { if (['case-follow-up', 'case-stale'].includes(row.sourceType)) startContact(row); }} aria-label={`撥打給${row.clientName || '客戶'}`} className="btn-primary flex h-11 w-11 shrink-0 items-center justify-center p-0 text-lg">📞</a>}
+                <button type="button" disabled={completingId != null} onClick={() => complete(row)} className={`${phoneByClient.get(row.clientId) ? 'btn-outline' : 'btn-primary'} h-11 shrink-0 px-2.5 text-sm font-bold disabled:opacity-50`}>{row.sourceType === 'stock-alert' ? '核對' : row.sourceType === 'delivery' ? '處理' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄' : row.sourceType === 'event' ? '月曆' : row.sourceType === 'client-delivery' ? '開啟' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
+                {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => { if (row.sourceType === 'delivery') { row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId); return; } setClosing(null); setCanceling(null); setSnoozing(snoozing === row.id ? null : row.id); }} className="h-11 shrink-0 rounded-xl px-2 text-sm font-semibold text-ink-3">{row.sourceType === 'delivery' ? '案件' : '延後'}</button>}
               </div>
               {closing === row.id && <div className="mt-2 rounded-xl bg-s2 p-2"><p className="px-1 text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，之後不會再出現）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" onClick={() => closeRow(row, reason)} className="btn-outline bg-s1 min-h-10 text-xs font-bold">{reason}</button>)}</div><button type="button" onClick={() => setClosing(null)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></div>}
               {canceling === row.id && (

@@ -132,7 +132,7 @@ function isPackageAddon(addon) {
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
-  allAddons, selectedItemForAddon, updateVendorInquiryNote, heightConfig,
+  allAddons, selectedItemForAddon, updateVendorInquiryNote, onPickChoice, heightConfig,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -161,9 +161,9 @@ function AddonCategoryCard({
     <div className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
       <button type="button"
         onClick={() => setExpandedAddonCategories((current) => ({ ...current, [cat]: !expanded }))}
-        aria-expanded={expanded} className="w-full flex items-center gap-1.5 px-2.5 py-2 text-left">
+        aria-expanded={expanded} className="w-full flex min-h-11 items-center gap-1.5 px-2.5 py-2 text-left">
         <span className="w-1 h-3.5 rounded-full shrink-0" style={{ background: color }} />
-        <span className="text-[11px] font-semibold flex-1" style={{ color }}>{cat}</span>
+        <span className="text-sm font-semibold flex-1" style={{ color }}>{cat}</span>
         <span className="text-[10px] text-ink-3">{list.length} 項</span>
         {allOneGroup && <span className="text-[9px] px-1 rounded bg-s3 text-ink-3">擇一</span>}
         <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${pickedCount || noOption ? 'text-ok bg-ok/10' : ''}`}>
@@ -173,17 +173,6 @@ function AddonCategoryCard({
       </button>
       {expanded && (
         <div className="px-2.5 pb-2.5 space-y-2">
-          <label className={`inline-flex items-center gap-1.5 text-[11px] ${pickedCount ? 'text-ink-3' : 'text-ink-2 cursor-pointer'}`}>
-            <input type="checkbox" checked={noOption} disabled={pickedCount > 0}
-              onChange={(event) => setNoOptionCategories((current) => {
-                const canonical = canonicalAddonCategories(current, aliases);
-                return event.target.checked
-                  ? [...new Set([...canonical, cat])]
-                  : canonical.filter((category) => category !== cat);
-              })} />
-            沒有選配（已向客戶確認）
-          </label>
-          {pickedCount > 0 && <p className="text-[10px] text-ink-3">此分類已有選配項目；取消選配後才能勾「沒有選配」。</p>}
           {cat === '貨斗底板' && (
             <p className="rounded-md border border-orange-300 bg-orange-50 px-2 py-1.5 text-[11px] font-bold text-black">
               統一說明：本分類所有貨斗底板材質厚度均為 5mm。
@@ -276,7 +265,7 @@ function AddonCategoryCard({
               })}
             </div>
           ) : (
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="space-y-1.5">
               {list.map((addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
@@ -286,18 +275,15 @@ function AddonCategoryCard({
                   <button key={addon.id} type="button" disabled={!!lockedBy}
                     title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
-                    className={`flex min-h-11 items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className={`flex w-full min-h-12 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={picked
                       ? { background: color, borderColor: packageAddon ? '#dc2626' : color, color: '#fff' }
                       : { borderColor: packageAddon ? '#dc2626' : color + '55' }}>
-                    {lockedBy && <span>🔒</span>}
-                    {picked && <span>✓</span>}
+                    <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-sm font-bold ${picked ? 'border-white bg-white/25 text-white' : 'border-ink-3/60 text-transparent'}`}>{lockedBy ? '🔒' : '✓'}</span>
+                    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
                     {addon.parentId && <span className={picked ? '' : 'text-ink-3'}>↳</span>}
-                    <span style={picked ? { color: '#fff' } : undefined} className={picked ? '' : 'text-ink-2'}>{addon.name}</span>
+                    <span style={picked ? { color: '#fff' } : undefined} className={picked ? 'font-semibold' : 'text-ink'}>{addon.name}</span>
                     {packageAddon && <span className="rounded bg-red-600 px-1 py-0.5 text-[9px] font-bold text-white">套餐</span>}
-                    <span className="font-semibold" style={{ color: picked ? '#fff' : color }}>
-                      {lockedBy ? '套裝已含' : addon.pendingPrice ? '待廠商報價' : formatMoney(addon.price)}
-                    </span>
                     {addon.warrantyMonths != null && (
                       <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${picked ? 'bg-white/20 text-white' : 'bg-ok/10 text-ok'}`}>
                         {warrantyText(addon)}
@@ -309,11 +295,34 @@ function AddonCategoryCard({
                       </span>
                     )}
                     {heightImpact && <span className={`text-[9px] font-bold ${picked ? '' : 'text-warn'}`}>⚠️ {heightImpact.shortLabel}</span>}
+                    </span>
+                    <span className="shrink-0 text-sm font-bold" style={{ color: picked ? '#fff' : color }}>
+                      {lockedBy ? '套裝已含' : addon.pendingPrice ? '待報價' : formatMoney(addon.price)}
+                    </span>
                   </button>
                 );
               })}
             </div>
           )}
+          {/* 需要選規格（例如燈光顏色）的配件：勾了就在原地選，不用往下找 */}
+          {list.filter((addon) => Array.isArray(addon.choices) && addon.choices.length > 0 && isPicked(addon)).map((addon) => {
+            const selectedItem = selectedItemForAddon(addon);
+            if (!selectedItem) return null;
+            return (
+              <div key={`${addon.id}-choice`} className={`rounded-lg border p-2.5 ${selectedItem.optionValue ? 'border-accent/30 bg-accent/5' : 'border-danger/50 bg-danger/10'}`}>
+                <p className="text-xs font-bold text-ink-2">{addon.name}：選{addon.choiceLabel || '規格'}{!selectedItem.optionValue && <span className="text-danger">（必選）</span>}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {addon.choices.map((choice) => (
+                    <button key={choice} type="button"
+                      onClick={() => onPickChoice?.(selectedItem.id, { optionLabel: addon.choiceLabel || '規格', optionValue: choice })}
+                      className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${selectedItem.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
+                      {selectedItem.optionValue === choice ? '✓ ' : ''}{choice}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
           {list.filter((addon) => addon.pendingPrice && isPicked(addon)).map((addon) => {
             const selectedItem = selectedItemForAddon(addon);
             if (!selectedItem) return null;
@@ -322,10 +331,10 @@ function AddonCategoryCard({
                 <label className="block text-[11px] font-semibold text-warn" htmlFor={`vendor-inquiry-${selectedItem.id}`}>
                   詢價需求－{addon.name}
                 </label>
-                <textarea id={`vendor-inquiry-${selectedItem.id}`} rows={3}
+                <textarea id={`vendor-inquiry-${selectedItem.id}`} rows={2}
                   value={selectedItem.vendorInquiryNote || ''}
                   onChange={(event) => updateVendorInquiryNote(selectedItem.id, event.target.value)}
-                  placeholder="例如：車型、尺寸、高度、材質、開啟方式、載重、安裝位置或其他特殊施工需求…"
+                  placeholder="要跟廠商問的規格（選填）"
                   className="mt-1.5 w-full text-xs" />
                 <p className="mt-1 text-[10px] text-ink-3">僅供內部向廠商詢價，不會顯示在客戶報價圖片。</p>
               </div>
@@ -351,7 +360,7 @@ function shortHash(str) {
  * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
 export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onRequestConfirmDeal, onClose }) {
-  const { quotePresets, costCatalog, pricingRecords, cases, heightConfig } = useApp();
+  const { quotePresets, costCatalog, pricingRecords, cases, heightConfig, markQuoteSent } = useApp();
   const isEdit = !!quote;
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const [recordError, setRecordError] = useState('');
@@ -427,6 +436,18 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [showTextQuote, setShowTextQuote] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [textCopyStatus, setTextCopyStatus] = useState('');
+  const [sentNote, setSentNote] = useState('');
+  const [showModelPicker, setShowModelPicker] = useState(() => !quote?.model);
+  // 報價送出（分享圖片／下載／複製文字）後自動幫他記一筆並排追蹤，不用自己記。
+  async function noteQuoteSent() {
+    if (!linkedCaseId || !markQuoteSent) return '';
+    try {
+      const nextDate = await markQuoteSent(linkedCaseId);
+      const note = nextDate ? `已幫你記「已傳報價」，${dayjs(nextDate).format('M/D')} 提醒追蹤` : '';
+      if (note) setSentNote(note);
+      return note;
+    } catch { return ''; }
+  }
   const previewRef = useRef(null);
   // 貸款試算：頭期（可用 % 或自訂金額）＋選期數；年利率由設定帶入。
   const [loan, setLoan] = useState({
@@ -829,6 +850,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     try {
       await navigator.clipboard.writeText(textQuote);
       setTextCopyStatus('已複製，可直接貼到 LINE');
+      const note = await noteQuoteSent();
+      if (note) setTextCopyStatus(`已複製，可直接貼到 LINE・${note}`);
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = textQuote;
@@ -851,6 +874,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     document.body.appendChild(a);
     a.click();
     a.remove();
+    noteQuoteSent();
   }
 
   function openExportedImage() {
@@ -866,6 +890,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       try {
         // 由「分享／存到相簿」按鈕直接呼叫，保留手機要求的使用者點擊權限。
         await navigator.share({ files: [exportedImage.file], title: exportedImage.fileName });
+        noteQuoteSent();
         return;
       } catch (error) {
         if (error?.name === 'AbortError') return;
@@ -1059,9 +1084,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               const effectiveClientId = client?.id || linkedClientId;
               const activeCases = cases.filter((row) => row.clientId === effectiveClientId && !['completed', 'closed'].includes(row.status));
               return (
-                <div className="rounded-xl border border-teal/30 bg-teal/8 p-3 space-y-2">
-                  <div><p className="text-xs font-semibold text-teal">📁 歸入客戶案件</p><p className="text-[11px] text-ink-3 mt-0.5">報價會直接留在這筆案件，不會另外產生重複案件。</p></div>
-                  {activeCases.length > 0 ? <select value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
+                <div className="rounded-xl border border-teal/30 bg-teal/8 px-3 py-2 space-y-2">
+                  {activeCases.length === 1 && linkedCaseId === activeCases[0].id
+                    ? <p className="truncate text-xs font-semibold text-teal">📁 歸入案件：{activeCases[0].type === 'modification' ? '改裝' : '買車'}・{activeCases[0].title || '未命名案件'}</p>
+                    : <p className="text-xs font-semibold text-teal">📁 這張報價歸入哪筆案件</p>}
+                  {activeCases.length === 1 && linkedCaseId === activeCases[0].id ? null : activeCases.length > 0 ? <select value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
                     {activeCases.length > 1 && <option value="">請選擇案件…</option>}
                     {activeCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改裝' : '買車'}・{row.title || '未命名案件'}</option>)}
                   </select> : <p className="text-xs text-ink-2">儲存後會自動建立一筆新案件。</p>}
@@ -1082,25 +1109,31 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               </details>
             )}
             <Field label="車型">
-              <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
-                <input type="number" min="2000" max="2100" value={modelYear}
-                  onChange={(e) => setModelYear(e.target.value)} aria-label="車輛年式"
-                  placeholder="年式" className="w-full text-sm" />
-                <input value={model} onChange={(e) => { setModel(e.target.value); setModelId(null); }}
-                  placeholder="例：單廂三人座 手排六速" className="flex-1 min-w-0 text-sm" />
-                {quotePresets.models?.length > 0 && (
-                  <select
-                    value=""
-                    onChange={(e) => { const m = quotePresets.models.find((x) => x.id === e.target.value); if (m) pickModel(m); }}
-                    className="text-xs col-span-2 w-full"
-                  >
-                    <option value="">選車型帶入</option>
-                    {quotePresets.models.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}（{formatMoney(m.price)}）</option>
+              {model && !showModelPicker
+                ? <button type="button" onClick={() => setShowModelPicker(true)} className="flex w-full min-h-12 items-center gap-2 rounded-lg border border-teal/50 bg-teal/10 px-3 py-2 text-left">
+                    <span className="min-w-0 flex-1 text-sm font-bold text-ink">✓ {modelYear ? `${modelYear} ` : ''}{model}</span>
+                    <span className="shrink-0 text-xs font-semibold text-teal">換車型</span>
+                  </button>
+                : <div className="space-y-1.5">
+                    {(quotePresets.models || []).map((m) => (
+                      <button key={m.id} type="button" onClick={() => { pickModel(m); setShowModelPicker(false); }}
+                        className={`flex w-full min-h-12 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${modelId === m.id ? 'border-teal bg-teal/10' : 'border-bdr'}`}>
+                        <span className="min-w-0 flex-1 text-ink">{m.name}</span>
+                        <span className="shrink-0 font-bold text-teal">{formatMoney(m.price)}</span>
+                      </button>
                     ))}
-                  </select>
-                )}
-              </div>
+                    <details className="rounded-lg border border-bdr">
+                      <summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold text-ink-2">自己輸入車名／年式</summary>
+                      <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 border-t border-bdr p-2">
+                        <input type="number" min="2000" max="2100" value={modelYear}
+                          onChange={(e) => setModelYear(e.target.value)} aria-label="車輛年式"
+                          placeholder="年式" className="w-full text-sm" />
+                        <input value={model} onChange={(e) => { setModel(e.target.value); setModelId(null); }}
+                          placeholder="例：單廂三人座 手排六速" className="flex-1 min-w-0 text-sm" />
+                        {model && <button type="button" onClick={() => setShowModelPicker(false)} className="btn-outline col-span-2 min-h-10 text-xs">好了</button>}
+                      </div>
+                    </details>
+                  </div>}
               <label className="flex items-center gap-2 mt-2 text-xs text-ink-2 cursor-pointer">
                 <input type="checkbox" checked={excludeVehiclePrice}
                   onChange={(event) => toggleVehiclePrice(event.target.checked)} />
@@ -1120,7 +1153,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                     {showDesc ? '✓ 顯示介紹中' : '📖 看產品介紹'}
                   </button>
                 </div>
-                <p className="text-[10px] text-ink-3 -mt-1">點分類展開，勾選客戶要的配件即可；不用的分類不必處理。</p>
+                <p className="text-[10px] text-ink-3 -mt-1">點分類展開、點一下就加入；總價在最下面隨時看得到。</p>
                 {addonSections.map((section) => {
                   if (!section.nested) {
                     const [cat, list] = section.groups[0];
@@ -1132,7 +1165,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       bundleLocks={bundleLocks} allAddons={quotePresets.addons}
                       heightConfig={heightConfig}
                       selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
-                      updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />;
+                      updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} onPickChoice={(itemId, patch) => setItem(itemId, patch)} />;
                   }
                   const expanded = !!expandedAddonSections[section.key];
                   const itemCount = section.groups.reduce((total, [, list]) => total + list.length, 0);
@@ -1171,7 +1204,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               bundleLocks={bundleLocks} allAddons={quotePresets.addons}
                               heightConfig={heightConfig}
                               selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
-                              updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} />
+                              updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} onPickChoice={(itemId, patch) => setItem(itemId, patch)} />
                           ))}
                         </div>
                       )}
@@ -1311,6 +1344,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 ))}
               </div>
             )}
+            <details className="rounded-xl border border-bdr">
+              <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-ink-2">＋ 加入型錄沒有的配件</summary>
+              <div className="border-t border-bdr p-2">
             <div className="rounded-xl border border-accent/35 bg-accent/5 p-3 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-ink-2">➕ 額外配件／未列配件</p>
@@ -1344,6 +1380,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <span className="w-28">金額／待廠商報價</span>
               <span className="w-4" />
             </div>
+              </div>
+            </details>
+            {selectedItems.length > 0 && <p className="text-xs font-bold text-ink-2">已選項目（可改價、給優惠、選規格）</p>}
             {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
               const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
@@ -1812,6 +1851,10 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             {/* 錯誤一律顯示在固定列上，不論目前捲到哪裡都看得到 */}
             {(recordError || exportError || caseError || customerError) && <p role="alert" className="rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs font-semibold text-danger">{recordError || exportError || caseError || customerError}</p>}
             {selectedItems.length === 0 && <p className="text-[11px] text-ink-3 text-center">先選車型或配件，才能儲存、出圖</p>}
+            {selectedItems.length > 0 && <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs text-ink-2">已選 {selectedItems.length} 項{pendingItems.length > 0 ? `・${pendingItems.length} 項待報價` : ''}</p>
+              <p className="shrink-0 text-lg font-bold text-gold">NT$ {formatMoney(total)}</p>
+            </div>}
             <div className="grid grid-cols-3 gap-2">
               <button onClick={handleRecord} disabled={selectedItems.length === 0 || recordSaving}
                 className="btn-primary min-h-12 px-1 text-sm disabled:opacity-40">
@@ -1824,7 +1867,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
                 className="btn-outline min-h-12 px-1 text-sm whitespace-nowrap disabled:opacity-40">LINE 文字</button>
             </div>
-            {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="btn-outline min-h-11 w-full text-sm disabled:opacity-40">✓ 儲存並確認成交</button>}
+            {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="min-h-9 w-full rounded-lg text-xs font-semibold text-ok disabled:opacity-40">客戶當場決定了？→ 儲存並確認成交</button>}
           </div>
         </div>
       </div>
@@ -1878,6 +1921,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             </div>
             <img src={exportedImage.url} alt="報價單圖片預覽" className="block w-full h-auto rounded-xl bg-white border border-bdr" />
             {exportError && <p role="alert" className="mt-3 rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs text-danger">{exportError}</p>}
+            {sentNote && <p role="status" className="mt-3 rounded-lg bg-ok/10 border border-ok/30 px-3 py-2 text-xs font-semibold text-ok">✓ {sentNote}</p>}
             <div className="grid grid-cols-1 gap-2 mt-3">
               <button type="button" onClick={shareExportedImage} className="btn-primary w-full text-base py-2.5">
                 📤 分享／存到相簿／傳 LINE

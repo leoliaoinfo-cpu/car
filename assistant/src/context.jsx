@@ -18,7 +18,7 @@ import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, plan
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
 import { generateId } from './utils/crm';
 import { DEFAULT_HEIGHT_CONFIG, normalizeHeightConfig } from './utils/reception';
-import { advanceCasePipeline, autoCaseTitle, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
+import { advanceCasePipeline, autoCaseTitle, getCasePipelineStageId, planQuoteSent, assignCaseNumbers, findDealForCase, buildLegacyCaseSeeds, FIRST_CASE_NUMBER, inferCaseType } from './utils/cases';
 import { changedPatch, pricingRecordsToDropForClients, recTs } from './utils/dataMerge.js';
 
 const AppContext = createContext(null);
@@ -868,6 +868,18 @@ export function AppProvider({ children }) {
     return full;
   }, []);
 
+  /** 報價圖／LINE 文字送出後自動記一筆並排 2 天後追蹤（規則在 utils/cases.js 的 planQuoteSent）。回傳下次追蹤日或 null。 */
+  const markQuoteSent = useCallback(async (caseId) => {
+    const current = casesRef.current.find((row) => row.id === caseId);
+    if (!current) return null;
+    const deals = await db.getAll('deals').catch(() => []);
+    const plan = planQuoteSent(current, getCasePipelineStageId(current, { deals }), today(), addDays(today(), 2));
+    if (!plan) return null;
+    await saveCase(plan.caseRow);
+    await saveActivity({ id: generateId('activity'), caseId: current.id, clientId: current.clientId || null, clientName: current.clientName, type: 'contact', text: '聯繫：已傳報價給客戶', date: new Date().toISOString() });
+    return plan.nextDate;
+  }, [saveCase, saveActivity]);
+
   const deleteActivity = useCallback(async (id) => {
     dispatch({ type: 'DELETE_ACTIVITY', id });
     await db.delete('activities', id);
@@ -1147,6 +1159,7 @@ export function AppProvider({ children }) {
     saveWorkItem,
     deleteWorkItem,
     saveActivity,
+    markQuoteSent,
     deleteActivity,
     saveTask,
     deleteTask,
