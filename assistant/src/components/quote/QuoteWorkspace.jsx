@@ -336,11 +336,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                   <p className="text-xs text-ink-2 bg-s2 rounded-lg px-3 py-2 line-clamp-3 whitespace-pre-wrap">{quote.requirements}</p>
                 )}
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {!quote.archivedAt && <button onClick={() => isWon ? setViewWonQuoteId(quote.id) : setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
                     {isWon ? '查看成交版本' : '開啟報價'}
                   </button>}
-                  {!quote.archivedAt && linkedCase && (!linkedDeal || !linkedDeal.quoteId) && <button type="button" onClick={() => { setDealError(''); setConfirmDealId(quote.id); }} className="btn-outline min-h-11 text-xs">{linkedDeal ? '核對成交報價' : '確認此報價成交'}</button>}
+                  {!quote.archivedAt && linkedCase && (!linkedDeal || !linkedDeal.quoteId) && <button type="button" onClick={() => { setDealError(''); setConfirmDealId(quote.id); }} className="order-last min-h-9 w-full rounded-lg text-left text-[11px] font-semibold text-ink-3 underline underline-offset-2">{linkedDeal ? '核對成交報價' : '確認此報價成交'}</button>}
                   {!quote.archivedAt && linked && onOpenClient && (
                     <button onClick={() => onOpenClient(linked.id)} className="btn-outline text-xs">看客戶</button>
                   )}

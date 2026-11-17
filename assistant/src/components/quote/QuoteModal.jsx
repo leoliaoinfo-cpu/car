@@ -1846,7 +1846,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             </div>
           </div>
 
-          {/* 固定在底部：儲存、預覽／出圖、文字版（成交鈕在可用時一起出現） */}
+          {/* 固定在底部：儲存、預覽／出圖、文字版。成交不放這裡（使用者反映容易誤按），請到案件裡「指定這張成交」。 */}
           <div className="sticky -bottom-4 -mx-4 md:-mx-5 -mb-4 md:-mb-5 mt-4 px-4 md:px-5 pt-2 pb-[calc(1rem+max(0.5rem,env(safe-area-inset-bottom)))] bg-s1/95 backdrop-blur border-t border-bdr rounded-b-2xl z-10 space-y-2">
             {/* 錯誤一律顯示在固定列上，不論目前捲到哪裡都看得到 */}
             {(recordError || exportError || caseError || customerError) && <p role="alert" className="rounded-lg bg-danger/10 border border-danger/30 px-3 py-2 text-xs font-semibold text-danger">{recordError || exportError || caseError || customerError}</p>}
@@ -1867,7 +1867,6 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               <button type="button" onClick={openTextQuote} disabled={selectedItems.length === 0}
                 className="btn-outline min-h-12 px-1 text-sm whitespace-nowrap disabled:opacity-40">LINE 文字</button>
             </div>
-            {onRequestConfirmDeal && <button type="button" onClick={() => handleRecord(null, true)} disabled={selectedItems.length === 0 || recordSaving} className="min-h-9 w-full rounded-lg text-xs font-semibold text-ok disabled:opacity-40">客戶當場決定了？→ 儲存並確認成交</button>}
           </div>
         </div>
       </div>
