@@ -69,7 +69,7 @@ await step('案件列表顯示尚缺配件＋交車將近', async()=>{
   await p.screenshot({path:`${S}/s4.png`,fullPage:true});
 });
 await step('中央點貨彙總尚缺配件', async()=>{
-  await p.locator('text=中央配件點貨').click(); await p.waitForTimeout(500);
+  await p.locator('text=/尚缺配件 \\d+ 項/').first().click(); await p.waitForTimeout(500);
   await p.locator('text=韓版後照鏡').first().waitFor(); await p.locator('text=客製帆布').first().waitFor();
   await p.screenshot({path:`${S}/s5.png`,fullPage:true});
   await p.locator('text=返回案件列表').click();
@@ -84,7 +84,8 @@ await step('開案件→逐項核對：設再追日、標已備妥、警示解�
   await p.locator('text=測試新客').first().click(); await p.waitForTimeout(600);
   await p.locator('text=成交配件逐項核對').waitFor();
   await p.locator('text=尚缺 2 項').first().waitFor();
-  await p.locator('text=待廠商確認，請設定再追日期').waitFor();
+  // 待廠商確認的配件成交時已自動帶 3 天後再追日（不再出現「請設定再追日期」）
+  { const d0=(await dump('deals')).find(x=>x.quoteId==='qA'); if(!d0.stockItems.find(x=>x.name==='客製帆布').followUpDate) throw new Error('沒有自動帶再追日'); }
   const row=(n)=>p.locator('div.rounded-xl:has(> div p:has-text("'+n+'"))').first();
   // 客製帆布：打開折疊→設再追日
   // 再追日已直接露出，不必展開

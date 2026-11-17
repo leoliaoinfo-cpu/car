@@ -235,9 +235,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-ink">🧾 報價管理</h1>
-            <p className="text-sm text-ink-2 mt-2 leading-relaxed max-w-2xl">
-              可以先開報價、之後再歸入客戶案件；做好可輸出圖片或 LINE 文字版。
-            </p>
           </div>
           <button onClick={() => setEditing({ mode: 'new' })} className="btn-primary shrink-0">
             ＋ 新報價
@@ -260,13 +257,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           ['trash', '🗑 回收筒', archivedQuotes.length],
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
-      {stageFilter !== 'trash' && (
-        <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-          <span className="rounded-full border border-danger/40 bg-danger/10 px-2.5 py-1 text-danger">紅色：未分配客戶超過 30 天</span>
-          <span className="rounded-full border border-ink-3/30 bg-ink-3/10 px-2.5 py-1 text-ink-3">灰色：已分配客戶超過 90 天</span>
-          <span className="rounded-full border border-bdr bg-s1 px-2.5 py-1 text-ink-2">🗑 可隱藏並恢復</span>
-        </div>
-      )}
 
       {saveNotice && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 flex items-center gap-2 text-sm text-ink-2">
@@ -309,7 +299,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`badge ${quoteType === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[quoteType]}</span>
-                      {pipelineStage && (['new', 'follow_up'].includes(pipelineStage.id) || isWon) && <span className="badge bg-copper/12 text-copper">{CASE_PIPELINE_STAGES.findIndex((stage) => stage.id === pipelineStage.id) + 1} {pipelineStage.label}</span>}
                       {isWon && <span className="badge bg-ok/15 text-ok">✓ 本張報價成交</span>}
                       {linkedDeal?.quoteId && !isWon && <span className="badge bg-s2 text-ink-3">未採用</span>}
                       {linkedDeal && !linkedDeal.quoteId && <span className="badge bg-warn/10 text-warn">成交報價待核對</span>}
@@ -319,14 +308,12 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
                       {quote.archivedAt && <span className="badge bg-ink-3 text-white">回收筒</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
-                      {linked && <span className="text-[10px] rounded-full bg-accent/10 text-accent border border-accent/30 px-2 py-0.5">已連結客戶</span>}
                       {pending > 0
                         ? <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">待廠商報價 {pending} 項</span>
                         : <span className="text-[10px] rounded-full bg-ok/10 text-ok border border-ok/30 px-2 py-0.5">價格已齊</span>}
                       {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
-                    {attention.ageDays != null && <p className={`mt-1 text-[11px] font-semibold ${attention.unassignedOverdue ? 'text-danger' : attention.linkedStale ? 'text-ink-3' : 'text-ink-2'}`}>報價已建立第 {attention.ageDays} 天{attention.linked ? '・已分配客戶' : '・尚未分配客戶'}</p>}
                   </div>
                   <p className="text-right shrink-0">
                     <span className="block text-[10px] text-ink-3">{pending > 0 ? '目前金額' : '專案價'}</span>
@@ -351,7 +338,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
 
                 <div className="flex items-center gap-2">
                   {!quote.archivedAt && <button onClick={() => isWon ? setViewWonQuoteId(quote.id) : setEditing({ mode: 'edit', quote })} className="btn-primary flex-1 text-xs">
-                    {isWon ? '查看成交版本' : '✏️ 開啟／輸出圖片'}
+                    {isWon ? '查看成交版本' : '開啟報價'}
                   </button>}
                   {!quote.archivedAt && linkedCase && (!linkedDeal || !linkedDeal.quoteId) && <button type="button" onClick={() => { setDealError(''); setConfirmDealId(quote.id); }} className="btn-outline min-h-11 text-xs">{linkedDeal ? '核對成交報價' : '確認此報價成交'}</button>}
                   {!quote.archivedAt && linked && onOpenClient && (

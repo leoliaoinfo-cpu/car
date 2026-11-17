@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { CASE_LIST_FILTERS, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
 import { useApp } from '../../context';
 import {
-  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases, applyCaseContact, CONTACT_PRESETS,
+  advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases, applyCaseContact, CONTACT_PRESETS, isOpenCase,
 } from '../../utils/cases';
 import { addDays, today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
@@ -27,6 +27,13 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
   const [showStock, setShowStock] = useState(false);
   const [showDup, setShowDup] = useState(false);
   const dupGroups = useMemo(() => findPossibleDuplicateCases(cases), [cases]);
+  // 全部進行中成交案件還缺幾項配件；沒有缺就不顯示點貨入口，畫面少一條。
+  const missingStockCount = useMemo(() => deals.reduce((sum, deal) => {
+    if (!deal.quoteId || deal.caseArchivedAt) return sum;
+    const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
+    if (!linkedCase || !isOpenCase(linkedCase)) return sum;
+    return sum + (stockAlert(deal, linkedCase).missing || 0);
+  }, 0), [deals, cases]);
 
   useEffect(() => {
     if (focusId) { openedByFocus.current = true; setSelectedId(focusId); onFocusConsumed?.(); }
@@ -65,7 +72,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
       </div>
 
       {dupGroups.length > 0 && <button type="button" onClick={() => setShowDup(true)} className="min-h-12 w-full rounded-xl border border-warn/50 bg-warn/10 px-4 text-left text-sm font-bold text-warn">⚠ {dupGroups.map((g) => g.clientName).slice(0, 3).join('、')}{dupGroups.length > 3 ? '等' : ''} 有案件可能重複・點這裡整理</button>}
-      <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : '中央配件點貨・查看尚缺項目'}</button>
+      {(showStock || missingStockCount > 0) && <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : `尚缺配件 ${missingStockCount} 項・點我看要叫哪些貨`}</button>}
       {showStock ? <StockCenter deals={deals} cases={cases} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
 
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋姓名、電話、車牌、車型或案件名稱…" className="w-full min-h-11" />
@@ -116,7 +123,6 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className={`badge ${item.type === 'modification' ? 'bg-warn text-ink' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
-                      <span className="badge bg-copper/12 text-copper">{pipelineStage}</span>
                       {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
@@ -180,7 +186,7 @@ function StockRow({ row, disabled, delivered = false, onUpdate }) {
       <button type="button" disabled={disabled || ['installed', 'not_needed'].includes(row.status)} onClick={() => onUpdate({ status: ready ? 'todo' : 'ready' })} className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold ${ready ? 'border-ok bg-ok/15 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>{row.status === 'installed' ? '✓ 已安裝' : row.status === 'not_needed' ? '不需備品' : ready ? '✓ 已備妥' : '□ 備妥'}</button>
     </div>
     <div className="mt-2 grid grid-cols-2 gap-2">
-      <select aria-label={`${row.name}備品狀態`} value={row.status || 'todo'} onChange={(e) => onUpdate({ status: e.target.value })} disabled={disabled} className="min-h-11 w-full text-sm">{STOCK_STATUSES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      <select aria-label={`${row.name}備品狀態`} value={row.status || 'todo'} onChange={(e) => onUpdate(e.target.value === 'inquiry' && !row.followUpDate ? { status: 'inquiry', followUpDate: addDays(today(), 3) } : { status: e.target.value })} disabled={disabled} className="min-h-11 w-full text-sm">{STOCK_STATUSES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
       {row.status === 'inquiry'
         ? <label className="block text-[11px] text-ink-3">再追廠商日期<input type="date" value={row.followUpDate || ''} onChange={(e) => onUpdate({ followUpDate: e.target.value })} aria-label={`${row.name}再追日期`} className={`min-h-11 w-full text-sm ${row.followUpDate || delivered ? '' : 'border-danger'}`} disabled={disabled} /></label>
         : <span />}
@@ -524,6 +530,12 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
     ? dayjs(item.nextFollowUpDate).startOf('day').diff(dayjs().startOf('day'), 'day')
     : null;
 
+  // 交車日／急件改了就直接存（不用再按儲存）
+  async function saveDeliveryTarget(patch) {
+    try { await onSaveCase({ ...item, desiredDeliveryDate: desiredDate, urgent, urgentReason: urgent ? urgentReason.trim() : '', ...patch }); setStockError(''); }
+    catch (cause) { setStockError(cause?.message || '儲存失敗'); }
+  }
+
   async function recordContact(event, preset = null) {
     event?.preventDefault?.();
     if (contactSaving) return;
@@ -642,7 +654,14 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             {[['overview', '總覽'], ['work', '工作'], ['quotes', '報價'], ['history', '紀錄']].map(([key, label]) => <button key={key} type="button" onClick={() => setSection(key)} className={`min-h-10 rounded-lg text-xs font-bold ${section === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}
           </nav>
 
-          {section === 'overview' && linkedDeal && <section className="card p-4 space-y-3"><h2 className="font-bold text-ink">交車目標與優先度</h2><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><label className="text-xs text-ink-2">客戶希望交車日<input type="date" value={desiredDate} onChange={(e) => setDesiredDate(e.target.value)} className="mt-1 w-full min-h-11" /></label><label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />急件</label></div>{urgent && <input value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} placeholder="急件原因，例如工作用車急需" className="w-full min-h-11" />}<button type="button" onClick={async () => { try { await onSaveCase({ ...item, desiredDeliveryDate: desiredDate, urgent, urgentReason: urgent ? urgentReason.trim() : '' }); setStockError(''); } catch (cause) { setStockError(cause?.message || '儲存失敗'); } }} className="btn-outline min-h-11 w-full">儲存交車目標</button></section>}
+          {section === 'overview' && linkedDeal && item.status !== 'completed' && <section className="card p-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-xs font-bold text-ink-2"><span className="shrink-0">交車日</span><input type="date" value={desiredDate} onChange={(e) => { setDesiredDate(e.target.value); saveDeliveryTarget({ desiredDeliveryDate: e.target.value }); }} className="min-h-11 min-w-0 flex-1" /></label>
+              <label className="flex shrink-0 items-center gap-2 text-sm font-semibold text-ink-2"><input type="checkbox" checked={urgent} onChange={(e) => { setUrgent(e.target.checked); saveDeliveryTarget({ urgent: e.target.checked, urgentReason: e.target.checked ? urgentReason.trim() : '' }); }} className="h-6 w-6" />急件</label>
+            </div>
+            {urgent && <input value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} onBlur={() => saveDeliveryTarget({ urgentReason: urgentReason.trim() })} placeholder="急件原因（選填）" className="w-full min-h-11" />}
+            <p className="text-[11px] text-ink-3">改了就自動存。交車前 7 天還缺配件，會在「今天」提醒你。</p>
+          </section>}
 
           {(section === 'overview' || section === 'work') && linkedDeal && <CaseDeliveryChecklist key={linkedDeal.id} deal={linkedDeal} caseItem={item} onGoStock={goToStock} />}
 

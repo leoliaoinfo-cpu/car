@@ -639,7 +639,9 @@ export function AppProvider({ children }) {
       date: priorDeal?.date || today(), confirmedAt: priorDeal?.confirmedAt || priorDeal?.createdAt || timestamp,
       pricingNeedsReview: Boolean(priorDeal),
       quoteSnapshot: structuredClone(quote),
-      stockItems: stockItemsFromQuote(quote, state.quotePresets?.addons || []),
+      // 待廠商確認的配件預設 3 天後再追（不用自己排日期，到時「今天」會提醒）。
+      stockItems: stockItemsFromQuote(quote, state.quotePresets?.addons || [])
+        .map((row) => (row.status === 'inquiry' && !row.followUpDate ? { ...row, followUpDate: addDays(today(), 3) } : row)),
     };
     // 新成交直接依這張報價的配件建好施工進度（不用再另外按「建立施工進度」）。
     // 舊成交（priorDeal）可能早就交車了，不自動建，免得今天頁冒出一排施工步驟；要的話案件內仍可手動建立。
