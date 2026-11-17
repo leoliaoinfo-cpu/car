@@ -124,10 +124,6 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                   </div>
                   <span className="text-ink-3">›</span>
                 </div>
-                <div className="mt-3 rounded-lg bg-s2 px-3 py-2">
-                  <p className="text-[10px] text-ink-3">下一步</p>
-                  <p className={`text-sm mt-0.5 ${action ? 'text-ink font-medium' : 'text-ink-3'}`}>{action?.title || '尚未安排工作'}</p>
-                </div>
                 <p className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
                   {caseTrackingParts(item, tracking).map((part) => (
                     <span key={part.key} className={part.tone === 'danger' ? 'font-bold text-danger' : part.tone === 'warn' ? 'font-semibold text-gold' : ''}>{part.text}</span>
@@ -260,7 +256,7 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
         </header>
         <div className="p-4 space-y-5 pb-28">
           <section>
-            <label className="section-title block px-0">1. 客戶</label>
+            <label className="section-title block px-0">客戶</label>
             <div className="grid grid-cols-2 gap-2 mt-2">
               <button type="button" onClick={() => setClientMode('existing')} className={`min-h-12 rounded-xl border ${clientMode === 'existing' ? 'border-teal bg-teal/12 text-teal' : 'border-bdr'}`}>選既有客戶</button>
               <button type="button" onClick={() => setClientMode('new')} className={`min-h-12 rounded-xl border ${clientMode === 'new' ? 'border-teal bg-teal/12 text-teal' : 'border-bdr'}`}>建立新客戶</button>
@@ -269,23 +265,24 @@ function NewCaseModal({ clients, cats, stages, initialClientId, onClose, onSaveC
               : <div className="grid grid-cols-1 gap-2 mt-3"><input value={name} onChange={(event) => setName(event.target.value)} placeholder="客戶姓名或公司名稱（必填）" className="min-h-12" /><input value={phone} onChange={(event) => setPhone(event.target.value)} type="tel" inputMode="tel" placeholder="電話（選填）" className="min-h-12" /></div>}
           </section>
           <section>
-            <label className="section-title block px-0">2. 案件種類</label>
+            <label className="section-title block px-0">買車還是改車</label>
             <div className="grid grid-cols-2 gap-2 mt-2">
               {[['purchase', '🚛 購車'], ['modification', '🛠️ 改車']].map(([key, label]) => <button key={key} type="button" onClick={() => setType(key)} className={`min-h-16 rounded-xl border text-base font-bold ${type === key ? (key === 'purchase' ? 'border-danger bg-danger text-white' : 'border-warn bg-warn text-ink') : 'border-bdr'}`}>{label}</button>)}
             </div>
           </section>
-          <section className="space-y-2">
-            <label className="section-title block px-0">3. 案件與下一步</label>
-            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === 'purchase' ? '例：K2500 雙廂購車' : '例：尾門＋帆布改裝'} className="w-full min-h-12" />
-            <input value={nextTitle} onChange={(event) => setNextTitle(event.target.value)} placeholder="下一步要做什麼" className="w-full min-h-12" />
-            <label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" checked={startQuote} onChange={(event) => setStartQuote(event.target.checked)} className="h-5 w-5" />建好後直接做報價</label>
-          </section>
-          <section>
-            <label className="section-title block px-0">4. 下次追蹤日 <span className="text-ink-3 font-normal">（選填，預設 3 天後）</span></label>
-            <p className="mt-1 text-xs text-ink-3">不想排日期就把數量清空，之後可在案件裡補。</p>
-            <FollowUpTargetChooser mode={followUpMode} onModeChange={setFollowUpMode} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} />
-          </section>
+          <label className="flex min-h-12 items-center gap-3 rounded-xl border border-bdr bg-s2 px-3 text-sm font-semibold text-ink"><input type="checkbox" checked={startQuote} onChange={(event) => setStartQuote(event.target.checked)} className="h-6 w-6" />建好後直接做報價</label>
+          <p className="text-xs text-ink-3">其他都不用填：系統會排 {nextFollowUpDate ? dayjs(nextFollowUpDate).format('M/D') : '（未排）'} 提醒你追蹤，案件名稱做完報價會自動帶車型。</p>
+          <details className="rounded-xl border border-bdr">
+            <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-ink-2">更多選項（案件名稱、要確認的事、追蹤日）</summary>
+            <div className="space-y-2 border-t border-bdr p-3">
+              <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={type === 'purchase' ? '案件名稱，例：K2500 雙廂購車' : '案件名稱，例：尾門＋帆布改裝'} className="w-full min-h-12" />
+              <input value={nextTitle} onChange={(event) => setNextTitle(event.target.value)} placeholder="下一步要做什麼" className="w-full min-h-12" />
+              <p className="pt-2 text-xs font-bold text-ink-2">下次追蹤日（不想排就把數量清空）</p>
+              <FollowUpTargetChooser mode={followUpMode} onModeChange={setFollowUpMode} date={followUpDate} onDateChange={setFollowUpDate} amount={followUpAmount} onAmountChange={setFollowUpAmount} unit={followUpUnit} onUnitChange={setFollowUpUnit} targetDate={nextFollowUpDate} />
+            </div>
+          </details>
           {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm font-semibold text-danger">{error}</p>}
+          <button type="submit" disabled={saving} className="btn-primary min-h-14 w-full text-base font-bold disabled:opacity-50">{saving ? '儲存中…' : startQuote ? '建立並做報價' : '建立案件'}</button>
         </div>
       </form>
     </div>
@@ -584,7 +581,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
       return;
     }
     if (row.sourceType === 'case-follow-up') {
-      setContactNextDate(item.nextFollowUpDate || '');
+      setContactNextDate(addDays(today(), 3));
       setShowContact(true);
       return;
     }
@@ -631,12 +628,10 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
         <div className="p-3 md:p-5 space-y-4 pb-28">
           {item.status === 'closed'
             ? <section className="card border-ink-3/40 bg-s2 p-4"><p className="font-bold text-ink">⏹ 已結案・不追蹤{item.closedReason ? `（${item.closedReason}）` : ''}</p><p className="mt-1 text-xs text-ink-3">這筆案件不會再出現在「今天」。客戶又有興趣時，按下面重新追蹤。</p><button type="button" disabled={closeBusy} onClick={reopenCase} className="btn-primary mt-3 min-h-11 w-full disabled:opacity-50">{closeBusy ? '處理中…' : '重新追蹤（3 天後再聯繫）'}</button></section>
-            : <>
-          <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} onChangeStage={changePipelineStage} onOpenQuote={onOpenQuote} />
-          {pipelineStageId !== 'completed' && (showClose
-            ? <section className="card p-3"><p className="text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，可隨時重新追蹤）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" disabled={closeBusy} onClick={() => closeCase(reason)} className="btn-outline min-h-11 text-xs font-bold disabled:opacity-50">{reason}</button>)}</div><button type="button" onClick={() => setShowClose(false)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></section>
-            : <button type="button" onClick={() => setShowClose(true)} className="w-full min-h-10 rounded-xl border border-dashed border-bdr text-xs font-semibold text-ink-3">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>)}
-          </>}
+            : <section className={`card p-4 ${item.nextFollowUpDate ? 'border-copper/35' : item.status === 'completed' ? '' : 'border-gold/55 bg-gold/5'}`}>
+              <div className="grid grid-cols-2 gap-3"><div><p className="text-[11px] font-bold text-teal">最近聯繫</p><p className="mt-1 text-base font-bold text-ink">{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}</p></div><div><p className="text-[11px] font-bold text-copper">下次追蹤</p><p className="mt-1 text-base font-bold text-ink">{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : item.status === 'completed' ? '案件已完成' : '尚未設定'}</p>{item.nextFollowUpDate && <p className={`mt-1 text-xs ${followUpTiming < 0 ? 'font-bold text-danger' : 'text-ink-3'}`}>{followUpTiming < 0 ? `已逾期 ${Math.abs(followUpTiming)} 天` : followUpTiming === 0 ? '今天需要追蹤' : `${followUpTiming} 天後追蹤`}</p>}</div></div>
+              <div className="mt-4 flex gap-2">{phone && <a href={`tel:${phone}`} onClick={() => { setContactNextDate(addDays(today(), 3)); setShowContact(true); }} aria-label={`撥打 ${phone}`} className="btn-outline min-h-12 shrink-0 px-4 font-bold">📞 撥號</a>}<button type="button" onClick={() => { setContactNextDate(addDays(today(), 3)); setShowContact(true); }} className="btn-primary min-h-12 flex-1">✍️ 記錄聯繫</button></div>
+            </section>}
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
@@ -646,13 +641,6 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
           <nav className="grid grid-cols-4 gap-1 rounded-xl border border-bdr bg-s1 p-1 sticky top-[3.9rem] z-10">
             {[['overview', '總覽'], ['work', '工作'], ['quotes', '報價'], ['history', '紀錄']].map(([key, label]) => <button key={key} type="button" onClick={() => setSection(key)} className={`min-h-10 rounded-lg text-xs font-bold ${section === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}
           </nav>
-
-          {section === 'overview' && (
-            <section className={`card p-4 ${item.nextFollowUpDate ? 'border-copper/35' : item.status === 'completed' ? '' : 'border-gold/55 bg-gold/5'}`}>
-              <div className="grid grid-cols-2 gap-3"><div><p className="text-[11px] font-bold text-teal">最近聯繫</p><p className="mt-1 text-base font-bold text-ink">{item.lastContactAt ? dayjs(item.lastContactAt).format('YYYY/MM/DD') : '尚未聯繫'}</p></div><div><p className="text-[11px] font-bold text-copper">下次追蹤</p><p className="mt-1 text-base font-bold text-ink">{item.nextFollowUpDate ? dayjs(item.nextFollowUpDate).format('YYYY/MM/DD') : item.status === 'completed' ? '案件已完成' : '尚未設定'}</p>{item.nextFollowUpDate && <p className={`mt-1 text-xs ${followUpTiming < 0 ? 'font-bold text-danger' : 'text-ink-3'}`}>{followUpTiming < 0 ? `已逾期 ${Math.abs(followUpTiming)} 天` : followUpTiming === 0 ? '今天需要追蹤' : `${followUpTiming} 天後追蹤`}</p>}</div></div>
-              <div className="mt-4 flex gap-2">{phone && <a href={`tel:${phone}`} aria-label={`撥打 ${phone}`} className="btn-outline min-h-12 shrink-0 px-4 font-bold">📞 撥號</a>}<button type="button" onClick={() => { setContactNextDate(item.nextFollowUpDate || ''); setShowContact(true); }} className="btn-primary min-h-12 flex-1">✍️ 記錄聯繫</button></div>
-            </section>
-          )}
 
           {section === 'overview' && linkedDeal && <section className="card p-4 space-y-3"><h2 className="font-bold text-ink">交車目標與優先度</h2><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><label className="text-xs text-ink-2">客戶希望交車日<input type="date" value={desiredDate} onChange={(e) => setDesiredDate(e.target.value)} className="mt-1 w-full min-h-11" /></label><label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />急件</label></div>{urgent && <input value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} placeholder="急件原因，例如工作用車急需" className="w-full min-h-11" />}<button type="button" onClick={async () => { try { await onSaveCase({ ...item, desiredDeliveryDate: desiredDate, urgent, urgentReason: urgent ? urgentReason.trim() : '' }); setStockError(''); } catch (cause) { setStockError(cause?.message || '儲存失敗'); } }} className="btn-outline min-h-11 w-full">儲存交車目標</button></section>}
 
@@ -678,10 +666,17 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
   ? <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-s2 p-2"><p className="col-span-2 text-xs text-ink-2">確定客戶選的是這一張（NT$ {formatMoney(quote.total)}）？其他報價會標為「未採用」，內容保留。</p><button type="button" disabled={winnerBusy} onClick={() => setPickWinnerId(null)} className="btn-outline min-h-10 text-xs">先不要</button><button type="button" disabled={winnerBusy} onClick={() => pickWinner(quote.id)} className="btn-primary min-h-10 text-xs disabled:opacity-50">{winnerBusy ? '儲存中…' : '確定成交'}</button></div>
   : <button type="button" onClick={() => { setPickWinnerId(quote.id); setWinnerError(''); }} className="btn-outline mt-2 min-h-10 w-full text-xs">✓ 指定這張成交</button>)}</div>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
 
+          {section === 'overview' && item.status !== 'closed' && <>
+
+          <CasePipeline item={item} currentId={pipelineStageId} deals={deals} quotes={quotes} onChangeStage={changePipelineStage} onOpenQuote={onOpenQuote} />
+          {pipelineStageId !== 'completed' && (showClose
+            ? <section className="card p-3"><p className="text-xs font-bold text-ink-2">為什麼不追了？（選一個就結案，可隨時重新追蹤）</p><div className="mt-2 grid grid-cols-2 gap-2">{CASE_CLOSE_REASONS.map((reason) => <button key={reason} type="button" disabled={closeBusy} onClick={() => closeCase(reason)} className="btn-outline min-h-11 text-xs font-bold disabled:opacity-50">{reason}</button>)}</div><button type="button" onClick={() => setShowClose(false)} className="mt-2 w-full min-h-9 text-xs text-ink-3">先不要</button></section>
+            : <button type="button" onClick={() => setShowClose(true)} className="w-full min-h-10 rounded-xl border border-dashed border-bdr text-xs font-semibold text-ink-3">⏹ 不追了（沒興趣／買別家／聯絡不上…）</button>)}
+          </>}
           {section === 'history' && <section className="card p-4"><h2 className="font-bold text-ink">案件紀錄</h2>{timeline.length === 0 ? <p className="text-sm text-ink-3 mt-3">目前沒有紀錄。</p> : <div className="mt-3 space-y-3">{timeline.map((row) => <div key={row.id} className="border-l-2 border-bdr pl-3"><p className="text-sm text-ink">{row.text}</p><p className="text-[11px] text-ink-3 mt-0.5">{dayjs(row.date || row.createdAt).format('YYYY/MM/DD HH:mm')}</p></div>)}</div>}</section>}
           {section === 'work' && completed.length > 0 && <details className="card p-4"><summary className="font-bold text-ink cursor-pointer">已完成工作 {completed.length} 項</summary><div className="mt-3 space-y-2">{completed.map((row) => <p key={row.id} className="text-sm text-ink-3 line-through">✓ {row.title}</p>)}</div></details>}
         </div>
-        {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div>{pipelineStageId !== 'completed' && <div className="mt-4"><p className="text-xs font-bold text-ink-2">一鍵記錄（按下就存好、並排好下次追蹤）</p><div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-outline min-h-12 text-xs font-bold disabled:opacity-50">{preset.label}</button>)}</div></div>}<label className="mt-4 block text-xs font-bold text-ink-2">或自己寫聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}<div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setShowContact(false)} className="btn-outline min-h-12">取消</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></form></div>}
+        {showContact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="w-full max-w-md rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl"><div className="flex items-center justify-between"><div><p className="text-xs font-bold text-teal">案件聯繫紀錄</p><h2 className="text-lg font-bold text-ink">{item.title}</h2></div><button type="button" onClick={() => setShowContact(false)} className="h-11 w-11 rounded-xl border border-bdr" aria-label="關閉">×</button></div>{pipelineStageId !== 'completed' && <div className="mt-4"><p className="text-xs font-bold text-ink-2">結果是？按一下就記好</p><div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-primary min-h-16 px-2 text-sm font-bold disabled:opacity-50">{preset.label}</button>)}</div></div>}<details className="mt-4 rounded-xl border border-bdr" open={pipelineStageId === 'completed'}><summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-ink-2">自己寫結果／指定日期</summary><div className="border-t border-bdr p-3"><label className="block text-xs font-bold text-ink-2">聯繫結果<textarea value={contactResult} onChange={(event) => setContactResult(event.target.value)} rows={3} placeholder="例：客戶確認要雙廂自排，等待貨款資料" className="mt-2 w-full resize-none" /></label>{pipelineStageId !== 'completed' && <label className="mt-4 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactNextDate} onChange={(event) => setContactNextDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>}<button type="submit" disabled={contactSaving} className="btn-primary mt-3 min-h-12 w-full">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div></details>{contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}</form></div>}
         {showEdit && <CaseEditSheet item={item} currentPipeline={pipelineStageId} workItems={caseWork} hasLinkedDeal={Boolean(linkedDeal)} onClose={() => setShowEdit(false)} onDeleted={() => { setShowEdit(false); onClose(); }} onSaveCase={onSaveCase} onDeleteCase={onDeleteCase} onSaveWorkItem={onSaveWorkItem} onSaveActivity={onSaveActivity} />}
       </div>
     </div>

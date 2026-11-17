@@ -315,7 +315,7 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
                 </div>
               </button>
               <div className="mt-2 flex gap-2">
-                {phoneByClient.get(row.clientId) && <a href={`tel:${phoneByClient.get(row.clientId)}`} aria-label={`撥打給${row.clientName || '客戶'}`} className="btn-outline min-h-10 shrink-0 px-3 text-base">📞</a>}
+                {phoneByClient.get(row.clientId) && <a href={`tel:${phoneByClient.get(row.clientId)}`} onClick={() => { if (['case-follow-up', 'case-stale'].includes(row.sourceType)) startContact(row); }} aria-label={`撥打給${row.clientName || '客戶'}`} className="btn-outline min-h-10 shrink-0 px-3 text-base">📞</a>}
                 <button type="button" disabled={completingId != null} onClick={() => complete(row)} className="btn-primary flex-1 min-h-10 disabled:opacity-50">{row.sourceType === 'stock-alert' ? '核對配件' : row.sourceType === 'delivery' ? '處理進度' : ['case-follow-up', 'case-stale'].includes(row.sourceType) ? '記錄聯繫' : row.sourceType === 'event' ? '看月曆' : row.sourceType === 'client-delivery' ? '開客戶' : row.sourceType === 'client-follow' ? '已聯繫' : '✓ 完成'}</button>
                 {!['stock-alert', 'event', 'client-delivery'].includes(row.sourceType) && <button type="button" onClick={() => { if (row.sourceType === 'delivery') { row.caseId ? onOpenCase?.(row.caseId) : onOpenOperations?.(row.dealId, row.caseId); return; } setClosing(null); setCanceling(null); setSnoozing(snoozing === row.id ? null : row.id); }} className="btn-outline min-h-10">{row.sourceType === 'delivery' ? '看案件' : '延後'}</button>}
               </div>
@@ -345,12 +345,15 @@ export default function WorkPage({ onOpenClient, onOpenCase, onOpenOperations, o
       </>}
       {contact && <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 md:items-center md:p-4"><form onSubmit={recordContact} className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-bdr bg-s1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-panel md:rounded-2xl">
         <div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-bold text-teal">記錄聯繫</p><h2 className="truncate text-lg font-bold text-ink">{contact.clientName || '未命名客戶'}</h2><p className="truncate text-xs text-ink-3">{contact.caseTitle}</p></div><button type="button" onClick={() => setContact(null)} className="h-11 w-11 shrink-0 rounded-xl border border-bdr" aria-label="關閉">×</button></div>
-        <p className="mt-4 text-xs font-bold text-ink-2">一鍵記錄（按下就存好、並排好下次追蹤）</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-outline min-h-12 text-xs font-bold disabled:opacity-50">{preset.label}</button>)}</div>
-        <label className="mt-4 block text-xs font-bold text-ink-2">或自己寫聯繫結果<textarea value={contactText} onChange={(event) => setContactText(event.target.value)} rows={2} placeholder="例：客戶確認要雙廂自排，等待貸款資料" className="mt-2 w-full resize-none" /></label>
-        <label className="mt-3 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactDate} onChange={(event) => setContactDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>
+        <p className="mt-4 text-xs font-bold text-ink-2">結果是？按一下就記好</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">{CONTACT_PRESETS.map((preset) => <button key={preset.label} type="button" disabled={contactSaving} onClick={() => recordContact(null, preset)} className="btn-primary min-h-16 px-2 text-sm font-bold disabled:opacity-50">{preset.label}</button>)}</div>
+        <details className="mt-4 rounded-xl border border-bdr"><summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-ink-2">自己寫結果／指定日期</summary><div className="border-t border-bdr p-3">
+          <label className="block text-xs font-bold text-ink-2">聯繫結果<textarea value={contactText} onChange={(event) => setContactText(event.target.value)} rows={2} placeholder="例：客戶確認要雙廂自排，等待貸款資料" className="mt-2 w-full resize-none" /></label>
+          <label className="mt-3 block text-xs font-bold text-ink-2">下次追蹤日<input type="date" value={contactDate} onChange={(event) => setContactDate(event.target.value)} className="mt-2 min-h-12 w-full" /></label>
+          <button type="submit" disabled={contactSaving} className="btn-primary mt-3 min-h-12 w-full">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button>
+        </div></details>
         {contactError && <p role="alert" className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">{contactError}</p>}
-        <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => { const id = contact.caseId; setContact(null); onOpenCase?.(id); }} className="btn-outline min-h-12">打開案件</button><button type="submit" disabled={contactSaving} className="btn-primary min-h-12">{contactSaving ? '儲存中…' : '儲存聯繫紀錄'}</button></div>
+        <button type="button" onClick={() => { const id = contact.caseId; setContact(null); onOpenCase?.(id); }} className="mt-3 w-full min-h-10 text-xs font-semibold text-ink-3">打開這筆案件 ›</button>
       </form></div>}
     </div>
   );
