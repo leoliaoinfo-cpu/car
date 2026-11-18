@@ -1,4 +1,5 @@
 import { calculateQuoteTotals } from './pricing.js';
+import { DEFAULT_QUOTE_PRESETS } from './crm.js';
 
 const money = (value) => Math.max(0, Math.round(Number(value) || 0));
 export const DEFAULT_QUOTE_MODEL_YEAR = 2027;
@@ -45,7 +46,43 @@ export function compactQuoteItemName(value) {
   return name.replace(/尺/g, '呎');
 }
 
-/** 由報價單即時生成可直接貼到 LINE 的純文字報價。 */
+// LINE 報價分區：依配件在型錄裡的分類歸到 5 個區塊（順序即顯示順序）。
+const SECTION_DEFS = [
+  { key: 'body', title: '🚛 車輛本體' },
+  { key: 'bed', title: '🏗️ 車斗配備' },
+  { key: 'chassis', title: '⚙️ 底盤懸吊・煞車' },
+  { key: 'look', title: '💡 外觀燈光' },
+  { key: 'inside', title: '📱 車內配備' },
+  { key: 'other', title: '🧩 其他配件' },
+  { key: 'fee', title: '📄 其他費用' },
+];
+const CATEGORY_SECTION = {
+  '配備版本': 'body',
+  '貨斗底板': 'bed', '客製車體': 'bed', '客製帆布': 'bed', '冷凍冷藏箱': 'bed', '電動歐翼': 'bed', '露營箱體': 'bed', '金屬製研': 'bed',
+  '底盤強化': 'chassis',
+  '燈組': 'look', '外觀空力': 'look', '車身改色': 'look', '防刮漆料': 'look', '烤漆周邊': 'look', '鋁圈': 'look',
+  '駕駛科技': 'inside', '音響': 'inside', '配件': 'inside', '周邊配件': 'inside',
+};
+const CATALOG_BY_ID = new Map((DEFAULT_QUOTE_PRESETS.addons || []).map((addon) => [addon.id, addon]));
+
+function sectionKeyOf(item) {
+  if (item.kind === 'vehicle') return 'body';
+  const cat = String(CATALOG_BY_ID.get(item.catalogId)?.cat || '');
+  if (CATEGORY_SECTION[cat]) return CATEGORY_SECTION[cat];
+  if (/尾門|隔熱紙/.test(cat)) return cat.includes('隔熱紙') ? 'look' : 'bed';
+  return item.kind === 'other' ? 'fee' : 'other';
+}
+
+function warrantyText(item) {
+  const months = Number(CATALOG_BY_ID.get(item.catalogId)?.warrantyMonths) || 0;
+  if (!months) return '';
+  return months % 12 === 0 ? `${months / 12} 年保固` : `${months} 個月保固`;
+}
+
+const BAR = '━━━━━━━━━━';
+const INDENT = '　';
+
+/** 由報價單即時生成可直接貼到 LINE 的純文字報價（分區版）。 */
 export function buildQuoteMessage({
   customerName = '',
   model = '',
@@ -67,25 +104,56 @@ export function buildQuoteMessage({
     const modelSpec = formatVehicleSpec(model);
     lines.push(`${yearText} 年式 KIA 卡旺 K2500`);
     if (modelSpec) lines.push(modelSpec);
-    lines.push('', `車輛售價：${formatLineWan(vehicle.price)}`);
+    lines.push('');
   }
 
-  for (const item of selectedItems.filter((row) => row.kind !== 'vehicle')) {
-    const option = String(item.optionValue || '').trim();
-    const name = `${compactQuoteItemName(item.name)}${option ? `（${option}）` : ''}`;
-    if (item.pending) lines.push(`${name}：待廠商報價`);
-    else if (!item.gift) lines.push(`${name}：+${formatLineWan(item.price)}`);
-    const itemNote = String(item.note || '').trim();
-    if (itemNote) lines.push(`  備註：${itemNote}`);
-    for (const row of Array.isArray(item.deductions) ? item.deductions : []) {
-      const amount = money(row?.amount);
-      const rowName = String(row?.name || '').trim();
-      if (amount && rowName) lines.push(`  不含：${rowName}（已扣 ${formatLineWan(amount)}）`);
+  const giftItems = pricedItems.filter((item) => item.gift);
+  const bySection = new Map(SECTION_DEFS.map((def) => [def.key, []]));
+  for (const item of selectedItems.filter((row) => !row.gift)) {
+    if (item.kind === 'vehicle' && item.pending) continue;
+    bySection.get(sectionKeyOf(item)).push(item);
+  }
+
+  const pushSection = (title, rows) => {
+    lines.push(BAR, title, BAR, ...rows, '');
+  };
+
+  for (const def of SECTION_DEFS) {
+    const sectionItems = bySection.get(def.key);
+    if (!sectionItems.length) continue;
+    const rows = [];
+    for (const item of sectionItems) {
+      if (item.kind === 'vehicle') {
+        rows.push(`・車輛售價：${formatLineWan(item.price)}`);
+        continue;
+      }
+      const option = String(item.optionValue || '').trim();
+      const name = `${compactQuoteItemName(item.name)}${option ? `（${option}）` : ''}`;
+      rows.push(item.pending ? `・${name}：待廠商報價` : `・${name}：+${formatLineWan(item.price)}`);
+      const itemNote = String(item.note || '').trim();
+      if (itemNote) rows.push(`${INDENT}備註：${itemNote}`);
+      const cut = (Array.isArray(item.deductions) ? item.deductions : [])
+        .filter((row) => String(row?.name || '').trim() && money(row?.amount) > 0);
+      if (cut.length) {
+        const cutTotal = cut.reduce((sum, row) => sum + money(row.amount), 0);
+        rows.push(`${INDENT}不含：${cut.map((row) => String(row.name).trim()).join('＋')}（已扣 ${formatLineWan(cutTotal)}）`);
+      }
     }
+    pushSection(def.title, rows);
   }
 
-  lines.push('----------', `原價總計：${formatLineWan(totals.originalTotal)}`, '----------');
+  if (giftItems.length > 0) {
+    pushSection('🎁 贈品', giftItems.map((item) => {
+      const value = money(item.price);
+      const extra = [value > 0 ? `價值 ${formatTwd(value)} 元` : '', warrantyText(item)].filter(Boolean).join('，');
+      return `・${compactQuoteItemName(item.name)}${extra ? `（${extra}）` : ''}`;
+    }));
+  }
 
+  // 原價總計含贈品價值；贈品價值再以「贈品優惠」扣回，最終成交價仍是不含贈品的應付金額。
+  lines.push('----------', `原價總計：${formatLineWan(totals.originalTotal + totals.giftValueTotal)}`, '----------');
+
+  const discountLines = [];
   for (const item of pricedItems) {
     if (item.gift) continue;
     for (const row of Array.isArray(item.discounts) ? item.discounts : []) {
@@ -93,23 +161,16 @@ export function buildQuoteMessage({
       if (!amount) continue;
       const discountName = String(row?.name || '優惠').trim() || '優惠';
       const label = discountName === '優惠' ? `${compactQuoteItemName(item.name)}優惠` : discountName;
-      lines.push(`${label}：-${formatLineWan(amount)}`);
+      discountLines.push(`${label}：-${formatLineWan(amount)}`);
     }
   }
-  for (const row of discounts) lines.push(`${String(row.name).trim()}：-${formatLineWan(row.amount)}`);
-
-  lines.push('', `✅ 最終優惠成交價：${formatLineWan(totals.total)}元`);
-
-  const giftItems = pricedItems.filter((item) => item.gift);
-  if (giftItems.length > 0) {
-    lines.push('----------', '', '另外再為您爭取以下贈品：', '');
-    giftItems.forEach((item) => {
-      const value = money(item.price);
-      lines.push(`🎁 ${compactQuoteItemName(item.name)}${value > 0 ? `（價值 ${formatTwd(value)} 元）` : ''}`);
-      const description = String(item.description || '').trim();
-      if (description) lines.push(description);
-    });
-    lines.push('', `車價折扣加上贈品，總優惠 ${formatTwd(totals.customerBenefitTotal)} 元`);
+  for (const row of discounts) discountLines.push(`${String(row.name).trim()}：-${formatLineWan(row.amount)}`);
+  if (totals.giftValueTotal > 0) discountLines.push(`贈品優惠：-${formatLineWan(totals.giftValueTotal)}`);
+  if (totals.giftValueTotal > 0 && totals.discountTotal > 0) {
+    discountLines.push(`專案優惠加上贈品優惠，總優惠 ${formatTwd(totals.customerBenefitTotal)} 元`);
   }
+  if (discountLines.length) lines.push(...discountLines, '----------');
+
+  lines.push(`✅ 最終優惠成交價：${formatLineWan(totals.total)}元`);
   return lines.join('\n');
 }
