@@ -95,7 +95,7 @@
       root.appendChild(sec);
     });
     if (!edit) {
-      var c = el('a', 'contact'); c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.textContent = '📞 聯絡我'; nav.appendChild(c);
+      var c = el('a', 'contact'); c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.textContent = '💬 聯絡我'; nav.appendChild(c);
       observe();
     }
   }
