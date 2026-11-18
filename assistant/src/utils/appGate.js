@@ -3,7 +3,7 @@
 import { sha256Hex } from './lock.js';
 
 export const GATE_HASH = '4dbe6922be393bbb300921031a78842f0b0476d40414e6aa9c8945dc82a11f93';
-export const GATE_REMEMBER_MS = 30 * 24 * 60 * 60 * 1000;
+export const GATE_REMEMBER_MS = 1 * 24 * 60 * 60 * 1000;
 export const GATE_MAX_TRIES = 5;
 export const GATE_COOLDOWN_MS = 30 * 1000;
 

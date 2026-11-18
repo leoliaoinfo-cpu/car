@@ -37,7 +37,7 @@ export default function AppGate({ children }) {
       <form onSubmit={submit} className="w-full max-w-xs text-center">
         <div className="text-4xl mb-3">🔒</div>
         <h1 className="text-lg font-bold text-ink mb-1">請輸入密碼</h1>
-        <p className="text-xs text-ink-3 mb-4">輸入後，這支手機 30 天內不用再輸入</p>
+        <p className="text-xs text-ink-3 mb-4">輸入後，這支手機 1 天內不用再輸入</p>
         <input
           type="password" inputMode="numeric" autoComplete="off" autoFocus maxLength={12}
           value={pin} onChange={(e) => { setPin(e.target.value); setErr(''); }}
