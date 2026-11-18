@@ -29,7 +29,7 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 199 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 201 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
@@ -53,6 +53,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **報價單不放成交鈕（2026-11-18，使用者反映很礙眼、容易誤按）**：`QuoteModal` 底部只有「儲存／預覽出圖／LINE 文字」，**不要再把「儲存並確認成交」加回來**；報價清單卡的「確認此報價成交／核對成交報價」改成主按鈕列下方的小字連結（仍有二次確認）。成交的正規入口是案件詳情的「指定這張成交」。
 - **清掉停用功能（2026-11-18，使用者要求）**：刪除 `reception/ReceptionPage.jsx`（客戶接待、展示模式）、`reception/TruckComparison.jsx`＋`utils/truckComparison.js`（競品比較，含客戶頁的入口按鈕）、`today/TodayPage.jsx`（舊今天頁）。工具選單的「K2500 規格」獨立成 `components/vehicles/VehicleQuickReference.jsx`。**只刪畫面程式，資料一筆都沒動**：`receptionSessions`、`client.truckComparison`、timers、events 等資料表與同步照舊，`context.jsx` 的存取函式與 `utils/reception.js`（車高參數仍在用）保留。`TimerModal` 保留（以前設過的提醒到期仍會跳出）。客戶頁（`ClientDetail`／`CrmPage`）內還有一些沒人呼叫的舊函式（紀念日、計時提醒、客戶階段），因為跟現用功能纏在一起，沒有硬拆。
 - **設定的密碼保護（2026-11-17）**：設定→報價選單（車型售價、配件價格、貸款、浮水印）要數字密碼才能看／改，用 `components/PinGate.jsx`（與「業績與成本」共用同一組密碼與 30 分鐘解鎖；沒設過密碼會先要求設定）。設定頁只留 常用（報價選單、雲端同步、備份還原、後台密碼）／其他（車高參數、使用說明）；客戶分類、產業選項、業績欄位、追蹤規則入口收起（資料與預設值保留）。
+- **入口密碼（2026-11-18，使用者要求，擋外人開網址）**：系統一開啟先出現密碼畫面（`components/AppGate.jsx`，包在 `main.jsx` 最外層，沒通過時不載入資料庫、不同步）。初始密碼 0623，只存雜湊（`utils/appGate.js`），通過後該裝置記住 30 天（`gateUnlockUntil`），連錯 5 次鎖 30 秒。**這只防外人隨手開啟，不是高強度保護**（雜湊在公開程式裡，4 位數可被有心人破解）；真正的資料保護仍靠資料在本機、雲端備份在私人 repo。要改密碼就改 `GATE_HASH`（`sha256('car-sales-gate:' + 新密碼)`）。
+- **產品介紹網頁**：獨立靜態頁在 `product-site/`（與系統無關，不讀系統資料），部署時複製成 `/car/products/`；網址不需密碼。排序用 `?edit` 拖拉後「複製順序」交給 Claude 更新，**不要在這個 repo 用寫入權杖**。
 - **客戶頁（階段 5）**：客戶詳情只留 基本資料、客戶案件（連到案件）、照片、待辦、「記錄聯繫」、互動時間軸；已移除 建立報價單／建立成交案／預計交車日／生日重要日子／計時提醒 與客戶頁案件流程看板（程式內部分狀態變數仍在、資料不動）。「記錄聯繫」不含「交車」（舊流程會建回訪提醒）。客戶清單搜尋框全寬。
 - **設定與用語（階段 6）**：設定分「常用（報價選單、雲端同步、備份還原）／進階」並可搜尋；客戶階段、自訂欄位、待辦範本、通知設定已收起（資料保留）。UI 用語統一：配件、廠商、客戶、回收筒。產品型錄（原廠文字）與接待、今天舊頁不改字。
 - **成交到交車（階段 4）**：案件詳情內直接有「施工進度」（`deals/CaseDeliveryChecklist.jsx`，一點完成、不需密碼）與配件核對；配件未備妥時完成「改裝配件安裝／交車」會跳警示（可選「仍要繼續」）；最後一步「確認交車」（`context.confirmDelivery`）只記錄交車日、案件標完成、收掉成交前待辦、認列薪資，**不再建立任何回訪／年度提醒、也不再設客戶追蹤日**。已交車的案件不再顯示缺配件警示。金額／成本頁（`OperationsPage`）新裝置首次進入要先設定數字密碼（不再有預設密碼）；密碼雜湊只存在該裝置 localStorage。e2e `assistant/e2e/stock-flow.mjs` 已更新為新導覽並全過。

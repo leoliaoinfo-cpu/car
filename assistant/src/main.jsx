@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { AppProvider } from './context';
+import AppGate from './components/AppGate';
 import { STORAGE_KEYS } from './storageKeys';
 
 // 在 React 畫面出現前還原本機主題，避免重開 APP 後按鈕顯示深色，畫面卻還是淺色。
@@ -15,8 +16,10 @@ try {
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AppProvider>
-      <App />
-    </AppProvider>
+    <AppGate>
+      <AppProvider>
+        <App />
+      </AppProvider>
+    </AppGate>
   </React.StrictMode>
 );
