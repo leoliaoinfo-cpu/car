@@ -83,7 +83,7 @@
     var c = cfg();
     if (!c.repo || !c.token) { openSettings(); return; }
     var btn = $('save'); btn.disabled = true; btn.textContent = '儲存中…';
-    var url = 'https://api.github.com/repos/' + c.repo + '/contents/order.json';
+    var url = 'https://api.github.com/repos/' + c.repo + '/contents/' + (/\/car$/.test(c.repo) ? 'product-site/order.json' : 'order.json');
     var h = { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json' };
     var data = collect();
     fetch(url, { headers: h }).then(function (r) {
@@ -107,6 +107,12 @@
   if (edit) {
     document.body.classList.add('edit');
     $('save').onclick = save;
+    $('copy').onclick = function () {
+      var txt = JSON.stringify({ groups: collect() });
+      var done = function () { toast('已複製順序，貼給 Claude 就會更新'); };
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, function () { window.prompt('長按全選複製', txt); });
+      else window.prompt('長按全選複製', txt);
+    };
     $('cfg').onclick = openSettings;
     $('exit').onclick = function () { location.href = location.pathname; };
     $('f-no').onclick = function () { $('set').style.display = 'none'; };
