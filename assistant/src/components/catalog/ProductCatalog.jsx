@@ -21,16 +21,6 @@ export default function ProductCatalog({ onClose }) {
     return () => { alive = false; };
   }, []);
 
-  const [copied, setCopied] = useState(false);
-  // 客戶專用公開網頁（不含任何客戶資料與成本，只有型錄圖）
-  const shareLink = async () => {
-    const url = new URL('share/', window.location.href).href;
-    try {
-      if (navigator.share) { await navigator.share({ title: 'KIA 卡旺 K2500 產品介紹', url }); return; }
-    } catch (e) { if (e && e.name === 'AbortError') return; }
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (e) { window.prompt('複製這個連結傳給客戶', url); }
-  };
-
   const total = items?.length || 0;
   const go = useCallback((dir) => {
     setLightbox((i) => (i == null ? i : (i + dir + total) % total));
@@ -73,14 +63,9 @@ export default function ProductCatalog({ onClose }) {
           <h2 className="font-bold text-lg text-ink flex items-center gap-2">📖 產品型錄</h2>
           <p className="text-xs text-ink-3 mt-0.5">KIA 卡旺產品圖片型錄 · 年式與售價以最新報價為準</p>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={shareLink} className="btn-ghost text-xs px-2 py-1" title="把產品介紹網頁傳給客戶">
-            {copied ? '已複製連結' : '🔗 傳給客戶'}
-          </button>
-          {onClose && (
-            <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1" title="關閉">✕</button>
-          )}
-        </div>
+        {onClose && (
+          <button onClick={onClose} className="btn-ghost text-xl leading-none px-2 py-1" title="關閉">✕</button>
+        )}
       </div>
 
       {items == null ? (
