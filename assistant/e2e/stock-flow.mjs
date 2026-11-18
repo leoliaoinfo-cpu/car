@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 const S='/tmp/car-e2e';
 const b=await chromium.launch();
 const ctx=await b.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:2});
+await ctx.addInitScript(()=>{localStorage.setItem('car-sales.gate.unlockUntil',String(Date.now()+864e5));});
 const p=await ctx.newPage(); p.setDefaultTimeout(8000);
 const errs=[]; p.on('pageerror',e=>errs.push(String(e)));
 const fails=[]; const step=async(n,f)=>{try{await f();console.log('PASS',n);}catch(e){fails.push(n);console.log('FAIL',n,String(e).split('\n')[0]);}};

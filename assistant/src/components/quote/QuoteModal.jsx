@@ -390,6 +390,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           bundleIncludedIds: null,
           bundleExcludedIds: [],
           discounts: (it.discounts || []).map((row) => ({ ...row, amount: String(row.amount) })),
+          deductions: (it.deductions || []).map((row) => ({ ...row, amount: String(row.amount) })),
         };
       })
       : [{ id: generateId('qi'), name: '車輛售價', price: '', pending: false, gift: false, kind: 'vehicle', catalogId: null, discounts: [] }]
@@ -686,6 +687,16 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     setItems((list) => list.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }
 
+  // 扣項：客人不要套裝（特仕版、安全科技版…）裡的某一項時，記下名稱與扣多少。
+  // 單價 price 一律是「扣完後」的金額，原價 = price + 扣項合計，所以總額、貸款、成交都自動跟著對。
+  function setItemDeductions(id, nextRows) {
+    setItems((list) => list.map((it) => {
+      if (it.id !== id) return it;
+      const base = (Number(it.price) || 0) + deductionTotal(it.deductions);
+      return { ...it, deductions: nextRows, price: String(Math.max(0, base - deductionTotal(nextRows))) };
+    }));
+  }
+
   function addItem() {
     setItems((list) => [...list, {
       id: generateId('qi'), name: '', price: '', pending: false, gift: false, kind: 'other', catalogId: null, discounts: [],
@@ -785,6 +796,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         bundleIncludedIds: Array.isArray(it.bundleIncludedIds) ? [...it.bundleIncludedIds] : null,
         bundleExcludedIds: Array.isArray(it.bundleExcludedIds) ? [...it.bundleExcludedIds] : [],
         backendCustom: !!it.backendCustom,
+        deductions: it.pending || it.gift ? [] : (it.deductions || [])
+          .filter((row) => String(row.name || '').trim() && Number(row.amount) > 0)
+          .map((row) => ({ id: row.id, name: String(row.name).trim(), amount: Number(row.amount) || 0 })),
         discounts: it.pending || it.gift ? [] : (it.discounts || [])
           .filter((row) => row.name.trim() && Number(row.amount) > 0)
           .map((row) => ({ id: row.id, name: row.name.trim(), amount: Number(row.amount) || 0 })),
@@ -1458,6 +1472,10 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       </div>
                     </div>
                   )}
+                  {selected && !it.pending && !it.gift && it.kind !== 'vehicle' && (
+                    <ItemDeductions item={it} suggestions={deductionSuggestions(catalogAddon, quotePresets.addons)}
+                      onChange={(rows) => setItemDeductions(it.id, rows)} />
+                  )}
                   {selected && !it.pending && !it.gift && (
                     <div className="flex items-center gap-2 rounded-lg border border-ok/30 bg-ok/5 p-2">
                       <label htmlFor={`central-discount-${it.id}`} className="flex-1 min-w-0">
@@ -1704,6 +1722,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                                   備註：{item.note}
                                 </span>
                               )}
+                              {(item.deductions || []).filter((row) => Number(row.amount) > 0).map((row) => (
+                                <span key={row.id} style={{ display: 'block', color: '#9a6d3e', fontSize: 10.5, marginTop: 2 }}>
+                                  不含：{row.name}（扣 {formatMoney(row.amount)}）
+                                </span>
+                              ))}
                             </span>
                             <span style={{
                               width: 92, minWidth: 92, textAlign: 'right', whiteSpace: 'nowrap',
@@ -1935,5 +1958,64 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         </div>
       )}
     </>
+  );
+}
+
+function deductionTotal(rows) {
+  return (rows || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+}
+
+// 特仕版、安全科技版這類套裝，列出裡面的項目，點一下就帶入扣項名稱。
+function deductionSuggestions(catalogAddon, addons) {
+  if (!catalogAddon) return [];
+  if (Array.isArray(catalogAddon.includes) && catalogAddon.includes.length) {
+    return catalogAddon.includes.map((id) => addons.find((a) => a.id === id)?.name).filter(Boolean);
+  }
+  if (catalogAddon.id === 'qa-pkg1') return String(catalogAddon.desc || '').split('、').map((x) => x.trim()).filter(Boolean);
+  return [];
+}
+
+function ItemDeductions({ item, suggestions, onChange }) {
+  const rows = item.deductions || [];
+  const [open, setOpen] = useState(rows.length > 0);
+  const sum = deductionTotal(rows);
+  const original = (Number(item.price) || 0) + sum;
+  const update = (id, patch) => onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const add = (name = '') => { setOpen(true); onChange([...rows, { id: generateId('qd'), name, amount: '' }]); };
+  if (!open) {
+    return (
+      <button type="button" onClick={() => (suggestions.length ? setOpen(true) : add())} className="btn-outline text-[11px] w-full">
+        ➖ 客人不要其中一項（備註＋扣款）
+      </button>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-warn/35 bg-warn/5 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-ink-2">➖ 扣項（客人不要的項目）</p>
+        <button type="button" onClick={() => add()} className="btn-outline text-[11px] shrink-0">＋ 自己輸入</button>
+      </div>
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions.map((name) => (
+            <button key={name} type="button" onClick={() => add(name)}
+              className="min-h-9 rounded-lg border border-bdr bg-s1 px-2 text-[11px] text-ink-2">{name}</button>
+          ))}
+        </div>
+      )}
+      {rows.map((row) => (
+        <div key={row.id} className="grid grid-cols-[minmax(0,1fr)_6.5rem_1.5rem] gap-2 items-center">
+          <input value={row.name} onChange={(e) => update(row.id, { name: e.target.value })}
+            placeholder="不要的項目，例如：行車紀錄器" className="text-xs min-w-0" />
+          <input type="number" min="0" inputMode="numeric" value={row.amount}
+            onChange={(e) => update(row.id, { amount: e.target.value })} placeholder="扣多少" className="text-xs w-full" />
+          <button type="button" aria-label="刪除此扣項" onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
+            className="text-danger/50 hover:text-danger px-1">✕</button>
+        </div>
+      ))}
+      {sum > 0 && (
+        <p className="text-[11px] text-ink-3">原價 {formatMoney(original)}　扣 {formatMoney(sum)}　→ 這項實收 <b className="text-ink">{formatMoney(Number(item.price) || 0)}</b></p>
+      )}
+    </div>
   );
 }

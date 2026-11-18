@@ -135,3 +135,18 @@ test('builds the exact K2500 proposal math without adding gift value into the sa
   assert.match(message, /🎁 抗震優力膠（價值 7,800 元）/);
   assert.match(message, /車價折扣加上贈品，總優惠 61,300 元/);
 });
+
+test('LINE 報價列出套裝裡客人不要的項目與扣款，總額用扣後價', () => {
+  const message = buildQuoteMessage({
+    customerName: '王先生',
+    model: '單廂3人座 5速手排',
+    modelYear: 2027,
+    items: [
+      { id: 'v', kind: 'vehicle', name: '車輛售價', price: 858000 },
+      { id: 'a', kind: 'addon', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 27000,
+        deductions: [{ id: 'd1', name: '行車紀錄器', amount: 3000 }] },
+    ],
+  });
+  assert.match(message, /特仕版套件：\+2\.7 萬/);
+  assert.match(message, /不含：行車紀錄器（已扣 0\.3 萬）/);
+});

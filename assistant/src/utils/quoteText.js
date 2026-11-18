@@ -77,6 +77,11 @@ export function buildQuoteMessage({
     else if (!item.gift) lines.push(`${name}：+${formatLineWan(item.price)}`);
     const itemNote = String(item.note || '').trim();
     if (itemNote) lines.push(`  備註：${itemNote}`);
+    for (const row of Array.isArray(item.deductions) ? item.deductions : []) {
+      const amount = money(row?.amount);
+      const rowName = String(row?.name || '').trim();
+      if (amount && rowName) lines.push(`  不含：${rowName}（已扣 ${formatLineWan(amount)}）`);
+    }
   }
 
   lines.push('----------', `原價總計：${formatLineWan(totals.originalTotal)}`, '----------');
