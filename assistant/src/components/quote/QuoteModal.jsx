@@ -1397,7 +1397,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               </div>
             </details>
             {selectedItems.length > 0 && <p className="text-xs font-bold text-ink-2">已選項目（可改價、給優惠、選規格、扣項）</p>}
-            {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
+            {includedQuoteItems(items, excludeVehiclePrice).map((it, itemIndex) => {
               const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
               const needsColorNote = PAINT_COLOR_CATALOG_IDS.has(it.catalogId);
@@ -1405,17 +1405,21 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
               const catalogAddon = quotePresets.addons.find((addon) => addon.id === it.catalogId);
               const heightImpact = addonHeightImpact(catalogAddon || it.catalogId, heightConfig);
               return (
-                <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2.5 space-y-2">
-                  <div className="flex gap-2">
-                    <input value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value })}
-                      placeholder="配件 / 保險 / 領牌…" className="flex-1 text-sm min-w-0" />
+                <div key={it.id} className="rounded-xl border-2 border-accent/45 bg-s1 shadow-card overflow-hidden">
+                  <div className="flex flex-wrap items-start gap-2 bg-accent/15 border-b-2 border-accent/30 px-2.5 py-2">
+                    <span className="shrink-0 mt-1.5 w-6 h-6 rounded-full bg-accent text-on-accent text-[11px] font-bold flex items-center justify-center">{itemIndex + 1}</span>
+                    <textarea value={it.name} onChange={(e) => setItem(it.id, { name: e.target.value.replace(/\n/g, ' ') })}
+                      rows={Math.min(3, Math.max(1, Math.ceil(String(it.name || '').length / 13)))}
+                      placeholder="配件 / 保險 / 領牌…" aria-label="項目名稱"
+                      className="flex-1 text-sm font-semibold min-w-0 resize-none leading-snug" />
                     <input type="number" min="0" value={it.price}
                       onChange={(e) => setItem(it.id, { price: e.target.value })}
                       disabled={it.pending} placeholder={it.pending ? '待廠商報價' : it.gift ? '贈送價值' : '0'}
-                      className="w-28 text-sm disabled:opacity-40" />
+                      aria-label="金額" className="order-last w-full text-sm disabled:opacity-40" />
                     <ConfirmDeleteButton onConfirm={() => removeItem(it.id)} ariaLabel="刪除此項目"
                       className="text-danger/50 hover:text-danger shrink-0 px-1" />
                   </div>
+                  <div className="p-2.5 space-y-2.5">
                   {heightImpact && (
                     <p className="rounded-lg border border-warn/35 bg-warn/10 px-2.5 py-2 text-[11px] font-semibold text-warn leading-relaxed">
                       ⚠️ {heightImpact.detail}
@@ -1488,6 +1492,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                         placeholder="0" className="w-28 min-h-11 text-xs" />
                     </div>
                   )}
+                  </div>
                 </div>
               );
             })}
@@ -1984,15 +1989,16 @@ function ItemDeductions({ item, suggestions, onChange }) {
   const add = (name = '') => { setOpen(true); onChange([...rows, { id: generateId('qd'), name, amount: '' }]); };
   if (!open) {
     return (
-      <button type="button" onClick={() => (suggestions.length ? setOpen(true) : add())} className="btn-outline text-[11px] w-full">
+      <button type="button" onClick={() => (suggestions.length ? setOpen(true) : add())}
+        className="w-full min-h-11 rounded-lg border-2 border-dashed border-warn/60 bg-warn/10 text-[12px] font-semibold text-ink-2">
         ➖ 客人不要其中一項（備註＋扣款）
       </button>
     );
   }
   return (
-    <div className="rounded-lg border border-warn/35 bg-warn/5 p-2 space-y-2">
+    <div className="rounded-lg border-2 border-warn/60 bg-warn/10 p-2 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold text-ink-2">➖ 扣項（客人不要的項目）</p>
+        <p className="text-[12px] font-bold text-ink-2">➖ 扣項（客人不要的項目）</p>
         <button type="button" onClick={() => add()} className="btn-outline text-[11px] shrink-0">＋ 自己輸入</button>
       </div>
       {suggestions.length > 0 && (
