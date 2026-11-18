@@ -7,6 +7,12 @@
     aero: '外觀空力套件', paint: '車身改色', wheel: '鋁圈升級',
     chassis: '底盤載重強化', metal: '金屬製研'
   };
+  // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
+  var SIZE = {
+    price: [1024, 1535], package: [1080, 1438], equip: [1080, 1440], android: [1024, 1536], audio: [1060, 1484],
+    lights: [1060, 1484], tail: [1050, 1498], fog: [1080, 1440], gtr: [1071, 1469], 'gtr-cut': [1080, 1451],
+    'gtr-plus': [1080, 1482], aero: [1080, 1350], paint: [1080, 1350], wheel: [1080, 1441], chassis: [1080, 1350], metal: [1080, 1440]
+  };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
@@ -42,15 +48,21 @@
 
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.textContent = html; return e; }
 
+  var NAV_ICON = {};
+  var order = []; // 放大瀏覽用：目前畫面上圖片順序
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
   function render() {
     var root = $('groups'), nav = $('nav');
-    root.innerHTML = ''; nav.innerHTML = '';
+    root.innerHTML = ''; nav.innerHTML = ''; order = [];
+    var shown = 0;
     groups.forEach(function (g, gi) {
       if (!edit && !g.i.length) return;
-      var a = el('a', '', g.t); a.href = '#g' + gi; nav.appendChild(a);
+      shown++;
       var sec = el('section'); sec.id = 'g' + gi;
-      sec.appendChild(el('h2', '', g.t));
       if (edit) {
+        sec.appendChild(el('h2', '', g.t));
         var grid = el('div', 'grid'); grid.setAttribute('data-g', gi);
         g.i.forEach(function (k) {
           var d = el('div', 'it'); d.setAttribute('data-k', k);
@@ -60,17 +72,74 @@
         sec.appendChild(grid);
         new Sortable(grid, { group: 'p', animation: 150, delay: 150, delayOnTouchOnly: true, ghostClass: 'sortable-ghost' });
       } else {
+        var a = el('a'); a.href = '#g' + gi; a.setAttribute('data-t', 'g' + gi);
+        a.appendChild(el('i', '', pad(shown))); a.appendChild(document.createTextNode(g.t)); nav.appendChild(a);
+        var sh = el('div', 'sh');
+        sh.appendChild(el('span', 'no', pad(shown))); sh.appendChild(el('h2', '', g.t)); sh.appendChild(el('span', 'ct', g.i.length + ' 項'));
+        sec.appendChild(sh);
+        var list = el('div', 'list');
         g.i.forEach(function (k, n) {
-          var f = el('figure'); var im = el('img');
-          im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k]; if (gi + n > 1) im.loading = 'lazy';
-          im.onclick = function () { var lb = $('lb'); lb.querySelector('img').src = im.src; lb.style.display = 'flex'; };
-          f.appendChild(im); sec.appendChild(f);
+          var idx = order.length; order.push(k);
+          var f = el('figure', 'card');
+          var ph = el('div', 'ph'); var im = el('img');
+          im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k];
+          if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; ph.style.aspectRatio = SIZE[k][0] + ' / ' + SIZE[k][1]; }
+          if (idx > 1) im.loading = 'lazy';
+          ph.appendChild(im); f.appendChild(ph);
+          var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); cap.appendChild(el('i', '', '點圖放大 ⤢')); f.appendChild(cap);
+          f.onclick = function () { openLb(idx); };
+          list.appendChild(f);
         });
+        sec.appendChild(list);
       }
       root.appendChild(sec);
     });
-    if (!edit) { var c = document.createElement('a'); c.href = '#contact'; c.textContent = '聯絡我'; nav.appendChild(c); }
+    if (!edit) {
+      var c = el('a', 'contact'); c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.textContent = '📞 聯絡我'; nav.appendChild(c);
+      observe();
+    }
   }
+
+  // 捲到哪一區，上方快速鍵就亮哪一顆；圖片進入畫面時淡入
+  var io1, io2;
+  function observe() {
+    if (!('IntersectionObserver' in window)) { document.querySelectorAll('figure.card').forEach(function (f) { f.classList.add('in'); }); return; }
+    if (io1) io1.disconnect(); if (io2) io2.disconnect();
+    io2 = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io2.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('figure.card').forEach(function (f) { io2.observe(f); });
+    var secs = Array.prototype.slice.call(document.querySelectorAll('#groups section, #contact'));
+    var setOn = function (id) {
+      var navEl = $('nav');
+      Array.prototype.forEach.call(navEl.children, function (a) {
+        var on = a.getAttribute('data-t') === id;
+        a.classList.toggle('on', on);
+        if (on) { var l = a.offsetLeft - (navEl.clientWidth - a.offsetWidth) / 2; navEl.scrollTo({ left: l, behavior: 'smooth' }); }
+      });
+    };
+    io1 = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) setOn(e.target.id); });
+    }, { rootMargin: '-35% 0px -60% 0px' });
+    secs.forEach(function (s) { io1.observe(s); });
+    // 首屏已有大按鈕、或聯絡區已在畫面時，收起底部聯絡列（避免重複）
+    if (secs[0]) setOn(secs[0].id);
+    var seeCta = true, seeContact = false;
+    var upd = function () { $('call').classList.toggle('hide', seeCta || seeContact); };
+    new IntersectionObserver(function (es) { seeCta = es[0].isIntersecting; upd(); }, { threshold: 0.2 }).observe(document.querySelector('.cta'));
+    new IntersectionObserver(function (es) { seeContact = es[0].isIntersecting && es[0].intersectionRatio > 0.25; upd(); }, { threshold: [0, 0.25, 0.5] }).observe($('contact'));
+    upd();
+  }
+
+  // 放大瀏覽：可左右切換（按鈕或滑動）
+  var cur = 0, tx = null;
+  function showLb() {
+    var k = order[cur];
+    $('lb-i').src = 'img/' + k + '.jpg'; $('lb-i').alt = IMGS[k];
+    $('lb-t').textContent = IMGS[k];
+    var s = document.createElement('small'); s.textContent = (cur + 1) + ' / ' + order.length; $('lb-t').appendChild(s);
+  }
+  function openLb(i) { cur = i; showLb(); $('lb').style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+  function closeLb() { $('lb').style.display = 'none'; document.body.style.overflow = ''; }
+  function stepLb(d) { cur = (cur + d + order.length) % order.length; showLb(); }
 
   function collect() {
     var out = [];
@@ -131,7 +200,20 @@
     };
   } else {
     var lb = $('lb');
-    lb.onclick = function (e) { if (e.target.tagName !== 'IMG') lb.style.display = 'none'; };
+    $('lb-x').onclick = closeLb;
+    $('lb-p').onclick = function (e) { e.stopPropagation(); stepLb(-1); };
+    $('lb-n').onclick = function (e) { e.stopPropagation(); stepLb(1); };
+    lb.addEventListener('click', function (e) { if (e.target.classList.contains('stage')) closeLb(); });
+    lb.addEventListener('touchstart', function (e) { tx = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
+    lb.addEventListener('touchend', function (e) {
+      if (!tx || e.changedTouches.length !== 1) return;
+      var dx = e.changedTouches[0].clientX - tx.x, dy = e.changedTouches[0].clientY - tx.y; tx = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) stepLb(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    document.addEventListener('keydown', function (e) {
+      if ($('lb').style.display !== 'flex') return;
+      if (e.key === 'Escape') closeLb(); else if (e.key === 'ArrowRight') stepLb(1); else if (e.key === 'ArrowLeft') stepLb(-1);
+    });
   }
 
   function getJson(url) {
