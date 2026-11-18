@@ -8,10 +8,10 @@
     chassis: '底盤載重強化', metal: '金屬製研'
   };
   var DEFAULT = [
-    { t: '車型與套裝', i: ['price', 'package'] },
-    { t: '配備與影音', i: ['equip', 'android', 'audio'] },
-    { t: '燈光', i: ['lights', 'tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus'] },
-    { t: '外觀與輪圈', i: ['aero', 'paint', 'wheel'] },
+    { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
+    { t: '配備與影音', i: ['android', 'audio'] },
+    { t: '燈光', i: ['tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus'] },
+    { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
     { t: '底盤與金屬', i: ['chassis', 'metal'] }
   ];
   var KEY = 'kp-cfg';
