@@ -24,11 +24,31 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:0 16px 48px}
 #lb{display:none;position:fixed;inset:0;z-index:20;background:#000;align-items:center;justify-content:center}
 #lb img{max-width:100%;max-height:100%;touch-action:pinch-zoom}
 #lb b{position:absolute;top:12px;right:16px;font-size:28px;font-weight:400}
+.card{background:var(--card);border-radius:14px;padding:18px;line-height:1.7;font-size:15px}
+.card a{color:#ff6b7a}.name{font-size:22px;font-weight:700}.name span{font-size:13px;color:var(--mute);font-weight:400}
+.role{color:var(--mute);font-size:13px;margin-bottom:12px}
+.btn{display:block;text-align:center;background:var(--ac);color:#fff!important;padding:12px;border-radius:10px;font-size:18px;font-weight:700;text-decoration:none}
+.qrs{display:flex;gap:16px;justify-content:center;margin:16px 0}.qrs div{text-align:center}.qrs img{width:130px;background:#fff;border-radius:8px;display:block}.qrs small{color:var(--mute)}
+.shop{border-top:1px solid #2c3138;padding:12px 0}.map{display:inline-block;margin-top:4px}
+.tip{margin:6px 0;font-weight:600}.ent{width:100%;height:auto;border-radius:10px;display:block}
+#call{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:9;background:var(--ac);color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 </style></head><body>
 <header><small>KIA K2500</small><h1>卡旺 車型與改裝配件介紹</h1><p>點圖可放大，兩指縮放。實際價格與優惠以現場報價為準。</p></header>
-<nav><div><a href="#g0">車型與套裝</a><a href="#g1">配備與影音</a><a href="#g2">燈光</a><a href="#g3">外觀與輪圈</a><a href="#g4">底盤與金屬</a></div></nav>
-<main><section id="g0"><h2>車型與套裝</h2><figure><img src="img/price.jpg" alt="K2500 車型售價表" loading="lazy"></figure><figure><img src="img/package.jpg" alt="雙廂高階套裝" loading="lazy"></figure></section><section id="g1"><h2>配備與影音</h2><figure><img src="img/equip.jpg" alt="配備升級" loading="lazy"></figure><figure><img src="img/android.jpg" alt="12.3 吋安卓四錄旗艦機" loading="lazy"></figure><figure><img src="img/audio.jpg" alt="音響升級" loading="lazy"></figure></section><section id="g2"><h2>燈光</h2><figure><img src="img/lights.jpg" alt="燈組升級" loading="lazy"></figure><figure><img src="img/tail.jpg" alt="LED 光環尾燈組" loading="lazy"></figure><figure><img src="img/fog.jpg" alt="魚眼霧燈升級" loading="lazy"></figure><figure><img src="img/gtr.jpg" alt="GTR 大燈升級" loading="lazy"></figure><figure><img src="img/gtr-cut.jpg" alt="三階切線說明" loading="lazy"></figure><figure><img src="img/gtr-plus.jpg" alt="GTR plus 雙切驗車模組" loading="lazy"></figure></section><section id="g3"><h2>外觀與輪圈</h2><figure><img src="img/aero.jpg" alt="外觀空力套件" loading="lazy"></figure><figure><img src="img/paint.jpg" alt="車身改色" loading="lazy"></figure><figure><img src="img/wheel.jpg" alt="鋁圈升級" loading="lazy"></figure></section><section id="g4"><h2>底盤與金屬</h2><figure><img src="img/chassis.jpg" alt="底盤載重強化" loading="lazy"></figure><figure><img src="img/metal.jpg" alt="金屬製研" loading="lazy"></figure></section></main>
+<nav><div><a href="#g0">車型與套裝</a><a href="#g1">配備與影音</a><a href="#g2">燈光</a><a href="#g3">外觀與輪圈</a><a href="#g4">底盤與金屬</a><a href="#contact">聯絡我</a></div></nav>
+<main><section id="g0"><h2>車型與套裝</h2><figure><img src="img/price.jpg" alt="K2500 車型售價表" loading="lazy"></figure><figure><img src="img/package.jpg" alt="雙廂高階套裝" loading="lazy"></figure></section><section id="g1"><h2>配備與影音</h2><figure><img src="img/equip.jpg" alt="配備升級" loading="lazy"></figure><figure><img src="img/android.jpg" alt="12.3 吋安卓四錄旗艦機" loading="lazy"></figure><figure><img src="img/audio.jpg" alt="音響升級" loading="lazy"></figure></section><section id="g2"><h2>燈光</h2><figure><img src="img/lights.jpg" alt="燈組升級" loading="lazy"></figure><figure><img src="img/tail.jpg" alt="LED 光環尾燈組" loading="lazy"></figure><figure><img src="img/fog.jpg" alt="魚眼霧燈升級" loading="lazy"></figure><figure><img src="img/gtr.jpg" alt="GTR 大燈升級" loading="lazy"></figure><figure><img src="img/gtr-cut.jpg" alt="三階切線說明" loading="lazy"></figure><figure><img src="img/gtr-plus.jpg" alt="GTR plus 雙切驗車模組" loading="lazy"></figure></section><section id="g3"><h2>外觀與輪圈</h2><figure><img src="img/aero.jpg" alt="外觀空力套件" loading="lazy"></figure><figure><img src="img/paint.jpg" alt="車身改色" loading="lazy"></figure><figure><img src="img/wheel.jpg" alt="鋁圈升級" loading="lazy"></figure></section><section id="g4"><h2>底盤與金屬</h2><figure><img src="img/chassis.jpg" alt="底盤載重強化" loading="lazy"></figure><figure><img src="img/metal.jpg" alt="金屬製研" loading="lazy"></figure></section><section id="contact" style="padding-top:8px">
+<h2>聯絡我</h2>
+<div class="card">
+<div class="name">廖冠銘 <span>LEO</span></div>
+<div class="role">KIA 商用車彰化區總代理・俊宇車業有限公司</div>
+<a class="btn" href="tel:0979670565">📞 0979-670-565</a>
+<div class="qrs"><div><img src="img/qr-line.png" alt="LINE QR"><small>LINE</small></div><div><img src="img/qr-fb.png" alt="Facebook QR"><small>Facebook</small></div></div>
+<div class="shop"><b>彰化所</b><br>彰化市線東路一段478號<br>新車部 <a href="tel:047615003">04-7615003</a>　服務部 <a href="tel:047615995">04-7615995</a><br><a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=%E5%BD%B0%E5%8C%96%E5%B8%82%E7%B7%9A%E6%9D%B1%E8%B7%AF%E4%B8%80%E6%AE%B5478%E8%99%9F">📍 開啟地圖導航</a></div>
+<div class="shop"><b>員林所</b><br>員林市莒光路524號<br>新車部 <a href="tel:048332989">04-8332989</a><br><a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=%E5%93%A1%E6%9E%97%E5%B8%82%E8%8E%92%E5%85%89%E8%B7%AF524%E8%99%9F">📍 開啟地圖導航</a></div>
+<p class="tip">彰化所開車前來，請直接從旁邊的服務廠入口車道進入：</p>
+<img class="ent" src="img/entrance.jpg" alt="彰化所服務廠入口" loading="lazy">
+</div></section></main>
 <footer>圖片為原廠與配件廠行銷資料</footer>
+<a id="call" href="tel:0979670565">📞 打電話給我</a>
 <div id="lb"><b>✕</b><img alt=""></div>
 <script>
 var lb=document.getElementById('lb'),li=lb.querySelector('img');
