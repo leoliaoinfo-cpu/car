@@ -1396,7 +1396,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             </div>
               </div>
             </details>
-            {selectedItems.length > 0 && <p className="text-xs font-bold text-ink-2">已選項目（可改價、給優惠、選規格）</p>}
+            {selectedItems.length > 0 && <p className="text-xs font-bold text-ink-2">已選項目（可改價、給優惠、選規格、扣項）</p>}
             {includedQuoteItems(items, excludeVehiclePrice).map((it) => {
               const selected = it.name.trim() && (it.pending || it.gift || Number(it.price) > 0);
               const discountSum = (it.discounts || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);

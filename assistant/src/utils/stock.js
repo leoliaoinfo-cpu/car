@@ -11,6 +11,13 @@ export function missingStockItems(deal) {
   return (deal?.stockItems || []).filter((item) => !STOCK_SETTLED.includes(item.status));
 }
 
+// 客人不要的套裝項目（報價「扣項」）：寫進配件備註，點貨時一眼看到少哪幾項。
+function deductionNote(item) {
+  const names = (item.deductions || []).map((row) => String(row?.name || '').trim()).filter(Boolean);
+  return names.length ? `客人不要：${names.join('、')}` : '';
+}
+function joinNotes(...parts) { return parts.map((x) => String(x || '').trim()).filter(Boolean).join('；'); }
+
 export function stockItemsFromQuote(quote, addons = []) {
   const catalog = new Map(addons.map((item) => [item.id, item]));
   const result = [];
@@ -24,12 +31,12 @@ export function stockItemsFromQuote(quote, addons = []) {
         const component = catalog.get(id);
         result.push({ id: `${item.id}:${id}`, catalogId: id, name: component?.name || `${item.name}・${id}`,
           specification: String(component?.choiceLabel || '').trim(), quantity: 1, status: item.pending ? 'inquiry' : 'todo',
-          note: String(item.note || item.description || '').trim(), gift: !!item.gift, fromBundle: item.name });
+          note: joinNotes(item.note || item.description, deductionNote(item)), gift: !!item.gift, fromBundle: item.name });
       }
     } else {
       result.push({ id: item.id, catalogId: item.catalogId || null, name: item.name.trim(),
         specification: String(item.optionValue || item.optionLabel || '').trim(), quantity: 1,
-        status: item.pending ? 'inquiry' : 'todo', note: String(item.note || item.vendorInquiryNote || item.description || '').trim(), gift: !!item.gift });
+        status: item.pending ? 'inquiry' : 'todo', note: joinNotes(item.note || item.vendorInquiryNote || item.description, deductionNote(item)), gift: !!item.gift });
     }
   }
   return result;

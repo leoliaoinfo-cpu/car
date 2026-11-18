@@ -39,3 +39,14 @@ test('alerts only when delivery is near with missing goods or inquiry lacks foll
   assert.equal(alert.inquiryNoDate, true);
   assert.equal(stockAlert({ stockItems: [{ status: 'ready' }] }, { desiredDeliveryDate: '2026-11-13' }, new Date('2026-11-10T10:00:00')).deliveryRisk, false);
 });
+
+test('報價扣項會寫進配件核對表備註', async () => {
+  const { stockItemsFromQuote } = await import('./stock.js');
+  const rows = stockItemsFromQuote({ items: [
+    { id: 'a', kind: 'addon', name: '特仕版套件', price: 27000, note: '黑色',
+      deductions: [{ id: 'd1', name: '行車紀錄器', amount: 3000 }, { id: 'd2', name: 'GPS天眼測速', amount: 1000 }] },
+    { id: 'b', kind: 'addon', name: '尿素桶防撞桿', price: 5000 },
+  ] });
+  assert.equal(rows[0].note, '黑色；客人不要：行車紀錄器、GPS天眼測速');
+  assert.equal(rows[1].note, '');
+});
