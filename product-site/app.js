@@ -86,8 +86,7 @@
           if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; ph.style.aspectRatio = SIZE[k][0] + ' / ' + SIZE[k][1]; }
           if (idx > 1) im.loading = 'lazy';
           ph.appendChild(im); f.appendChild(ph);
-          var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); cap.appendChild(el('i', '', '點圖放大 ⤢')); f.appendChild(cap);
-          f.onclick = function () { openLb(idx); };
+          var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
           list.appendChild(f);
         });
         sec.appendChild(list);
@@ -129,17 +128,6 @@
     upd();
   }
 
-  // 放大瀏覽：可左右切換（按鈕或滑動）
-  var cur = 0, tx = null;
-  function showLb() {
-    var k = order[cur];
-    $('lb-i').src = 'img/' + k + '.jpg'; $('lb-i').alt = IMGS[k];
-    $('lb-t').textContent = IMGS[k];
-    var s = document.createElement('small'); s.textContent = (cur + 1) + ' / ' + order.length; $('lb-t').appendChild(s);
-  }
-  function openLb(i) { cur = i; showLb(); $('lb').style.display = 'flex'; document.body.style.overflow = 'hidden'; }
-  function closeLb() { $('lb').style.display = 'none'; document.body.style.overflow = ''; }
-  function stepLb(d) { cur = (cur + d + order.length) % order.length; showLb(); }
 
   function collect() {
     var out = [];
@@ -199,21 +187,7 @@
       $('set').style.display = 'none'; toast('設定已存，再按一次「儲存發佈」');
     };
   } else {
-    var lb = $('lb');
-    $('lb-x').onclick = closeLb;
-    $('lb-p').onclick = function (e) { e.stopPropagation(); stepLb(-1); };
-    $('lb-n').onclick = function (e) { e.stopPropagation(); stepLb(1); };
-    lb.addEventListener('click', function (e) { if (e.target.classList.contains('stage')) closeLb(); });
-    lb.addEventListener('touchstart', function (e) { tx = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; }, { passive: true });
-    lb.addEventListener('touchend', function (e) {
-      if (!tx || e.changedTouches.length !== 1) return;
-      var dx = e.changedTouches[0].clientX - tx.x, dy = e.changedTouches[0].clientY - tx.y; tx = null;
-      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.4) stepLb(dx < 0 ? 1 : -1);
-    }, { passive: true });
-    document.addEventListener('keydown', function (e) {
-      if ($('lb').style.display !== 'flex') return;
-      if (e.key === 'Escape') closeLb(); else if (e.key === 'ArrowRight') stepLb(1); else if (e.key === 'ArrowLeft') stepLb(-1);
-    });
+    // 不提供放大瀏覽（使用者決定）
   }
 
   function getJson(url) {
