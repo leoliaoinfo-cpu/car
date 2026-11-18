@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>KIA 卡旺 K2500 產品介紹</title>
+<meta name="description" content="KIA 卡旺 K2500 車型、配備與改裝配件介紹">
+<meta property="og:title" content="KIA 卡旺 K2500 產品介紹">
+<meta property="og:image" content="../catalog/03-model-prices.jpg">
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#1a1d23;--ink3:#6b7280;--bd:#e3e6ea;--ac:#c8102e}
+@media(prefers-color-scheme:dark){:root{--bg:#111316;--card:#1b1e23;--ink:#eceef1;--ink3:#9aa1ab;--bd:#2c3037}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang TC","Noto Sans TC",sans-serif;-webkit-text-size-adjust:100%}
+header{padding:20px 16px 8px;max-width:760px;margin:0 auto}
+h1{margin:0;font-size:22px}
+header p{margin:4px 0 0;color:var(--ink3);font-size:13px}
+nav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--bd);padding:8px 0}
+nav div{max-width:760px;margin:0 auto;padding:0 16px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+nav a{flex:none;font-size:13px;padding:6px 12px;border-radius:999px;background:var(--card);border:1px solid var(--bd);color:var(--ink);text-decoration:none}
+main{max-width:760px;margin:0 auto;padding:12px 16px 60px}
+figure{margin:0 0 18px;background:var(--card);border:1px solid var(--bd);border-radius:14px;overflow:hidden;scroll-margin-top:60px}
+figcaption{padding:10px 14px;font-size:14px;font-weight:600}
+figure img{display:block;width:100%;height:auto;background:#ddd}
+footer{text-align:center;color:var(--ink3);font-size:12px;padding:0 16px 40px}
+#lb{display:none;position:fixed;inset:0;z-index:20;background:#000;align-items:center;justify-content:center}
+#lb img{max-width:100%;max-height:100%;touch-action:pinch-zoom}
+#lb b{position:absolute;top:12px;right:16px;color:#fff;font-size:28px;font-weight:400}
+</style>
+</head>
+<body>
+<header>
+  <h1>KIA 卡旺 K2500 產品介紹</h1>
+  <p>點圖可放大，兩指可縮放。年式與售價以業務最新報價為準。</p>
+</header>
+<nav><div id="nav"></div></nav>
+<main id="list"><p style="color:var(--ink3)">載入中…</p></main>
+<footer>圖片為原廠與配件行銷型錄</footer>
+<div id="lb"><b>✕</b><img alt=""></div>
+<script>
+fetch('../catalog/manifest.json').then(function(r){return r.json()}).then(function(items){
+  var list=document.getElementById('list'),nav=document.getElementById('nav');
+  list.innerHTML='';
+  items.forEach(function(it,i){
+    var id='p'+(i+1);
+    var a=document.createElement('a');a.href='#'+id;a.textContent=it.label;nav.appendChild(a);
+    var f=document.createElement('figure');f.id=id;
+    var c=document.createElement('figcaption');c.textContent=it.label;
+    var im=document.createElement('img');
+    im.src='../catalog/'+it.slug+'.jpg';im.alt=it.label;im.width=it.w;im.height=it.h;
+    if(i>1)im.loading='lazy';
+    im.onclick=function(){var lb=document.getElementById('lb');lb.firstElementChild.nextElementSibling.src=im.src;lb.style.display='flex'};
+    f.appendChild(c);f.appendChild(im);list.appendChild(f);
+  });
+}).catch(function(){document.getElementById('list').textContent='載入失敗，請重新整理'});
+document.getElementById('lb').onclick=function(e){if(e.target.tagName!=='IMG')this.style.display='none'};
+</script>
+</body>
+</html>
