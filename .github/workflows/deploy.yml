@@ -9,7 +9,6 @@ on:
     # Pages 網址獨立，不會與舊 TEST repo 的系統互相覆蓋。
     paths:
       - 'assistant/**'
-      - 'product-site/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
@@ -43,9 +42,6 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: assistant
-
-      - name: Add standalone product site (independent of the app)
-        run: cp -r product-site assistant/dist/products
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v4
