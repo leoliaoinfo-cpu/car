@@ -15,6 +15,10 @@
     { t: '底盤與金屬', i: ['chassis', 'metal'] }
   ];
   var KEY = 'kp-cfg';
+  // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
+  // 第一次在後台按「儲存發佈」會自動建立，ID 填進下面這行後客戶端就會讀它。
+  var GIST_OWNER = 'leoliaoinfo-cpu';
+  var GIST_ID = '';
   var edit = /[?&]edit(=|&|$)/.test(location.search);
   var groups = DEFAULT;
 
@@ -81,28 +85,32 @@
 
   function save() {
     var c = cfg();
-    if (!c.repo || !c.token) { openSettings(); return; }
+    if (!c.token) { openSettings(); return; }
     var btn = $('save'); btn.disabled = true; btn.textContent = '儲存中…';
-    var url = 'https://api.github.com/repos/' + c.repo + '/contents/' + (/\/car$/.test(c.repo) ? 'product-site/order.json' : 'order.json');
-    var h = { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json' };
     var data = collect();
-    fetch(url, { headers: h }).then(function (r) {
-      if (r.status === 404) return null;
-      if (!r.ok) throw new Error('讀取失敗（' + r.status + '），請檢查 repo 名稱與權杖');
+    var content = JSON.stringify({ groups: data }, null, 1);
+    var id = GIST_ID || c.gistId || '';
+    var h = { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+    var req = id
+      ? fetch('https://api.github.com/gists/' + id, { method: 'PATCH', headers: h, body: JSON.stringify({ files: { 'order.json': { content: content } } }) })
+      : fetch('https://api.github.com/gists', { method: 'POST', headers: h, body: JSON.stringify({ description: 'KIA 產品介紹網頁順序', public: true, files: { 'order.json': { content: content } } }) });
+    req.then(function (r) {
+      if (!r.ok) throw new Error('儲存失敗（' + r.status + '），請確認權杖只勾 gist 且沒過期');
       return r.json();
-    }).then(function (cur) {
-      var body = { message: '調整照片排序', content: b64(JSON.stringify({ groups: data }, null, 1)) };
-      if (cur && cur.sha) body.sha = cur.sha;
-      return fetch(url, { method: 'PUT', headers: h, body: JSON.stringify(body) });
-    }).then(function (r) {
-      if (!r.ok) throw new Error('寫入失敗（' + r.status + '），權杖需要 Contents 讀寫權限');
+    }).then(function (g) {
       groups = data;
-      toast('已儲存。約 1～2 分鐘後客戶看到新順序');
+      if (!id && g && g.id) {
+        try { localStorage.setItem(KEY, JSON.stringify({ token: c.token, gistId: g.id })); } catch (e) {}
+        window.prompt('第一次儲存完成。請把這串 ID 傳給 Claude，客戶端才會讀到新順序：', g.id);
+        toast('已建立。把 ID 傳給 Claude 後即可生效');
+      } else {
+        toast('已儲存。約 5 分鐘內客戶會看到新順序');
+      }
     }).catch(function (e) { toast(e.message || '儲存失敗'); })
       .then(function () { btn.disabled = false; btn.textContent = '儲存發佈'; });
   }
 
-  function openSettings() { var c = cfg(); $('f-repo').value = c.repo || ''; $('f-token').value = c.token || ''; $('set').style.display = 'flex'; }
+  function openSettings() { var c = cfg(); $('f-token').value = c.token || ''; $('f-gist').textContent = GIST_ID || c.gistId || '（尚未建立，第一次儲存時自動產生）'; $('set').style.display = 'flex'; }
 
   if (edit) {
     document.body.classList.add('edit');
@@ -117,8 +125,8 @@
     $('exit').onclick = function () { location.href = location.pathname; };
     $('f-no').onclick = function () { $('set').style.display = 'none'; };
     $('f-ok').onclick = function () {
-      var repo = $('f-repo').value.trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '');
-      try { localStorage.setItem(KEY, JSON.stringify({ repo: repo, token: $('f-token').value.trim() })); } catch (e) {}
+      var old = cfg();
+      try { localStorage.setItem(KEY, JSON.stringify({ token: $('f-token').value.trim(), gistId: old.gistId || '' })); } catch (e) {}
       $('set').style.display = 'none'; toast('設定已存，再按一次「儲存發佈」');
     };
   } else {
@@ -126,7 +134,26 @@
     lb.onclick = function (e) { if (e.target.tagName !== 'IMG') lb.style.display = 'none'; };
   }
 
+  function getJson(url) {
+    return fetch(url, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }
+  function loadOrder() {
+    var id = GIST_ID || (cfg().gistId || '');
+    var t = Date.now();
+    var chain = Promise.resolve(null);
+    if (id) {
+      chain = getJson('https://gist.githubusercontent.com/' + GIST_OWNER + '/' + id + '/raw/order.json?t=' + t)
+        .then(function (d) {
+          if (d) return d;
+          return fetch('https://api.github.com/gists/' + id, { cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (g) { try { return g && g.files && g.files['order.json'] ? JSON.parse(g.files['order.json'].content) : null; } catch (e) { return null; } })
+            .catch(function () { return null; });
+        });
+    }
+    return chain.then(function (d) { return d || getJson('order.json?t=' + t); });
+  }
+
   render();
-  fetch('order.json?t=' + Date.now()).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-    .then(function (d) { if (d && d.groups) { groups = normalize(d.groups); render(); } });
+  loadOrder().then(function (d) { if (d && d.groups) { groups = normalize(d.groups); render(); } });
 })();

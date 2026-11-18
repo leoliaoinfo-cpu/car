@@ -54,13 +54,12 @@ body.edit #bar{display:flex}body.edit nav,body.edit #call,body.edit #contact{dis
 </style></head><body>
 <div id="bar"><span id="barmsg">拖拉照片調整順序，也可拖到別的分類</span><button id="save">儲存發佈</button><button class="g" id="copy">複製順序</button><button class="g" id="cfg">設定</button><button class="g" id="exit">離開</button></div>
 <div id="set"><div>
-<b>發佈設定（只存在這支手機）</b><br>
-<small>儲存時，網頁會把順序寫回你的 GitHub repo。</small><br>
-Repo 名稱（例如 leoliaoinfo-cpu/kia-products）
-<input id="f-repo" placeholder="帳號/repo名稱" autocapitalize="off" autocorrect="off">
+<b>後台儲存設定（只存在這支手機）</b><br>
+<small>按「儲存發佈」時，順序會存成一個公開的小檔案（GitHub Gist），客戶打開網頁就讀它。這個檔案只有照片順序，沒有別的。</small><br><br>
 GitHub 權杖（token）
-<input id="f-token" type="password" placeholder="github_pat_..." autocapitalize="off" autocorrect="off">
-<small>取得方式：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate。Repository access 只選這一個 repo；Permissions → Contents 選 Read and write。不要給其他權限。</small><br><br>
+<input id="f-token" type="password" placeholder="ghp_..." autocapitalize="off" autocorrect="off">
+<small><b>取得方式</b>：GitHub → Settings → Developer settings → Personal access tokens → <b>Tokens (classic)</b> → Generate new token (classic)。名稱隨意，<b>只勾 gist 一項</b>，到期日選 No expiration 或 1 年，按 Generate，複製 ghp_ 開頭那串貼上來。<br>這種權杖只能管 Gist，<b>碰不到你的系統程式與任何 repo</b>。</small><br><br>
+目前的 Gist ID：<code id="f-gist"></code><br><br>
 <button id="f-ok">儲存設定</button><button class="g" id="f-no">取消</button>
 </div></div>
 <div id="toast"></div>
