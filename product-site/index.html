@@ -20,6 +20,20 @@ html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;-webkit-text-size-adjust:100%;line-height:1.6}
 a{color:inherit}
 
+
+/* 文字排版：短句分段、避免單字孤行 */
+h1,h2,p,.tip,footer,.shop span,figcaption span{text-wrap:balance;line-break:strict;word-break:normal;overflow-wrap:break-word}
+.lead{max-width:22em;margin:0 auto}
+.lead p{margin:0;color:#4b4137;font-size:16px;line-height:1.85}
+.lead p.soft{margin-top:12px;color:var(--mute);font-size:15px}
+.tags{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.tags span{font-size:12.5px;font-weight:700;color:#8a5a2c;background:#fff;border:1px solid #f0dcc3;border-radius:999px;padding:5px 12px}
+.hello{margin:0 0 18px;padding:14px 16px;background:var(--bg);border-radius:16px;border:1px dashed #e6d6bf}
+.hello p{margin:0;color:#5a4e43;font-size:15px;line-height:1.8}
+.hello p+p{margin-top:8px;color:var(--ink);font-weight:600}
+.tip{line-height:1.8}
+footer{line-height:1.8}
+
 /* ===== 首屏 ===== */
 .hero{position:relative;overflow:hidden;padding:calc(36px + env(safe-area-inset-top)) 22px 30px;text-align:center;
   background:radial-gradient(70% 60% at 85% 0%,#ffe3cf 0%,transparent 70%),radial-gradient(60% 55% at 8% 20%,#ffeccd 0%,transparent 70%),linear-gradient(180deg,#fff6ea 0%,var(--bg) 100%)}
@@ -27,7 +41,6 @@ a{color:inherit}
 .eyebrow{display:inline-block;font-size:12px;letter-spacing:.18em;font-weight:700;color:var(--ac);padding:7px 15px;border-radius:999px;background:#fff;border:1px solid #f3cfc9;box-shadow:0 2px 8px rgba(217,69,59,.08)}
 .hero h1{margin:18px 0 10px;font-size:31px;line-height:1.3;font-weight:800;letter-spacing:.02em}
 .hero h1 b{color:var(--ac)}
-.hero p{margin:0 auto;max-width:28em;color:var(--mute);font-size:15px}
 .cta{display:flex;gap:10px;justify-content:center;margin-top:22px}
 .cta a{flex:1;max-width:182px;text-align:center;text-decoration:none;font-weight:700;font-size:15.5px;padding:14px 10px;border-radius:999px;color:#fff}
 .cta .c1{background:linear-gradient(180deg,var(--ac2),var(--ac));box-shadow:0 8px 20px rgba(217,69,59,.3)}
@@ -145,7 +158,11 @@ GitHub 權杖（token）
 <header class="hero">
   <span class="eyebrow">KIA 商用車彰化區總代理</span>
   <h1>歡迎來看看<br><b>卡旺 K2500</b><br>車型與改裝配件</h1>
-  <p>把大家常問的車型、配備和改裝配件整理在這裡，慢慢看、慢慢比較，有任何問題都歡迎問我。</p>
+  <div class="lead">
+    <p>把大家常問的車型、配備<br>和改裝配件整理在這裡。</p>
+    <p class="soft">慢慢看、慢慢比較，<br>有任何問題，都歡迎問我。</p>
+  </div>
+  <div class="tags"><span>車型售價</span><span>配備升級</span><span>改裝配件</span></div>
   <div class="cta">
     <a class="c1" href="tel:0979670565">📞 打電話給我</a>
     <a class="c2" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE 聊聊</a>
@@ -161,7 +178,7 @@ GitHub 權杖（token）
 <section id="contact">
 <div class="sh"><h2>有問題，直接問我</h2></div>
 <div class="contact-card">
-  <p class="hello">不管是想先問問價格、配備怎麼選，或是來店看車，都歡迎聯絡我。</p>
+  <div class="hello"><p>想先問問價格、配備怎麼選，</p><p>或是想來店看車，都歡迎聯絡我。</p></div>
   <div class="who">
     <div class="avatar">廖</div>
     <div><b>廖冠銘 <span>LEO</span></b><small>KIA 商用車彰化區總代理<br>俊宇車業有限公司</small></div>
@@ -175,12 +192,12 @@ GitHub 權杖（token）
     <div class="shop"><div class="pin">📍</div><div><b>彰化所</b><span>彰化市線東路一段478號</span></div></div>
     <div class="shop"><div class="pin">📍</div><div><b>員林所</b><span>員林市莒光路524號</span></div></div>
   </div>
-  <p class="tip">彰化所開車前來，請直接從旁邊的服務廠入口車道進入：</p>
+  <p class="tip">開車到彰化所，<br>請直接從旁邊的「服務廠入口車道」進來：</p>
   <img class="ent" src="img/entrance.jpg" alt="彰化所服務廠入口" loading="lazy">
 </div>
 </section>
 </main>
-<footer>圖片為原廠與配件廠行銷資料，實際內容以現場說明為準</footer>
+<footer>圖片為原廠與配件廠行銷資料<br>實際內容以現場說明為準</footer>
 
 <div id="call"><a href="tel:0979670565">📞 打電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE</a></div>
 
