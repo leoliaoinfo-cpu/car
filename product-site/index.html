@@ -32,10 +32,37 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:0 16px 48px}
 .shop{border-top:1px solid #2c3138;padding:12px 0}.map{display:inline-block;margin-top:4px}
 .tip{margin:6px 0;font-weight:600}.ent{width:100%;height:auto;border-radius:10px;display:block}
 #call{position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:9;background:var(--ac);color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:999px;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+
+#bar{display:none;position:sticky;top:0;z-index:15;background:#fff;color:#111;padding:10px 12px;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}
+body.edit #bar{display:flex}body.edit nav,body.edit #call,body.edit #contact{display:none}
+#bar button{border:0;border-radius:8px;padding:9px 14px;font-size:15px;font-weight:700;background:#e5192d;color:#fff}
+#bar button.g{background:#e6e8ec;color:#111}#bar span{flex:1;min-width:120px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-height:60px;padding:6px;border:1px dashed #3a4048;border-radius:10px}
+.it{background:var(--card);border-radius:8px;overflow:hidden;touch-action:manipulation;cursor:grab}
+.it img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover;pointer-events:none}
+.it b{display:block;font-size:11px;font-weight:500;padding:4px 5px;line-height:1.3}
+.sortable-ghost{opacity:.35}
+#set{display:none;position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.7);align-items:center;justify-content:center;padding:16px}
+#set div{background:#fff;color:#111;border-radius:14px;padding:16px;max-width:420px;width:100%;font-size:14px;line-height:1.6;max-height:90vh;overflow:auto}
+#set input{width:100%;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:8px;margin:4px 0 10px}
+#set button{border:0;border-radius:8px;padding:9px 14px;font-size:15px;font-weight:700;background:#e5192d;color:#fff;margin-right:8px}#set button.g{background:#e6e8ec;color:#111}
+#toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 16px;border-radius:10px;z-index:40;display:none;max-width:90%}
 </style></head><body>
+<div id="bar"><span id="barmsg">拖拉照片調整順序，也可拖到別的分類</span><button id="save">儲存發佈</button><button class="g" id="cfg">設定</button><button class="g" id="exit">離開</button></div>
+<div id="set"><div>
+<b>發佈設定（只存在這支手機）</b><br>
+<small>儲存時，網頁會把順序寫回你的 GitHub repo。</small><br>
+Repo 名稱（例如 leoliaoinfo-cpu/kia-products）
+<input id="f-repo" placeholder="帳號/repo名稱" autocapitalize="off" autocorrect="off">
+GitHub 權杖（token）
+<input id="f-token" type="password" placeholder="github_pat_..." autocapitalize="off" autocorrect="off">
+<small>取得方式：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate。Repository access 只選這一個 repo；Permissions → Contents 選 Read and write。不要給其他權限。</small><br><br>
+<button id="f-ok">儲存設定</button><button class="g" id="f-no">取消</button>
+</div></div>
+<div id="toast"></div>
 <header><small>KIA K2500</small><h1>卡旺 車型與改裝配件介紹</h1><p>點圖可放大，兩指縮放。實際價格與優惠以現場報價為準。</p></header>
-<nav><div><a href="#g0">車型與套裝</a><a href="#g1">配備與影音</a><a href="#g2">燈光</a><a href="#g3">外觀與輪圈</a><a href="#g4">底盤與金屬</a><a href="#contact">聯絡我</a></div></nav>
-<main><section id="g0"><h2>車型與套裝</h2><figure><img src="img/price.jpg" alt="K2500 車型售價表" loading="lazy"></figure><figure><img src="img/package.jpg" alt="雙廂高階套裝" loading="lazy"></figure></section><section id="g1"><h2>配備與影音</h2><figure><img src="img/equip.jpg" alt="配備升級" loading="lazy"></figure><figure><img src="img/android.jpg" alt="12.3 吋安卓四錄旗艦機" loading="lazy"></figure><figure><img src="img/audio.jpg" alt="音響升級" loading="lazy"></figure></section><section id="g2"><h2>燈光</h2><figure><img src="img/lights.jpg" alt="燈組升級" loading="lazy"></figure><figure><img src="img/tail.jpg" alt="LED 光環尾燈組" loading="lazy"></figure><figure><img src="img/fog.jpg" alt="魚眼霧燈升級" loading="lazy"></figure><figure><img src="img/gtr.jpg" alt="GTR 大燈升級" loading="lazy"></figure><figure><img src="img/gtr-cut.jpg" alt="三階切線說明" loading="lazy"></figure><figure><img src="img/gtr-plus.jpg" alt="GTR plus 雙切驗車模組" loading="lazy"></figure></section><section id="g3"><h2>外觀與輪圈</h2><figure><img src="img/aero.jpg" alt="外觀空力套件" loading="lazy"></figure><figure><img src="img/paint.jpg" alt="車身改色" loading="lazy"></figure><figure><img src="img/wheel.jpg" alt="鋁圈升級" loading="lazy"></figure></section><section id="g4"><h2>底盤與金屬</h2><figure><img src="img/chassis.jpg" alt="底盤載重強化" loading="lazy"></figure><figure><img src="img/metal.jpg" alt="金屬製研" loading="lazy"></figure></section><section id="contact" style="padding-top:8px">
+<nav><div id="nav"></div></nav>
+<main><div id="groups"></div><section id="contact" style="padding-top:8px">
 <h2>聯絡我</h2>
 <div class="card">
 <div class="name">廖冠銘 <span>LEO</span></div>
@@ -50,8 +77,5 @@ footer{text-align:center;color:var(--mute);font-size:12px;padding:0 16px 48px}
 <footer>圖片為原廠與配件廠行銷資料</footer>
 <a id="call" href="tel:0979670565">📞 打電話給我</a>
 <div id="lb"><b>✕</b><img alt=""></div>
-<script>
-var lb=document.getElementById('lb'),li=lb.querySelector('img');
-document.querySelectorAll('figure img').forEach(function(i){i.onclick=function(){li.src=i.src;lb.style.display='flex'}});
-lb.onclick=function(e){if(e.target!==li)lb.style.display='none'};
-</script></body></html>
+<script src="sortable.min.js"></script>
+<script src="app.js"></script></body></html>
