@@ -368,8 +368,8 @@ export const db = {
   },
 
   /** 匯出並下載備份，同時記錄最後備份時間（供備份提醒使用；只記在這台裝置，不同步） */
-  async exportAndDownload() {
-    const data = await db.exportAll();
+  async exportAndDownload(transform = null) {
+    const data = transform ? await transform(await db.exportAll()) : await db.exportAll();
     downloadJSON(data, `auto-sales-backup-${new Date().toISOString().slice(0, 10)}.json`);
     try { localStorage.setItem(STORAGE_KEYS.lastBackupAt, new Date().toISOString()); } catch { /* 無法記錄不影響備份 */ }
     return data;

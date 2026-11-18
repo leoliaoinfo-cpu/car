@@ -1,6 +1,10 @@
 import { db, STORE_KEYS, SYNCED_STORES, setMutationListener } from './db';
 import { mergeSnapshots } from './utils/dataMerge.js';
 import { STORAGE_KEYS } from './storageKeys';
+import { sealSnapshot, openSnapshot, findVaultRecord, snapshotHasSealed, snapshotHasPlainSecrets } from './utils/vault.js';
+import { getDek, getLocalVaultRecord } from './vaultSession';
+
+export const NEED_VAULT_MESSAGE = '這台裝置要先輸入「成本密語」才能同步：請到「設定 → 後台密碼 → 成本加密保險箱」解鎖。本機資料都還在。';
 
 /**
  * ☁️ 雲端同步引擎 —— 用使用者自己的 GitHub 私人 repo 當免費雲端資料庫。
@@ -115,6 +119,13 @@ async function pushRemote(data, sha) {
   return (await res.json()).content.sha;
 }
 
+/** 新裝置解鎖用：只讀雲端的 vault 紀錄（包好的金鑰），不會改任何資料。沒開同步或沒有回傳 null。 */
+export async function fetchRemoteVaultRecord() {
+  if (!isSyncEnabled()) return null;
+  const { data } = await pullRemote();
+  return findVaultRecord(data);
+}
+
 // ── 合併（純邏輯在 utils/dataMerge.js，可單元測試）────────────────────────────
 export { mergeSnapshots };
 
@@ -139,7 +150,15 @@ export async function syncNow() {
   setStatus({ state: 'syncing', error: null });
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
-      const [{ data: remote, sha }, local] = await Promise.all([pullRemote(), db.exportForSync()]);
+      const [{ data: remoteRaw, sha }, local] = await Promise.all([pullRemote(), db.exportForSync()]);
+      // 成本保險箱：雲端或本機有設定，就一定要有金鑰；沒有金鑰絕不上傳（避免把加密資料蓋成空的）
+      const dek = await getDek();
+      const vaultOn = !!(findVaultRecord(remoteRaw) || await getLocalVaultRecord() || snapshotHasSealed(remoteRaw));
+      if (vaultOn && !dek) throw new Error(NEED_VAULT_MESSAGE);
+      let remote;
+      try { remote = await openSnapshot(dek, remoteRaw); } catch (e) {
+        throw new Error(e.message === 'NEED_VAULT' ? NEED_VAULT_MESSAGE : `雲端的成本資料解不開（${e.message}）。本機資料都還在，請確認成本密語。`);
+      }
       let toPush = mergeSnapshots(local, remote);
       // 遠端有本機沒有的內容 → 逐筆套進本機（不清空；拉資料期間的新修改會保留）
       if (remote && canonical(mergeSnapshots(local, null)) !== canonical(toPush)) {
@@ -151,9 +170,10 @@ export async function syncNow() {
         }
       }
       // 本機有遠端沒有的內容 → 上傳（sha 不符表示對方剛傳過，重拉再合併）
-      if (!remote || canonical(remote) !== canonical(toPush)) {
+      // 剛開啟保險箱時雲端還是明文 → 內容沒變也要重傳一次加密版
+      if (!remote || canonical(remote) !== canonical(toPush) || (vaultOn && snapshotHasPlainSecrets(remoteRaw))) {
         try {
-          await pushRemote(toPush, sha);
+          await pushRemote(vaultOn ? await sealSnapshot(dek, toPush) : toPush, sha);
         } catch (e) {
           if (e.message === 'CONFLICT' && attempt < 2) continue;
           throw e;

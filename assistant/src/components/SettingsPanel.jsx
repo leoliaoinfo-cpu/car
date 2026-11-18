@@ -1,4 +1,7 @@
 import PinGate from './PinGate';
+import VaultSection from './VaultSection';
+import { getDek, getLocalVaultRecord } from '../vaultSession';
+import { sealSnapshot, openSnapshot, snapshotHasSealed } from '../utils/vault.js';
 import { useState, useEffect } from 'react';
 import { db } from '../db';
 import { useApp } from '../context';
@@ -118,7 +121,7 @@ export default function SettingsPanel({ onClose }) {
 
           {activeSection === 'backup' && <BackupSection reloadAll={reloadAll} />}
 
-          {activeSection === 'security' && <BackendPasswordEditor />}
+          {activeSection === 'security' && <div className="space-y-4"><VaultSection /><BackendPasswordEditor /></div>}
 
           {/* ── Notifications ── */}
           {activeSection === 'notify' && <NotifySection />}
@@ -1186,7 +1189,11 @@ function BackupSection({ reloadAll }) {
     setBusy(true);
     setMessage('');
     try {
-      await db.exportAndDownload();
+      // 有啟用成本加密：備份檔裡的成本類資料一律加密
+      const vault = await getLocalVaultRecord();
+      const dek = vault ? await getDek() : null;
+      if (vault && !dek) throw new Error('請先到「後台密碼 → 成本加密保險箱」解鎖這台裝置');
+      await db.exportAndDownload(vault ? (data) => sealSnapshot(dek, data) : null);
       const now = new Date().toISOString();
       setLastBackupAt(now);
       setMessage('✅ 備份檔已下載，請保留在電腦、雲端硬碟或手機檔案中。');
@@ -1202,7 +1209,12 @@ function BackupSection({ reloadAll }) {
     setMessage('');
     setConfirmReplace(false);
     try {
-      const data = JSON.parse(await file.text());
+      let data = JSON.parse(await file.text());
+      if (snapshotHasSealed(data)) {
+        const dek = await getDek();
+        if (!dek) throw new Error('這個備份有加密的成本資料，請先到「後台密碼 → 成本加密保險箱」解鎖');
+        data = await openSnapshot(dek, data);
+      }
       const valid = data?._v === 1 || ['clients', 'quoteDrafts', 'settings'].some((key) => Array.isArray(data?.[key]));
       if (!valid) throw new Error('不是本系統的備份格式');
       setRestoreData(data);
