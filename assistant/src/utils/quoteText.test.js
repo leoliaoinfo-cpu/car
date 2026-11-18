@@ -41,14 +41,14 @@ test('LINE 報價分區：車輛本體、車斗、底盤、外觀燈光、車內
     generalDiscounts: [{ id: 'g', name: '專案優惠', amount: 57000 }],
   });
   const at = (text) => message.indexOf(text);
-  assert.ok(at('🚛 車輛本體') < at('🏗️ 車斗配備'));
-  assert.ok(at('🏗️ 車斗配備') < at('⚙️ 底盤懸吊・煞車'));
-  assert.ok(at('⚙️ 底盤懸吊・煞車') < at('💡 外觀燈光'));
-  assert.ok(at('💡 外觀燈光') < at('📱 車內配備'));
-  assert.ok(at('📱 車內配備') < at('🎁 贈品'));
-  assert.ok(message.startsWith('王老闆您好，目前方案整理如下：\n\n2027 年式 KIA 卡旺 K2500\n雙廂 6 人座｜5 速手自排\n\n━━━━━━━━━━\n🚛 車輛本體\n━━━━━━━━━━\n・車輛售價：103.8 萬\n・安全科技版：+4 萬\n・特仕版套件：+2.5 萬\n　不含：電子式前後行車紀錄器＋GPS 天眼測速（已扣 0.5 萬）\n'));
-  assert.match(message, /🏗️ 車斗配備\n━+\n・2\.5呎升降尾門：\+3\.7 萬\n・尿素桶防撞桿：\+0\.55 萬\n　備註：黑色/);
-  assert.match(message, /⚙️ 底盤懸吊・煞車\n━+\n・彈簧鋼板：\+0\.55 萬\n・煞車劃線碟＋競技來令片：\+1\.5 萬/);
+  assert.ok(at('🚚 車輛本體') < at('📦 車斗配備'));
+  assert.ok(at('📦 車斗配備') < at('🔧 底盤懸吊・煞車'));
+  assert.ok(at('🔧 底盤懸吊・煞車') < at('✨ 外觀燈光'));
+  assert.ok(at('✨ 外觀燈光') < at('🪑 車內配備'));
+  assert.ok(at('🪑 車內配備') < at('🎁 贈品'));
+  assert.ok(message.startsWith('王老闆您好，目前方案整理如下：\n\n2027 年式 KIA 卡旺 K2500\n雙廂 6 人座｜5 速手自排\n\n━━━━━━━━━━\n🚚 車輛本體\n━━━━━━━━━━\n・車輛售價：103.8 萬\n・安全科技版：+4 萬\n・特仕版套件：+2.5 萬\n　不含：電子式前後行車紀錄器＋GPS 天眼測速（已扣 0.5 萬）\n'));
+  assert.match(message, /📦 車斗配備\n━+\n・2\.5呎升降尾門：\+3\.7 萬\n・尿素桶防撞桿：\+0\.55 萬\n　備註：黑色/);
+  assert.match(message, /🔧 底盤懸吊・煞車\n━+\n・彈簧鋼板：\+0\.55 萬\n・煞車劃線碟＋競技來令片：\+1\.5 萬/);
   assert.match(message, /・LED 韓版後照鏡：\+0\.85 萬/);
   assert.match(message, /・多媒體音控：\+1\.2 萬\n・卡旺專用遮陽簾：\+0\.13 萬/);
   assert.match(message, /・定速巡航（價值 8,000 元，4 年保固）\n・卡旺方向盤皮革套（價值 499 元）/);
@@ -67,7 +67,7 @@ test('沒有贈品也沒有優惠時，原價後直接接最終成交價', () =>
       { id: 'f', kind: 'other', name: '領牌費', price: 3000 },
     ],
   });
-  assert.match(message, /📱 車內配備\n━+\n・6輪胎壓偵測器：\+0\.5 萬/);
+  assert.match(message, /🪑 車內配備\n━+\n・6輪胎壓偵測器：\+0\.5 萬/);
   assert.match(message, /📄 其他費用\n━+\n・領牌費：\+0\.3 萬/);
   assert.match(message, /原價總計：86\.6 萬\n----------\n✅ 最終優惠成交價：86\.6 萬元$/);
   assert.doesNotMatch(message, /🎁/);

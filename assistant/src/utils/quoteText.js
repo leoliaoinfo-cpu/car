@@ -48,11 +48,11 @@ export function compactQuoteItemName(value) {
 
 // LINE 報價分區：依配件在型錄裡的分類歸到 5 個區塊（順序即顯示順序）。
 const SECTION_DEFS = [
-  { key: 'body', title: '🚛 車輛本體' },
-  { key: 'bed', title: '🏗️ 車斗配備' },
-  { key: 'chassis', title: '⚙️ 底盤懸吊・煞車' },
-  { key: 'look', title: '💡 外觀燈光' },
-  { key: 'inside', title: '📱 車內配備' },
+  { key: 'body', title: '🚚 車輛本體' },
+  { key: 'bed', title: '📦 車斗配備' },
+  { key: 'chassis', title: '🔧 底盤懸吊・煞車' },
+  { key: 'look', title: '✨ 外觀燈光' },
+  { key: 'inside', title: '🪑 車內配備' },
   { key: 'other', title: '🧩 其他配件' },
   { key: 'fee', title: '📄 其他費用' },
 ];
