@@ -29,7 +29,7 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 249 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 250 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
@@ -68,6 +68,8 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **報價清單篩選與排序（2026-11-19，使用者要求）**：清單上方有「篩選車型」（依現有報價的車型，附張數、含「未填車型」）與「排序」（最近更新／日期新→舊／舊→新／價格高→低／低→高）兩個下拉（`QuoteWorkspace.jsx` 的 `modelFilter`／`sortKey`）；卡片上的「價格已齊」徽章已拿掉（只留「待廠商報價 N 項」）；報價日期放大加粗。
 - **報價單自動暫存（2026-11-19，使用者要求：新增到一半按重新整理不能不見）**：`QuoteModal` 改動停手 0.5 秒就把整張報價（`makeQuotePayload()`＋客戶模式）存到 localStorage `car-sales.quote.wip`（`utils/quoteWip.js`，7 天過期）；重新整理後 `App.jsx` 直接切到報價頁、`QuoteWorkspace` 啟動時還原那張（新增或編輯皆可，連歸入的案件與「從案件開的」回返資訊）。**儲存成功或「確認關閉／沒改動關閉」才清掉**（`clearQuoteWip`）。只存這台裝置、不同步。從客戶頁開的報價也會暫存，但重整後會在報價頁還原。
 - **刪除報價同步到報價利潤試算（2026-11-19）**：業績與成本→「報價利潤試算」清單（`InternalPricing.jsx` 的 `QuotePricingPanel`）不再列出已放進回收筒的報價；從回收筒恢復就回來。成交紀錄（`deals`）與其成本利潤仍保留、不受影響。
+- **業績與成本直接加選配（2026-11-19，使用者：不要兩邊跑）**：報價利潤試算的「查看／調整」視窗，客製項目區上方有「📖 從型錄加選配」（可搜尋、依分類列出報價選單所有配件）：點一下就帶入名稱、售價、成本（成本表有就帶），儲存後同步到前台報價單。實作上沿用既有的「客製化項目」（`backendCustom`，`catalogId` 為空、不受套裝內含／重疊鎖定限制、規格要自己寫在備註）。`QuotePricingPanel`／`PricingEditorModal` 的 `quotePresets` 為選填 prop。
+- **貨斗LED定位燈（2026-11-19）**：燈組新增 `qa-cargo-led-marker` 售價 1,990（使用者給蝦皮參考價）、燈光顏色藍紫／白／紅擇一、成本 1,592＝售價八折（`pricing.js` `V15_ADDON_COSTS`，成本表版本 15）；型錄版本 `kavan-2026-v36`。
 - **配件重疊鎖定（2026-11-19，使用者要求）**：型錄配件新增 `locks: [id…]` 欄位（`utils/crm.js`，與 `includes` 不同：`includes` 是套裝內含單品、會列入扣項建議，`locks` 只表示「不可同時選」）。選了 A（或內含 A 的套裝）→ A 的 `locks` 項目變灰鎖住，顯示「🔒 重疊」；選 A 時若已選了被鎖的項目會自動移除（與套裝內含單品的做法一致）。目前規則：特仕版套件→橡膠底板；LED 韓版後照鏡⇄後照鏡飾蓋、NLD 空力套裝（雙向）；雙廂高階套裝因內含特仕版／LED 韓版後照鏡而一併鎖住這些。`resolveQuotePresets` 升級時把預設的 `locks` 補回使用者舊設定（型錄版本升到 `kavan-2026-v30`）。新增重疊規則直接在型錄項目加 `locks`。
 - **加購中央置物盒獨立品項（2026-11-19，使用者要求）**：`qa-android-console-box`「加購中央置物盒」售價 500，**不再有 `parentId`**（不用先選安卓才出現），放在「配備版本」（安全科技版、安卓＋四錄皆可搭配；型錄沒有「安卓機旗艦版」這個品項）；成本 400＝售價打八折（`pricing.js` `V14_ADDON_COSTS`，成本表版本 14；舊預設 500 且沒被手動改過才換成 400，改過的不動）。上一版臨時加的 `qa-pkg2-console-box` 已刪，舊設定升級時濾掉。型錄版本 `kavan-2026-v32`。
 - **安卓機與安全科技版：四錄／環景二選一（2026-11-19，使用者定義）**：`qa-android-surround` 改名「9吋安卓機＋四錄／環景（擇一）＋專用底座」、`qa-pkg2` 改名「安全科技版（9吋安卓機 四錄／環景擇一＋6輪胎壓）」，兩者都用既有的規格選擇機制（`choiceLabel: 影像系統`、`choices: [四錄, 環景]`，沒選規格不能出圖／存，和霧燈顏色同一套）。舊設定升級時（名稱仍是舊預設才改，使用者自改的名稱不動）自動改名並帶入選項；舊報價單的品名不動。選配表帶入（`optionSheet.js` `matchSheetIds`）依選的規格只勾「安卓+四錄」或「安卓+環景」（安全科技版另勾胎壓）；舊報價沒選規格時維持原本兩格都勾。**雙廂高階套裝**（內含安全科技版）也有同一個「影像系統」四錄／環景選項。型錄版本 `kavan-2026-v35`。

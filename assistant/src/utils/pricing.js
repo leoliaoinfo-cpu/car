@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 14;
+const COST_CATALOG_VERSION = 15;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -188,6 +188,11 @@ const V14_ADDON_COSTS = {
   'qa-android-console-box': { cost: 400 },
 };
 
+// 貨斗LED定位燈：成本＝售價 1,990 的八折。
+const V15_ADDON_COSTS = {
+  'qa-cargo-led-marker': { cost: 1592 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -199,6 +204,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V12_ADDON_COSTS,
   ...V13_ADDON_COSTS,
   ...V14_ADDON_COSTS,
+  ...V15_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -654,6 +660,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 12 ? V12_ADDON_COSTS : {}),
     ...(row && previousVersion < 13 ? V13_ADDON_COSTS : {}),
     ...(row && previousVersion < 14 ? V14_ADDON_COSTS : {}),
+    ...(row && previousVersion < 15 ? V15_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;

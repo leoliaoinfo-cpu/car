@@ -1379,3 +1379,16 @@ test('雙廂高階套裝也要選四錄／環景，舊設定升級後帶入選�
   ] }).addons.find((a) => a.id === 'qa-double-cab-package');
   assert.deepEqual(old.choices, ['四錄', '環景']);
 });
+
+test('貨斗LED定位燈：燈組分類、售價 1990、三色擇一、成本 1592（八折）', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const it = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-cargo-led-marker');
+  assert.equal(it.cat, '燈組');
+  assert.equal(it.price, 1990);
+  assert.deepEqual(it.choices, ['藍紫', '白', '紅']);
+  assert.equal(normalizeCostCatalog(null).addons['qa-cargo-led-marker'].cost, 1592);
+  assert.equal(normalizeCostCatalog({ version: 14, models: {}, addons: {} }).addons['qa-cargo-led-marker'].cost, 1592);
+  // 舊的已存報價選單升級後也要出現
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v35', addonCategories: ['燈組'], addons: [] });
+  assert.ok(old.addons.some((a) => a.id === 'qa-cargo-led-marker'));
+});

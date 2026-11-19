@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v35';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v36';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -300,6 +300,7 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-tweeter', cat: '音響', name: '高音喇叭', price: 3000, warrantyMonths: 12, desc: '含專用線組；12 個月保固' },
   { id: 'qa-star-led-head', cat: '燈組', name: 'LED 頭燈組', price: 4000, warrantyMonths: 6, desc: '6 個月保固' },
   { id: 'qa-star-led-tail', cat: '燈組', name: 'LED 尾燈組', price: 2500, warrantyMonths: 6, desc: '6 個月保固' },
+  { id: 'qa-cargo-led-marker', cat: '燈組', name: '貨斗LED定位燈（一組4條 前後）', price: 1990, choiceLabel: '燈光顏色', choices: ['藍紫', '白', '紅'], desc: '貨斗LED定位燈；一組4條（前後）；藍紫／白／紅三色擇一' },
   { id: 'qa-star-led-fog', cat: '燈組', name: 'LED 霧燈', price: 1800, warrantyMonths: 6, choiceLabel: '燈光顏色', choices: ['黃金光', '白光'], desc: '黃金光／白光擇一；6 個月保固' },
   { id: 'qa-puddle-lamp', cat: '燈組', name: 'LED 側邊照地燈', price: 3500, warrantyMonths: 6, desc: '含防水快速開關；6 個月保固' },
   { id: 'qa-interior-led-single', cat: '燈組', group: 'g-interior-led', name: 'LED 室內燈＋牌照燈組（單廂）', price: 500, warrantyMonths: 6, desc: '6 個月保固' },

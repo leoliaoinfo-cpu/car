@@ -528,7 +528,7 @@ export function CustomPricingHistoryPanel({ entries = [], onSave }) {
 
 export function QuotePricingPanel({
   clients, quoteDrafts = [], pricingRecords, costCatalog, customPricingHistory = [],
-  onSavePricing, onSaveQuote, onSaveCustomHistory, onOpenCostSettings,
+  onSavePricing, onSaveQuote, onSaveCustomHistory, onOpenCostSettings, quotePresets = null,
 }) {
   const [editing, setEditing] = useState(null);
   const records = useMemo(() => new Map(pricingRecords.map((row) => [row.id, row])), [pricingRecords]);
@@ -587,7 +587,7 @@ export function QuotePricingPanel({
       {editing && (
         <PricingEditorModal record={editing.record} quote={editing.quote} costCatalog={costCatalog}
           customHistory={customHistory} customerName={editing.client.name || ''} onClose={() => setEditing(null)}
-          onOpenCostSettings={onOpenCostSettings}
+          onOpenCostSettings={onOpenCostSettings} quotePresets={quotePresets}
           onSave={async (record, quote, history) => {
             if (quote && onSaveQuote) await onSaveQuote({ quote, client: editing.client, source: editing.source });
             await onSavePricing(record);
@@ -601,7 +601,7 @@ export function QuotePricingPanel({
 
 export function PricingEditorModal({
   record, quote = null, costCatalog = null, customHistory = [], customerName = '',
-  onSave, onClose, onOpenCostSettings,
+  onSave, onClose, onOpenCostSettings, quotePresets = null,
 }) {
   const [lineCosts, setLineCosts] = useState(() => Object.fromEntries(
     (record.lines || []).map((line) => [line.id, line.costKnown ? String(line.cost) : '']),
@@ -629,6 +629,8 @@ export function PricingEditorModal({
       discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
     })));
   const [customError, setCustomError] = useState('');
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [historyMessage, setHistoryMessage] = useState('');
@@ -750,6 +752,23 @@ export function PricingEditorModal({
       id: generateId('qi'), name: '', note: '', salePrice: '', cost: '', discount: '',
     }]);
     setCustomError('');
+  }
+
+  // 直接從報價選單型錄加選配：帶入名稱、售價、成本（成本表有就帶），儲存後同步到前台報價單
+  function addFromCatalog(addon) {
+    const known = costCatalog?.addons?.[addon.id]?.cost;
+    setCustomItems((list) => [...list, {
+      id: generateId('qi'),
+      name: addon.name,
+      note: '',
+      salePrice: addon.pendingPrice ? '' : String(addon.price || ''),
+      cost: known == null || known === '' ? '' : String(known),
+      discount: '',
+    }]);
+    setCustomError('');
+    setHistoryMessage(`已加入「${addon.name}」，請確認售價與成本，按儲存後會同步到報價單。`);
+    setCatalogOpen(false);
+    setCatalogSearch('');
   }
 
   function updateCustomItem(id, patch) {
@@ -1118,6 +1137,39 @@ export function PricingEditorModal({
                   );
                 })}
                 {customError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {customError}</p>}
+                {quotePresets?.addons?.length > 0 && (
+                  <div className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
+                    <button type="button" onClick={() => setCatalogOpen((v) => !v)} className="btn-outline text-xs w-full min-h-11">
+                      {catalogOpen ? '收起型錄' : '📖 從型錄加選配（不用回報價單）'}
+                    </button>
+                    {catalogOpen && (
+                      <>
+                        <input value={catalogSearch} onChange={(e) => setCatalogSearch(e.target.value)}
+                          className="w-full text-xs" placeholder="搜尋配件名稱，例如：LED、底板" aria-label="搜尋型錄配件" />
+                        <div className="max-h-64 overflow-y-auto space-y-1">
+                          {(() => {
+                            const needle = catalogSearch.trim().toLowerCase();
+                            const rows = quotePresets.addons.filter((a) => !needle || `${a.name} ${a.cat}`.toLowerCase().includes(needle));
+                            const cats = [...new Set(rows.map((a) => a.cat || '其他'))];
+                            if (!rows.length) return <p className="text-[11px] text-ink-3 py-3 text-center">找不到符合的配件</p>;
+                            return cats.map((cat) => (
+                              <div key={cat}>
+                                <p className="text-[10px] font-bold text-ink-3 mt-1.5 mb-0.5">{cat}</p>
+                                {rows.filter((a) => (a.cat || '其他') === cat).map((a) => (
+                                  <button key={a.id} type="button" onClick={() => addFromCatalog(a)}
+                                    className="flex w-full min-h-11 items-center justify-between gap-2 rounded-lg border border-bdr px-2.5 py-1.5 text-left text-xs hover:bg-s2">
+                                    <span className="min-w-0 flex-1">{a.name}</span>
+                                    <span className="shrink-0 tabular-nums text-ink-3">{a.pendingPrice ? '待報價' : formatMoney(a.price)}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
                 <button type="button" onClick={addCustomItem} className="btn-outline text-xs w-full min-h-11">＋ 新增客製化項目</button>
               </section>
             )}

@@ -247,7 +247,7 @@ export default function DealsPage({ onOpenClient, onBack, focusDealId = null, in
         <QuotePricingPanel clients={clients} quoteDrafts={quoteDrafts} pricingRecords={pricingRecords}
           costCatalog={costCatalog} customPricingHistory={customPricingHistory}
           onSavePricing={savePricingRecord} onSaveCustomHistory={saveCustomPricingHistory}
-          onSaveQuote={saveQuoteFromPricing}
+          onSaveQuote={saveQuoteFromPricing} quotePresets={quotePresets}
           onOpenCostSettings={openCostSettings} />
       )}
 
