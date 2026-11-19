@@ -94,13 +94,15 @@ await step('開案件→逐項核對：設再追日、標已備妥、警示解�
   await p.locator('input[aria-label="客製帆布再追日期"]').fill(fu); await p.waitForTimeout(600);
   let d=(await dump('deals')).find(x=>x.quoteId==='qA');
   if(d.stockItems.find(x=>x.name==='客製帆布').followUpDate!==fu) throw new Error('再追日未存');
-  await p.locator('text=待廠商確認，請設定再追日期').waitFor({state:'detached'});
+  await p.locator('text=請設定再追日期').waitFor({state:'detached'});
   await p.screenshot({path:`${S}/s6.png`,fullPage:true});
   // 後照鏡：一鍵標已備妥；帆布改狀態為已備妥
-  await row('韓版後照鏡').locator('button:has-text("備妥")').first().click(); await p.waitForTimeout(500);
-  await p.locator('select[aria-label="客製帆布備品狀態"]').selectOption('ready'); await p.waitForTimeout(600);
+  // 改裝部（後照鏡）要到「已到貨」才算不缺；外包（客製帆布）要到「廠商已施作」
+  await p.locator('select[aria-label="韓版後照鏡備品狀態"]').selectOption('ready'); await p.waitForTimeout(500);
+  await p.locator('select[aria-label="客製帆布備品狀態"]').selectOption('vendor_done'); await p.waitForTimeout(600);
   d=(await dump('deals')).find(x=>x.quoteId==='qA');
-  if(!d.stockItems.every(x=>x.status==='ready')) throw new Error('未全部備妥 '+JSON.stringify(d.stockItems.map(x=>x.status)));
+  const okSt={'韓版後照鏡':'ready','客製帆布':'vendor_done'};
+  if(!d.stockItems.every(x=>x.status===okSt[x.name])) throw new Error('未全部到位 '+JSON.stringify(d.stockItems.map(x=>x.name+':'+x.status)));
   await p.locator('text=已全部核對').first().waitFor();
   await p.screenshot({path:`${S}/s7.png`,fullPage:true});
 });

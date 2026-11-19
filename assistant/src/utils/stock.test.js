@@ -50,3 +50,109 @@ test('報價扣項會寫進配件核對表備註', async () => {
   assert.equal(rows[0].note, '黑色；客人不要：行車紀錄器、GPS天眼測速');
   assert.equal(rows[1].note, '');
 });
+
+import {
+  defaultTrack, stockTrack, stockStatus, statusLabel, nextStatus, isSettledStock, isFinishedStock, switchTrack, missingStockItems, statusOptions,
+} from './stock.js';
+
+test('預設分類：帆布、箱體、尾門、烤漆、H架歸外包，其他歸改裝部；也可以手動指定', () => {
+  for (const name of ['三面帆布－雙廂降低版', '冷凍冷藏箱', '鋁塑箱', '升降尾門（2.5尺）', '雙折尾門（4尺）', '車身烤漆改色', 'H架（兩支一組）']) assert.equal(defaultTrack({ name }), 'vendor', name);
+  for (const name of ['安卓＋四錄＆環景', '彈簧鋼板', '尿素桶防撞桿', 'LED 光環尾燈', '手機架']) assert.equal(defaultTrack({ name }), 'inhouse', name);
+  assert.equal(stockTrack({ name: '帆布', track: 'inhouse' }), 'inhouse'); // 使用者指定優先
+  assert.equal(stockTrack({ name: '彈簧鋼板' }), 'inhouse'); // 舊資料沒有 track 也能判斷
+});
+
+test('外包流程五步、改裝部四步，下一步按鈕依序往前；最後一步沒有下一步', () => {
+  const vendor = { name: '帆布', track: 'vendor', status: 'todo' };
+  assert.deepEqual(statusOptions(vendor).map(([, l]) => l), ['未聯繫廠商', '已聯繫廠商', '廠商已施作', '已確認沒問題', '已經回報客戶進度', '不需要']);
+  assert.equal(statusLabel(vendor), '未聯繫廠商');
+  assert.equal(nextStatus(vendor)[1], '已聯繫廠商');
+  assert.equal(nextStatus({ ...vendor, status: 'checked' })[1], '已經回報客戶進度');
+  assert.equal(nextStatus({ ...vendor, status: 'reported' }), null);
+  const inhouse = { name: '彈簧鋼板', track: 'inhouse', status: 'todo' };
+  assert.deepEqual(statusOptions(inhouse).map(([, l]) => l), ['缺貨中', '已叫貨', '已到貨', '已安裝', '不需備品']);
+  assert.equal(nextStatus({ ...inhouse, status: 'ready' })[1], '已安裝');
+  assert.equal(nextStatus({ ...inhouse, status: 'installed' }), null);
+});
+
+test('「不缺」的定義：改裝部要到貨；外包要廠商已施作；已聯繫／已叫貨仍算缺', () => {
+  assert.equal(isSettledStock({ track: 'inhouse', status: 'inquiry' }), false);
+  assert.equal(isSettledStock({ track: 'inhouse', status: 'ready' }), true);
+  assert.equal(isSettledStock({ track: 'vendor', status: 'inquiry' }), false);
+  assert.equal(isSettledStock({ track: 'vendor', status: 'vendor_done' }), true);
+  assert.equal(isSettledStock({ track: 'vendor', status: 'checked' }), true);
+  assert.equal(isSettledStock({ track: 'vendor', status: 'not_needed' }), true);
+  // 做完不用再追：外包要回報客戶、改裝部要裝好
+  assert.equal(isFinishedStock({ track: 'vendor', status: 'checked' }), false);
+  assert.equal(isFinishedStock({ track: 'vendor', status: 'reported' }), true);
+  assert.equal(isFinishedStock({ track: 'inhouse', status: 'ready' }), false);
+  assert.equal(isFinishedStock({ track: 'inhouse', status: 'installed' }), true);
+  assert.equal(missingStockItems({ stockItems: [{ track: 'vendor', status: 'inquiry' }, { track: 'inhouse', status: 'installed' }] }).length, 1);
+});
+
+test('舊資料相容：外包項目的舊「已備妥」視為廠商已施作、舊「已安裝」視為已確認沒問題', () => {
+  assert.equal(stockStatus({ name: '三面帆布', status: 'ready' }), 'vendor_done');
+  assert.equal(stockStatus({ name: '三面帆布', status: 'installed' }), 'checked');
+  assert.equal(isSettledStock({ name: '三面帆布', status: 'ready' }), true);
+  assert.equal(stockStatus({ name: '彈簧鋼板', status: 'ready' }), 'ready');
+});
+
+test('外包／改裝部互換：進度對應換算，不倒退也不憑空前進', () => {
+  assert.deepEqual(switchTrack({ name: '帆布', track: 'vendor', status: 'vendor_done' }, 'inhouse'), { name: '帆布', track: 'inhouse', status: 'ready' });
+  assert.equal(switchTrack({ name: 'X', track: 'inhouse', status: 'installed' }, 'vendor').status, 'checked');
+  assert.equal(switchTrack({ name: 'X', track: 'inhouse', status: 'inquiry' }, 'vendor').status, 'inquiry');
+});
+
+test('報價帶出的核對項目自動帶 track', () => {
+  const rows = stockItemsFromQuote({ items: [
+    { id: 'a', kind: 'addon', name: '三面帆布－雙廂降低版', price: 13500 },
+    { id: 'b', kind: 'addon', name: '彈簧鋼板', price: 5500 },
+  ] });
+  assert.deepEqual(rows.map((r) => r.track), ['vendor', 'inhouse']);
+});
+
+test('尚缺配件清單：外包已回報、改裝部已安裝的不再列出', () => {
+  const cases = [{ id: 'c1', status: 'active' }];
+  const deals = [{ id: 'd1', caseId: 'c1', quoteId: 'q1', stockItems: [
+    { id: 'a', name: '三面帆布', track: 'vendor', status: 'reported' },
+    { id: 'b', name: '三面帆布2', track: 'vendor', status: 'checked' },
+    { id: 'c', name: '彈簧鋼板', track: 'inhouse', status: 'installed' },
+    { id: 'd', name: '尿素桶防撞桿', track: 'inhouse', status: 'todo' },
+  ] }];
+  assert.deepEqual(summarizeStock(deals, cases).map((g) => g.name).sort(), ['三面帆布2', '尿素桶防撞桿'].sort());
+});
+
+import { stockByCase, statusPatch } from './stock.js';
+
+test('尚缺配件依客戶：交車日近的在前、7天內標急、外包→改裝部→贈品、做完的不列', () => {
+  const now = new Date('2026-11-19T10:00:00');
+  const cases = [
+    { id: 'c1', status: 'active', clientName: '林德旺', desiredDeliveryDate: '2026-11-25' },
+    { id: 'c2', status: 'active', clientName: '方樹', desiredDeliveryDate: '2026-12-20' },
+    { id: 'c3', status: 'active', clientName: '沒排交車日' },
+    { id: 'c4', status: 'completed', clientName: '已交車' },
+  ];
+  const deals = [
+    { id: 'd2', caseId: 'c2', quoteId: 'q', clientName: '方樹', stockItems: [{ id: 'x', name: '彈簧鋼板', status: 'todo' }] },
+    { id: 'd1', caseId: 'c1', quoteId: 'q', clientName: '林德旺', stockItems: [
+      { id: 'g', name: '皮革套', gift: true, status: 'todo' },
+      { id: 'a', name: '尿素桶防撞桿', status: 'todo' },
+      { id: 'b', name: '三面帆布', status: 'inquiry' },
+      { id: 'z', name: '做完的', track: 'inhouse', status: 'installed' },
+    ] },
+    { id: 'd3', caseId: 'c3', quoteId: 'q', clientName: '沒排交車日', stockItems: [{ id: 'y', name: 'Y', status: 'todo' }] },
+    { id: 'd4', caseId: 'c4', quoteId: 'q', stockItems: [{ id: 'w', name: 'W', status: 'todo' }] },
+  ];
+  const list = stockByCase(deals, cases, now);
+  assert.deepEqual(list.map((c) => c.clientName), ['林德旺', '方樹', '沒排交車日']);
+  assert.equal(list[0].urgent, true);
+  assert.equal(list[1].urgent, false);
+  assert.deepEqual(list[0].rows.map((r) => r.name), ['三面帆布', '尿素桶防撞桿', '皮革套']);
+  assert.equal(list[0].missing, 3);
+});
+
+test('改成已聯繫廠商／已叫貨時自動排再追日，其他狀態不動日期', () => {
+  assert.deepEqual(statusPatch({}, 'inquiry', '2026-11-22'), { status: 'inquiry', followUpDate: '2026-11-22' });
+  assert.deepEqual(statusPatch({ followUpDate: '2026-11-20' }, 'inquiry', '2026-11-22'), { status: 'inquiry' });
+  assert.deepEqual(statusPatch({}, 'ready', '2026-11-22'), { status: 'ready' });
+});

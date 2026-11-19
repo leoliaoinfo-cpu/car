@@ -7,10 +7,9 @@ import {
   getCurrentWorkflowStep, isDeliveryFinalStep, normalizeDeliveryWorkflow, planDeliveryCompletion,
   restoreWorkflowChange, stockGuardItems, updateWorkflowStepStatus,
 } from '../../utils/delivery';
-import { STOCK_STATUSES } from '../../utils/stock';
+import { statusLabel as stockStatusLabel } from '../../utils/stock';
 
 const DONE = new Set(['done', 'na']);
-const STATUS_LABEL = new Map(STOCK_STATUSES);
 const UNDO_MS = 6000;
 
 function makeId() {
@@ -275,9 +274,9 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
           <button type="button" onClick={() => { setDialog(null); onGoStock?.(); }} className="btn-primary min-h-12">先去核對</button>
           <button type="button" onClick={() => { const step = dialog.step; setDialog(null); if (isDeliveryFinalStep(step)) openDeliveryDialog(); else setStatus(step, 'done'); }} className="btn-outline min-h-12">仍要繼續</button>
         </>}>
-          <p className="mt-1 text-sm text-ink-2">完成「{dialog.step.label}」之前，下面的配件還不是「已備妥／已安裝／不需備品」：</p>
+          <p className="mt-1 text-sm text-ink-2">完成「{dialog.step.label}」之前，下面的配件還沒到位（改裝部要「已到貨」、外包要「廠商已施作」以上）：</p>
           <ul className="mt-3 space-y-1.5 rounded-xl border border-copper/30 bg-copper/5 p-3 text-sm text-ink">
-            {dialog.missing.map((item) => <li key={item.id}>・{item.name}{item.specification ? `（${item.specification}）` : ''}<span className="ml-1 text-xs text-copper">{STATUS_LABEL.get(item.status) || '未處理'}</span></li>)}
+            {dialog.missing.map((item) => <li key={item.id}>・{item.name}{item.specification ? `（${item.specification}）` : ''}<span className="ml-1 text-xs text-copper">{stockStatusLabel(item)}</span></li>)}
           </ul>
         </Sheet>
       )}

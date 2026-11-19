@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import dayjs from 'dayjs';
 import { buildWorkQueue } from './cases.js';
-import { buildAgendaByDate, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from './tracking.js';
+import { buildAgendaByDate, caseStagePill, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from './tracking.js';
 
 const day = (offset) => dayjs().add(offset, 'day').format('YYYY-MM-DD');
 const iso = (offset) => dayjs().add(offset, 'day').toISOString();
@@ -159,4 +159,25 @@ test('結案不追蹤的案件不再進今天／太久沒追，只出現在「�
   assert.equal(matchesCaseListFilter('follow', tClosed), false);
   assert.deepEqual(caseTrackingParts(closed, tClosed).map((part) => part.text), ['不追蹤・沒興趣了']);
   assert.equal(matchesCaseListFilter('follow', getCaseTracking(open, { queue }, new Date('2026-11-17'))), true);
+});
+
+test('全部＝尚未交車：已交車與手動歸檔的不在全部；已成交的不會自動消失', () => {
+  const won = getCaseTracking({ id: 'w', status: 'active', dealId: 'd1' }, { deals: [{ id: 'd1', caseId: 'w' }] }, new Date('2026-11-19'));
+  assert.equal(won.stageId === 'won' || won.stageId === 'delivery', true);
+  assert.equal(matchesCaseListFilter('all', won), true); // 沒按歸檔前仍在全部
+  assert.equal(matchesCaseListFilter('won', won), true);
+  const filed = getCaseTracking({ id: 'f', status: 'active', dealId: 'd1', filedAt: '2026-11-19T00:00:00Z' }, { deals: [{ id: 'd1', caseId: 'f' }] }, new Date('2026-11-19'));
+  assert.equal(filed.filed, true);
+  assert.equal(matchesCaseListFilter('all', filed), false);
+  assert.equal(matchesCaseListFilter('won', filed), true); // 歸檔後仍可在「已成交」找到
+  const done = getCaseTracking({ id: 'x', status: 'completed' }, {}, new Date('2026-11-19'));
+  assert.equal(matchesCaseListFilter('all', done), false);
+  assert.equal(matchesCaseListFilter('delivered', done), true);
+});
+
+test('狀態標籤：階段白話字與代號；不追蹤帶原因', () => {
+  const t = getCaseTracking({ id: 'a', status: 'active' }, {}, new Date('2026-11-19'));
+  assert.deepEqual(caseStagePill({}, t), { text: '洽談中', tone: 'new' });
+  const c = getCaseTracking({ id: 'c', status: 'closed', closedReason: '買別家了' }, {}, new Date('2026-11-19'));
+  assert.deepEqual(caseStagePill({ closedReason: '買別家了' }, c), { text: '不追蹤・買別家了', tone: 'closed' });
 });

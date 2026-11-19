@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import { CASE_LIST_FILTERS, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
+import { CASE_LIST_FILTERS, caseStagePill, caseTrackingParts, compareCaseTracking, getCaseTracking, matchesCaseListFilter } from '../../utils/tracking';
 import { useApp } from '../../context';
 import {
   advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStage, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseStatusLabel, getCaseTotalElapsedDays, resolveCaseFollowUpTarget, findDealForCase, CASE_CLOSE_REASONS, findPossibleDuplicateCases, applyCaseContact, CONTACT_PRESETS, isOpenCase,
@@ -13,9 +13,16 @@ import OptionSheet from './OptionSheet';
 import MasterPinDialog from '../MasterPinDialog';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker } from '../ui';
-import { STOCK_STATUSES, stockAlert, summarizeStock } from '../../utils/stock';
+import {
+  stockAlert, summarizeStock, stockByCase, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
+} from '../../utils/stock';
 
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
+// 狀態標籤的顏色：一眼分得出洽談／成交／交車（粗體＋深色外框）
+const STAGE_PILL = {
+  new: 'bg-teal text-on-accent', follow_up: 'bg-gold text-black', won: 'bg-copper text-white',
+  delivery: 'bg-accent text-on-accent', completed: 'bg-ok text-white', closed: 'bg-ink-3 text-white',
+};
 
 export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onDetailClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
   const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, events, cats, stages, saveCase, saveDeal, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
@@ -76,7 +83,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
       {dupGroups.length > 0 && <button type="button" onClick={() => setShowDup(true)} className="min-h-12 w-full rounded-xl border border-warn/50 bg-warn/10 px-4 text-left text-sm font-bold text-warn">⚠ {dupGroups.map((g) => g.clientName).slice(0, 3).join('、')}{dupGroups.length > 3 ? '等' : ''} 有案件可能重複・點這裡整理</button>}
       {(showStock || missingStockCount > 0) && <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : `尚缺配件 ${missingStockCount} 項・點我看要叫哪些貨`}</button>}
-      {showStock ? <StockCenter deals={deals} cases={cases} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
+      {showStock ? <StockCenter deals={deals} cases={cases} onSaveDeal={saveDeal} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
 
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋姓名、電話、車牌、車型或案件名稱…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -121,11 +128,14 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
             const stageDays = getCasePipelineElapsedDays(item, { deals, quotes: quoteDrafts });
             const totalDays = getCaseTotalElapsedDays(item, { deals, quotes: quoteDrafts });
             return (
-              <button key={item.id} type="button" onClick={() => { openedByFocus.current = false; setSelectedId(item.id); }} className={`card p-4 text-left active:scale-[0.99] transition-all ${tracking && (matchesCaseListFilter('won', tracking) || matchesCaseListFilter('delivered', tracking)) ? 'border-danger/35 bg-danger/10' : 'hover:border-teal/50'}`}>
+              <div key={item.id} className={`card text-left transition-all ${tracking && (matchesCaseListFilter('won', tracking) || matchesCaseListFilter('delivered', tracking)) ? 'border-danger/35 bg-danger/10' : 'hover:border-teal/50'}`}>
+                <button type="button" onClick={() => { openedByFocus.current = false; setSelectedId(item.id); }} className="block w-full p-4 text-left active:scale-[0.99] transition-all">
+
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className={`badge ${item.type === 'modification' ? 'bg-warn text-black' : 'bg-danger text-white'}`}>{CASE_TYPE_LABEL[item.type] || '案件'}</span>
+                      {tracking && (() => { const pill = caseStagePill(item, tracking); return <span className={`rounded-md border-2 border-ink px-2 py-0.5 text-xs font-extrabold leading-tight ${STAGE_PILL[pill.tone] || STAGE_PILL.new}`}>{pill.text}</span>; })()}
                       {pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                     </div>
                     <h2 className="font-bold text-ink mt-2 truncate">{item.clientName || '未命名客戶'}</h2>
@@ -133,13 +143,21 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                   </div>
                   <span className="text-ink-3">›</span>
                 </div>
-                <p className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2">
-                  {caseTrackingParts(item, tracking).map((part) => (
+                <p className="mt-2 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-ink-2 empty:hidden">
+                  {caseTrackingParts(item, tracking).filter((part) => part.key !== 'stage').map((part) => (
                     <span key={part.key} className={part.tone === 'danger' ? 'font-bold text-danger' : part.tone === 'warn' ? 'font-semibold text-gold' : ''}>{part.text}</span>
                   ))}
                 </p>
                 {deal?.quoteId && !stock.delivered && <p className={`mt-2 text-xs font-bold ${stock.deliveryRisk ? 'text-danger' : stock.missing ? 'text-copper' : 'text-ok'}`}>📦 {stock.missing ? `尚缺 ${stock.missing} 項配件${stock.deliveryRisk ? '・交車將近' : ''}` : '配件已核對完成'}{stock.inquiryNoDate ? '・待廠商確認未排再追日' : ''}</p>}
-              </button>
+                </button>
+                {tracking && !tracking.completed && !tracking.closed && ['won', 'delivery'].includes(tracking.stageId) && (
+                  <div className="border-t border-bdr/60 px-4 py-2">
+                    {tracking.filed
+                      ? <button type="button" onClick={() => saveCase({ ...item, filedAt: '' })} className="min-h-10 text-xs font-bold text-ink-2 underline underline-offset-2">↩ 放回「全部」</button>
+                      : <button type="button" onClick={() => saveCase({ ...item, filedAt: new Date().toISOString() })} className="min-h-10 rounded-lg border-2 border-ink bg-s1 px-3 text-xs font-extrabold text-ink">📁 歸到已成交案件（移出全部）</button>}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -153,10 +171,96 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
   );
 }
 
-function StockCenter({ deals, cases, onOpenCase }) {
+function StockActions({ row, disabled, onChange }) {
+  const next = nextStatus(row);
+  const settled = isSettledStock(row);
+  const follow = addDays(today(), 3);
+  return (
+    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+      <select aria-label={`${row.name}狀態`} value={stockStatus(row)} disabled={disabled}
+        onChange={(e) => onChange(statusPatch(row, e.target.value, follow))} className="min-h-11 w-full min-w-0 text-sm">
+        {statusOptions(row).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+      </select>
+      {next
+        ? <button type="button" disabled={disabled} onClick={() => onChange(statusPatch(row, next[0], follow))}
+          className={`min-h-11 rounded-lg border px-3 text-xs font-bold ${settled ? 'border-ok bg-ok/10 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>→ {next[1]}</button>
+        : <span className="flex min-h-11 items-center rounded-lg bg-ok/10 px-3 text-xs font-bold text-ok">✓ 完成</span>}
+    </div>
+  );
+}
+
+function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
+  const [mode, setMode] = useState('customer');
+  const [saving, setSaving] = useState('');
+  const [error, setError] = useState('');
+  const list = useMemo(() => stockByCase(deals, cases), [deals, cases]);
   const groups = summarizeStock(deals, cases).filter((group) => group.missing > 0);
   const unverified = deals.filter((deal) => !deal.quoteId && !deal.caseArchivedAt && cases.some((item) => (item.id === deal.caseId || item.dealId === deal.id) && item.status !== 'completed'));
-  return <section className="card p-4 space-y-3"><div><h2 className="font-bold text-ink">尚缺配件</h2><p className="mt-1 text-xs text-ink-3">只統計已指定成交報價、尚未完工案件；同規格合併，逐案核對。</p></div>{unverified.length > 0 && <p className="rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs text-warn">另有 {unverified.length} 筆舊成交尚未指定成交報價，配件需求未納入統計，請先核對。</p>}{groups.length === 0 && <p className="rounded-xl bg-s2 p-4 text-sm text-ink-2">目前沒有待備的配件。</p>}{groups.map((group) => <div key={group.key} className="rounded-xl border border-bdr bg-s2 p-3"><div className="flex items-start justify-between gap-2"><div><p className="font-bold text-ink">{group.name}{group.specification ? `・${group.specification}` : ''}</p><p className="text-xs text-ink-3">總需求 {group.needed}・已備 {group.ready}</p></div><strong className="shrink-0 text-sm text-danger">尚缺 {group.missing}</strong></div><div className="mt-2 space-y-1">{group.cases.filter((row) => !['ready', 'installed', 'not_needed'].includes(row.status)).map((row) => <button key={`${row.dealId}:${row.id}`} type="button" onClick={() => onOpenCase(row.caseId)} className="block min-h-10 w-full rounded-lg bg-s1 px-3 py-2 text-left text-xs text-ink-2">{row.clientName || '未命名客戶'}・{STOCK_STATUSES.find(([id]) => id === row.status)?.[1] || '未處理'} ›</button>)}</div></div>)}</section>;
+  async function change(entry, rowId, patch) {
+    setSaving(rowId); setError('');
+    try {
+      const stamp = new Date().toISOString();
+      await onSaveDeal({ ...entry.deal, stockItems: (entry.deal.stockItems || []).map((it) => (it.id === rowId ? { ...it, ...patch, updatedAt: stamp } : it)) });
+    } catch (cause) { setError(cause?.message || '儲存失敗，請再試一次'); }
+    finally { setSaving(''); }
+  }
+  return (
+    <section className="space-y-3">
+      <div className="card p-4">
+        <h2 className="font-bold text-ink">尚缺配件</h2>
+        <p className="mt-1 text-xs leading-relaxed text-ink-3">只列已指定成交報價、還沒完工的案件。直接在這裡改狀態，不用進案件。外包：未聯繫→已聯繫→廠商已施作→已確認→已回報客戶；改裝部：缺貨→已叫貨→已到貨→已安裝。</p>
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-bdr bg-s2 p-1">
+          {[['customer', '依客戶'], ['part', '依配件']].map(([key, label]) => <button key={key} type="button" onClick={() => setMode(key)} className={`min-h-10 rounded-lg text-xs font-bold ${mode === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}
+        </div>
+      </div>
+      {unverified.length > 0 && <p className="rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs text-warn">另有 {unverified.length} 筆舊成交尚未指定成交報價，配件需求未納入統計，請先核對。</p>}
+      {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-semibold text-danger">{error}</p>}
+
+      {mode === 'customer' && (list.length === 0
+        ? <p className="card p-4 text-sm text-ink-2">目前沒有待處理的配件。</p>
+        : list.map((entry) => (
+          <article key={entry.caseId} className={`card p-4 ${entry.urgent ? 'border-danger/50' : ''}`}>
+            <button type="button" onClick={() => onOpenCase(entry.caseId)} className="flex w-full items-start justify-between gap-2 text-left">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-1.5 text-base font-bold text-ink">{entry.clientName}{entry.urgent && <span className="badge bg-danger text-white">急</span>}</p>
+                <p className="text-xs text-ink-3">{entry.deliveryDate ? `交車 ${dayjs(entry.deliveryDate).format('M/D')}${entry.days != null ? (entry.days < 0 ? `（已逾 ${-entry.days} 天）` : entry.days === 0 ? '（今天）' : `（${entry.days} 天後）`) : ''}` : '還沒排交車日'}</p>
+              </div>
+              <strong className={`shrink-0 text-sm ${entry.missing ? 'text-danger' : 'text-ok'}`}>{entry.missing ? `還差 ${entry.missing} 樣` : '都到齊了'} ›</strong>
+            </button>
+            <div className="mt-2 space-y-2">
+              {entry.rows.map((row) => (
+                <div key={row.id} className={`rounded-xl border border-bdr p-3 ${row.gift ? 'bg-s1 opacity-80' : 'bg-s2'}`}>
+                  <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-ink">
+                    <span className={`badge ${stockTrack(row) === 'vendor' ? 'bg-copper/15 text-copper' : 'bg-teal/15 text-teal'}`}>{TRACK_LABELS[stockTrack(row)]}</span>
+                    {row.name}{row.specification ? `・${row.specification}` : ''}{(Number(row.quantity) || 1) > 1 ? ` × ${row.quantity}` : ''}
+                    {row.gift && <span className="text-[11px] font-normal text-ink-3">贈品</span>}
+                  </p>
+                  {row.note && <p className="mt-0.5 text-[11px] text-ink-3">{row.note}</p>}
+                  <StockActions row={row} disabled={saving === row.id} onChange={(patch) => change(entry, row.id, patch)} />
+                  {stockStatus(row) === 'inquiry' && row.followUpDate && <p className="mt-1 text-[11px] text-ink-3">再追日 {dayjs(row.followUpDate).format('M/D')}</p>}
+                </div>
+              ))}
+            </div>
+          </article>
+        )))}
+
+      {mode === 'part' && (groups.length === 0
+        ? <p className="card p-4 text-sm text-ink-2">目前沒有待備的配件。</p>
+        : groups.map((group) => (
+          <div key={group.key} className="card p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div><p className="font-bold text-ink">{group.name}{group.specification ? `・${group.specification}` : ''}</p><p className="text-xs text-ink-3">總需求 {group.needed}・已到位 {group.ready}</p></div>
+              <strong className="shrink-0 text-sm text-danger">尚缺 {group.missing}</strong>
+            </div>
+            <div className="mt-2 space-y-1">
+              {group.cases.filter((row) => !isSettledStock(row)).map((row) => (
+                <button key={`${row.dealId}:${row.id}`} type="button" onClick={() => onOpenCase(row.caseId)} className="block min-h-10 w-full rounded-lg bg-s2 px-3 py-2 text-left text-xs text-ink-2">{row.clientName || '未命名客戶'}・{statusLabel(row)} ›</button>
+              ))}
+            </div>
+          </div>
+        )))}
+    </section>
+  );
 }
 
 function StockChecklist({ deal, quote, delivered = false, onSaveDeal, onError }) {
@@ -171,32 +275,44 @@ function StockChecklist({ deal, quote, delivered = false, onSaveDeal, onError })
     finally { setSaving(false); }
   }
   if (!deal.quoteId) return <section className="card border-warn/40 p-4"><h2 className="font-bold text-ink">成交配件核對</h2><p className="mt-2 text-sm text-warn">這是舊的手動成交，尚無指定成交報價。系統不會猜測配件，也不會納入中央點貨。</p></section>;
-  const missing = items.filter((item) => !['ready', 'installed', 'not_needed'].includes(item.status));
+  const missing = items.filter((item) => !isSettledStock(item));
   return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{items.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{items.map((row) => <StockRow delivered={delivered} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} />)}</div></section>;
 }
 
 function StockRow({ row, disabled, delivered = false, onUpdate }) {
   const [note, setNote] = useState(row.note || '');
-  const ready = ['ready', 'installed'].includes(row.status);
+  const status = stockStatus(row);
+  const track = stockTrack(row);
+  const next = nextStatus(row);
+  const settled = isSettledStock(row);
+  const follow = addDays(today(), 3);
   return <div className="rounded-xl border border-bdr bg-s2 p-3">
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-ink">{row.name}{row.specification ? `・${row.specification}` : ''} × {row.quantity || 1}</p>
+        <p className="font-bold text-ink"><span className={`badge mr-1.5 ${track === 'vendor' ? 'bg-copper/15 text-copper' : 'bg-teal/15 text-teal'}`}>{TRACK_LABELS[track]}</span>{row.name}{row.specification ? `・${row.specification}` : ''} × {row.quantity || 1}</p>
         {row.fromBundle && <p className="text-[11px] text-ink-3">來自套件：{row.fromBundle}</p>}
         {row.gift && <p className="text-[11px] text-copper">贈送配件，仍需備品</p>}
         {row.note && <p className="mt-1 whitespace-pre-wrap text-xs text-ink-2">備註：{row.note}</p>}
       </div>
-      <button type="button" disabled={disabled || ['installed', 'not_needed'].includes(row.status)} onClick={() => onUpdate({ status: ready ? 'todo' : 'ready' })} className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold ${ready ? 'border-ok bg-ok/15 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>{row.status === 'installed' ? '✓ 已安裝' : row.status === 'not_needed' ? '不需備品' : ready ? '✓ 已備妥' : '□ 備妥'}</button>
+      {next
+        ? <button type="button" disabled={disabled} onClick={() => onUpdate(statusPatch(row, next[0], follow))} className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold ${settled ? 'border-ok bg-ok/15 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>→ {next[1]}</button>
+        : <span className="flex min-h-11 shrink-0 items-center rounded-lg bg-ok/10 px-3 text-xs font-bold text-ok">✓ {statusLabel(row)}</span>}
     </div>
     <div className="mt-2 grid grid-cols-2 gap-2">
-      <select aria-label={`${row.name}備品狀態`} value={row.status || 'todo'} onChange={(e) => onUpdate(e.target.value === 'inquiry' && !row.followUpDate ? { status: 'inquiry', followUpDate: addDays(today(), 3) } : { status: e.target.value })} disabled={disabled} className="min-h-11 w-full text-sm">{STOCK_STATUSES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-      {row.status === 'inquiry'
-        ? <label className="block text-[11px] text-ink-3">再追廠商日期<input type="date" value={row.followUpDate || ''} onChange={(e) => onUpdate({ followUpDate: e.target.value })} aria-label={`${row.name}再追日期`} className={`min-h-11 w-full text-sm ${row.followUpDate || delivered ? '' : 'border-danger'}`} disabled={disabled} /></label>
+      <select aria-label={`${row.name}備品狀態`} value={status} onChange={(e) => onUpdate(statusPatch(row, e.target.value, follow))} disabled={disabled} className="min-h-11 w-full text-sm">{statusOptions(row).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+      {status === 'inquiry'
+        ? <label className="block text-[11px] text-ink-3">再追日期<input type="date" value={row.followUpDate || ''} onChange={(e) => onUpdate({ followUpDate: e.target.value })} aria-label={`${row.name}再追日期`} className={`min-h-11 w-full text-sm ${row.followUpDate || delivered ? '' : 'border-danger'}`} disabled={disabled} /></label>
         : <span />}
     </div>
-    {row.status === 'inquiry' && !row.followUpDate && !delivered && <p className="mt-1 text-[11px] font-bold text-danger">待廠商確認，請設定再追日期</p>}
-    <details className="mt-1 text-xs text-ink-2"><summary className="min-h-10 cursor-pointer py-2">修改數量或備註</summary>
+    {status === 'inquiry' && !row.followUpDate && !delivered && <p className="mt-1 text-[11px] font-bold text-danger">{statusLabel(row)}，請設定再追日期</p>}
+    <details className="mt-1 text-xs text-ink-2"><summary className="min-h-10 cursor-pointer py-2">修改類別、數量或備註</summary>
       <div className="space-y-2 pt-1">
+        <label className="block">這項屬於
+          <select value={track} aria-label={`${row.name}類別`} onChange={(e) => { const sw = switchTrack(row, e.target.value); onUpdate({ track: sw.track, status: sw.status }); }} className="mt-1 min-h-11 w-full" disabled={disabled}>
+            <option value="vendor">外包（帆布、箱體、尾門、烤漆…）</option>
+            <option value="inhouse">改裝部配件</option>
+          </select>
+        </label>
         <label className="block">數量<input type="number" aria-label={`${row.name}數量`} min="1" value={row.quantity || 1} onChange={(e) => onUpdate({ quantity: Math.max(1, Number(e.target.value) || 1) })} className="mt-1 min-h-11 w-full" disabled={disabled} /></label>
         <label className="block">廠商／客戶要求<input value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => { if (note !== (row.note || '')) onUpdate({ note }); }} placeholder="規格、廠商或客戶特殊要求" aria-label={`${row.name}備註`} className="mt-1 min-h-11 w-full" /></label>
       </div>

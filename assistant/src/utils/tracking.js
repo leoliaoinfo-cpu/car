@@ -14,7 +14,7 @@ export const CASE_STAGE_PLAIN = {
 
 /** 案件列表的篩選：對應既有階段，不新增任何儲存欄位。 */
 export const CASE_LIST_FILTERS = [
-  ['all', '全部'],
+  ['all', '全部(尚未交車)'],
   ['follow', '要追蹤'],
   ['quoted', '已報價'],
   ['won', '已成交'],
@@ -95,9 +95,16 @@ export function getCaseTracking(item, { deals = [], quotes = [], queue = [] } = 
 
   return {
     stageId, stageLabel: CASE_STAGE_PLAIN[stageId] || '洽談中', completed, closed, hasDeal: Boolean(deal),
+    filed: Boolean(item?.filedAt), // 使用者自己按「歸到已成交案件」才會有；不會自動出現
     contactDays, createdDays, followUpIn, overdueDays, quoteOutstanding, quoteDays, quoteUnanswered,
     stale, idleDays, rank,
   };
+}
+
+/** 狀態標籤（醒目的那顆）：文字與顏色代號。顏色由畫面對應。 */
+export function caseStagePill(item, tracking) {
+  if (tracking.closed) return { text: `不追蹤${item?.closedReason ? `・${item.closedReason}` : ''}`, tone: 'closed' };
+  return { text: tracking.stageLabel, tone: tracking.stageId };
 }
 
 /** 案件列表那一行追蹤文字的各段（畫面自己決定顏色）。 */
@@ -123,7 +130,8 @@ export function matchesCaseListFilter(filter, tracking) {
   if (filter === 'quoted') return tracking.quoteOutstanding;
   if (filter === 'won') return ['won', 'delivery'].includes(tracking.stageId);
   if (filter === 'delivered') return tracking.completed;
-  return true;
+  // 全部＝尚未交車的案件：已交車、使用者手動歸檔到「已成交案件」的都不在這裡（避免案件越來越多全混在一起）
+  return !tracking.completed && !tracking.filed;
 }
 
 export function compareCaseTracking(a, b) {
