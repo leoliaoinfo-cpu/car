@@ -338,7 +338,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const attentionClass = isWon
               ? 'border-danger/35 bg-danger/10'
               : attention.unassignedOverdue
-              ? 'border-danger/60 bg-danger/10'
+              ? 'border-ink-3/60 bg-ink-3/25'
               : attention.linkedStale ? 'border-ink-3/35 bg-ink-3/10 opacity-80' : '';
             return (
               <article key={quote.id} className={`card p-4 space-y-3 ${attentionClass}`}>
@@ -351,7 +351,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {linkedDeal && !linkedDeal.quoteId && <span className="badge bg-warn/10 text-warn">成交報價待核對</span>}
                       {isWon && pipelineStageId === 'completed' && dayjs(stageUpdatedAt).isValid() && <span className="badge bg-ok/15 text-ok">{dayjs(stageUpdatedAt).format('YYYY 年 MM 月')}交車</span>}
                       {!linkedCase && <span className="badge bg-warn/10 text-warn">未歸入案件</span>}
-                      {attention.unassignedOverdue && <span className="badge bg-danger text-white">未分配客戶超過 30 天</span>}
+                      {attention.unassignedOverdue && <span className="badge bg-ink-3 text-white">未分配客戶超過 30 天</span>}
                       {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
                       {quote.archivedAt && <span className="badge bg-ink-3 text-white">回收筒</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
