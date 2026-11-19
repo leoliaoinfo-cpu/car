@@ -223,3 +223,13 @@ test('Logo(烤漆改黑) 不會勾到車身烤漆，整行寫進客戶需求', (
   const only = prefillFromQuote(emptySheet(), { items: [{ id: 'l', kind: 'addon', name: 'Logo(烤漆改黑)', price: 1500 }] }).sheet;
   assert.equal(!!only.items.paint?.on, false);
 });
+
+test('對照報價的核對紀錄：舊表沒有也不會壞；報價那一項改過指紋就不同', async () => {
+  const { quoteItemFingerprint } = await import('./optionSheet.js');
+  assert.deepEqual(normalizeSheet({}).checked, {});
+  assert.deepEqual(normalizeSheet({ checked: { a: 'x', b: 1 } }).checked, { a: 'x' });
+  const item = { id: 'a', name: '尿素桶防撞桿', price: 5500, note: '橘色' };
+  assert.equal(quoteItemFingerprint(item), quoteItemFingerprint({ ...item }));
+  assert.notEqual(quoteItemFingerprint(item), quoteItemFingerprint({ ...item, note: '黑色' }));
+  assert.notEqual(quoteItemFingerprint(item), quoteItemFingerprint({ ...item, price: 6000 }));
+});

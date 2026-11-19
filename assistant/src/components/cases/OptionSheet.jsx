@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderSheetCanvas } from '../../utils/optionSheetImage';
 import {
-  DEFAULT_LAYOUT, sheetBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
-  layoutItems, matchSheetIds,
+  DEFAULT_LAYOUT, sheetBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, sheetHasContent,
+  quoteItemFingerprint,
 } from '../../utils/optionSheet';
 import { calculateQuoteTotals } from '../../utils/pricing';
 import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } from '../../optionSheetLayout';
@@ -229,19 +229,27 @@ function LayoutEditor({ layout, onChange, onDone, onReset }) {
 
 const twd = (n) => Math.round(Number(n) || 0).toLocaleString('zh-TW');
 
-/** 選配表旁邊的報價對照：逐項列出品名、價格、規格、備註，並標出選配表有沒有勾到。 */
-function QuoteCompare({ quote, isWon, sheet, layout }) {
+/**
+ * 選配表旁邊的報價對照：逐項列出品名、價格、規格、備註，讓你自己一項一項對照、寫進選配表。
+ * 系統不幫你勾、也不判斷；每項右邊的大方框是「我核對過」，報價那一項改過就自動取消要重看。
+ */
+function QuoteCompare({ quote, isWon, sheet, onToggle }) {
   if (!quote) return null;
-  const visible = new Set(layoutItems(layout).map((x) => x.id));
-  const items = (quote.items || []).filter((it) => String(it?.name || '').trim() && !it.pending);
+  const rows = (quote.items || []).filter((it) => String(it?.name || '').trim() && !it.pending)
+    .map((it) => ({ key: it.id, fp: quoteItemFingerprint(it), it }));
+  const centralNote = String(quote.note || '').trim();
+  if (centralNote) rows.push({ key: '__note', fp: JSON.stringify(['note', centralNote]), it: null });
+  const isChecked = (row) => sheet.checked?.[row.key] === row.fp;
+  const done = rows.filter(isChecked).length;
+  const allDone = rows.length > 0 && done === rows.length;
   const totals = calculateQuoteTotals(quote.items || [], quote.generalDiscounts || []);
-  const statusOf = (it) => {
-    if (it.kind === 'vehicle') return null;
-    const ids = matchSheetIds(it).filter((id) => visible.has(id));
-    if (!ids.length) return it.kind === 'other' ? null : { text: '紙本沒有這格', cls: 'border-bdr text-ink-3' };
-    const on = ids.filter((id) => sheet.items[id]?.on).length;
-    if (on === ids.length) return { text: '✓ 已勾', cls: 'border-ok/40 bg-ok/10 text-ok' };
-    return { text: on ? `⚠ 只勾 ${on}/${ids.length}` : '⚠ 還沒勾', cls: 'border-warn/50 bg-warn/15 text-black' };
+  const box = (row) => {
+    const on = isChecked(row);
+    const label = row.it ? row.it.name : '中央備註';
+    return (
+      <button type="button" onClick={() => onToggle(row.key, on ? null : row.fp)} aria-pressed={on} aria-label={`${label}核對過`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border-2 text-lg font-black ${on ? 'border-ok bg-ok text-white' : 'border-ink-3 bg-s1 text-transparent'}`}>✓</button>
+    );
   };
   return (
     <section className="card space-y-2 p-3" aria-label="對照報價">
@@ -252,19 +260,25 @@ function QuoteCompare({ quote, isWon, sheet, layout }) {
         </div>
         <p className="shrink-0 text-right text-sm font-bold text-ink">NT$ {twd(totals.total)}</p>
       </div>
+      <p className={`rounded-lg px-2 py-1.5 text-sm font-bold ${allDone ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-black'}`}>
+        {allDone ? `✅ 全部核對完成（${rows.length} 項）` : `自己對照寫進選配表，核對完按右邊方框：${done}/${rows.length}`}
+      </p>
       <ul className="divide-y divide-bdr">
-        {items.map((it) => {
-          const st = statusOf(it);
+        {rows.map((row) => {
+          if (!row.it) return null;
+          const it = row.it;
           const cut = (it.deductions || []).filter((d) => String(d?.name || '').trim());
           return (
-            <li key={it.id} className="py-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 text-sm font-semibold text-ink">{it.name}{it.optionValue ? <span className="text-accent">（{it.optionValue}）</span> : null}</p>
-                <p className="shrink-0 text-sm text-ink-2">{it.gift ? '🎁 贈送' : twd(it.price)}</p>
+            <li key={row.key} className="flex items-start gap-2 py-2">
+              <div className={`min-w-0 flex-1 ${isChecked(row) ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-sm font-semibold text-ink">{it.name}{it.optionValue ? <span className="text-accent">（{it.optionValue}）</span> : null}</p>
+                  <p className="shrink-0 text-sm text-ink-2">{it.gift ? '🎁 贈送' : twd(it.price)}</p>
+                </div>
+                {cut.length > 0 && <p className="text-xs text-ink-3">不含：{cut.map((d) => d.name).join('＋')}</p>}
+                {String(it.note || '').trim() && <p className="whitespace-pre-wrap rounded bg-accent/5 px-1.5 py-0.5 text-xs text-ink-2">📝 {String(it.note).trim()}</p>}
               </div>
-              {cut.length > 0 && <p className="text-xs text-ink-3">不含：{cut.map((d) => d.name).join('＋')}</p>}
-              {String(it.note || '').trim() && <p className="whitespace-pre-wrap rounded bg-accent/5 px-1.5 py-0.5 text-xs text-ink-2">📝 {String(it.note).trim()}</p>}
-              {st && <span className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.text}</span>}
+              {box(row)}
             </li>
           );
         })}
@@ -272,7 +286,12 @@ function QuoteCompare({ quote, isWon, sheet, layout }) {
       {(quote.generalDiscounts || []).filter((d) => Number(d?.amount) > 0).map((d) => (
         <p key={d.id || d.name} className="flex justify-between text-xs text-ok"><span>{d.name}</span><span>−{twd(d.amount)}</span></p>
       ))}
-      {String(quote.note || '').trim() && <p className="whitespace-pre-wrap rounded-lg border border-bdr bg-s2 p-2 text-xs text-ink-2">中央備註：{String(quote.note).trim()}</p>}
+      {centralNote && (
+        <div className={`flex items-start gap-2 rounded-lg border border-bdr bg-s2 p-2`}>
+          <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs text-ink-2">中央備註：{centralNote}</p>
+          {box(rows[rows.length - 1])}
+        </div>
+      )}
     </section>
   );
 }
@@ -346,14 +365,12 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   }, [sheet]);
   useEffect(() => () => { if (image?.url) URL.revokeObjectURL(image.url); }, [image]);
 
-  function fillFromQuote() {
-    const quote = quotes.find((q) => q.id === quoteId);
-    if (!quote) { setMsg('這個案件還沒有報價可以帶入。'); return; }
-    const { sheet: next, unmatched } = prefillFromQuote(sheet, quote, layout);
-    setSheet(next);
-    setMsg(unmatched.length
-      ? `已依報價勾好。「${unmatched.join('、')}」紙本上沒有對應的格子，已寫進客戶需求。`
-      : '已依報價勾好，你可以再自己改。');
+  function toggleChecked(key, fp) {
+    setSheet((cur) => {
+      const checked = { ...(cur.checked || {}) };
+      if (fp) checked[key] = fp; else delete checked[key];
+      return { ...cur, checked };
+    });
   }
 
   async function exportImage() {
@@ -400,17 +417,15 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
         <div className={wide && quotes.length > 0 ? 'grid items-start' : ''}
           style={wide && quotes.length > 0 ? { gridTemplateColumns: `minmax(0,1fr) 22px ${clampW(compareW)}px` } : undefined}>
         <div className="mx-auto max-w-3xl space-y-3 w-full">
-          {quotes.length > 0 && (
+          {quotes.length > 1 && (
             <div className="card flex flex-wrap items-center gap-2 p-3">
-              {quotes.length > 1 && (
-                <select value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
-                  {quotes.map((q, i) => <option key={q.id} value={q.id}>{`報價 ${i + 1}・${q.model || ''}`}{q.id === deal?.quoteId ? '（成交）' : ''}</option>)}
-                </select>
-              )}
-              <button type="button" onClick={fillFromQuote} className="btn-outline min-h-11 flex-1 text-sm font-bold">✨ 依報價帶入勾選</button>
+              <span className="text-sm font-bold text-ink-2">對照哪張報價</span>
+              <select value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
+                {quotes.map((q, i) => <option key={q.id} value={q.id}>{`報價 ${i + 1}・${q.planName || q.model || ''}`}{q.id === deal?.quoteId ? '（成交）' : ''}</option>)}
+              </select>
             </div>
           )}
-          {!wide && showCompare && <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} layout={layout} />}
+          {!wide && showCompare && <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} />}
           {msg && <p role="status" className="rounded-xl border border-bdr bg-s2 p-3 text-xs leading-relaxed text-ink-2">{msg}</p>}
 
           <div className="overflow-hidden rounded-2xl border border-bdr bg-white shadow-card">
@@ -437,7 +452,7 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
         )}
         {wide && quotes.length > 0 && (
           <div className="sticky top-0 max-h-[calc(100vh-7rem)] overflow-y-auto">
-            <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} layout={layout} />
+            <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} />
           </div>
         )}
         </div>

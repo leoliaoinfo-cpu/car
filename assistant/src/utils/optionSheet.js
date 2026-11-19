@@ -88,8 +88,16 @@ export function emptySheet(base = {}) {
   return {
     date: base.date || rocDate(), owner: base.owner || '', color: '', agent: base.agent || '', model: base.model || '',
     loan: { on: false, text: '' }, cash: { on: false, text: '' }, vin: '',
-    items: {}, trade: false, plate: { on: false, text: '' }, needs: { on: false, text: '' },
+    items: {}, trade: false, plate: { on: false, text: '' }, needs: { on: false, text: '' }, checked: {},
   };
+}
+
+/** 對照報價時「我核對過」的指紋：品名、價格、贈送、規格、備註、扣項任何一個改了，那一項的核對就自動失效要重看。 */
+export function quoteItemFingerprint(item) {
+  return JSON.stringify([
+    String(item?.name || '').trim(), Number(item?.price) || 0, !!item?.gift, String(item?.optionValue || ''),
+    String(item?.note || '').trim(), (item?.deductions || []).map((d) => `${d?.name || ''}:${Number(d?.amount) || 0}`),
+  ]);
 }
 
 export function normalizeSheet(sheet, base = {}) {
@@ -104,6 +112,8 @@ export function normalizeSheet(sheet, base = {}) {
     date: String(s.date || e.date), owner: String(s.owner ?? e.owner), color: String(s.color || ''), agent: String(s.agent ?? e.agent), model: String(s.model ?? e.model),
     loan: flag(s.loan), cash: flag(s.cash), vin: String(s.vin || ''),
     items, trade: !!s.trade, plate: flag(s.plate), needs: flag(s.needs),
+    checked: Object.fromEntries(Object.entries(s.checked && typeof s.checked === 'object' ? s.checked : {})
+      .filter(([, v]) => typeof v === 'string')),
   };
 }
 
