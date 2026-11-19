@@ -354,7 +354,9 @@ export function replaceBackendCustomQuoteItems(quote, rows = []) {
     .filter((row) => row?.id && String(row.name || '').trim() && Number(row.salePrice) > 0)
     .map((row) => ({
       id: row.id,
-      catalogId: null,
+      catalogId: row.catalogId || null,
+      optionLabel: row.catalogId ? String(row.choiceLabel || '') : '',
+      optionValue: row.catalogId ? String(row.optionValue || '') : '',
       kind: 'addon',
       name: String(row.name).trim(),
       price: money(row.salePrice),

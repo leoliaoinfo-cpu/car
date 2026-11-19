@@ -629,6 +629,7 @@ export function PricingEditorModal({
       discount: Math.max(0, Number(line.salePrice || 0) - Number(line.netPrice || 0)) || '',
     })));
   const [customError, setCustomError] = useState('');
+  const [removedIds, setRemovedIds] = useState([]); // 從報價拿掉的既有配件
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -653,12 +654,13 @@ export function PricingEditorModal({
     ...(record.lines || []).filter((line) => line.backendCustom).map((line) => line.id),
     ...customItems.map((row) => row.id),
   ]);
-  const regularLines = (record.lines || []).filter((line) => !line.backendCustom);
+  const regularLines = (record.lines || []).filter((line) => !line.backendCustom && !removedIds.includes(line.id));
+  const removedLines = (record.lines || []).filter((line) => removedIds.includes(line.id));
   const customLines = customItems.map((row) => {
     const salePrice = Math.max(0, Number(row.salePrice) || 0);
     return {
       id: row.id,
-      catalogId: null,
+      catalogId: row.catalogId || null,
       kind: 'addon',
       name: row.name.trim() || '未命名客製項目',
       note: String(row.note || '').trim(),
@@ -730,6 +732,7 @@ export function PricingEditorModal({
   const preview = updatePricingCosts(previewBase, cleanLineCosts, cleanOtherCosts, quote ? cleanLineDiscounts : null);
   const customQuote = quote ? replaceBackendCustomQuoteItems({
     ...quote,
+    items: (quote.items || []).filter((item) => !removedIds.includes(item.id)),
     generalDiscounts: cleanGeneralDiscounts,
   }, customItems) : null;
   const updatedQuote = customQuote
@@ -761,6 +764,10 @@ export function PricingEditorModal({
       id: generateId('qi'),
       name: addon.name,
       note: '',
+      catalogId: addon.id,
+      choiceLabel: addon.choiceLabel || '',
+      choices: addon.choices || [],
+      optionValue: '',
       salePrice: addon.pendingPrice ? '' : String(addon.price || ''),
       cost: known == null || known === '' ? '' : String(known),
       discount: '',
@@ -847,6 +854,11 @@ export function PricingEditorModal({
       || row.cost === '' || Number(row.cost) < 0);
     if (incompleteCustom) {
       setCustomError('請補齊每個客製項目的名稱、對客售價與內部成本；不需要的空白列請刪除。');
+      return;
+    }
+    const missingChoice = customItems.find((row) => row.choices?.length && !row.optionValue);
+    if (missingChoice) {
+      setCustomError(`請先選擇「${missingChoice.name}」的${missingChoice.choiceLabel || '規格'}。`);
       return;
     }
     const incompleteDiscount = quote
@@ -951,6 +963,57 @@ export function PricingEditorModal({
             </section>
           )}
 
+          {quote && (
+            <section className="rounded-xl border-2 border-accent/35 bg-accent/5 p-3 mb-2 space-y-2">
+              <p className="text-xs font-bold text-ink">配件增減（直接改這張報價）</p>
+              <p className="text-[10px] text-ink-3">下面每一項都可以填成本、核定贈送；不要的按「🗑 從報價拿掉」，要加的從型錄選，儲存後報價單同步。</p>
+        {quotePresets?.addons?.length > 0 && (
+              <div className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
+                <button type="button" onClick={() => setCatalogOpen((v) => !v)} className="btn-outline text-xs w-full min-h-11">
+                  {catalogOpen ? '收起型錄' : '📖 從型錄加選配（不用回報價單）'}
+                </button>
+                {catalogOpen && (
+                  <>
+                    <input value={catalogSearch} onChange={(e) => setCatalogSearch(e.target.value)}
+                      className="w-full text-xs" placeholder="搜尋配件名稱，例如：LED、底板" aria-label="搜尋型錄配件" />
+                    <div className="max-h-64 overflow-y-auto space-y-1">
+                      {(() => {
+                        const needle = catalogSearch.trim().toLowerCase();
+                        const rows = quotePresets.addons.filter((a) => !needle || `${a.name} ${a.cat}`.toLowerCase().includes(needle));
+                        const cats = [...new Set(rows.map((a) => a.cat || '其他'))];
+                        if (!rows.length) return <p className="text-[11px] text-ink-3 py-3 text-center">找不到符合的配件</p>;
+                        return cats.map((cat) => (
+                          <div key={cat}>
+                            <p className="text-[10px] font-bold text-ink-3 mt-1.5 mb-0.5">{cat}</p>
+                            {rows.filter((a) => (a.cat || '其他') === cat).map((a) => (
+                              <button key={a.id} type="button" onClick={() => addFromCatalog(a)}
+                                className="flex w-full min-h-11 items-center justify-between gap-2 rounded-lg border border-bdr px-2.5 py-1.5 text-left text-xs hover:bg-s2">
+                                <span className="min-w-0 flex-1">{a.name}</span>
+                                <span className="shrink-0 tabular-nums text-ink-3">{a.pendingPrice ? '待報價' : formatMoney(a.price)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+                  {removedLines.length > 0 && (
+                <div className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-[11px] text-ink-2 space-y-1">
+                  <p className="font-semibold">已拿掉（按儲存後才生效）：</p>
+                  {removedLines.map((line) => (
+                    <div key={line.id} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate">{line.name}</span>
+                      <button type="button" onClick={() => setRemovedIds((list) => list.filter((id) => id !== line.id))}
+                        className="shrink-0 rounded-md border border-bdr px-2 py-1 text-[11px]">還原</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
           <div className="space-y-2">
             {regularLines.map((line) => {
               const supplierOptions = line.kind === 'addon'
@@ -968,7 +1031,13 @@ export function PricingEditorModal({
               return (
               <div key={line.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
                 <div className="min-w-0">
-                  <p className="text-xs text-ink truncate">{line.name}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs text-ink truncate">{line.name}</p>
+                    {quote && line.kind !== 'vehicle' && (
+                      <button type="button" onClick={() => setRemovedIds((list) => [...list, line.id])}
+                        className="shrink-0 rounded-md border border-danger/30 px-2 py-0.5 text-[10px] text-danger" aria-label={`從報價拿掉${line.name}`}>🗑 從報價拿掉</button>
+                    )}
+                  </div>
                   <p className="text-[10px] text-ink-3">
                     原始售價 NT$ {formatMoney(line.salePrice)}・折後 NT$ {formatMoney(previewLine.netPrice)}
                   </p>
@@ -1098,6 +1167,16 @@ export function PricingEditorModal({
                         <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
                           className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
                       </div>
+                      {row.choices?.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-ink-2">{row.choiceLabel || '規格'}</span>
+                          {row.choices.map((choice) => (
+                            <button key={choice} type="button" onClick={() => updateCustomItem(row.id, { optionValue: choice })}
+                              className={`min-h-9 rounded-lg border px-3 text-xs font-semibold ${row.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr text-ink-2'}`}>{choice}</button>
+                          ))}
+                          {!row.optionValue && <span className="text-[10px] text-danger">（必選）</span>}
+                        </div>
+                      )}
                       <label className="block">
                         <span className="block text-[9px] text-ink-3 mb-0.5">客製規格備註</span>
                         <textarea rows="3" value={row.note || ''}
@@ -1137,39 +1216,6 @@ export function PricingEditorModal({
                   );
                 })}
                 {customError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {customError}</p>}
-                {quotePresets?.addons?.length > 0 && (
-                  <div className="rounded-lg border border-bdr bg-s1 p-2.5 space-y-2">
-                    <button type="button" onClick={() => setCatalogOpen((v) => !v)} className="btn-outline text-xs w-full min-h-11">
-                      {catalogOpen ? '收起型錄' : '📖 從型錄加選配（不用回報價單）'}
-                    </button>
-                    {catalogOpen && (
-                      <>
-                        <input value={catalogSearch} onChange={(e) => setCatalogSearch(e.target.value)}
-                          className="w-full text-xs" placeholder="搜尋配件名稱，例如：LED、底板" aria-label="搜尋型錄配件" />
-                        <div className="max-h-64 overflow-y-auto space-y-1">
-                          {(() => {
-                            const needle = catalogSearch.trim().toLowerCase();
-                            const rows = quotePresets.addons.filter((a) => !needle || `${a.name} ${a.cat}`.toLowerCase().includes(needle));
-                            const cats = [...new Set(rows.map((a) => a.cat || '其他'))];
-                            if (!rows.length) return <p className="text-[11px] text-ink-3 py-3 text-center">找不到符合的配件</p>;
-                            return cats.map((cat) => (
-                              <div key={cat}>
-                                <p className="text-[10px] font-bold text-ink-3 mt-1.5 mb-0.5">{cat}</p>
-                                {rows.filter((a) => (a.cat || '其他') === cat).map((a) => (
-                                  <button key={a.id} type="button" onClick={() => addFromCatalog(a)}
-                                    className="flex w-full min-h-11 items-center justify-between gap-2 rounded-lg border border-bdr px-2.5 py-1.5 text-left text-xs hover:bg-s2">
-                                    <span className="min-w-0 flex-1">{a.name}</span>
-                                    <span className="shrink-0 tabular-nums text-ink-3">{a.pendingPrice ? '待報價' : formatMoney(a.price)}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            ));
-                          })()}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
                 <button type="button" onClick={addCustomItem} className="btn-outline text-xs w-full min-h-11">＋ 新增客製化項目</button>
               </section>
             )}
