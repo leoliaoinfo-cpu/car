@@ -9,6 +9,8 @@ import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } 
 
 const AGENT_KEY = 'car-sales.optionSheet.agent';
 const readAgent = () => { try { return localStorage.getItem(AGENT_KEY) || ''; } catch { return ''; } };
+const COMPARE_W_KEY = 'car-sales.optionSheet.compareWidth';
+const readCompareW = () => { try { return Number(localStorage.getItem(COMPARE_W_KEY)) || 520; } catch { return 520; } };
 const rememberAgent = (v) => { try { if (v) localStorage.setItem(AGENT_KEY, v); } catch { /* 無痕模式 */ } };
 
 // 紙本樣式：粗黑邊框、圓角、手寫底線
@@ -245,10 +247,10 @@ function QuoteCompare({ quote, isWon, sheet, layout }) {
     <section className="card space-y-2 p-3" aria-label="對照報價">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-bold text-ink">📄 對照報價{isWon ? '（成交版）' : ''}</p>
+          <p className="text-base font-bold text-ink">📄 對照報價{isWon ? '（成交版）' : ''}</p>
           <p className="truncate text-[11px] text-ink-3">{[quote.planName, quote.model].filter(Boolean).join('・')}</p>
         </div>
-        <p className="shrink-0 text-right text-xs font-bold text-ink">NT$ {twd(totals.total)}</p>
+        <p className="shrink-0 text-right text-sm font-bold text-ink">NT$ {twd(totals.total)}</p>
       </div>
       <ul className="divide-y divide-bdr">
         {items.map((it) => {
@@ -257,20 +259,20 @@ function QuoteCompare({ quote, isWon, sheet, layout }) {
           return (
             <li key={it.id} className="py-1.5">
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 text-xs font-semibold text-ink">{it.name}{it.optionValue ? <span className="text-accent">（{it.optionValue}）</span> : null}</p>
-                <p className="shrink-0 text-xs text-ink-2">{it.gift ? '🎁 贈送' : twd(it.price)}</p>
+                <p className="min-w-0 text-sm font-semibold text-ink">{it.name}{it.optionValue ? <span className="text-accent">（{it.optionValue}）</span> : null}</p>
+                <p className="shrink-0 text-sm text-ink-2">{it.gift ? '🎁 贈送' : twd(it.price)}</p>
               </div>
-              {cut.length > 0 && <p className="text-[11px] text-ink-3">不含：{cut.map((d) => d.name).join('＋')}</p>}
-              {String(it.note || '').trim() && <p className="whitespace-pre-wrap rounded bg-accent/5 px-1.5 py-0.5 text-[11px] text-ink-2">📝 {String(it.note).trim()}</p>}
-              {st && <span className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.text}</span>}
+              {cut.length > 0 && <p className="text-xs text-ink-3">不含：{cut.map((d) => d.name).join('＋')}</p>}
+              {String(it.note || '').trim() && <p className="whitespace-pre-wrap rounded bg-accent/5 px-1.5 py-0.5 text-xs text-ink-2">📝 {String(it.note).trim()}</p>}
+              {st && <span className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${st.cls}`}>{st.text}</span>}
             </li>
           );
         })}
       </ul>
       {(quote.generalDiscounts || []).filter((d) => Number(d?.amount) > 0).map((d) => (
-        <p key={d.id || d.name} className="flex justify-between text-[11px] text-ok"><span>{d.name}</span><span>−{twd(d.amount)}</span></p>
+        <p key={d.id || d.name} className="flex justify-between text-xs text-ok"><span>{d.name}</span><span>−{twd(d.amount)}</span></p>
       ))}
-      {String(quote.note || '').trim() && <p className="whitespace-pre-wrap rounded-lg border border-bdr bg-s2 p-2 text-[11px] text-ink-2">中央備註：{String(quote.note).trim()}</p>}
+      {String(quote.note || '').trim() && <p className="whitespace-pre-wrap rounded-lg border border-bdr bg-s2 p-2 text-xs text-ink-2">中央備註：{String(quote.note).trim()}</p>}
     </section>
   );
 }
@@ -303,6 +305,30 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   const [narrow, setNarrow] = useState(() => window.innerWidth < 700);
   const [wide, setWide] = useState(() => window.innerWidth >= 1100); // 夠寬就左右分屏：左選配表、右報價
   const [showCompare, setShowCompare] = useState(false);
+  // 右邊報價的寬度：拖中間的分隔條調整，記在這台裝置
+  const [compareW, setCompareW] = useState(readCompareW);
+  const clampW = (w) => Math.round(Math.min(Math.max(w, 320), window.innerWidth * 0.65));
+  function startResize(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = compareW;
+    let last = startW;
+    const move = (ev) => { last = clampW(startW - (ev.clientX - startX)); setCompareW(last); };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.userSelect = '';
+      try { localStorage.setItem(COMPARE_W_KEY, String(last)); } catch { /* 無痕模式 */ }
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
+  function nudgeW(delta) {
+    const w = clampW(compareW + delta);
+    setCompareW(w);
+    try { localStorage.setItem(COMPARE_W_KEY, String(w)); } catch { /* 無痕模式 */ }
+  }
   useEffect(() => {
     const on = () => { setNarrow(window.innerWidth < 700); setWide(window.innerWidth >= 1100); };
     window.addEventListener('resize', on);
@@ -371,7 +397,8 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
         onReset={async () => { layoutDirty.current = false; setLayout(await resetOptionSheetLayout()); }} />}
 
       {!editingLayout && <div className="flex-1 overflow-y-auto px-2 pb-24 pt-3">
-        <div className={wide && quotes.length > 0 ? 'mx-auto grid max-w-[1500px] grid-cols-[minmax(0,1fr)_400px] items-start gap-4' : ''}>
+        <div className={wide && quotes.length > 0 ? 'grid items-start' : ''}
+          style={wide && quotes.length > 0 ? { gridTemplateColumns: `minmax(0,1fr) 22px ${clampW(compareW)}px` } : undefined}>
         <div className="mx-auto max-w-3xl space-y-3 w-full">
           {quotes.length > 0 && (
             <div className="card flex flex-wrap items-center gap-2 p-3">
@@ -398,6 +425,16 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
                 <button type="button" onClick={() => setConfirmClear(false)} className="btn-outline min-h-11 px-3">取消</button></span>}
           </div>
         </div>
+        {wide && quotes.length > 0 && (
+          <div role="separator" aria-orientation="vertical" aria-label="拖曳調整左右寬度" tabIndex={0} title="左右拖曳調整寬度"
+            onPointerDown={startResize}
+            onKeyDown={(e) => { if (e.key === 'ArrowLeft') nudgeW(40); if (e.key === 'ArrowRight') nudgeW(-40); }}
+            className="group sticky top-0 flex h-[calc(100vh-7rem)] cursor-col-resize touch-none items-center justify-center">
+            <span className="flex h-16 w-2.5 flex-col items-center justify-center gap-1 rounded-full bg-bdr group-hover:bg-accent/60">
+              <i className="block h-1 w-1 rounded-full bg-ink-3" /><i className="block h-1 w-1 rounded-full bg-ink-3" /><i className="block h-1 w-1 rounded-full bg-ink-3" />
+            </span>
+          </div>
+        )}
         {wide && quotes.length > 0 && (
           <div className="sticky top-0 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} layout={layout} />

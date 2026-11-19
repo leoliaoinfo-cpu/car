@@ -178,20 +178,28 @@ function noteOf(item) {
   return parts.join('，');
 }
 
+/** 四錄還是環景：先看選的規格，再看品名＋備註（「旗艦機」是四錄）；兩個都提到或都沒提到 → 不知道。 */
+export function androidChoice(item) {
+  const opt = String(item?.optionValue || '');
+  if (/環景/.test(opt)) return 'android-around';
+  if (/四錄/.test(opt)) return 'android-4rec';
+  const text = `${item?.name || ''} ${item?.note || ''}`;
+  const around = /環景/.test(text);
+  const rec = /四錄|旗艦/.test(text);
+  if (around && !rec) return 'android-around';
+  if (rec && !around) return 'android-4rec';
+  return null;
+}
+
 export function matchSheetIds(item) {
   const name = String(item?.name || '');
   const catalogName = DEFAULT_QUOTE_PRESETS.addons?.find((a) => a.id === item?.catalogId)?.name || '';
   const text = `${name} ${catalogName}`;
-  // 9吋安卓機（四錄／環景擇一）：依客人選的是四錄還是環景，只勾對應那一格
-  if (item?.catalogId === 'qa-android-surround' || /擇一.*專用底座/.test(name)) {
-    if (/環景/.test(item?.optionValue || '')) return ['android-around'];
-    if (/四錄/.test(item?.optionValue || '')) return ['android-4rec'];
-    if (/擇一/.test(name)) return [];
-  }
-  // 安全科技版：四錄／環景擇一，其餘（胎壓）照給
-  if (/安全科技版/.test(name)) {
-    if (/環景/.test(item?.optionValue || '')) return ['android-around', 'tpms6'];
-    if (/四錄/.test(item?.optionValue || '')) return ['android-4rec', 'tpms6'];
+  // 9吋安卓機、安全科技版：四錄／環景只能二選一，只勾客人選的那一格；看不出來就兩格都不勾（帶入時提醒自己勾）
+  const choice = androidChoice(item);
+  if (/安全科技版/.test(name)) return choice ? [choice, 'tpms6'] : ['tpms6'];
+  if (item?.catalogId === 'qa-android-surround' || /擇一.*專用底座|安卓.*四錄.*環景|安卓.*環景.*四錄/.test(name)) {
+    return choice ? [choice] : [];
   }
   const pkg = PACKAGES.find(([re]) => re.test(text));
   if (pkg) return pkg[1];
@@ -236,6 +244,14 @@ export function prefillFromQuote(sheet, quote, layout = null) {
     }
     const cut = deductedIds(item);
     const note = noteOf(item);
+    // 四錄／環景是二選一：報價明確選了一個，就把另一格取消（那格自己寫過字的不動）
+    const isAndroidPick = /安全科技版|安卓/.test(name) || item.catalogId === 'qa-android-surround';
+    if (isAndroidPick) {
+      const pick = androidChoice(item);
+      const other = pick === 'android-4rec' ? 'android-around' : pick === 'android-around' ? 'android-4rec' : null;
+      if (other && items[other]?.on && !String(items[other].note || '').trim()) items[other] = { ...items[other], on: false };
+      if (!pick && /安全科技版|擇一/.test(name)) noteLines.push({ key: `${compactName(name)}：四錄還是環景`, text: `${compactName(name)}：四錄還是環景？（報價沒選，請自己勾）` });
+    }
     const isPkg = ids.length > 1 || PACKAGES.some(([re]) => re.test(name));
     let placed = false;
     for (const id of ids) {

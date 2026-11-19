@@ -26,7 +26,7 @@ test('特仕版帶入 5 項，客人不要的扣項不勾', () => {
 
 test('安全科技版、帆布顏色備註、烤漆顏色、車型帶入', () => {
   const { sheet } = prefillFromQuote(emptySheet(), { model: '雙廂6人座 5速手自排', items: [
-    { id: 's', kind: 'addon', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000 },
+    { id: 's', kind: 'addon', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000, optionValue: '四錄' },
     { id: 'c', kind: 'addon', name: '三面帆布－雙廂降低版', price: 13500, note: '黑色' },
     { id: 'p', kind: 'addon', name: '車身烤漆改色', price: 39000, optionValue: '冰川水泥灰' },
   ] });
@@ -113,8 +113,8 @@ test('9吋安卓機（四錄／環景擇一）：依選擇只勾對應那一格'
   assert.deepEqual(matchSheetIds({ ...base, optionValue: '四錄' }), ['android-4rec']);
   assert.deepEqual(matchSheetIds({ ...base, optionValue: '環景' }), ['android-around']);
   // 舊報價（舊名稱、沒選規格）維持原本的比對
-  const old = matchSheetIds({ catalogId: 'qa-android-surround', name: '安卓＋四錄＆環景＋專用底座' });
-  assert.ok(old.includes('android-4rec') && old.includes('android-around'));
+  // 舊報價（舊名稱、沒選規格）看不出選哪個 → 兩格都不勾
+  assert.deepEqual(matchSheetIds({ catalogId: 'qa-android-surround', name: '安卓＋四錄＆環景＋專用底座' }), []);
 });
 
 test('安全科技版：四錄／環景擇一，只勾對應那一格並加胎壓；舊報價維持原樣', async () => {
@@ -122,8 +122,11 @@ test('安全科技版：四錄／環景擇一，只勾對應那一格並加胎�
   const base = { catalogId: 'qa-pkg2', name: '安全科技版（9吋安卓機 四錄／環景擇一＋6輪胎壓）' };
   assert.deepEqual(matchSheetIds({ ...base, optionValue: '四錄' }), ['android-4rec', 'tpms6']);
   assert.deepEqual(matchSheetIds({ ...base, optionValue: '環景' }), ['android-around', 'tpms6']);
+  // 舊報價沒選規格：看不出四錄或環景就兩格都不勾，只勾胎壓（帶入時會提醒自己勾）
   const old = matchSheetIds({ catalogId: 'qa-pkg2', name: '安全科技版（安卓四錄+360環景+六輪胎壓）' });
-  assert.deepEqual(old.sort(), ['android-4rec', 'android-around', 'tpms6'].sort());
+  assert.deepEqual(old, ['tpms6']);
+  // 備註寫「旗艦機」＝四錄
+  assert.deepEqual(matchSheetIds({ name: '安全科技版', note: '九吋安卓機升級成12.3吋安卓旗艦機' }), ['android-4rec', 'tpms6']);
 });
 
 test('配件備註與中央備註都會帶進選配表：寫得進項目後面的線就寫線上，寫不進的放客戶需求，不重複', () => {
@@ -197,4 +200,15 @@ test('其他費用裡的客製帆布也會勾帆布並寫完整品名；領牌�
   assert.equal(sheet.items.canvas.note, '五面帆160CM +蓬頂(帆布往內鎖)');
   assert.deepEqual(unmatched, []);
   assert.equal(sheet.needs.text, '');
+});
+
+test('四錄／環景二選一：已經兩格都勾的舊表，重新帶入會把沒選的那格取消；沒選規格會提醒', () => {
+  const sheet = normalizeSheet({ items: { 'android-4rec': { on: true, note: '' }, 'android-around': { on: true, note: '' } } });
+  const r = prefillFromQuote(sheet, { items: [{ id: 's', kind: 'addon', name: '安全科技版', price: 48800, optionValue: '四錄' }] }).sheet;
+  assert.equal(r.items['android-4rec'].on, true);
+  assert.equal(r.items['android-around'].on, false);
+  const r2 = prefillFromQuote(emptySheet(), { items: [{ id: 's', kind: 'addon', name: '安全科技版', price: 48800 }] }).sheet;
+  assert.equal(!!r2.items['android-4rec']?.on, false);
+  assert.equal(!!r2.items['android-around']?.on, false);
+  assert.match(r2.needs.text, /四錄還是環景/);
 });
