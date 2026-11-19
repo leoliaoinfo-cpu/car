@@ -1,7 +1,7 @@
 // 選配表輸出圖片：直接用 Canvas 依座標畫（不用 html2canvas 拍畫面）。
 // 原因：html2canvas 在不同瀏覽器／字型下，文字與勾選框的相對位置會偏掉（格子跑版）。
 // 這裡所有位置都由數字決定，文字一律垂直置中，所以每台裝置畫出來都一樣整齊。
-import { layoutToBoxes } from './optionSheet.js';
+import { sheetBoxes } from './optionSheet.js';
 
 const INK = '#1b1b1b';
 const BLUE = '#1d3fa8';
@@ -85,7 +85,7 @@ function rowsHeight(n) { return n * ROW_H + Math.max(0, n - 1) * ROW_GAP; }
 
 /** 畫出整張選配表，回傳 canvas（寬 760 × scale）。 */
 export function renderSheetCanvas({ sheet, layout, scale = 2 }) {
-  const boxes = layoutToBoxes(layout);
+  const boxes = sheetBoxes(layout, sheet);
   const pairs = [];
   for (let i = 0; i < boxes.length; i += 2) pairs.push(boxes.slice(i, i + 2));
 

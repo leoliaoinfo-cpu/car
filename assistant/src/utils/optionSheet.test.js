@@ -153,3 +153,16 @@ test('選牌號碼從品名或備註帶進「選牌」欄；已填的不覆蓋',
   const kept = normalizeSheet({ plate: { on: true, text: '6655' } });
   assert.equal(prefillFromQuote(kept, { note: '選牌7275', items: [] }).sheet.plate.text, '6655');
 });
+
+test('沒有填寫線的項目，備註直接寫在旁邊（自動加線），不再擠進客戶需求', async () => {
+  const { sheetBoxes } = await import('./optionSheet.js');
+  const { sheet } = prefillFromQuote(emptySheet(), { items: [
+    { id: 'h', kind: 'addon', name: 'HALO 光環尾燈組（卡旺專用原車直上）', price: 11800, note: '燻黑' },
+    { id: 'm', kind: 'addon', name: '一般手機架組', price: 1300 },
+  ] });
+  assert.equal(sheet.items['halo'].note, '燻黑');
+  assert.doesNotMatch(sheet.needs.text, /燻黑/);
+  const rows = sheetBoxes(null, sheet).flatMap((b) => b.rows.flat());
+  assert.equal(rows.find(([id]) => id === 'halo')[2], true);
+  assert.equal(rows.find(([id]) => id === 'phone')[2], false);
+});

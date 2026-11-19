@@ -63,6 +63,15 @@ export function layoutToBoxes(layout) {
   });
 }
 
+/** 畫面／圖片用的框：項目有寫備註時，即使格式沒開「後面有填寫線」也自動加一條線，備註寫在旁邊。 */
+export function sheetBoxes(layout, sheet) {
+  const items = sheet?.items || {};
+  return layoutToBoxes(layout).map((b) => ({
+    ...b,
+    rows: b.rows.map((row) => row.map(([id, label, note]) => [id, label, !!note || !!String(items[id]?.note || '').trim()])),
+  }));
+}
+
 export function layoutItems(layout) { return normalizeLayout(layout).boxes.flatMap((b) => b.items); }
 
 export const ALL_SHEET_ITEMS = SHEET_BOXES.flatMap((box) => box.rows.flat().map(([id, label, note]) => ({ id, label, note: !!note })));
@@ -204,7 +213,9 @@ export function prefillFromQuote(sheet, quote, layout = null) {
     for (const id of ids) {
       if (cut.has(id)) continue;
       const cur = items[id] || { on: false, note: '' };
-      items[id] = { on: true, note: cur.note || (defaultNote.get(id) && !isPkg ? (note || (['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? name : '')) : '') };
+      // 單一項目：備註直接寫在該項旁邊（沒有線的項目會自動加線）；套裝拆成好幾格，備註改寫客戶需求
+      const fallback = defaultNote.get(id) && ['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? name : '';
+      items[id] = { on: true, note: cur.note || (isPkg ? '' : (note || fallback)) };
       if (ownNote && items[id].note.includes(ownNote)) placed = true;
     }
     if (ownNote && !placed) { const t = `${compactName(name)}：${ownNote}`; noteLines.push({ key: t, text: t }); }

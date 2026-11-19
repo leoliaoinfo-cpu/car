@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderSheetCanvas } from '../../utils/optionSheetImage';
 import {
-  DEFAULT_LAYOUT, layoutToBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
+  DEFAULT_LAYOUT, sheetBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
 } from '../../utils/optionSheet';
 import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } from '../../optionSheetLayout';
 
@@ -57,7 +57,7 @@ function Line({ value, onChange, readOnly, placeholder = '', style = {}, multili
 export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false, layout = DEFAULT_LAYOUT }) {
   const set = (patch) => onChange?.({ ...sheet, ...patch });
   const setItem = (id, patch) => set({ items: { ...sheet.items, [id]: { on: false, note: '', ...(sheet.items[id] || {}), ...patch } } });
-  const boxes = layoutToBoxes(layout);
+  const boxes = sheetBoxes(layout, sheet);
   const boxPairs = [];
   for (let i = 0; i < boxes.length; i += 2) boxPairs.push(boxes.slice(i, i + 2));
 
