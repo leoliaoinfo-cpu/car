@@ -233,7 +233,8 @@ const twd = (n) => Math.round(Number(n) || 0).toLocaleString('zh-TW');
  * 選配表旁邊的報價對照：逐項列出品名、價格、規格、備註，讓你自己一項一項對照、寫進選配表。
  * 系統不幫你勾、也不判斷；每項右邊的大方框是「我核對過」，報價那一項改過就自動取消要重看。
  */
-function QuoteCompare({ quote, isWon, sheet, onToggle }) {
+function QuoteCompare({ quote, isWon, sheet, onToggle, onReset }) {
+  const [confirmReset, setConfirmReset] = useState(false);
   if (!quote) return null;
   const rows = (quote.items || []).filter((it) => String(it?.name || '').trim() && !it.pending)
     .map((it) => ({ key: it.id, fp: quoteItemFingerprint(it), it }));
@@ -260,9 +261,18 @@ function QuoteCompare({ quote, isWon, sheet, onToggle }) {
         </div>
         <p className="shrink-0 text-right text-sm font-bold text-ink">NT$ {twd(totals.total)}</p>
       </div>
-      <p className={`rounded-lg px-2 py-1.5 text-sm font-bold ${allDone ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-black'}`}>
-        {allDone ? `✅ 全部核對完成（${rows.length} 項）` : `自己對照寫進選配表，核對完按右邊方框：${done}/${rows.length}`}
-      </p>
+      <div className={`flex items-center gap-2 rounded-lg px-2 py-1.5 ${allDone ? 'bg-ok/15 text-ok' : 'bg-warn/15 text-black'}`}>
+        <p className="min-w-0 flex-1 text-sm font-bold">
+          {allDone ? `✅ 全部核對完成（${rows.length} 項）` : `自己對照寫進選配表，核對完按右邊方框：${done}/${rows.length}`}
+        </p>
+        {!confirmReset
+          ? <button type="button" disabled={done === 0} onClick={() => setConfirmReset(true)}
+            className="shrink-0 rounded-lg border border-bdr bg-s1 px-2.5 py-1.5 text-xs font-bold text-ink-2 disabled:opacity-30">↺ 重置核對</button>
+          : <span className="flex shrink-0 items-center gap-1">
+            <button type="button" onClick={() => { onReset(); setConfirmReset(false); }} className="btn-danger min-h-9 px-2.5 text-xs">全部取消</button>
+            <button type="button" onClick={() => setConfirmReset(false)} className="btn-outline min-h-9 bg-s1 px-2.5 text-xs">不要</button>
+          </span>}
+      </div>
       <ul className="divide-y divide-bdr">
         {rows.map((row) => {
           if (!row.it) return null;
@@ -425,7 +435,7 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
               </select>
             </div>
           )}
-          {!wide && showCompare && <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} />}
+          {!wide && showCompare && <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} onReset={() => setSheet((cur) => ({ ...cur, checked: {} }))} />}
           {msg && <p role="status" className="rounded-xl border border-bdr bg-s2 p-3 text-xs leading-relaxed text-ink-2">{msg}</p>}
 
           <div className="overflow-hidden rounded-2xl border border-bdr bg-white shadow-card">
@@ -452,7 +462,7 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
         )}
         {wide && quotes.length > 0 && (
           <div className="sticky top-0 max-h-[calc(100vh-7rem)] overflow-y-auto">
-            <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} />
+            <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} onReset={() => setSheet((cur) => ({ ...cur, checked: {} }))} />
           </div>
         )}
         </div>
