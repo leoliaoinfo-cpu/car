@@ -25,6 +25,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
+  const [modelFilter, setModelFilter] = useState('all'); // 車型篩選
+  const [sortKey, setSortKey] = useState('updated'); // 排序：updated／date_desc／date_asc／price_desc／price_asc
   const [saveNotice, setSaveNotice] = useState(null);
   const [confirmDealId, setConfirmDealId] = useState(null);
   const [viewWonQuoteId, setViewWonQuoteId] = useState(null);
@@ -91,18 +93,34 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const source = stageFilter === 'trash' ? archivedQuotes : activeQuotes;
+    const dateOf = (q) => String(q.date || q.createdAt || '');
+    const sorters = {
+      updated: (a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''),
+      date_desc: (a, b) => dateOf(b).localeCompare(dateOf(a)) || (b.createdAt || '').localeCompare(a.createdAt || ''),
+      date_asc: (a, b) => dateOf(a).localeCompare(dateOf(b)) || (a.createdAt || '').localeCompare(b.createdAt || ''),
+      price_desc: (a, b) => (Number(b.total) || 0) - (Number(a.total) || 0),
+      price_asc: (a, b) => (Number(a.total) || 0) - (Number(b.total) || 0),
+    };
     return [...source]
-      .sort((a, b) => (b.updatedAt || b.date || '').localeCompare(a.updatedAt || a.date || ''))
+      .sort(sorters[sortKey] || sorters.updated)
       .filter((quote) => {
         const linkedCase = linkedCaseFor(quote);
         const quoteType = linkedCase?.type || inferCaseType(quote);
         if (stageFilter !== 'all' && stageFilter !== 'trash' && quoteState(quote) !== stageFilter) return false;
+        if (modelFilter !== 'all' && (quote.model || '') !== (modelFilter === '__none' ? '' : modelFilter)) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
         return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.planName, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
-  }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
+  }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, modelFilter, sortKey, clientMap, caseById, caseByQuoteId, dealByCase]);
+
+  // 車型篩選的選項：目前報價裡出現過的車型（張數多的在前）
+  const modelOptions = useMemo(() => {
+    const count = new Map();
+    for (const q of quoteDrafts.filter((row) => (stageFilter === 'trash' ? row.archivedAt : !row.archivedAt))) count.set(q.model || '', (count.get(q.model || '') || 0) + 1);
+    return [...count.entries()].sort((a, b) => b[1] - a[1]);
+  }, [quoteDrafts, stageFilter]);
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, _confirmAfterSave, ...quotePayload } = payload;
@@ -278,6 +296,24 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
 
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-[11px] font-semibold text-ink-3">篩選車型
+          <select value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} aria-label="篩選車型" className="mt-1 min-h-11 w-full text-sm">
+            <option value="all">全部車型</option>
+            {modelOptions.map(([model, n]) => <option key={model || '__none'} value={model || '__none'}>{model || '未填車型'}（{n}）</option>)}
+          </select>
+        </label>
+        <label className="block text-[11px] font-semibold text-ink-3">排序
+          <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} aria-label="排序" className="mt-1 min-h-11 w-full text-sm">
+            <option value="updated">最近更新</option>
+            <option value="date_desc">日期：新 → 舊</option>
+            <option value="date_asc">日期：舊 → 新</option>
+            <option value="price_desc">價格：高 → 低</option>
+            <option value="price_asc">價格：低 → 高</option>
+          </select>
+        </label>
+      </div>
+
       {saveNotice && (
         <div className="rounded-xl border border-ok/30 bg-ok/10 px-3 py-2 flex items-center gap-2 text-sm text-ink-2">
           <span className="flex-1">✓ {saveNotice.text}</span>
@@ -330,13 +366,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                       {attention.linkedStale && <span className="badge bg-ink-3 text-white">已超過 90 天</span>}
                       {quote.archivedAt && <span className="badge bg-ink-3 text-white">回收筒</span>}
                       <h2 className="font-semibold text-ink truncate">{customer}</h2>
-                      {pending > 0
-                        ? <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">待廠商報價 {pending} 項</span>
-                        : <span className="text-[10px] rounded-full bg-ok/10 text-ok border border-ok/30 px-2 py-0.5">價格已齊</span>}
+                      {pending > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">待廠商報價 {pending} 項</span>}
                       {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
                     {quote.planName && <p className="mt-1.5 inline-block rounded-md border-2 border-ink bg-s2 px-2 py-0.5 text-sm font-extrabold text-ink">{quote.planName}</p>}
-                    <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
+                    <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-xs text-ink-3"><span>{quote.model || '未填車型'}</span><span className="text-sm font-bold text-ink-2">{dayjs(quote.date).format('YYYY/MM/DD')}</span></p>
                   </div>
                   <p className="text-right shrink-0">
                     <span className="block text-[10px] text-ink-3">{pending > 0 ? '目前金額' : '專案價'}</span>
