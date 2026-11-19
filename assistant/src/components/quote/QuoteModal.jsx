@@ -255,11 +255,11 @@ function AddonCategoryCard({
                         ⚠️ {heightImpact.detail}
                       </p>
                     )}
-                    {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 已含於「{lockedBy.name}」，不可重複加入</p>}
+                    {lockedBy && <p className="text-[10px] text-warn mt-1 leading-relaxed">🔒 {lockedBy.overlap ? `與「${lockedBy.name}」重疊，不可同時加入` : `已含於「${lockedBy.name}」，不可重複加入`}</p>}
                     <button type="button" onClick={() => toggleLine(addon)} disabled={!!lockedBy}
                       className={`text-[10px] px-2 py-0.5 mt-1.5 self-end rounded-md border transition-colors ${lockedBy ? 'cursor-not-allowed' : ''}`}
                       style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
-                      {lockedBy ? '🔒 套裝已含' : picked ? '✓ 已加入' : '＋ 加入報價'}
+                      {lockedBy ? (lockedBy.overlap ? '🔒 重疊' : '🔒 套裝已含') : picked ? '✓ 已加入' : '＋ 加入報價'}
                     </button>
                   </div>
                 );
@@ -274,7 +274,7 @@ function AddonCategoryCard({
                 const heightImpact = addonHeightImpact(addon, heightConfig);
                 return (
                   <button key={addon.id} type="button" disabled={!!lockedBy}
-                    title={lockedBy ? `已含於「${lockedBy.name}」，不可重複加入` : addon.desc || ''}
+                    title={lockedBy ? (lockedBy.overlap ? `與「${lockedBy.name}」重疊，不可同時加入` : `已含於「${lockedBy.name}」，不可重複加入`) : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
                     className={`flex w-full min-h-12 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
                     style={picked
@@ -298,7 +298,7 @@ function AddonCategoryCard({
                     {heightImpact && <span className={`text-[9px] font-bold ${picked ? '' : 'text-warn'}`}>⚠️ {heightImpact.shortLabel}</span>}
                     </span>
                     <span className="shrink-0 text-sm font-bold" style={{ color: picked ? '#fff' : color }}>
-                      {lockedBy ? '套裝已含' : addon.pendingPrice ? '待報價' : formatMoney(addon.price)}
+                      {lockedBy ? (lockedBy.overlap ? '重疊' : '套裝已含') : addon.pendingPrice ? '待報價' : formatMoney(addon.price)}
                     </span>
                   </button>
                 );
@@ -622,6 +622,15 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       if (!bundleLocks.has(includedId)) bundleLocks.set(includedId, addon);
     }
   }
+  // 重疊規則（locks）：選了 A（或含有 A 的套裝），與 A 重疊的項目就鎖住不能再選
+  for (const addon of quotePresets.addons) {
+    if (!selectedCatalogIds.has(addon.id)) continue;
+    for (const holderId of [addon.id, ...bundledAddonIds(quotePresets.addons, addon.id)]) {
+      for (const lockedId of quotePresets.addons.find((x) => x.id === holderId)?.locks || []) {
+        if (!bundleLocks.has(lockedId)) bundleLocks.set(lockedId, { ...addon, overlap: true });
+      }
+    }
+  }
   const visibleAddons = quotePresets.addons.filter((addon) => !addon.parentId || isCatalogPicked(addon.parentId));
   const addonGroups = groupAddonsByCat(visibleAddons, quotePresets.addonCategories);
   const addonSections = groupAddonSections(addonGroups, quotePresets.addonCategoryAliases);
@@ -661,6 +670,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       }
       let base = list;
       const includedIds = new Set(bundledAddonIds(quotePresets.addons, catalogId));
+      for (const holderId of [catalogId, ...includedIds]) {
+        for (const lockedId of quotePresets.addons.find((x) => x.id === holderId)?.locks || []) includedIds.add(lockedId);
+      }
       if (includedIds.size > 0) {
         base = base.filter((item) => !includedIds.has(item.catalogId));
       }

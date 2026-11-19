@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v29';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v30';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -445,6 +445,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     ...REQUIRED_QUOTE_ADDONS,
     // 配備版本升級
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
+      locks: ['qa-floor-rubber'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠底板
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
     { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000,
       desc: SAFETY_PACKAGE_DESC,
@@ -455,9 +456,10 @@ export const DEFAULT_QUOTE_PRESETS = {
     // 外觀空力（NLD灣岸）
     { id: 'qa-aero', cat: '外觀空力', name: 'NLD空力套裝（前下巴+鏡蓋+側燈殼）', price: 12000,
       desc: '前下巴套件+後照鏡飾蓋+改裝側邊方向燈殼(白)。台灣研發設計鋁製模具、3D原車掃描、ABS強化熱塑材質(硬度佳彈性好)、原車直上不破壞保險桿、三段式本體、KDM風格設計',
-      includes: ['qa-lip', 'qa-mcover', 'qa-turn'] },
+      includes: ['qa-lip', 'qa-mcover', 'qa-turn'],
+      locks: ['qa-mirror1'] }, // LED 韓版後照鏡會換掉整支後照鏡，與鏡蓋重疊
     { id: 'qa-lip', cat: '外觀空力', name: '前下巴套件', price: 9500, desc: 'NLD灣岸空力套件' },
-    { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件' },
+    { id: 'qa-mcover', cat: '外觀空力', name: '後照鏡飾蓋', price: 2800, desc: 'NLD灣岸空力套件', locks: ['qa-mirror1'] },
     { id: 'qa-turn', cat: '外觀空力', name: '側邊霧白方向燈殼', price: 1200, desc: 'KDM 灣岸空力套件' },
     // 燈組
     { id: 'qa-led', cat: '燈組', name: '全車LED燈組合（含霧燈/室內/牌照/側邊照地）', price: 15000, warrantyMonths: 6,
@@ -469,7 +471,7 @@ export const DEFAULT_QUOTE_PRESETS = {
       desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型；前方向燈需一併更換 LED。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
     { id: 'qa-fog', cat: '燈組', name: 'X7 魚眼霧燈（黃金眼/6000K白光）', price: 5800, warrantyMonths: 6, choiceLabel: '燈光顏色', choices: ['黃金眼', '6000K 白光'],
       desc: 'SD 次世代魚眼霧燈、光型集中且照射度廣。黃金眼色系／6000K 白光色系；6 個月保固' },
-    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, warrantyMonths: 6, desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
+    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, warrantyMonths: 6, locks: ['qa-mcover', 'qa-aero'], desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
     { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '全視線後照鏡', price: 5000, desc: '塑料黑、整片全視線鏡片' },
     // 音響
     { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500, warrantyMonths: 12,
@@ -721,6 +723,10 @@ export function resolveQuotePresets(row) {
     // 套餐內含關係是防止重複計價的系統規則，不屬於可客製名稱／售價。
     if (Array.isArray(latestDefault?.includes)) {
       migrated = { ...migrated, includes: [...latestDefault.includes] };
+    }
+    // 「不可同時選」的重疊規則同樣是系統規則。
+    if (Array.isArray(latestDefault?.locks)) {
+      migrated = { ...migrated, locks: [...latestDefault.locks] };
     }
     // 保固與可選規格為系統結構資料；同名同價時可安全補上，不覆蓋使用者自訂名稱與價格。
     if (latestDefault && migrated.name === latestDefault.name && Number(migrated.price) === Number(latestDefault.price)) {
