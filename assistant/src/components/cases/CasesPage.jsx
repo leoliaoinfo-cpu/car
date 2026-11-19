@@ -121,7 +121,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
             const stageDays = getCasePipelineElapsedDays(item, { deals, quotes: quoteDrafts });
             const totalDays = getCaseTotalElapsedDays(item, { deals, quotes: quoteDrafts });
             return (
-              <button key={item.id} type="button" onClick={() => { openedByFocus.current = false; setSelectedId(item.id); }} className={`card p-4 text-left active:scale-[0.99] transition-all ${tracking && matchesCaseListFilter('won', tracking) ? 'border-danger/35 bg-danger/10' : 'hover:border-teal/50'}`}>
+              <button key={item.id} type="button" onClick={() => { openedByFocus.current = false; setSelectedId(item.id); }} className={`card p-4 text-left active:scale-[0.99] transition-all ${tracking && (matchesCaseListFilter('won', tracking) || matchesCaseListFilter('delivered', tracking)) ? 'border-danger/35 bg-danger/10' : 'hover:border-teal/50'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap gap-1.5 items-center">
