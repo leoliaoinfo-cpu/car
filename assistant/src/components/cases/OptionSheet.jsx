@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
+import { renderSheetCanvas } from '../../utils/optionSheetImage';
 import {
   DEFAULT_LAYOUT, layoutToBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
 } from '../../utils/optionSheet';
@@ -236,7 +236,6 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const first = useRef(true);
-  const exportRef = useRef(null);
 
   // 自動存檔：停手 0.8 秒就存，不用按儲存
   useEffect(() => {
@@ -257,11 +256,12 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   }
 
   async function exportImage() {
-    if (busy || !exportRef.current) return;
+    if (busy) return;
     setBusy(true); setMsg('');
     try {
-      const node = exportRef.current;
-      const canvas = await html2canvas(node, { scale: Math.min(2, window.devicePixelRatio || 2), backgroundColor: '#ffffff', logging: false, useCORS: true });
+      // 等字型載入完再畫，避免第一次畫出來字型不對
+      try { await document.fonts?.ready; } catch { /* 不支援就直接畫 */ }
+      const canvas = renderSheetCanvas({ sheet, layout, scale: 2 });
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('empty');
       const name = `卡旺選配表-${(sheet.owner || item.clientName || '客戶').replace(/[\\/:*?"<>|]/g, '')}-${sheet.date}.png`;
@@ -320,11 +320,6 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
           </div>
         </div>
       </div>}
-
-      {/* 輸出圖片用：固定寬度的唯讀版，畫面外 */}
-      <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }}>
-        <div ref={exportRef} style={{ width: 760, background: '#fff' }}><SheetPaper sheet={sheet} layout={layout} readOnly /></div>
-      </div>
 
       {image && (
         <div className="fixed inset-0 z-[60] flex flex-col bg-black/70 p-3" onClick={() => setImage(null)}>
