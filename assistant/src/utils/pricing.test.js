@@ -1401,3 +1401,10 @@ test('新增 BOSS 白鐵擋泥板、DR 漫反射後防撞桿（RGB）、12.3吋�
     assert.equal(old.addons.find((a) => a.id === id)?.price, price, id);
   }
 });
+
+test('12.3吋安卓四錄旗艦機成本 33,800：利潤與9吋安卓機相同（10,000）', async () => {
+  const cat = normalizeCostCatalog(null);
+  assert.equal(43800 - cat.addons['qa-android-flagship'].cost, 35000 - cat.addons['qa-android-surround'].cost);
+  const up = normalizeCostCatalog({ version: 15, models: {}, addons: { 'qa-android-surround': { cost: 25000 } } });
+  assert.equal(up.addons['qa-android-flagship'].cost, 33800);
+});

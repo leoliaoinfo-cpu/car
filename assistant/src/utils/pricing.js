@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 15;
+const COST_CATALOG_VERSION = 16;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -193,6 +193,11 @@ const V15_ADDON_COSTS = {
   'qa-cargo-led-marker': { cost: 1592 },
 };
 
+// 12.3吋安卓四錄旗艦機：利潤比照 9吋安卓機（售價 35,000－成本 25,000＝10,000），所以成本＝43,800－10,000＝33,800。
+const V16_ADDON_COSTS = {
+  'qa-android-flagship': { cost: 33800 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -205,6 +210,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V13_ADDON_COSTS,
   ...V14_ADDON_COSTS,
   ...V15_ADDON_COSTS,
+  ...V16_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -663,6 +669,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 13 ? V13_ADDON_COSTS : {}),
     ...(row && previousVersion < 14 ? V14_ADDON_COSTS : {}),
     ...(row && previousVersion < 15 ? V15_ADDON_COSTS : {}),
+    ...(row && previousVersion < 16 ? V16_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
