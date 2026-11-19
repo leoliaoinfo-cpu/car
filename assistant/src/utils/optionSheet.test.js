@@ -187,3 +187,14 @@ test('套裝備註拆成一點一點，提到哪一項就寫在那一項旁邊�
   assert.equal(again.items.rubber.note, sheet.items.rubber.note);
   assert.equal(again.needs.text, sheet.needs.text);
 });
+
+test('其他費用裡的客製帆布也會勾帆布並寫完整品名；領牌費照舊不進', () => {
+  const { sheet, unmatched } = prefillFromQuote(emptySheet(), { items: [
+    { id: 'c', kind: 'other', name: '五面帆160CM +蓬頂(帆布往內鎖)', price: 20000 },
+    { id: 'f', kind: 'other', name: '領牌費', price: 3000 },
+  ] });
+  assert.equal(sheet.items.canvas.on, true);
+  assert.equal(sheet.items.canvas.note, '五面帆160CM +蓬頂(帆布往內鎖)');
+  assert.deepEqual(unmatched, []);
+  assert.equal(sheet.needs.text, '');
+});

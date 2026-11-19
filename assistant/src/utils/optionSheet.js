@@ -119,7 +119,7 @@ const RULES = [
   ['android-4rec', /安卓.*四錄|四錄/], ['android-around', /環景/], ['tpms6', /胎壓/], ['cruise', /定速/], ['media', /音控/],
   ['urea', /尿素/], ['rear-bar', /後防撞|車尾防撞|防撞鋼樑/], ['step', /側踏/], ['guard4wd', /4WD.*護板|下護板/i], ['rail', /延伸護欄|貨斗護欄/],
   ['remote', /尾門遙控/], ['tailgate', /升降尾門|雙折尾門|尾門（|尾門\(/], ['leaf', /彈簧鋼板|彈簧片|支撐彈簧/], ['plate', /花板|錏花/], ['hrack', /H\s*架/i],
-  ['canvas', /帆布/], ['alubox', /鋁塑箱|冷凍冷藏箱|箱體/], ['wind', /順風板|導流板/], ['rack', /行李架|行李籃|橫桿/], ['skirt', /下護欄/],
+  ['canvas', /帆布|[二三四五]面帆|篷頂|蓬頂/], ['alubox', /鋁塑箱|冷凍冷藏箱|箱體/], ['wind', /順風板|導流板/], ['rack', /行李架|行李籃|橫桿/], ['skirt', /下護欄/],
   ['chin', /前下巴/], ['turnshell', /方向燈殼|方向燈白殼/], ['mirrorcover', /鏡蓋|後照鏡飾蓋|保護殼/], ['audio', /音響|高音喇叭|喇叭改裝/], ['horn', /警示喇叭/],
   ['ts', /\bTS\b|避震/i], ['halo', /光環尾燈|LED\s*尾燈|HALO/i], ['og', /鋁圈|OMEGA|\bOG\b/i], ['fish-fog', /魚眼霧燈/], ['paint', /烤漆|改色|車身顏色/], ['phone', /手機架/],
 ];
@@ -220,7 +220,9 @@ export function prefillFromQuote(sheet, quote, layout = null) {
     const name = String(item?.name || '').trim();
     const ownNote = String(item?.note || '').trim();
     if (!name || item.pending) continue;
-    if (item.kind === 'vehicle' || item.kind === 'other') { // 車價、領牌費等不是選配，只帶備註
+    // 車價、領牌費等不是選配，只帶備註；但「其他費用」裡自己打的客製品項（例：五面帆160CM＋蓬頂）比對得到就照樣勾
+    const otherMatched = item.kind === 'other' && matchSheetIds(item).some((id) => visible.has(id));
+    if (item.kind === 'vehicle' || (item.kind === 'other' && !otherMatched)) {
       if (ownNote) pending.push({ label: compactName(name), note: ownNote, pkgIds: [] });
       continue;
     }
