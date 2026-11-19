@@ -20,14 +20,6 @@ import { STORAGE_KEYS } from '../storageKeys';
 import { MAX_PRESENTATION_PIN_LENGTH } from '../utils/presentationLock';
 import { calculateHeightCapacity } from '../utils/reception';
 
-const HELP_CARDS = [
-  { icon: '✓', title: '今天', desc: '一打開就是「逾期＋今天」要做的事：該聯繫的案件、待辦、配件缺貨、施工步驟。每張卡有主按鈕與「延後」。右上可切「月曆」，內容和清單是同一份。沒追蹤日又超過 14 天沒動靜的案件會自動出現。' },
-  { icon: '📁', title: '案件', desc: '一位客戶可以有多筆買車／改裝案件。案件卡會顯示幾天沒聯絡、下次追蹤日、已報價幾天未回覆。點進去是唯一的工作台：記錄聯繫、報價、配件核對、施工進度、確認交車。' },
-  { icon: '🧾', title: '報價', desc: '從案件按「建立報價」，存檔後會回到該案件。底部固定「儲存／預覽出圖／LINE 文字」。客戶看到的圖不會有成本、利潤、利率或內部備忘。可先不選客戶，之後在報價清單按「歸入客戶」。' },
-  { icon: '🚚', title: '成交到交車', desc: '在案件裡指定一張報價成交，系統會建立配件核對表和施工進度。配件沒備妥就完成安裝或交車時會提醒。最後按「確認交車」，案件完成；不會再自動建立回訪提醒，需要時自己加待辦。' },
-  { icon: '🧰', title: '工具', desc: '右上 🧰：業績與成本（要數字密碼，第一次使用先設定）、車高試算、產品型錄、K2500 規格、廠商名冊。' },
-  { icon: '☁️', title: '同步與備份', desc: '到「設定 → 雲端同步」連線自己的私人 GitHub repo；換手機前先到「備份還原」手動備份一次。照片只存在這支手機，不會上雲端。' },
-];
 
 const SECTION_LABELS = {
   sync: '☁️ 雲端同步',
@@ -43,13 +35,12 @@ const SECTION_LABELS = {
   height: '📐 車高參數',
   rules: '⏱ 追蹤規則',
   security: '🔑 密碼',
-  help: '📖 使用說明',
 };
 
 // 客戶分類、產業選項、業績欄位、追蹤規則、客戶階段、自訂欄位、待辦範本、通知：日常用不到，設定入口收起（資料與預設值保留）。
 const SETTING_GROUPS = [
   { title: '常用', keys: ['quoteMenu', 'sync', 'backup', 'security'] },
-  { title: '其他', keys: ['height', 'help'] },
+  { title: '其他', keys: ['height'] },
 ];
 
 export default function SettingsPanel({ onClose }) {
@@ -238,23 +229,6 @@ export default function SettingsPanel({ onClose }) {
             <ThresholdEditor thresholds={thresholds} onSave={saveThresholds} />
           )}
 
-          {/* ── Help ── */}
-          {activeSection === 'help' && (
-            <div className="space-y-3">
-              {HELP_CARDS.map((c, i) => (
-                <div key={i} className="card p-3">
-                  <div className="flex items-start gap-3">
-                    <span className="text-xl mt-0.5">{c.icon}</span>
-                    <div>
-                      <p className="font-medium text-sm text-ink">{c.title}</p>
-                      <p className="text-xs text-ink-3 mt-0.5 leading-relaxed">{c.desc}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <p className="text-center text-xs text-ink-3 py-2">業務系統 v2.3</p>
-            </div>
-          )}
       </div>
       {showHeightCalculator && <HeightCalculatorDialog value={heightConfig} onClose={() => setShowHeightCalculator(false)} />}
     </div>
