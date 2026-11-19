@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { saveQuoteWip, clearQuoteWip } from '../../utils/quoteWip';
 import html2canvas from 'html2canvas';
 import { db } from '../../db';
 import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
@@ -359,9 +360,11 @@ function shortHash(str) {
  * 建立報價單：填需求、車型、項目與優惠 → 產生固定淺色的客戶報價圖片。
  * 可由客戶頁寫入時間軸，也可由主導覽的報價管理工作區儲存草稿。
  */
-export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onRequestConfirmDeal, onClose }) {
+export default function QuoteModal({ client, clients = [], quote, initialCaseId = '', onSaveQuote, onRequestConfirmDeal, onClose: onCloseProp, wip = null, wipMeta = null }) {
   const { quotePresets, costCatalog, pricingRecords, cases, heightConfig, markQuoteSent } = useApp();
-  const isEdit = !!quote;
+  const isEdit = !!quote && !wip?.isNew; // 還原的「新報價」草稿仍算新增
+  // 關閉＝放棄草稿：一併清掉自動暫存
+  const onClose = () => { clearQuoteWip(); onCloseProp?.(); };
   const [quoteId] = useState(() => quote?.id || generateId('quote'));
   const [recordError, setRecordError] = useState('');
   const [recordSaving, setRecordSaving] = useState(false);
@@ -419,6 +422,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const [customerName, setCustomerName] = useState(quote?.customerName || (client?.pendingCustomerDetails ? '' : client?.name) || '');
   const [customerPhone, setCustomerPhone] = useState(quote?.customerPhone || client?.phone || '');
   const [customerMode, setCustomerMode] = useState(() => {
+    if (wip?.customerMode) return wip.customerMode;
     if (quote?.clientId || client?.id) return 'existing';
     return quote ? 'quote-only' : 'new';
   });
@@ -1005,6 +1009,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         _pricingRecord: pricingForCurrentQuote(),
         _confirmAfterSave: Boolean(confirmAfterSave),
       });
+      clearQuoteWip();
       if (confirmAfterSave) onRequestConfirmDeal?.(quoteId);
     } catch (cause) {
       setRecordError(cause?.message || '儲存報價失敗，請重試。');
@@ -1027,6 +1032,16 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 編輯到一半自動暫存：重新整理後會回到這張報價（改動停手 0.5 秒就存）
+  useEffect(() => {
+    if (baselineRef.current === null || baselineRef.current === editSnapshot) return undefined;
+    const timer = setTimeout(() => {
+      saveQuoteWip({ isNew: !isEdit, customerMode, meta: wipMeta, payload: makeQuotePayload() });
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editSnapshot, planName, customerPhone, loan, generalDiscounts, heightEstimateSettings, linkedClientId, linkedCaseId, customerMode, modelYear, excludeVehiclePrice, noOptionCategories]);
 
   function requestClose() {
     if (selectedItems.length === 0) { onClose(); return; }

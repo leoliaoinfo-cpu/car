@@ -6,6 +6,7 @@ import { addDays, today } from '../../utils/date';
 import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId, getCasePipelineUpdatedAt, inferCaseType, findDealForCase } from '../../utils/cases';
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
+import { loadQuoteWip } from '../../utils/quoteWip';
 import { ClientPicker } from '../ui';
 import MasterPinDialog from '../MasterPinDialog';
 
@@ -22,7 +23,16 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     clients, cases, deals, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft, confirmQuoteDeal,
     savePricingRecord, saveClient, updateClient, cats, stages, syncWonQuoteDeal, saveActivity,
   } = useApp();
-  const [editing, setEditing] = useState(null);
+  // 重新整理前編輯到一半的報價單：自動回到那張（QuoteModal 會持續暫存）
+  const [editing, setEditing] = useState(() => {
+    const wip = loadQuoteWip();
+    if (!wip) return null;
+    const meta = wip.meta || {};
+    return {
+      mode: wip.isNew ? 'new' : 'edit', quote: wip.payload, wip, restored: true,
+      caseId: meta.caseId || '', clientId: meta.clientId || '', wonEdit: Boolean(meta.wonEdit), fromCaseId: meta.fromCaseId || null,
+    };
+  });
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
   const [modelFilter, setModelFilter] = useState('all'); // 車型篩選
@@ -37,7 +47,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [assigningId, setAssigningId] = useState(null);
   const [assignClientId, setAssignClientId] = useState('');
   const [assignBusy, setAssignBusy] = useState(false);
-  const [fromCaseId, setFromCaseId] = useState(null); // 從案件開的報價：存檔、關閉或成交後回到該案件
+  const [fromCaseId, setFromCaseId] = useState(() => editing?.fromCaseId || null); // 從案件開的報價：存檔、關閉或成交後回到該案件
 
   function finishAndReturn() {
     const target = fromCaseId;
@@ -443,7 +453,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           key={editing.quote?.id || 'new-quote'}
           clients={clients}
           client={clientMap.get(editing.clientId || editing.quote?.clientId)}
-          quote={editing.mode === 'edit' ? editing.quote : null}
+          quote={editing.mode === 'edit' || editing.restored ? editing.quote : null}
+          wip={editing.restored ? editing.wip : null}
+          wipMeta={{ caseId: editing.caseId || '', clientId: editing.clientId || '', wonEdit: Boolean(editing.wonEdit), fromCaseId }}
           initialCaseId={editing.caseId || ''}
           onSaveQuote={handleSave}
           onRequestConfirmDeal={(id) => { setDealError(''); setConfirmDealId(id); }}

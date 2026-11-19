@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   icsSnoozeAt: `${STORAGE_PREFIX}ics.remindSnoozeAt`,
   truckComparison: `${STORAGE_PREFIX}truckComparison`,
   presentationPinHash: `${STORAGE_PREFIX}presentation.pinHash`,
+  quoteWip: `${STORAGE_PREFIX}quote.wip`, // 編輯到一半的報價單（重新整理不遺失，存檔或關閉才清掉）
   gateUnlockUntil: `${STORAGE_PREFIX}gate.unlockUntil`,
   operationsUnlockUntil: `${STORAGE_PREFIX}operations.unlockUntil`,
   lastBackupAt: `${STORAGE_PREFIX}backup.lastAt`, // 每台裝置各自記錄，不進同步（否則 A 備份會讓 B 不再提醒）

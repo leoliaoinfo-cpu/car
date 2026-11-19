@@ -7,6 +7,7 @@ import OperationsPage from './components/deals/OperationsPage';
 import SettingsPanel, { HeightCalculatorDialog } from './components/SettingsPanel';
 import ProductCatalog from './components/catalog/ProductCatalog';
 import QuoteWorkspace from './components/quote/QuoteWorkspace';
+import { loadQuoteWip } from './utils/quoteWip';
 import VehicleQuickReference from './components/vehicles/VehicleQuickReference';
 import TimerModal from './components/TimerModal';
 import WorkPage from './components/work/WorkPage';
@@ -53,7 +54,8 @@ class ErrorBoundary extends Component {
 // ── Main App ──────────────────────────────────────────────────────────────────
 function AppInner() {
   const { loading, dbUnavailable, dbBlocked, heightConfig } = useApp();
-  const [tab, setTab] = useState('work');
+  // 報價單編輯到一半就重新整理：直接回到報價頁接續（草稿在 QuoteModal 自動暫存）
+  const [tab, setTab] = useState(() => (loadQuoteWip() ? 'quotes' : 'work'));
   const [showCatalog, setShowCatalog] = useState(false); // 手機浮動按鈕開啟的覆蓋層
   const [crmFocusId, setCrmFocusId] = useState(null);
   const [crmFocusIntent, setCrmFocusIntent] = useState(null);
