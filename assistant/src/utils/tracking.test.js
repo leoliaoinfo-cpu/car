@@ -161,18 +161,23 @@ test('結案不追蹤的案件不再進今天／太久沒追，只出現在「�
   assert.equal(matchesCaseListFilter('follow', getCaseTracking(open, { queue }, new Date('2026-11-17'))), true);
 });
 
-test('全部＝尚未交車：已交車與手動歸檔的不在全部；已成交的不會自動消失', () => {
-  const won = getCaseTracking({ id: 'w', status: 'active', dealId: 'd1' }, { deals: [{ id: 'd1', caseId: 'w' }] }, new Date('2026-11-19'));
-  assert.equal(won.stageId === 'won' || won.stageId === 'delivery', true);
-  assert.equal(matchesCaseListFilter('all', won), true); // 沒按歸檔前仍在全部
+test('全部：已成交／準備交車不能移出（即使有歸檔旗標）；已交車要自己歸檔才離開全部', () => {
+  const deals = [{ id: 'd1', caseId: 'w' }];
+  const won = getCaseTracking({ id: 'w', status: 'active', dealId: 'd1' }, { deals }, new Date('2026-11-19'));
+  assert.equal(matchesCaseListFilter('all', won), true);
   assert.equal(matchesCaseListFilter('won', won), true);
-  const filed = getCaseTracking({ id: 'f', status: 'active', dealId: 'd1', filedAt: '2026-11-19T00:00:00Z' }, { deals: [{ id: 'd1', caseId: 'f' }] }, new Date('2026-11-19'));
-  assert.equal(filed.filed, true);
-  assert.equal(matchesCaseListFilter('all', filed), false);
-  assert.equal(matchesCaseListFilter('won', filed), true); // 歸檔後仍可在「已成交」找到
+  // 就算以前不小心存了歸檔旗標，還沒交車的案件也不會被移出全部
+  const wonFiled = getCaseTracking({ id: 'w', status: 'active', dealId: 'd1', filedAt: '2026-11-19T00:00:00Z' }, { deals }, new Date('2026-11-19'));
+  assert.equal(wonFiled.filed, false);
+  assert.equal(matchesCaseListFilter('all', wonFiled), true);
+  // 已交車：沒按歸檔前仍在全部（不自動消失），按了才離開，仍可在「已交車」找到
   const done = getCaseTracking({ id: 'x', status: 'completed' }, {}, new Date('2026-11-19'));
-  assert.equal(matchesCaseListFilter('all', done), false);
+  assert.equal(matchesCaseListFilter('all', done), true);
   assert.equal(matchesCaseListFilter('delivered', done), true);
+  const doneFiled = getCaseTracking({ id: 'x', status: 'completed', filedAt: '2026-11-19T00:00:00Z' }, {}, new Date('2026-11-19'));
+  assert.equal(doneFiled.filed, true);
+  assert.equal(matchesCaseListFilter('all', doneFiled), false);
+  assert.equal(matchesCaseListFilter('delivered', doneFiled), true);
 });
 
 test('狀態標籤：階段白話字與代號；不追蹤帶原因', () => {

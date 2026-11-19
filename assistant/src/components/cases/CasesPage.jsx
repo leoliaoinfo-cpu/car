@@ -150,11 +150,11 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
                 </p>
                 {deal?.quoteId && !stock.delivered && <p className={`mt-2 text-xs font-bold ${stock.deliveryRisk ? 'text-danger' : stock.missing ? 'text-copper' : 'text-ok'}`}>📦 {stock.missing ? `尚缺 ${stock.missing} 項配件${stock.deliveryRisk ? '・交車將近' : ''}` : '配件已核對完成'}{stock.inquiryNoDate ? '・待廠商確認未排再追日' : ''}</p>}
                 </button>
-                {tracking && !tracking.completed && !tracking.closed && ['won', 'delivery'].includes(tracking.stageId) && (
+                {tracking && tracking.completed && !tracking.closed && (
                   <div className="border-t border-bdr/60 px-4 py-2">
                     {tracking.filed
                       ? <button type="button" onClick={() => saveCase({ ...item, filedAt: '' })} className="min-h-10 text-xs font-bold text-ink-2 underline underline-offset-2">↩ 放回「全部」</button>
-                      : <button type="button" onClick={() => saveCase({ ...item, filedAt: new Date().toISOString() })} className="min-h-10 rounded-lg border-2 border-ink bg-s1 px-3 text-xs font-extrabold text-ink">📁 歸到已成交案件（移出全部）</button>}
+                      : <button type="button" onClick={() => saveCase({ ...item, filedAt: new Date().toISOString() })} className="min-h-10 rounded-lg border-2 border-ink bg-s1 px-3 text-xs font-extrabold text-ink">📁 歸到已交車（移出全部）</button>}
                   </div>
                 )}
               </div>

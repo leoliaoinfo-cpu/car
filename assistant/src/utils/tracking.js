@@ -95,7 +95,8 @@ export function getCaseTracking(item, { deals = [], quotes = [], queue = [] } = 
 
   return {
     stageId, stageLabel: CASE_STAGE_PLAIN[stageId] || '洽談中', completed, closed, hasDeal: Boolean(deal),
-    filed: Boolean(item?.filedAt), // 使用者自己按「歸到已成交案件」才會有；不會自動出現
+    // 只有已交車的案件才能歸檔（使用者自己按「歸到已交車」）；成交、等車、改裝、等客人牽車這些階段不能移出全部
+    filed: completed && Boolean(item?.filedAt),
     contactDays, createdDays, followUpIn, overdueDays, quoteOutstanding, quoteDays, quoteUnanswered,
     stale, idleDays, rank,
   };
@@ -130,8 +131,8 @@ export function matchesCaseListFilter(filter, tracking) {
   if (filter === 'quoted') return tracking.quoteOutstanding;
   if (filter === 'won') return ['won', 'delivery'].includes(tracking.stageId);
   if (filter === 'delivered') return tracking.completed;
-  // 全部＝尚未交車的案件：已交車、使用者手動歸檔到「已成交案件」的都不在這裡（避免案件越來越多全混在一起）
-  return !tracking.completed && !tracking.filed;
+  // 全部：還在處理的案件，加上「已交車但還沒歸檔」的（要你自己按「歸到已交車」才移出，不會自動消失）
+  return !tracking.filed;
 }
 
 export function compareCaseTracking(a, b) {
