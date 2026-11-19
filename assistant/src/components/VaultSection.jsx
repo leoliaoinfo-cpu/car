@@ -82,7 +82,7 @@ export default function VaultSection() {
       <div>
         <h2 className="font-bold text-ink">🔒 成本加密保險箱</h2>
         <p className="mt-1 text-xs leading-relaxed text-ink-3">
-          成本、利潤、傭金、薪資在<b>雲端同步檔</b>和<b>備份檔</b>裡一律加密（AES-256）。沒有成本密語，就算拿到檔案也看不到數字。客戶資料不加密。
+          成本、利潤、傭金、薪資在<b>雲端同步檔</b>和<b>備份檔</b>裡一律加密（AES-256）。沒有成本密語，就算拿到檔案也看不到數字。客戶資料不加密。<br />這組<b>「成本密語」是獨立的加密金鑰</b>，不是上面的「統一密碼」：統一密碼只擋畫面，加密需要更長（至少 8 個字、英數混合）才有保護力，所以不能和統一密碼共用。
         </p>
       </div>
 

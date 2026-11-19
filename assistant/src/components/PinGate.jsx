@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { STORAGE_KEYS } from '../storageKeys';
 import {
-  createBackendSessionDeadline, isBackendSessionUnlocked, isValidPresentationPin, MAX_PRESENTATION_PIN_LENGTH,
-  readStoredPinHash, registerPinFailure, storePin, validateNewPin, verifyPresentationPin,
+  createBackendSessionDeadline, isBackendSessionUnlocked, MAX_PRESENTATION_PIN_LENGTH, registerPinFailure,
 } from '../utils/presentationLock';
+import { checkMasterPin } from '../masterPinStore';
 
 // 需要數字密碼才能看／改的區塊（報價選單的車型售價與配件價格等）。
 // 與「業績與成本」共用同一組密碼與 30 分鐘的解鎖時間，解鎖一次兩邊都通。
@@ -16,7 +16,7 @@ function saveUnlockUntil(value) {
 
 export default function PinGate({ title = '需要密碼', children }) {
   const [unlocked, setUnlocked] = useState(() => isBackendSessionUnlocked(readUnlockUntil()));
-  const [hasPin, setHasPin] = useState(() => Boolean(readStoredPinHash()));
+  const hasPin = true; // 全系統共用一組統一密碼（設定→密碼），不再各自設定
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [error, setError] = useState('');
@@ -38,13 +38,7 @@ export default function PinGate({ title = '需要密碼', children }) {
     setBusy(true);
     setError('');
     try {
-      if (!hasPin) {
-        const problem = validateNewPin(pin, pin2);
-        if (problem) { setError(problem); return; }
-        await storePin(pin);
-        setHasPin(true);
-        open();
-      } else if (isValidPresentationPin(pin) && await verifyPresentationPin(pin, readStoredPinHash())) {
+      if (await checkMasterPin(pin)) {
         open();
       } else {
         const next = registerPinFailure(failures);
@@ -64,7 +58,7 @@ export default function PinGate({ title = '需要密碼', children }) {
   return (
     <div className="card mx-auto max-w-md space-y-4 border-2 border-accent/25 p-5">
       <h2 className="text-lg font-bold text-ink">🔐 {title}</h2>
-      <p className="text-sm text-ink-2">{hasPin ? '這裡會影響報價的價格，請輸入數字密碼。' : '先設定一組 4～12 位數字密碼（業績與成本也用同一組），記在自己腦袋裡。'}</p>
+      <p className="text-sm text-ink-2">這裡會影響報價的價格，請輸入密碼。</p>
       <input type="password" inputMode="numeric" pattern="[0-9]*" value={pin} onChange={(event) => setPin(digits(event.target.value))}
         onKeyDown={(event) => { if (event.key === 'Enter' && hasPin) submit(); }} placeholder={hasPin ? '請輸入密碼' : '輸入新密碼'} autoComplete="off" className="w-full" />
       {!hasPin && <input type="password" inputMode="numeric" pattern="[0-9]*" value={pin2} onChange={(event) => setPin2(digits(event.target.value))}

@@ -10,6 +10,7 @@ import { formatMoney, generateId } from '../../utils/crm';
 import { normalizeDeliveryWorkflow } from '../../utils/delivery';
 import CaseDeliveryChecklist from '../deals/CaseDeliveryChecklist';
 import OptionSheet from './OptionSheet';
+import MasterPinDialog from '../MasterPinDialog';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker } from '../ui';
 import { STOCK_STATUSES, stockAlert, summarizeStock } from '../../utils/stock';
@@ -55,7 +56,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
         if (!needle) return true;
         const client = clients.find((item) => item.id === row.clientId);
         const linkedDeal = deals.find((item) => item.id === row.dealId || item.caseId === row.id);
-        const linkedQuotes = quoteDrafts.filter((item) => (row.quoteIds || []).includes(item.id) || item.caseId === row.id);
+        const linkedQuotes = quoteDrafts.filter((item) => !item.archivedAt && ((row.quoteIds || []).includes(item.id) || item.caseId === row.id));
         return [row.clientName, row.title, CASE_TYPE_LABEL[row.type], getCaseStatusLabel(row), row.nextFollowUpDate,
           getCasePipelineStage(row, { deals, quotes: quoteDrafts }), client?.phone, client?.lineId, client?.company, client?.plate, client?.licensePlate,
           linkedDeal?.model, ...linkedQuotes.map((item) => item.model)]
@@ -484,7 +485,8 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
   const [contactError, setContactError] = useState('');
   const [contactSaving, setContactSaving] = useState(false);
   const linkedDeal = findDealForCase(deals, item);
-  const { confirmQuoteDeal } = useApp();
+  const { confirmQuoteDeal, archiveQuoteDraft } = useApp();
+  const [deleteQuote, setDeleteQuote] = useState(null);
   const [showClose, setShowClose] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
@@ -518,7 +520,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
     catch (cause) { setWinnerError(cause?.message || '指定成交報價失敗，請再試一次。'); }
     finally { setWinnerBusy(false); }
   }
-  const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
+  const linkedQuotes = quotes.filter((row) => !row.archivedAt && ((item.quoteIds || []).includes(row.id) || row.caseId === item.id));
   const pipelineStage = getCasePipelineStage(item, { deals, quotes });
   const pipelineStageId = getCasePipelineStageId(item, { deals, quotes });
   const caseWork = workItems.filter((row) => row.caseId === item.id);
@@ -656,6 +658,10 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             <span>📋 卡旺選配表</span>
             <span className="text-xs font-semibold text-ink-3">{sheetHasContent(normalizeSheet(item.optionSheet)) ? '已填寫・點開查看' : '照紙本格式，自己勾選'}</span>
           </button>
+          {deleteQuote && <MasterPinDialog title="輸入密碼才能刪除" danger confirmLabel="確認刪除"
+            description={`這張報價會放進回收筒（可以恢復）。${linkedDeal?.quoteId === deleteQuote.id ? '它是已成交的報價：成交紀錄、金額與配件核對表都保留，只是報價單從清單移到回收筒。' : ''}`}
+            onCancel={() => setDeleteQuote(null)}
+            onVerified={async () => { await archiveQuoteDraft(deleteQuote.id); setDeleteQuote(null); }} />}
           {showSheet && <OptionSheet item={item} deal={linkedDeal} quotes={linkedQuotes} onClose={() => setShowSheet(false)} onSave={(optionSheet) => onSaveCase({ ...item, optionSheet })} />}
 
           <nav className="grid grid-cols-4 gap-1 rounded-xl border border-bdr bg-s1 p-1 sticky top-[3.9rem] z-10">
@@ -689,6 +695,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
           {(section === 'overview' || section === 'quotes') && <section id="case-quotes" className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{!linkedDeal?.quoteId && ['won', 'delivery', 'completed'].includes(getCasePipelineStageId(item, { deals, quotes })) && linkedQuotes.length > 0 && <p role="alert" className="mt-3 rounded-xl border border-copper/40 bg-copper/10 px-3 py-2 text-xs font-bold text-copper">⚠ 已標為成交，但還沒指定是哪一張報價成交。請在下方選一張「指定這張成交」。</p>}
 {winnerError && <p role="alert" className="mt-2 text-xs font-semibold text-danger">{winnerError}</p>}
 {linkedQuotes.map((quote) => <div key={quote.id} className="mt-3"><button type="button" onClick={() => onOpenQuote?.(item, quote.id)} className="w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">{linkedDeal?.quoteId === quote.id ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}{quote.note ? `・${quote.note}` : ''}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>
+<button type="button" onClick={() => setDeleteQuote(quote)} className="mt-1 min-h-9 text-[11px] font-semibold text-ink-3 underline underline-offset-2">🗑 刪除這張報價{linkedDeal?.quoteId === quote.id ? '（已成交）' : ''}</button>
 {!linkedDeal?.quoteId && item.status !== 'completed' && (pickWinnerId === quote.id
   ? <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-s2 p-2"><p className="col-span-2 text-xs text-ink-2">確定客戶選的是這一張（NT$ {formatMoney(quote.total)}）？其他報價會標為「未採用」，內容保留。</p><button type="button" disabled={winnerBusy} onClick={() => setPickWinnerId(null)} className="btn-outline min-h-10 text-xs">先不要</button><button type="button" disabled={winnerBusy} onClick={() => pickWinner(quote.id)} className="btn-primary min-h-10 text-xs disabled:opacity-50">{winnerBusy ? '儲存中…' : '確定成交'}</button></div>
   : <button type="button" onClick={() => { setPickWinnerId(quote.id); setWinnerError(''); }} className="btn-outline mt-2 min-h-10 w-full text-xs">✓ 指定這張成交</button>)}</div>)}{linkedDeal && <button type="button" onClick={() => onOpenOperations?.(linkedDeal.id, item.id)} className="mt-3 w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">成交・{linkedDeal.model || linkedDeal.note || '車輛'}</p><p className="text-xs text-ink-3">{linkedDeal.date}</p></div><strong className="text-copper">NT$ {formatMoney(linkedDeal.amount)} ›</strong></button>}</section>}
@@ -716,7 +723,7 @@ function DuplicateCasesModal({ groups, deals, quotes, onClose, onTrash }) {
   const [error, setError] = useState('');
   const describe = (item) => {
     const deal = findDealForCase(deals, item);
-    const linkedQuotes = quotes.filter((row) => (item.quoteIds || []).includes(row.id) || row.caseId === item.id);
+    const linkedQuotes = quotes.filter((row) => !row.archivedAt && ((item.quoteIds || []).includes(row.id) || row.caseId === item.id));
     const stage = getCasePipelineStage(item, { deals, quotes });
     return [CASE_TYPE_LABEL[item.type] || '案件', item.title || '未命名案件', stage, deal ? `成交 NT$ ${formatMoney(deal.amount)}` : '', linkedQuotes.length ? `${linkedQuotes.length} 張報價` : ''].filter(Boolean).join('・');
   };

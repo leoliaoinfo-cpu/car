@@ -7,7 +7,7 @@ import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId, getCaseP
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 import { ClientPicker } from '../ui';
-import { checkGatePin } from '../../utils/appGate';
+import MasterPinDialog from '../MasterPinDialog';
 
 function pendingCount(quote) {
   return (quote?.items || []).filter((item) => item.pending).length;
@@ -25,15 +25,10 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [saveNotice, setSaveNotice] = useState(null);
   const [confirmDealId, setConfirmDealId] = useState(null);
   const [viewWonQuoteId, setViewWonQuoteId] = useState(null);
-  const [wonPinFor, setWonPinFor] = useState(null); // 要修改的成交報價 id（等密碼）
-  const [wonPin, setWonPin] = useState('');
-  const [wonPinError, setWonPinError] = useState('');
-  const [wonPinFails, setWonPinFails] = useState(0);
-  const [wonPinBusy, setWonPinBusy] = useState(false);
+  const [pinAction, setPinAction] = useState(null); // { type: 'wonEdit' | 'delete', quote }
   const [dealError, setDealError] = useState('');
   const [dealSaving, setDealSaving] = useState(false);
   const dealBusy = useRef(false);
@@ -108,21 +103,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
   }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
-
-  async function submitWonPin() {
-    if (wonPinBusy || !wonPin) return;
-    if (wonPinFails >= 5) { setWonPinError('輸入錯誤太多次，請關閉後稍等再試'); return; }
-    setWonPinBusy(true); setWonPinError('');
-    try {
-      if (await checkGatePin(wonPin)) {
-        const quote = quoteDrafts.find((row) => row.id === wonPinFor);
-        setWonPinFor(null); setWonPin(''); setWonPinFails(0); setViewWonQuoteId(null);
-        if (quote) { setEditing({ mode: 'edit', quote, wonEdit: true }); if (quote.caseId) setFromCaseId(quote.caseId); }
-      } else {
-        setWonPinFails((n) => n + 1); setWonPin(''); setWonPinError('密碼不對');
-      }
-    } finally { setWonPinBusy(false); }
-  }
 
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, _confirmAfterSave, ...quotePayload } = payload;
@@ -244,11 +224,6 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
     }
   }
 
-  async function moveQuoteToTrash(id) {
-    await archiveQuoteDraft(id);
-    setConfirmDeleteId(null);
-    setSaveNotice({ clientId: null, text: '報價已放入回收筒，資料仍保留並可隨時恢復。' });
-  }
 
   async function restoreQuote(id) {
     await restoreQuoteDraft(id);
@@ -393,13 +368,8 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                   )}
                   {quote.archivedAt ? (
                     <button onClick={() => restoreQuote(quote.id)} className="btn-primary flex-1 text-xs">↩ 恢復報價</button>
-                  ) : isWon ? null : confirmDeleteId === quote.id ? (
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => moveQuoteToTrash(quote.id)} className="btn-danger text-[10px]">確認放入回收筒</button>
-                      <button onClick={() => setConfirmDeleteId(null)} className="btn-outline text-[10px]">取消</button>
-                    </div>
                   ) : (
-                    <button onClick={() => setConfirmDeleteId(quote.id)} className="btn-ghost text-danger/70 px-2" title="放入回收筒（可恢復）">🗑</button>
+                    <button type="button" onClick={() => setPinAction({ type: 'delete', quote })} className="btn-ghost text-danger/70 px-2" title="刪除（放入回收筒，需要密碼）" aria-label="刪除這張報價">🗑</button>
                   )}
                 </div>
               </article>
@@ -408,21 +378,29 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         </div>
       )}
 
-      {wonPinFor && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-3 md:items-center" onClick={() => setWonPinFor(null)}>
-          <form className="w-full max-w-sm rounded-2xl border border-bdr bg-s1 p-5 shadow-panel" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); submitWonPin(); }}>
-            <h2 className="text-lg font-bold text-ink">🔒 輸入密碼才能修改</h2>
-            <p className="mt-1 text-xs leading-relaxed text-ink-3">這張報價已經成交。修改後，成交金額、配件核對表和成本利潤會一起更新；你已經填好的配件狀態不會被洗掉。</p>
-            <input type="password" inputMode="numeric" autoComplete="off" autoFocus maxLength={12} value={wonPin}
-              onChange={(e) => { setWonPin(e.target.value); setWonPinError(''); }} aria-label="密碼"
-              className="mt-3 min-h-12 w-full text-center text-2xl tracking-[0.5em]" />
-            {wonPinError && <p role="alert" className="mt-2 text-sm text-danger">{wonPinError}</p>}
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setWonPinFor(null)} className="btn-outline min-h-12">取消</button>
-              <button type="submit" disabled={!wonPin || wonPinBusy} className="btn-primary min-h-12 disabled:opacity-40">確認</button>
-            </div>
-          </form>
-        </div>
+      {pinAction && (
+        <MasterPinDialog
+          title={pinAction.type === 'delete' ? '輸入密碼才能刪除' : '輸入密碼才能修改'}
+          description={pinAction.type === 'delete'
+            ? `「${pinAction.quote?.customerName || '這張報價'}」會放進回收筒（可以恢復）。${deals.some((d) => d.quoteId === pinAction.quote?.id && !d.caseArchivedAt) ? '這張是已成交的報價：成交紀錄、金額與配件核對表都保留，只是報價單從清單移到回收筒。' : ''}`
+            : '這張報價已經成交。修改後，成交金額、配件核對表和成本利潤會一起更新；你已經填好的配件狀態不會被洗掉。'}
+          confirmLabel={pinAction.type === 'delete' ? '確認刪除' : '確認'}
+          danger={pinAction.type === 'delete'}
+          onCancel={() => setPinAction(null)}
+          onVerified={async () => {
+            const action = pinAction; 
+            if (action.type === 'delete') {
+              await archiveQuoteDraft(action.quote.id);
+              setViewWonQuoteId(null);
+              setSaveNotice({ clientId: null, text: `「${action.quote.customerName || '報價'}」已放進回收筒，可在「回收筒」恢復。` });
+              setPinAction(null);
+            } else {
+              setPinAction(null); setViewWonQuoteId(null);
+              setEditing({ mode: 'edit', quote: action.quote, wonEdit: true });
+              if (action.quote.caseId) setFromCaseId(action.quote.caseId);
+            }
+          }}
+        />
       )}
 
       {editing && (
@@ -445,7 +423,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {viewWonQuoteId && (() => {
         const deal = deals.find((row) => row.quoteId === viewWonQuoteId && !row.caseArchivedAt);
         const snapshot = deal?.quoteSnapshot || quoteDrafts.find((row) => row.id === viewWonQuoteId);
-        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><button type="button" onClick={() => { setWonPin(''); setWonPinError(''); setWonPinFor(viewWonQuoteId); }} className="mt-3 min-h-12 w-full rounded-xl border-2 border-danger/50 bg-danger/10 text-sm font-bold text-ink">✏️ 客人追加／修改配件（需要密碼）</button><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
+        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><button type="button" onClick={() => setPinAction({ type: 'wonEdit', quote: quoteDrafts.find((row) => row.id === viewWonQuoteId) })} className="mt-3 min-h-12 w-full rounded-xl border-2 border-danger/50 bg-danger/10 text-sm font-bold text-ink">✏️ 客人追加／修改配件（需要密碼）</button><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
       })()}
     </div>
   );

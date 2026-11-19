@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { STORAGE_KEYS } from '../storageKeys';
 import {
-  checkGatePin, isGateUnlocked, GATE_REMEMBER_MS, GATE_MAX_TRIES, GATE_COOLDOWN_MS,
+  isGateUnlocked, GATE_REMEMBER_MS, GATE_MAX_TRIES, GATE_COOLDOWN_MS,
 } from '../utils/appGate';
+import { checkMasterPin } from '../masterPinStore';
 
 function readUnlocked() {
   try { return isGateUnlocked(localStorage.getItem(STORAGE_KEYS.gateUnlockUntil)); } catch { return false; }
@@ -21,7 +22,7 @@ export default function AppGate({ children }) {
   const submit = async (e) => {
     e.preventDefault();
     if (Date.now() < lockedUntil) { setErr('輸入錯誤太多次，請稍後再試'); return; }
-    if (await checkGatePin(pin)) {
+    if (await checkMasterPin(pin)) {
       try { localStorage.setItem(STORAGE_KEYS.gateUnlockUntil, String(Date.now() + GATE_REMEMBER_MS)); } catch { /* 無痕模式：這次有效 */ }
       setOk(true);
       return;

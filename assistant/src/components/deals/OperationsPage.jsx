@@ -2,14 +2,10 @@ import { useEffect, useState } from 'react';
 import DealsPage from './DealsPage';
 import { STORAGE_KEYS } from '../../storageKeys';
 import {
-  createBackendSessionDeadline, DEFAULT_PRESENTATION_PIN_HASH, isBackendSessionUnlocked,
-  isValidPresentationPin, MAX_PRESENTATION_PIN_LENGTH, readStoredPinHash, registerPinFailure, storePin, validateNewPin, verifyPresentationPin,
+  createBackendSessionDeadline, isBackendSessionUnlocked,
+  MAX_PRESENTATION_PIN_LENGTH, registerPinFailure, validateNewPin,
 } from '../../utils/presentationLock';
-
-function readBackendPasswordHash() {
-  try { return localStorage.getItem(STORAGE_KEYS.presentationPinHash) || DEFAULT_PRESENTATION_PIN_HASH; }
-  catch { return DEFAULT_PRESENTATION_PIN_HASH; }
-}
+import { checkMasterPin } from '../../masterPinStore';
 
 function readUnlockUntil() {
   try { return Number(sessionStorage.getItem(STORAGE_KEYS.operationsUnlockUntil)) || 0; }
@@ -36,7 +32,8 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
   const [lockedUntil, setLockedUntil] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [busy, setBusy] = useState(false);
-  const [hasPin, setHasPin] = useState(() => Boolean(readStoredPinHash()));
+  const hasPin = true; // 全系統共用一組統一密碼，不再各自設定
+  const setHasPin = () => {};
   const [newPin, setNewPin] = useState('');
   const [newPin2, setNewPin2] = useState('');
   const remainingSeconds = Math.max(0, Math.ceil((lockedUntil - now) / 1000));
@@ -80,8 +77,7 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
     if (problem) { setError(problem); return; }
     setBusy(true);
     try {
-      await storePin(newPin);
-      setHasPin(true);
+      throw new Error('統一密碼請到「設定 → 密碼」修改');
       const deadline = createBackendSessionDeadline();
       saveUnlockUntil(deadline);
       setUnlockUntil(deadline);
@@ -97,11 +93,11 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
   }
 
   async function unlock() {
-    if (busy || remainingSeconds || !isValidPresentationPin(password)) return;
+    if (busy || remainingSeconds || !password) return;
     setBusy(true);
     setError('');
     try {
-      if (await verifyPresentationPin(password, readBackendPasswordHash())) {
+      if (await checkMasterPin(password)) {
         const deadline = createBackendSessionDeadline();
         saveUnlockUntil(deadline);
         setUnlockUntil(deadline);
@@ -154,7 +150,7 @@ export default function OperationsPage({ onOpenClient, onBack, focusDealId = nul
           placeholder="請輸入密碼" autoComplete="off" className="w-full" autoFocus />
         {error && <p className="text-xs text-danger">{error}</p>}
         {remainingSeconds > 0 && <p className="text-xs font-semibold text-warn">{remainingSeconds} 秒後可再次嘗試</p>}
-        <button type="button" onClick={unlock} disabled={busy || remainingSeconds > 0 || !isValidPresentationPin(password)} className="btn-primary min-h-11 w-full disabled:opacity-40">{busy ? '驗證中…' : '進入管理頁'}</button>
+        <button type="button" onClick={unlock} disabled={busy || remainingSeconds > 0 || !password} className="btn-primary min-h-11 w-full disabled:opacity-40">{busy ? '驗證中…' : '進入管理頁'}</button>
       </div>
     </div>
   );

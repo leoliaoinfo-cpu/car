@@ -1,6 +1,7 @@
 import PinGate from './PinGate';
 import VaultSection from './VaultSection';
 import { getDek, getLocalVaultRecord } from '../vaultSession';
+import { changeMasterPin } from '../masterPinStore';
 import { sealSnapshot, openSnapshot, snapshotHasSealed } from '../utils/vault.js';
 import { useState, useEffect } from 'react';
 import { db } from '../db';
@@ -16,10 +17,7 @@ import {
 } from '../notify';
 import { Field, ConfirmDeleteButton } from './ui';
 import { STORAGE_KEYS } from '../storageKeys';
-import {
-  DEFAULT_PRESENTATION_PIN_HASH, hashPresentationPin, isValidPresentationPin,
-  MAX_PRESENTATION_PIN_LENGTH, verifyPresentationPin,
-} from '../utils/presentationLock';
+import { MAX_PRESENTATION_PIN_LENGTH } from '../utils/presentationLock';
 import { calculateHeightCapacity } from '../utils/reception';
 
 const HELP_CARDS = [
@@ -44,7 +42,7 @@ const SECTION_LABELS = {
   quoteMenu: '🚚 報價選單',
   height: '📐 車高參數',
   rules: '⏱ 追蹤規則',
-  security: '🔐 後台密碼',
+  security: '🔑 密碼',
   help: '📖 使用說明',
 };
 
@@ -263,66 +261,44 @@ export default function SettingsPanel({ onClose }) {
   );
 }
 
-function readBackendPasswordHash() {
-  try { return localStorage.getItem(STORAGE_KEYS.presentationPinHash) || DEFAULT_PRESENTATION_PIN_HASH; }
-  catch { return DEFAULT_PRESENTATION_PIN_HASH; }
-}
-
 function BackendPasswordEditor() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [nextPassword, setNextPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const clean = (value) => value.replace(/\D/g, '').slice(0, MAX_PRESENTATION_PIN_LENGTH);
 
   async function save(event) {
     event.preventDefault();
     if (saving) return;
-    setError('');
-    setMessage('');
-    if (!isValidPresentationPin(currentPassword) || !isValidPresentationPin(nextPassword)) {
-      setError('密碼必須是 4～12 位數字。');
-      return;
-    }
-    if (nextPassword !== confirmPassword) {
-      setError('新密碼與確認密碼不一致。');
-      return;
-    }
-    setSaving(true);
+    setError(''); setMessage(''); setSaving(true);
     try {
-      if (!await verifyPresentationPin(currentPassword, readBackendPasswordHash())) {
-        setError('目前密碼不正確。');
-        return;
-      }
-      const hash = await hashPresentationPin(nextPassword);
-      localStorage.setItem(STORAGE_KEYS.presentationPinHash, hash);
-      setCurrentPassword('');
-      setNextPassword('');
-      setConfirmPassword('');
-      setMessage('後台密碼已更新。');
-    } catch {
-      setError('密碼無法儲存，請確認瀏覽器允許本機儲存。');
-    } finally {
-      setSaving(false);
-    }
+      await changeMasterPin(currentPassword, nextPassword, confirmPassword);
+      setCurrentPassword(''); setNextPassword(''); setConfirmPassword('');
+      setMessage('✅ 密碼已更新。系統入口、報價價格、業績與成本、修改／刪除成交報價，全部改用這組新密碼；其他裝置同步後也會一起換。');
+    } catch (cause) {
+      setError(cause?.message || '密碼無法儲存，請稍後再試');
+    } finally { setSaving(false); }
   }
 
   return (
     <form onSubmit={save} className="card max-w-xl p-4 space-y-4">
       <div>
-        <h2 className="font-bold text-ink">🔐 後台密碼</h2>
-        <p className="mt-1 text-xs leading-relaxed text-ink-3">同一組密碼用於「成交與施工」及離開客戶看車模式。可設定 4～12 位數字；系統只保存雜湊，不保存明文。</p>
+        <h2 className="font-bold text-ink">🔑 統一密碼</h2>
+        <p className="mt-1 text-xs leading-relaxed text-ink-3">
+          全系統只有這一組密碼：開啟系統、報價選單價格、業績與成本、修改或刪除成交報價都用它。預設是 0623，在這裡改一次，所有地方（含其他裝置同步後）一起換。4～12 位數字。
+        </p>
       </div>
-      {[['目前密碼', currentPassword, setCurrentPassword], ['新密碼', nextPassword, setNextPassword], ['再次輸入新密碼', confirmPassword, setConfirmPassword]].map(([label, value, setter]) => (
+      {[['目前密碼', currentPassword, setCurrentPassword], ['新密碼', nextPassword, setNextPassword], ['再輸入一次新密碼', confirmPassword, setConfirmPassword]].map(([label, value, setter]) => (
         <label key={label} className="block text-xs font-medium text-ink-3">{label}
           <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={MAX_PRESENTATION_PIN_LENGTH} value={value} onChange={(event) => setter(clean(event.target.value))} autoComplete="new-password" className="mt-1 min-h-11 w-full" />
         </label>
       ))}
       {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</p>}
       {message && <p role="status" className="rounded-xl border border-ok/40 bg-ok/10 p-3 text-sm text-ok">{message}</p>}
-      <button type="submit" disabled={saving} className="btn-primary min-h-11 w-full disabled:opacity-40">{saving ? '儲存中…' : '更新後台密碼'}</button>
+      <button type="submit" disabled={saving || !currentPassword || !nextPassword} className="btn-primary min-h-11 w-full disabled:opacity-40">{saving ? '儲存中…' : '更新統一密碼'}</button>
     </form>
   );
 }
