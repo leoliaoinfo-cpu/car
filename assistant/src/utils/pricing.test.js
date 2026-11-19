@@ -630,7 +630,7 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-double-cab-package'].cost, 203500);
   assert.equal(catalog.addons['qa-travel-crossbar-single'].cost, 4000);
   assert.equal(catalog.addons['qa-travel-crossbar'].cost, 7000);
-  assert.equal(catalog.addons['qa-android-console-box'].cost, 500);
+  assert.equal(catalog.addons['qa-android-console-box'].cost, 400); // 售價 500 打八折
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
   assert.equal(catalog.addons['qa-star-led-fog'].cost, 1400);
@@ -1076,7 +1076,7 @@ test('adds supplier sheet options to existing quote menus without exposing costs
   assert.equal(galvanized.name, '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)');
   assert.equal(galvanizedFlat.name, '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)');
   assert.equal(galvanizedFlat.pendingPrice, true);
-  assert.equal(consoleBox.parentId, 'qa-android-surround');
+  assert.equal(consoleBox.parentId, undefined); // 獨立品項，不用先選安卓
   assert.equal(consoleBox.price, 500);
   assert.equal(film.price, 8000);
   assert.equal(Object.prototype.hasOwnProperty.call(film, 'cost'), false);
@@ -1318,7 +1318,7 @@ test('upgrades the old galvanized floor name and adds the dependent console opti
     '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)',
   );
   assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '中央置物盒另加 500 元；1 年保固');
-  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-console-box').parentId, 'qa-android-surround');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-console-box').parentId, undefined);
 });
 
 test('keeps an item-level color note when normalizing a saved quote', () => {
@@ -1328,14 +1328,25 @@ test('keeps an item-level color note when normalizing a saved quote', () => {
   assert.equal(normalized.items[0].note, '珍珠白');
 });
 
-test('安全科技版加購中央置物盒：售價 500、成本 400（八折），舊成本設定升級後補上', async () => {
-  const { DEFAULT_QUOTE_PRESETS, resolveQuotePresets } = await import('./crm.js');
-  const item = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-pkg2-console-box');
+test('加購中央置物盒：獨立品項（沒有 parentId）、售價 500、成本 400，舊設定升級後換成 400', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const item = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-android-console-box');
+  assert.equal(item.parentId, undefined);
   assert.equal(item.cat, '配備版本');
   assert.equal(item.price, 500);
-  assert.ok(DEFAULT_QUOTE_PRESETS);
-  assert.equal(normalizeCostCatalog(null).addons['qa-pkg2-console-box'].cost, 400);
-  const upgraded = normalizeCostCatalog({ version: 13, models: {}, addons: { 'qa-pkg1': { cost: 12345 } } });
-  assert.equal(upgraded.addons['qa-pkg2-console-box'].cost, 400);
+  assert.equal(normalizeCostCatalog(null).addons['qa-android-console-box'].cost, 400);
+  const upgraded = normalizeCostCatalog({ version: 13, models: {}, addons: { 'qa-android-console-box': { cost: 500 }, 'qa-pkg1': { cost: 12345 } } });
+  assert.equal(upgraded.addons['qa-android-console-box'].cost, 400);
   assert.equal(upgraded.addons['qa-pkg1'].cost, 12345);
+  const edited = normalizeCostCatalog({ version: 13, models: {}, addons: { 'qa-android-console-box': { cost: 450 } } });
+  assert.equal(edited.addons['qa-android-console-box'].cost, 450);
+  // 舊的已存設定（有 parentId、在駕駛科技、有上一版新增的重複品項）升級後要整理乾淨
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v31', addonCategories: ['駕駛科技'], addons: [
+    { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
+    { id: 'qa-pkg2-console-box', cat: '配備版本', name: '中央置物盒（安全科技版加購）', price: 500 },
+  ] });
+  const box = old.addons.find((a) => a.id === 'qa-android-console-box');
+  assert.equal(box.parentId, undefined);
+  assert.equal(box.cat, '配備版本');
+  assert.equal(old.addons.some((a) => a.id === 'qa-pkg2-console-box'), false);
 });

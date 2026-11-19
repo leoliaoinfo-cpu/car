@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v31';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v32';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -289,8 +289,7 @@ const VENDOR_QUOTE_ADDONS = [
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, warrantyMonths: 12, desc: '中央置物盒另加 500 元；1 年保固' },
-  { id: 'qa-pkg2-console-box', cat: '配備版本', name: '中央置物盒（安全科技版加購）', price: 500, desc: '安全科技版專用中央置物盒' },
-  { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
+  { id: 'qa-android-console-box', cat: '配備版本', name: '加購中央置物盒', price: 500, desc: '安全科技版、安卓＋四錄＆環景＋專用底座皆可加購' },
   { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, warrantyMonths: 12, desc: '1 年保固' },
   { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, warrantyMonths: 48, desc: '4 年保固' },
   { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, warrantyMonths: 48, desc: '4 年保固' },
@@ -618,6 +617,7 @@ export function resolveQuotePresets(row) {
   const cargoFloorCategory = (row.addonCategoryAliases || {})['貨斗底板'] || '貨斗底板';
   const normalizeCurrentAddon = (item) => {
     if (item.id === 'qa-lighting-custom') return null;
+    if (item.id === 'qa-pkg2-console-box') return null; // 已併入獨立的「加購中央置物盒」
     const isCargoFloor = item.id?.startsWith('qa-floor-')
       || ['貨斗底板', cargoFloorCategory].includes(item.cat);
     if (!isCargoFloor || String(item.desc || '').includes('5mm')) return item;
@@ -710,6 +710,14 @@ export function resolveQuotePresets(row) {
     if (tailgateDefault?.cat?.startsWith('隔熱紙（')
       && ['隔熱紙', (row.addonCategoryAliases || {}).隔熱紙].filter(Boolean).includes(migrated.cat)) {
       migrated = { ...migrated, cat: tailgateDefault.cat };
+    }
+    // 加購中央置物盒改成獨立品項（不用先選安卓才出現），搬到配備版本；使用者改過的名稱、價格不動
+    if (migrated.id === 'qa-android-console-box') {
+      const { parentId: _drop, ...rest } = migrated;
+      migrated = { ...rest, ...(rest.cat === '駕駛科技' ? { cat: '配備版本' } : {}) };
+      if (migrated.desc === '須搭配安卓＋四錄＆環景＋專用底座') {
+        migrated.desc = '安全科技版、安卓＋四錄＆環景＋專用底座皆可加購';
+      }
     }
     const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];
     const latestDefault = DEFAULT_QUOTE_PRESETS.addons.find((addon) => addon.id === migrated.id);

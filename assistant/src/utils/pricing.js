@@ -183,9 +183,9 @@ const V7_COST_REVISIONS = {
   'qa-paint2': { to: 34000, addIfMissing: true },
   'qa-paint3': { to: 36000, addIfMissing: true },
 };
-// 安全科技版加購中央置物盒：售價 500，成本為售價打八折＝400。
+// 加購中央置物盒：售價 500，成本為售價打八折＝400（舊預設 500 且沒被手動改過才換成 400）。
 const V14_ADDON_COSTS = {
-  'qa-pkg2-console-box': { cost: 400 },
+  'qa-android-console-box': { cost: 400 },
 };
 
 const DEFAULT_ADDON_COSTS = {
@@ -623,6 +623,11 @@ export function synchronizeQuoteDiscounts(quote, pricingRecord = null) {
   return applyPricingDiscountsToQuote(quote, lineDiscounts);
 }
 
+function applyV14ConsoleBoxCost(addons, needed) {
+  if (!needed || Number(addons?.['qa-android-console-box']?.cost) !== 500) return addons;
+  return { ...addons, 'qa-android-console-box': { ...addons['qa-android-console-box'], cost: 400 } };
+}
+
 export function normalizeCostCatalog(row) {
   const previousVersion = Number(row?.version) || 0;
   const savedModels = row?.models || {};
@@ -657,7 +662,7 @@ export function normalizeCostCatalog(row) {
     ...(row || {}),
     version: COST_CATALOG_VERSION,
     models,
-    addons: row && previousVersion < 10 ? migrateV10TailgateCosts(migratedAddons) : migratedAddons,
+    addons: applyV14ConsoleBoxCost(row && previousVersion < 10 ? migrateV10TailgateCosts(migratedAddons) : migratedAddons, row && previousVersion < 14),
     commissionBonusRule: normalizeCommissionBonusRule(row?.commissionBonusRule),
   };
 }
