@@ -141,6 +141,31 @@ function deductedIds(item) {
   return out;
 }
 
+/** 備註拆成一點一點：換行或「1. 2. 3.」分段，去掉前面的編號（12.3吋這種小數不會被拆）。 */
+export function splitNoteSegments(note) {
+  return String(note || '')
+    .split(/\n|(?<!\d)(?=\d{1,2}[.、．](?!\d))/)
+    .map((seg) => seg.replace(/^\s*(?:\d{1,2}[.、．]|[①-⑳])\s*/, '').replace(/[，,;；\s]+$/, '').trim())
+    .filter(Boolean);
+}
+
+function findNoteTarget(seg, pkgIds, shown, visible, items) {
+  const pick = (ids) => {
+    const uniq = [...new Set(ids)];
+    if (uniq.length === 1) return uniq[0];
+    const on = uniq.filter((id) => items[id]?.on);
+    return on.length === 1 ? on[0] : null;
+  };
+  const byLabel = shown.filter((x) => x.label && x.label.length >= 2 && seg.includes(x.label)).map((x) => x.id);
+  if (byLabel.length) return pick(byLabel);
+  const byRule = matchSheetIds({ name: seg }).filter((id) => visible.has(id));
+  if (byRule.length) return pick(byRule);
+  // 套裝自己的項目：名稱的片段（例「安卓+四錄」的「安卓」）出現在這一點裡
+  const labelOf = new Map(shown.map((x) => [x.id, x.label]));
+  const byPart = pkgIds.filter((id) => String(labelOf.get(id) || '').split(/[+＋/／、\s]/).some((part) => part.length >= 2 && seg.includes(part)));
+  return byPart.length ? pick(byPart) : null;
+}
+
 const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
 function circledNumber(n) { return CIRCLED[n - 1] || `${n}.`; }
 
@@ -190,12 +215,13 @@ export function prefillFromQuote(sheet, quote, layout = null) {
   const defaultNote = new Map(shown.map((x) => [x.id, x.note]));
   const unmatched = [];
   const noteLines = []; // 配件備註寫不進項目後面的線時，改寫進客戶需求（絕不默默丟掉）
+  const pending = []; // 等全部勾完再分配的備註
   for (const item of quote?.items || []) {
     const name = String(item?.name || '').trim();
     const ownNote = String(item?.note || '').trim();
     if (!name || item.pending) continue;
     if (item.kind === 'vehicle' || item.kind === 'other') { // 車價、領牌費等不是選配，只帶備註
-      if (ownNote) { const t = `${compactName(name)}：${ownNote}`; noteLines.push({ key: t, text: t }); }
+      if (ownNote) pending.push({ label: compactName(name), note: ownNote, pkgIds: [] });
       continue;
     }
     // 內建關鍵字 + 使用者自己新增的項目（品名含有該項目名稱就算）
@@ -218,10 +244,22 @@ export function prefillFromQuote(sheet, quote, layout = null) {
       items[id] = { on: true, note: cur.note || (isPkg ? '' : (note || fallback)) };
       if (ownNote && items[id].note.includes(ownNote)) placed = true;
     }
-    if (ownNote && !placed) { const t = `${compactName(name)}：${ownNote}`; noteLines.push({ key: t, text: t }); }
+    if (ownNote && !placed) pending.push({ label: compactName(name), note: ownNote, pkgIds: ids.filter((id) => !cut.has(id)) });
   }
   const centralNote = String(quote?.note || '').trim();
-  if (centralNote) noteLines.push({ key: `備註：${centralNote}`, text: `備註：${centralNote}` });
+  if (centralNote) pending.push({ label: '備註', note: centralNote, pkgIds: [] });
+  // 套裝、車價、中央備註的備註：拆成一點一點（1. 2. 3. 或換行），提到哪一項就寫在那一項旁邊
+  // （例：「橡膠墊全封，底板用矽利康封起來」→ 橡膠墊），對不到任何一項的才寫進客戶需求
+  for (const { label, note, pkgIds } of pending) {
+    const rest = [];
+    for (const seg of splitNoteSegments(note)) {
+      const target = findNoteTarget(seg, pkgIds, shown, visible, items);
+      if (!target) { rest.push(seg); continue; }
+      const cur = items[target] || { on: false, note: '' };
+      if (!cur.note.includes(seg)) items[target] = { ...cur, note: cur.note ? `${cur.note}，${seg}` : seg };
+    }
+    if (rest.length) { const t = `${label}：${rest.join('；')}`; noteLines.push({ key: t, text: t }); }
+  }
   next.items = items;
   if (quote?.model && !next.model) next.model = String(quote.model).replace(/^2027\s*年式\s*/, '').trim();
   // 選牌號碼（品名「選牌(7275)」或任何備註寫「選牌7275」）→ 填進紙本的「選牌」欄，不另寫進客戶需求

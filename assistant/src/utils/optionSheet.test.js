@@ -137,7 +137,7 @@ test('配件備註與中央備註都會帶進選配表：寫得進項目後面�
   assert.match(sheet.items.canvas.note, /黑色/);
   assert.doesNotMatch(sheet.needs.text, /帆布.*黑色/);
   assert.match(sheet.needs.text, /車輛售價：領牌人 莊天旗/);
-  assert.match(sheet.needs.text, /安全科技版：升級12\.3吋安卓旗艦機/);
+  assert.equal(sheet.items['android-4rec'].note, '升級12.3吋安卓旗艦機');
   assert.match(sheet.needs.text, /GTR-plus 魚眼大燈（黑化）：要黑化/);
   assert.match(sheet.needs.text, /^①/);
   assert.match(sheet.needs.text, /\n②/);
@@ -165,4 +165,25 @@ test('沒有填寫線的項目，備註直接寫在旁邊（自動加線），�
   const rows = sheetBoxes(null, sheet).flatMap((b) => b.rows.flat());
   assert.equal(rows.find(([id]) => id === 'halo')[2], true);
   assert.equal(rows.find(([id]) => id === 'phone')[2], false);
+});
+
+test('套裝備註拆成一點一點，提到哪一項就寫在那一項旁邊（楊老闆：橡膠墊、行車紀錄器、安卓）', async () => {
+  const { splitNoteSegments } = await import('./optionSheet.js');
+  assert.deepEqual(splitNoteSegments('1.九吋安卓機升級成12.3吋安卓旗艦機\n2.橡膠墊全封，底板用矽利康封起來\n3.刪掉前後行車紀錄器換成中央置物盒'),
+    ['九吋安卓機升級成12.3吋安卓旗艦機', '橡膠墊全封，底板用矽利康封起來', '刪掉前後行車紀錄器換成中央置物盒']);
+  assert.deepEqual(splitNoteSegments('1.A 2.B'), ['A', 'B']);
+  const quote = { note: '選牌7275，交車時與領牌費一起處理', items: [
+    { id: 'p1', kind: 'addon', name: '特仕版套件', price: 30000 },
+    { id: 's', kind: 'addon', name: '安全科技版', price: 48800, optionValue: '四錄',
+      note: '1.九吋安卓機升級成12.3吋安卓旗艦機\n2.橡膠墊全封，底板用矽利康封起來\n3.刪掉前後行車紀錄器換成中央置物盒' },
+  ] };
+  const { sheet } = prefillFromQuote(emptySheet(), quote);
+  assert.equal(sheet.items.rubber.note, '橡膠墊全封，底板用矽利康封起來');
+  assert.equal(sheet.items.recorder.note, '刪掉前後行車紀錄器換成中央置物盒');
+  assert.equal(sheet.items['android-4rec'].note, '九吋安卓機升級成12.3吋安卓旗艦機');
+  assert.doesNotMatch(sheet.needs.text, /矽利康|行車紀錄器|旗艦機/);
+  assert.match(sheet.needs.text, /備註：選牌7275/);
+  const again = prefillFromQuote(sheet, quote).sheet;
+  assert.equal(again.items.rubber.note, sheet.items.rubber.note);
+  assert.equal(again.needs.text, sheet.needs.text);
 });
