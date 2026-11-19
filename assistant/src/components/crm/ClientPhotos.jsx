@@ -5,9 +5,10 @@ import { generateId } from '../../utils/crm';
 
 /**
  * 客戶照片 / 名片：上傳時自動壓縮，存進本機 IndexedDB（Blob，不上雲端同步、不進備份），
- * 刪除客戶時會一併刪除。顯示用 objectURL 並在卸載/刪除時釋放，避免記憶體洩漏。
+ * 刪除客戶時會一併刪除。
+ * 帶 caseId 時是「案件照片」：只顯示這個案件的照片（沒有名片區），上傳的照片會記下案件；客戶頁仍看得到該客戶全部照片。顯示用 objectURL 並在卸載/刪除時釋放，避免記憶體洩漏。
  */
-export default function ClientPhotos({ clientId }) {
+export default function ClientPhotos({ clientId, caseId = null }) {
   const [photos, setPhotos] = useState([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -25,14 +26,14 @@ export default function ClientPhotos({ clientId }) {
     let alive = true;
     const urls = urlsRef.current;
     db.getPhotos(clientId)
-      .then((list) => { if (alive) setPhotos(list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))); })
+      .then((rows) => { const list = caseId ? rows.filter((row) => row.caseId === caseId) : rows; if (alive) setPhotos(list.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))); })
       .catch(() => {});
     return () => {
       alive = false;
       for (const url of urls.values()) URL.revokeObjectURL(url);
       urls.clear();
     };
-  }, [clientId]);
+  }, [clientId, caseId]);
 
   async function handleFiles(kind, fileList) {
     const files = [...(fileList || [])].filter((f) => f.type.startsWith('image/'));
@@ -48,7 +49,7 @@ export default function ClientPhotos({ clientId }) {
           const r = await compressImage(file, kind === 'card' ? { maxDim: 1800, quality: 0.78 } : { maxDim: 1600, quality: 0.72 });
           blob = r.blob; w = r.w; h = r.h;
         } catch { usedOriginal = true; }
-        const photo = { id: generateId('photo'), clientId, kind, blob, size: blob.size, w, h, name: file.name || '', createdAt: new Date().toISOString() };
+        const photo = { id: generateId('photo'), clientId, caseId: caseId || null, kind, blob, size: blob.size, w, h, name: file.name || '', createdAt: new Date().toISOString() };
         await db.putPhoto(photo);
         added.push(photo);
       }
@@ -95,11 +96,12 @@ export default function ClientPhotos({ clientId }) {
   return (
     <section className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm text-ink-2">📷 照片 / 名片</h3>
+        <h3 className="font-semibold text-sm text-ink-2">{caseId ? '📷 案件照片' : '📷 照片 / 名片'}</h3>
         <span className="text-[11px] text-ink-3">{photos.length} 張 · {formatBytes(totalSize)}</span>
       </div>
 
-      {/* 名片 */}
+      {/* 名片（案件照片不放名片） */}
+      {!caseId && (
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-medium text-ink-2">💳 名片（{cards.length}）</span>
@@ -110,6 +112,8 @@ export default function ClientPhotos({ clientId }) {
         {cards.length > 0 ? grid(cards) : <p className="text-[11px] text-ink-3">尚無名片，點「加名片」拍照或從相簿選。</p>}
       </div>
 
+      )}
+
       {/* 照片 */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
@@ -118,7 +122,7 @@ export default function ClientPhotos({ clientId }) {
           <input ref={photoInput} type="file" accept="image/*" multiple className="hidden"
             onChange={(e) => { handleFiles('photo', e.target.files); e.target.value = ''; }} />
         </div>
-        {pics.length > 0 ? grid(pics) : <p className="text-[11px] text-ink-3">尚無照片，可存車輛、證件、交車現場等。</p>}
+        {pics.length > 0 ? grid(pics) : <p className="text-[11px] text-ink-3">{caseId ? '尚無照片，可存車況、施工過程、交車現場等。' : '尚無照片，可存車輛、證件、交車現場等。'}</p>}
       </div>
 
       {busy && <p className="text-xs text-accent">處理中…</p>}

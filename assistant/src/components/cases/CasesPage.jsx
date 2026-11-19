@@ -11,6 +11,7 @@ import { normalizeDeliveryWorkflow } from '../../utils/delivery';
 import CaseDeliveryChecklist from '../deals/CaseDeliveryChecklist';
 import OptionSheet from './OptionSheet';
 import MasterPinDialog from '../MasterPinDialog';
+import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker } from '../ui';
 import {
@@ -603,6 +604,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
   const linkedDeal = findDealForCase(deals, item);
   const { confirmQuoteDeal, archiveQuoteDraft } = useApp();
   const [deleteQuote, setDeleteQuote] = useState(null);
+  const [showPhotos, setShowPhotos] = useState(false);
   const [pickQuote, setPickQuote] = useState(false); // 有多張報價時，先選要開哪一張
   const [showClose, setShowClose] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
@@ -806,6 +808,11 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             description={`這張報價會放進回收筒（可以恢復）。${linkedDeal?.quoteId === deleteQuote.id ? '它是已成交的報價：成交紀錄、金額與配件核對表都保留，只是報價單從清單移到回收筒。' : ''}`}
             onCancel={() => setDeleteQuote(null)}
             onVerified={async () => { await archiveQuoteDraft(deleteQuote.id); setDeleteQuote(null); }} />}
+          {item.clientId && (showPhotos
+            ? <div className="space-y-2"><ClientPhotos clientId={item.clientId} caseId={item.id} /><button type="button" onClick={() => setShowPhotos(false)} className="btn-ghost min-h-10 w-full text-xs">收起照片</button></div>
+            : <button type="button" onClick={() => setShowPhotos(true)} className="card flex min-h-14 w-full items-center justify-between px-4 py-3 text-sm font-bold text-ink">
+              <span>📷 案件照片</span><span className="text-xs font-semibold text-ink-3">車況、施工、交車照片・點開</span>
+            </button>)}
           {showSheet && <OptionSheet item={item} deal={linkedDeal} quotes={linkedQuotes} onClose={() => setShowSheet(false)} onSave={(optionSheet) => onSaveCase({ ...item, optionSheet })} />}
 
           <nav className="grid grid-cols-4 gap-1 rounded-xl border border-bdr bg-s1 p-1 sticky top-[3.9rem] z-10">
