@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v30';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v31';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -289,6 +289,7 @@ const VENDOR_QUOTE_ADDONS = [
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, warrantyMonths: 12, desc: '中央置物盒另加 500 元；1 年保固' },
+  { id: 'qa-pkg2-console-box', cat: '配備版本', name: '中央置物盒（安全科技版加購）', price: 500, desc: '安全科技版專用中央置物盒' },
   { id: 'qa-android-console-box', parentId: 'qa-android-surround', cat: '駕駛科技', name: '加購中央置物盒', price: 500, desc: '須搭配安卓＋四錄＆環景＋專用底座' },
   { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, warrantyMonths: 12, desc: '1 年保固' },
   { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, warrantyMonths: 48, desc: '4 年保固' },

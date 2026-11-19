@@ -29,7 +29,7 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 244 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 245 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
@@ -68,6 +68,7 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **報價清單篩選與排序（2026-11-19，使用者要求）**：清單上方有「篩選車型」（依現有報價的車型，附張數、含「未填車型」）與「排序」（最近更新／日期新→舊／舊→新／價格高→低／低→高）兩個下拉（`QuoteWorkspace.jsx` 的 `modelFilter`／`sortKey`）；卡片上的「價格已齊」徽章已拿掉（只留「待廠商報價 N 項」）；報價日期放大加粗。
 - **報價單自動暫存（2026-11-19，使用者要求：新增到一半按重新整理不能不見）**：`QuoteModal` 改動停手 0.5 秒就把整張報價（`makeQuotePayload()`＋客戶模式）存到 localStorage `car-sales.quote.wip`（`utils/quoteWip.js`，7 天過期）；重新整理後 `App.jsx` 直接切到報價頁、`QuoteWorkspace` 啟動時還原那張（新增或編輯皆可，連歸入的案件與「從案件開的」回返資訊）。**儲存成功或「確認關閉／沒改動關閉」才清掉**（`clearQuoteWip`）。只存這台裝置、不同步。從客戶頁開的報價也會暫存，但重整後會在報價頁還原。
 - **配件重疊鎖定（2026-11-19，使用者要求）**：型錄配件新增 `locks: [id…]` 欄位（`utils/crm.js`，與 `includes` 不同：`includes` 是套裝內含單品、會列入扣項建議，`locks` 只表示「不可同時選」）。選了 A（或內含 A 的套裝）→ A 的 `locks` 項目變灰鎖住，顯示「🔒 重疊」；選 A 時若已選了被鎖的項目會自動移除（與套裝內含單品的做法一致）。目前規則：特仕版套件→橡膠底板；LED 韓版後照鏡⇄後照鏡飾蓋、NLD 空力套裝（雙向）；雙廂高階套裝因內含特仕版／LED 韓版後照鏡而一併鎖住這些。`resolveQuotePresets` 升級時把預設的 `locks` 補回使用者舊設定（型錄版本升到 `kavan-2026-v30`）。新增重疊規則直接在型錄項目加 `locks`。
+- **安全科技版加購中央置物盒（2026-11-19）**：「配備版本」分類新增 `qa-pkg2-console-box`「中央置物盒（安全科技版加購）」售價 500；成本 400（售價打八折，`pricing.js` 的 `V14_ADDON_COSTS`，成本表版本升到 14，舊成本設定升級時自動補上、不動已改過的數字）。型錄版本 `kavan-2026-v31`。不用先選安全科技版也能勾（和駕駛科技裡原有的「加購中央置物盒」是兩個獨立品項）。
 - **已成交的案件卡片也用淡紅底**（`CasesPage.jsx` 案件清單，條件＝符合「已成交」或「已交車」篩選（`matchesCaseListFilter('won'|'delivered')`，即成交、準備交車、已交車）；洽談中與不追蹤的不上色；使用者 2026-11-19 要求）。
 - **報價清單已成交的卡片用淡紅底**（`QuoteWorkspace.jsx` 的 `attentionClass`，`isWon` 優先於逾期／久未動的提示色；使用者 2026-11-19 要求）。**未歸戶逾期 30 天的報價改用死灰色**（卡片 `bg-ink-3/25`、徽章灰底，使用者指定），避免和已成交的淡紅混淆；**報價清單不要再用紅色當逾期提示**。
 - **成交後可再修改報價（2026-11-19，使用者：客人會再追加改裝配件）**：報價清單「查看成交版本」視窗有「✏️ 客人追加／修改配件」，要輸入**統一密碼**（預設 0623，`MasterPinDialog`）才開得了編輯；存檔時 `context.syncWonQuoteDeal`（純邏輯 `utils/wonQuote.js`，有測試）自動同步：**成交金額用「差額」**套到原金額（舊成交的特殊金額不會被洗掉）、`quoteSnapshot` 更新、**配件核對表合併**（原有配件的狀態／數量／再追日保留，新追加的進表、待廠商確認的排 3 天後再追；拿掉的配件沒備貨就移除，**已備妥／已安裝的保留不消失**；使用者自己改過的備註不覆蓋）、成本利潤沿用已填成本（有成本紀錄才重算，舊成交沒有就不憑空建立）、寫一筆案件活動紀錄。**不自動改施工進度**（可能已在進行），只提示「施工進度可能要補：○○」。修改後留在報價頁顯示同步說明。`QuoteWorkspace.handleSave` 原本對成交報價擲「已鎖定」錯誤，現在只有 `editing.wonEdit` 才放行。

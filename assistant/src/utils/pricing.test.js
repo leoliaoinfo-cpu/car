@@ -1327,3 +1327,15 @@ test('keeps an item-level color note when normalizing a saved quote', () => {
   ]);
   assert.equal(normalized.items[0].note, '珍珠白');
 });
+
+test('安全科技版加購中央置物盒：售價 500、成本 400（八折），舊成本設定升級後補上', async () => {
+  const { DEFAULT_QUOTE_PRESETS, resolveQuotePresets } = await import('./crm.js');
+  const item = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-pkg2-console-box');
+  assert.equal(item.cat, '配備版本');
+  assert.equal(item.price, 500);
+  assert.ok(DEFAULT_QUOTE_PRESETS);
+  assert.equal(normalizeCostCatalog(null).addons['qa-pkg2-console-box'].cost, 400);
+  const upgraded = normalizeCostCatalog({ version: 13, models: {}, addons: { 'qa-pkg1': { cost: 12345 } } });
+  assert.equal(upgraded.addons['qa-pkg2-console-box'].cost, 400);
+  assert.equal(upgraded.addons['qa-pkg1'].cost, 12345);
+});

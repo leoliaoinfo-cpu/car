@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 13;
+const COST_CATALOG_VERSION = 14;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -183,6 +183,10 @@ const V7_COST_REVISIONS = {
   'qa-paint2': { to: 34000, addIfMissing: true },
   'qa-paint3': { to: 36000, addIfMissing: true },
 };
+// 安全科技版加購中央置物盒：售價 500，成本為售價打八折＝400。
+const V14_ADDON_COSTS = {
+  'qa-pkg2-console-box': { cost: 400 },
+};
 
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
@@ -194,6 +198,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V11_ADDON_COSTS,
   ...V12_ADDON_COSTS,
   ...V13_ADDON_COSTS,
+  ...V14_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -643,6 +648,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 11 ? V11_ADDON_COSTS : {}),
     ...(row && previousVersion < 12 ? V12_ADDON_COSTS : {}),
     ...(row && previousVersion < 13 ? V13_ADDON_COSTS : {}),
+    ...(row && previousVersion < 14 ? V14_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
