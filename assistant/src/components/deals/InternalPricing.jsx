@@ -624,6 +624,7 @@ export function PricingEditorModal({
       String(quote?.items?.find((item) => item.id === line.id)?.note ?? line.note ?? ''),
     ]),
   ));
+  const [centralNote, setCentralNote] = useState(() => String(quote?.note || ''));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
   const [customItems, setCustomItems] = useState(() => (record.lines || [])
     .filter((line) => line.backendCustom)
@@ -760,6 +761,7 @@ export function PricingEditorModal({
     ? applyPricingDiscountsToQuote(customQuote, cleanLineDiscounts, lineGifts) : null;
   const updatedQuote = discountedQuote ? {
     ...discountedQuote,
+    note: centralNote.trim(),
     items: (discountedQuote.items || []).map((item) => (
       Object.prototype.hasOwnProperty.call(lineNotes, item.id) ? { ...item, note: lineNotes[item.id].trim() } : item)),
   } : null;
@@ -1041,6 +1043,13 @@ export function PricingEditorModal({
                 </p>
               )}
               {discountError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {discountError}</p>}
+            </section>
+          )}
+
+          {quote && (
+            <section className="rounded-xl border border-bdr bg-s2/60 p-3 mb-3">
+              <p className="text-sm font-bold text-ink">📝 中央備註（整張報價）</p>
+              <NoteToggle name="中央" value={centralNote} onChange={setCentralNote} />
             </section>
           )}
 
@@ -1427,9 +1436,9 @@ function NoteToggle({ name, value, onChange }) {
   return (
     <div className="mt-1 space-y-1">
       <textarea value={text} onChange={(e) => onChange(e.target.value)} rows={2} autoFocus
-        placeholder="備註（會同步到報價單，客人看得到）" aria-label={`${name}備註內容`} className="text-xs w-full" />
+        placeholder="備註（會同步到報價單與選配表，客人看得到）" aria-label={`${name}備註內容`} className="text-xs w-full" />
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-ink-3">與報價同步・LINE 文字與報價圖會顯示</span>
+        <span className="text-[10px] text-ink-3">與報價同步・客人看得到・選配表會帶入</span>
         <button type="button" onClick={() => setOpen(false)} className="text-[11px] text-accent font-semibold px-2 py-1">收起</button>
       </div>
     </div>

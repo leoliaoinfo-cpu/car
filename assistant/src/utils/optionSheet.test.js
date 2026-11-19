@@ -125,3 +125,31 @@ test('安全科技版：四錄／環景擇一，只勾對應那一格並加胎�
   const old = matchSheetIds({ catalogId: 'qa-pkg2', name: '安全科技版（安卓四錄+360環景+六輪胎壓）' });
   assert.deepEqual(old.sort(), ['android-4rec', 'android-around', 'tpms6'].sort());
 });
+
+test('配件備註與中央備註都會帶進選配表：寫得進項目後面的線就寫線上，寫不進的放客戶需求，不重複', () => {
+  const quote = { note: '交車前全部裝好', items: [
+    { id: 'v', kind: 'vehicle', name: '車輛售價', price: 888000, note: '領牌人 莊天旗' },
+    { id: 'c', kind: 'addon', name: '三面帆布－雙廂降低版', price: 13500, note: '黑色' },
+    { id: 's', kind: 'addon', name: '安全科技版', price: 48800, optionValue: '四錄', note: '升級12.3吋安卓旗艦機' },
+    { id: 'g', kind: 'addon', name: 'GTR-plus 魚眼大燈（黑化）', price: 28900, note: '要黑化' },
+  ] };
+  const { sheet } = prefillFromQuote(emptySheet(), quote);
+  assert.match(sheet.items.canvas.note, /黑色/);
+  assert.doesNotMatch(sheet.needs.text, /帆布.*黑色/);
+  assert.match(sheet.needs.text, /車輛售價：領牌人 莊天旗/);
+  assert.match(sheet.needs.text, /安全科技版：升級12\.3吋安卓旗艦機/);
+  assert.match(sheet.needs.text, /GTR-plus 魚眼大燈（黑化）：要黑化/);
+  assert.match(sheet.needs.text, /^①/);
+  assert.match(sheet.needs.text, /\n②/);
+  assert.match(sheet.needs.text, /備註：交車前全部裝好/);
+  const again = prefillFromQuote(sheet, quote).sheet;
+  assert.equal(again.needs.text, sheet.needs.text);
+});
+
+test('選牌號碼從品名或備註帶進「選牌」欄；已填的不覆蓋', () => {
+  assert.equal(prefillFromQuote(emptySheet(), { items: [{ id: 'p', kind: 'other', name: '選牌(7275)', price: 2000 }] }).sheet.plate.text, '7275');
+  const r = prefillFromQuote(emptySheet(), { note: '選牌7275，交車時與領牌費一起處理', items: [] }).sheet;
+  assert.deepEqual(r.plate, { on: true, text: '7275' });
+  const kept = normalizeSheet({ plate: { on: true, text: '6655' } });
+  assert.equal(prefillFromQuote(kept, { note: '選牌7275', items: [] }).sheet.plate.text, '6655');
+});

@@ -132,6 +132,13 @@ function deductedIds(item) {
   return out;
 }
 
+const CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+function circledNumber(n) { return CIRCLED[n - 1] || `${n}.`; }
+
+function compactName(name) {
+  return String(name || '').replace(/[（(][^）)]*[）)]/g, '').trim() || String(name || '').trim();
+}
+
 function noteOf(item) {
   const parts = [item.optionValue, item.note].map((x) => String(x || '').trim()).filter(Boolean);
   return parts.join('，');
@@ -173,29 +180,56 @@ export function prefillFromQuote(sheet, quote, layout = null) {
   const visible = new Set(shown.map((x) => x.id));
   const defaultNote = new Map(shown.map((x) => [x.id, x.note]));
   const unmatched = [];
+  const noteLines = []; // 配件備註寫不進項目後面的線時，改寫進客戶需求（絕不默默丟掉）
   for (const item of quote?.items || []) {
     const name = String(item?.name || '').trim();
-    if (!name || item.kind === 'vehicle' || item.pending) continue;
-    if (item.kind === 'other') continue; // 領牌費、保險等不是選配
+    const ownNote = String(item?.note || '').trim();
+    if (!name || item.pending) continue;
+    if (item.kind === 'vehicle' || item.kind === 'other') { // 車價、領牌費等不是選配，只帶備註
+      if (ownNote) { const t = `${compactName(name)}：${ownNote}`; noteLines.push({ key: t, text: t }); }
+      continue;
+    }
     // 內建關鍵字 + 使用者自己新增的項目（品名含有該項目名稱就算）
     const ids = matchSheetIds(item).filter((id) => visible.has(id));
     for (const x of shown) if (!DEFAULT_IDS.has(x.id) && x.label && name.includes(x.label) && !ids.includes(x.id)) ids.push(x.id);
-    if (!ids.length) { unmatched.push(name); continue; }
+    if (!ids.length) {
+      unmatched.push(name);
+      noteLines.push({ key: name, text: ownNote ? `${name}：${ownNote}` : name });
+      continue;
+    }
     const cut = deductedIds(item);
     const note = noteOf(item);
     const isPkg = ids.length > 1 || PACKAGES.some(([re]) => re.test(name));
+    let placed = false;
     for (const id of ids) {
       if (cut.has(id)) continue;
       const cur = items[id] || { on: false, note: '' };
       items[id] = { on: true, note: cur.note || (defaultNote.get(id) && !isPkg ? (note || (['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? name : '')) : '') };
+      if (ownNote && items[id].note.includes(ownNote)) placed = true;
     }
+    if (ownNote && !placed) { const t = `${compactName(name)}：${ownNote}`; noteLines.push({ key: t, text: t }); }
   }
+  const centralNote = String(quote?.note || '').trim();
+  if (centralNote) noteLines.push({ key: `備註：${centralNote}`, text: `備註：${centralNote}` });
   next.items = items;
   if (quote?.model && !next.model) next.model = String(quote.model).replace(/^2027\s*年式\s*/, '').trim();
-  if (unmatched.length) {
-    const line = `其他：${unmatched.join('、')}`;
-    if (!next.needs.text.includes(line)) next.needs = { on: true, text: [next.needs.text, line].filter(Boolean).join('\n') };
+  // 選牌號碼（品名「選牌(7275)」或任何備註寫「選牌7275」）→ 填進紙本的「選牌」欄，不另寫進客戶需求
+  if (!next.plate.text) {
+    const sources = [quote?.note, ...(quote?.items || []).flatMap((it) => [it?.name, it?.note])];
+    for (const src of sources) {
+      const m = String(src || '').match(/選牌\s*[（(:：]?\s*([0-9A-Za-z][0-9A-Za-z-]{1,9})/);
+      if (m) { next.plate = { on: true, text: m[1] }; break; }
+    }
   }
+  // 客戶需求照紙本寫法：①②③ 一行一項；已經寫過的（不論有沒有編號）不重複加
+  const lines = String(next.needs.text || '').split('\n').filter((l) => l.trim());
+  let added = false;
+  for (const { key, text } of noteLines) {
+    if (lines.some((l) => l.includes(key))) continue;
+    lines.push(`${circledNumber(lines.length + 1)}${text}`);
+    added = true;
+  }
+  if (added) next.needs = { on: true, text: lines.join('\n') };
   return { sheet: next, unmatched };
 }
 

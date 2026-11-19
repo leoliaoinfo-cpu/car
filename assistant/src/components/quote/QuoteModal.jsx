@@ -1633,8 +1633,8 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 className="w-full text-sm resize-y" />
             </Field>
             <Field label="備註">
-              <input value={note} onChange={(e) => setNote(e.target.value)}
-                placeholder="有效期限、交車條件…" className="w-full text-sm" />
+              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+                placeholder="有效期限、交車條件…（也會帶進選配表）" className="w-full text-sm resize-y" />
             </Field>
             <div className="flex gap-2">
               <Field label="業務姓名" className="flex-1">

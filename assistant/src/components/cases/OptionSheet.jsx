@@ -31,15 +31,24 @@ function Check({ on, onChange, readOnly, size = 20 }) {
   return <button type="button" role="checkbox" aria-checked={on} onClick={() => onChange(!on)} style={style}>{mark}</button>;
 }
 
+// 客戶需求：內容多幾行就自動長高，帶入的 ①②③… 全部看得到
+function AutoGrowText({ value, onChange, placeholder, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+  return <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} style={style} />;
+}
+
 function Line({ value, onChange, readOnly, placeholder = '', style = {}, multiline = false }) {
   const base = { borderBottom: `1.5px solid ${INK}`, minWidth: 0, flex: 1, fontSize: 13, color: '#1d3fa8', fontWeight: 600, background: 'transparent', lineHeight: '20px', ...style };
   if (readOnly) {
     return <span style={{ ...base, display: 'block', minHeight: 24, paddingBottom: 2, whiteSpace: multiline ? 'pre-wrap' : 'nowrap', overflow: 'visible', width: multiline ? '100%' : undefined }}>{value}</span>;
   }
-  if (multiline) {
-    return <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3}
-      style={{ border: 'none', ...base, width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />;
-  }
+  if (multiline) return <AutoGrowText value={value} onChange={onChange} placeholder={placeholder} style={{ border: 'none', ...base, width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />;
   return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete="off"
     style={{ border: 'none', ...base, borderRadius: 0, padding: '2px 2px', minHeight: 0, height: 24 }} />;
 }
