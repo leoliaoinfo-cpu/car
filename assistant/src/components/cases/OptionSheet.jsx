@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderSheetCanvas } from '../../utils/optionSheetImage';
 import {
   DEFAULT_LAYOUT, sheetBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, sheetHasContent,
-  quoteItemFingerprint,
+  quoteItemFingerprint, prefillFromQuote,
 } from '../../utils/optionSheet';
 import { calculateQuoteTotals } from '../../utils/pricing';
 import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } from '../../optionSheetLayout';
@@ -375,6 +375,15 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   }, [sheet]);
   useEffect(() => () => { if (image?.url) URL.revokeObjectURL(image.url); }, [image]);
 
+  // 依報價帶入：只是幫你先勾一輪、先寫一輪，最後還是要自己對照右邊報價逐項核對
+  function fillFromQuote() {
+    const quote = quotes.find((q) => q.id === quoteId);
+    if (!quote) { setMsg('這個案件還沒有報價可以帶入。'); return; }
+    const { sheet: next, unmatched } = prefillFromQuote(sheet, quote, layout);
+    setSheet(next);
+    setMsg(`已依報價先勾一輪${unmatched.length ? `；「${unmatched.join('、')}」紙本上沒有對應的格子，已寫進客戶需求` : ''}。系統可能會勾錯，請對照報價逐項核對。`);
+  }
+
   function toggleChecked(key, fp) {
     setSheet((cur) => {
       const checked = { ...(cur.checked || {}) };
@@ -427,12 +436,14 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
         <div className={wide && quotes.length > 0 ? 'grid items-start' : ''}
           style={wide && quotes.length > 0 ? { gridTemplateColumns: `minmax(0,1fr) 22px ${clampW(compareW)}px` } : undefined}>
         <div className="mx-auto max-w-3xl space-y-3 w-full">
-          {quotes.length > 1 && (
+          {quotes.length > 0 && (
             <div className="card flex flex-wrap items-center gap-2 p-3">
-              <span className="text-sm font-bold text-ink-2">對照哪張報價</span>
-              <select value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
-                {quotes.map((q, i) => <option key={q.id} value={q.id}>{`報價 ${i + 1}・${q.planName || q.model || ''}`}{q.id === deal?.quoteId ? '（成交）' : ''}</option>)}
-              </select>
+              {quotes.length > 1 && (
+                <select value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
+                  {quotes.map((q, i) => <option key={q.id} value={q.id}>{`報價 ${i + 1}・${q.planName || q.model || ''}`}{q.id === deal?.quoteId ? '（成交）' : ''}</option>)}
+                </select>
+              )}
+              <button type="button" onClick={fillFromQuote} className="btn-outline min-h-11 flex-1 text-sm font-bold">✨ 依報價帶入勾選</button>
             </div>
           )}
           {!wide && showCompare && <QuoteCompare quote={quotes.find((q) => q.id === quoteId)} isWon={quoteId === deal?.quoteId} sheet={sheet} onToggle={toggleChecked} onReset={() => setSheet((cur) => ({ ...cur, checked: {} }))} />}
