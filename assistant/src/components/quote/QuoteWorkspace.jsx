@@ -290,7 +290,9 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
             const pending = pendingCount(quote);
             const pendingRequirements = requirementPendingCount(quote);
             const attention = getQuoteAttention(quote);
-            const attentionClass = attention.unassignedOverdue
+            const attentionClass = isWon
+              ? 'border-danger/35 bg-danger/10'
+              : attention.unassignedOverdue
               ? 'border-danger/60 bg-danger/10'
               : attention.linkedStale ? 'border-ink-3/35 bg-ink-3/10 opacity-80' : '';
             return (
