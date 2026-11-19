@@ -35,21 +35,26 @@ function Check({ on, onChange, readOnly, size = 20 }) {
 function AutoGrowText({ value, onChange, placeholder, style }) {
   const ref = useRef(null);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight + 2}px`;
+    const fit = () => {
+      const el = ref.current;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight + 2}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
   }, [value]);
   return <textarea ref={ref} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3} style={style} />;
 }
 
-function Line({ value, onChange, readOnly, placeholder = '', style = {}, multiline = false }) {
+function Line({ value, onChange, readOnly, placeholder = '', style = {}, multiline = false, autoFocus = false }) {
   const base = { borderBottom: `1.5px solid ${INK}`, minWidth: 0, flex: 1, fontSize: 13, color: '#1d3fa8', fontWeight: 600, background: 'transparent', lineHeight: '20px', ...style };
   if (readOnly) {
     return <span style={{ ...base, display: 'block', minHeight: 24, paddingBottom: 2, whiteSpace: multiline ? 'pre-wrap' : 'nowrap', overflow: 'visible', width: multiline ? '100%' : undefined }}>{value}</span>;
   }
   if (multiline) return <AutoGrowText value={value} onChange={onChange} placeholder={placeholder} style={{ border: 'none', ...base, width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />;
-  return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete="off"
+  return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete="off" autoFocus={autoFocus}
     style={{ border: 'none', ...base, borderRadius: 0, padding: '2px 2px', minHeight: 0, height: 24 }} />;
 }
 
@@ -57,6 +62,7 @@ function Line({ value, onChange, readOnly, placeholder = '', style = {}, multili
 export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false, layout = DEFAULT_LAYOUT }) {
   const set = (patch) => onChange?.({ ...sheet, ...patch });
   const setItem = (id, patch) => set({ items: { ...sheet.items, [id]: { on: false, note: '', ...(sheet.items[id] || {}), ...patch } } });
+  const [openNotes, setOpenNotes] = useState([]);
   const boxes = sheetBoxes(layout, sheet);
   const boxPairs = [];
   for (let i = 0; i < boxes.length; i += 2) boxPairs.push(boxes.slice(i, i + 2));
@@ -75,13 +81,19 @@ export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false, 
     </div>
   );
 
-  const renderItem = ([id, label, note]) => {
+  const renderItem = ([id, label, hasLine]) => {
     const it = sheet.items[id] || { on: false, note: '' };
+    // 沒有填寫線的項目：填表時點旁邊的「✎」就能直接加一條線寫備註（不用進編輯表單）
+    const note = hasLine || openNotes.includes(id);
     return (
       <span key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, minWidth: 0, flex: note ? (narrow ? '1 1 100%' : 1) : '0 1 auto' }}>
         <Check on={it.on} onChange={(on) => setItem(id, { on })} readOnly={readOnly} />
         <span style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</span>
-        {note && <Line value={it.note} onChange={(v) => setItem(id, { note: v, on: it.on || !!v })} readOnly={readOnly} />}
+        {note && <Line value={it.note} onChange={(v) => setItem(id, { note: v, on: it.on || !!v })} readOnly={readOnly} autoFocus={!hasLine} />}
+        {!note && !readOnly && (
+          <button type="button" onClick={() => setOpenNotes((list) => [...list, id])} aria-label={`${label}加備註線`}
+            style={{ border: '1px dashed #b8c2cc', borderRadius: 6, background: 'transparent', color: '#7a8794', fontSize: 12, lineHeight: '18px', padding: '0 5px', minHeight: 0, flex: 'none' }}>✎</button>
+        )}
       </span>
     );
   };
