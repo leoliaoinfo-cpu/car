@@ -14,6 +14,7 @@ import {
   buildPricingRecord, collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
 } from './utils/pricing';
 import { stockItemsFromQuote } from './utils/stock';
+import { planWonQuoteSync } from './utils/wonQuote';
 import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, planQuoteCaseLink } from './utils/quotes';
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
 import { generateId } from './utils/crm';
@@ -665,6 +666,31 @@ export function AppProvider({ children }) {
     return deal;
   }, [saveDeal, state.quotePresets, state.costCatalog]);
 
+  /** 成交後修改報價（客人追加改裝配件等）：把修改同步到成交金額、配件核對表與成本利潤。 */
+  const syncWonQuoteDeal = useCallback(async (quoteId) => {
+    const quote = await db.get('quoteDrafts', quoteId);
+    const allDeals = await db.getAll('deals');
+    const deal = allDeals.find((row) => row.quoteId === quoteId && !row.caseArchivedAt);
+    if (!quote || !deal) return null;
+    const timestamp = new Date().toISOString();
+    const plan = planWonQuoteSync({ deal, quote, addons: state.quotePresets?.addons || [], followUpDate: addDays(today(), 3) });
+    const nextDeal = {
+      ...deal, amount: plan.amount, model: quote.model || deal.model,
+      quoteSnapshot: structuredClone(quote), stockItems: plan.stockItems, updatedAt: timestamp,
+    };
+    await saveDeal(nextDeal);
+    // 成本利潤：沿用已填的成本，新追加的配件才依成本表帶入；舊成交沒有成本紀錄就不憑空建立
+    const previous = await db.get('pricingRecords', `deal:${deal.id}`).catch(() => null);
+    if (previous) {
+      const rebuilt = buildPricingRecord({ quote, costCatalog: state.costCatalog, existing: previous, kind: 'deal', dealId: deal.id });
+      const record = { ...rebuilt, id: `deal:${deal.id}`, quoteId, dealId: deal.id, kind: 'deal', clientId: quote.clientId,
+        saleTotal: Number(plan.amount) || 0, createdAt: previous.createdAt || timestamp, updatedAt: timestamp };
+      dispatch({ type: 'UPSERT_PRICING_RECORD', payload: record });
+      await db.put('pricingRecords', record);
+    }
+    return { deal: nextDeal, ...plan };
+  }, [saveDeal, state.quotePresets, state.costCatalog]);
+
   const deletePricingRecord = useCallback(async (id) => {
     dispatch({ type: 'DELETE_PRICING_RECORD', id });
     await db.delete('pricingRecords', id);
@@ -1143,6 +1169,7 @@ export function AppProvider({ children }) {
     saveCustomFields,
     saveDeal,
     confirmQuoteDeal,
+    syncWonQuoteDeal,
     deleteDeal,
     saveDealFields,
     savePricingRecord,

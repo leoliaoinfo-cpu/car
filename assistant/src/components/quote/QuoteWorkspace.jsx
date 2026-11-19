@@ -7,6 +7,7 @@ import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId, getCaseP
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 import { ClientPicker } from '../ui';
+import { checkGatePin } from '../../utils/appGate';
 
 function pendingCount(quote) {
   return (quote?.items || []).filter((item) => item.pending).length;
@@ -19,7 +20,7 @@ function requirementPendingCount(quote) {
 export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartConsumed, focusId, onFocusConsumed, caseContext, onCaseContextConsumed, onReturnToCase }) {
   const {
     clients, cases, deals, quoteDrafts, saveQuoteDraft, archiveQuoteDraft, restoreQuoteDraft, confirmQuoteDeal,
-    savePricingRecord, saveClient, updateClient, cats, stages,
+    savePricingRecord, saveClient, updateClient, cats, stages, syncWonQuoteDeal, saveActivity,
   } = useApp();
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
@@ -28,6 +29,11 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
   const [saveNotice, setSaveNotice] = useState(null);
   const [confirmDealId, setConfirmDealId] = useState(null);
   const [viewWonQuoteId, setViewWonQuoteId] = useState(null);
+  const [wonPinFor, setWonPinFor] = useState(null); // 要修改的成交報價 id（等密碼）
+  const [wonPin, setWonPin] = useState('');
+  const [wonPinError, setWonPinError] = useState('');
+  const [wonPinFails, setWonPinFails] = useState(0);
+  const [wonPinBusy, setWonPinBusy] = useState(false);
   const [dealError, setDealError] = useState('');
   const [dealSaving, setDealSaving] = useState(false);
   const dealBusy = useRef(false);
@@ -103,10 +109,26 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       });
   }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
 
+  async function submitWonPin() {
+    if (wonPinBusy || !wonPin) return;
+    if (wonPinFails >= 5) { setWonPinError('輸入錯誤太多次，請關閉後稍等再試'); return; }
+    setWonPinBusy(true); setWonPinError('');
+    try {
+      if (await checkGatePin(wonPin)) {
+        const quote = quoteDrafts.find((row) => row.id === wonPinFor);
+        setWonPinFor(null); setWonPin(''); setWonPinFails(0); setViewWonQuoteId(null);
+        if (quote) { setEditing({ mode: 'edit', quote, wonEdit: true }); if (quote.caseId) setFromCaseId(quote.caseId); }
+      } else {
+        setWonPinFails((n) => n + 1); setWonPin(''); setWonPinError('密碼不對');
+      }
+    } finally { setWonPinBusy(false); }
+  }
+
   async function handleSave(payload) {
     const { _pricingRecord, _customerMode, _confirmAfterSave, ...quotePayload } = payload;
     const previousQuote = quoteDrafts.find((row) => row.id === quotePayload.id);
-    if (previousQuote && deals.some((deal) => deal.quoteId === previousQuote.id && !deal.caseArchivedAt)) throw new Error('成交報價已鎖定，不能直接覆蓋；若內容變更，請另建報價並核對成交內容。');
+    const wonEdit = Boolean(editing?.wonEdit);
+    if (!wonEdit && previousQuote && deals.some((deal) => deal.quoteId === previousQuote.id && !deal.caseArchivedAt)) throw new Error('成交報價已鎖定，不能直接覆蓋；若內容變更，請另建報價並核對成交內容。');
     let clientId = quotePayload.clientId || null;
     let createdClient = null;
 
@@ -173,14 +195,37 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         quoteId: quote.id,
       });
     }
-    setSaveNotice(clientId ? {
+    let wonNotice = '';
+    if (wonEdit) {
+      try {
+        const sync = await syncWonQuoteDeal(quote.id);
+        if (sync) {
+          const sign = sync.amountDelta > 0 ? '+' : sync.amountDelta < 0 ? '-' : '';
+          const parts = [`成交金額 ${sign ? `${sign}${formatMoney(Math.abs(sync.amountDelta))}，現為` : '不變，'}NT$ ${formatMoney(sync.amount)}`];
+          if (sync.addedStock.length) parts.push(`新增配件：${sync.addedStock.join('、')}（已加入配件核對表）`);
+          if (sync.removedStock.length) parts.push(`已從核對表移除：${sync.removedStock.join('、')}`);
+          if (sync.keptStock.length) parts.push(`已備妥的「${sync.keptStock.join('、')}」仍保留在核對表，請自行確認`);
+          if (sync.missingSteps.length) parts.push(`施工進度可能要補：${sync.missingSteps.join('、')}（案件內施工進度可手動新增）`);
+          wonNotice = `已同步成交資料。${parts.join('；')}`;
+          if (sync.deal?.caseId) {
+            await saveActivity({ id: generateId('activity'), caseId: sync.deal.caseId, clientId: sync.deal.clientId, clientName: sync.deal.clientName, type: 'work',
+              text: `修改成交報價：${parts[0]}${sync.addedStock.length ? `；追加 ${sync.addedStock.join('、')}` : ''}`, date: today() });
+          }
+        }
+      } catch (cause) {
+        wonNotice = `報價已存，但同步成交資料失敗：${cause?.message || '請到案件重新核對'}`;
+      }
+    }
+    setSaveNotice(wonNotice ? { clientId, text: wonNotice } : clientId ? {
       clientId,
       text: createdClient
         ? `已建立「${createdClient.name}」並把報價連結到客戶。`
         : '報價已儲存並連結到客戶。',
     } : { clientId: null, text: '報價已儲存；未建立客戶資料。' });
     setEditing(null);
-    if (!_confirmAfterSave && (editing?.caseId || fromCaseId)) finishAndReturn();
+    // 修改成交報價：留在報價頁讓你看到「已同步」的說明，不自動跳回案件
+    if (wonEdit) setFromCaseId(null);
+    else if (!_confirmAfterSave && (editing?.caseId || fromCaseId)) finishAndReturn();
   }
 
   async function assignQuoteToClient(quote) {
@@ -363,6 +408,23 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         </div>
       )}
 
+      {wonPinFor && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-3 md:items-center" onClick={() => setWonPinFor(null)}>
+          <form className="w-full max-w-sm rounded-2xl border border-bdr bg-s1 p-5 shadow-panel" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); submitWonPin(); }}>
+            <h2 className="text-lg font-bold text-ink">🔒 輸入密碼才能修改</h2>
+            <p className="mt-1 text-xs leading-relaxed text-ink-3">這張報價已經成交。修改後，成交金額、配件核對表和成本利潤會一起更新；你已經填好的配件狀態不會被洗掉。</p>
+            <input type="password" inputMode="numeric" autoComplete="off" autoFocus maxLength={12} value={wonPin}
+              onChange={(e) => { setWonPin(e.target.value); setWonPinError(''); }} aria-label="密碼"
+              className="mt-3 min-h-12 w-full text-center text-2xl tracking-[0.5em]" />
+            {wonPinError && <p role="alert" className="mt-2 text-sm text-danger">{wonPinError}</p>}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setWonPinFor(null)} className="btn-outline min-h-12">取消</button>
+              <button type="submit" disabled={!wonPin || wonPinBusy} className="btn-primary min-h-12 disabled:opacity-40">確認</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {editing && (
         <QuoteModal
           key={editing.quote?.id || 'new-quote'}
@@ -383,7 +445,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {viewWonQuoteId && (() => {
         const deal = deals.find((row) => row.quoteId === viewWonQuoteId && !row.caseArchivedAt);
         const snapshot = deal?.quoteSnapshot || quoteDrafts.find((row) => row.id === viewWonQuoteId);
-        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
+        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><button type="button" onClick={() => { setWonPin(''); setWonPinError(''); setWonPinFor(viewWonQuoteId); }} className="mt-3 min-h-12 w-full rounded-xl border-2 border-danger/50 bg-danger/10 text-sm font-bold text-ink">✏️ 客人追加／修改配件（需要密碼）</button><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
       })()}
     </div>
   );
