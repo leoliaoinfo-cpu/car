@@ -106,3 +106,22 @@ test('刪掉項目後，舊案件已勾的資料仍保留；帶入時自訂項�
   assert.deepEqual(r.unmatched, ['尿素桶防撞桿']);
   assert.match(r.sheet.needs.text, /尿素桶防撞桿/);
 });
+
+test('9吋安卓機（四錄／環景擇一）：依選擇只勾對應那一格', async () => {
+  const { matchSheetIds } = await import('./optionSheet.js');
+  const base = { catalogId: 'qa-android-surround', name: '9吋安卓機＋四錄／環景（擇一）＋專用底座' };
+  assert.deepEqual(matchSheetIds({ ...base, optionValue: '四錄' }), ['android-4rec']);
+  assert.deepEqual(matchSheetIds({ ...base, optionValue: '環景' }), ['android-around']);
+  // 舊報價（舊名稱、沒選規格）維持原本的比對
+  const old = matchSheetIds({ catalogId: 'qa-android-surround', name: '安卓＋四錄＆環景＋專用底座' });
+  assert.ok(old.includes('android-4rec') && old.includes('android-around'));
+});
+
+test('安全科技版：四錄／環景擇一，只勾對應那一格並加胎壓；舊報價維持原樣', async () => {
+  const { matchSheetIds } = await import('./optionSheet.js');
+  const base = { catalogId: 'qa-pkg2', name: '安全科技版（9吋安卓機 四錄／環景擇一＋6輪胎壓）' };
+  assert.deepEqual(matchSheetIds({ ...base, optionValue: '四錄' }), ['android-4rec', 'tpms6']);
+  assert.deepEqual(matchSheetIds({ ...base, optionValue: '環景' }), ['android-around', 'tpms6']);
+  const old = matchSheetIds({ catalogId: 'qa-pkg2', name: '安全科技版（安卓四錄+360環景+六輪胎壓）' });
+  assert.deepEqual(old.sort(), ['android-4rec', 'android-around', 'tpms6'].sort());
+});

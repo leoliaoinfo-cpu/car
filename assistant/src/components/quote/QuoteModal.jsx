@@ -144,8 +144,8 @@ function AddonCategoryCard({
     if (!addon.desc) return [];
     if (addon.id === 'qa-pkg2') {
       return [
-        '安卓四錄整合多媒體（台灣美邁', '9吋安卓觸控螢幕', '高清四錄影監控 & 360度環景',
-        '無線 CarPlay', '卡旺專用底座）', '6輪胎壓偵測器（6輪數據獨立顯示）', '太陽能與 USB 供電',
+        '安卓整合多媒體（台灣美邁', '9吋安卓觸控螢幕', '無線 CarPlay', '卡旺專用底座）',
+        '四錄影監控 或 360度環景（二選一）', '6輪胎壓偵測器（6輪數據獨立顯示）', '太陽能與 USB 供電',
       ];
     }
     if (addon.id === 'qa-double-cab-package') {

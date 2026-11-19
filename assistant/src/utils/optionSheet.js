@@ -141,6 +141,17 @@ export function matchSheetIds(item) {
   const name = String(item?.name || '');
   const catalogName = DEFAULT_QUOTE_PRESETS.addons?.find((a) => a.id === item?.catalogId)?.name || '';
   const text = `${name} ${catalogName}`;
+  // 9吋安卓機（四錄／環景擇一）：依客人選的是四錄還是環景，只勾對應那一格
+  if (item?.catalogId === 'qa-android-surround' || /擇一.*專用底座/.test(name)) {
+    if (/環景/.test(item?.optionValue || '')) return ['android-around'];
+    if (/四錄/.test(item?.optionValue || '')) return ['android-4rec'];
+    if (/擇一/.test(name)) return [];
+  }
+  // 安全科技版：四錄／環景擇一，其餘（胎壓）照給
+  if (/安全科技版/.test(name)) {
+    if (/環景/.test(item?.optionValue || '')) return ['android-around', 'tpms6'];
+    if (/四錄/.test(item?.optionValue || '')) return ['android-4rec', 'tpms6'];
+  }
   const pkg = PACKAGES.find(([re]) => re.test(text));
   if (pkg) return pkg[1];
   const hit = RULES.filter(([, re]) => re.test(text)).map(([id]) => id);

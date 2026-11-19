@@ -214,10 +214,13 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v32';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v34';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
-const SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
+const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
+const SAFETY_PACKAGE_DESC = '安卓整合多媒體（台灣美邁、9吋安卓觸控螢幕、無線 CarPlay、卡旺專用底座）；四錄影監控 或 360度環景（二選一）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
+const OLD_SAFETY_PACKAGE_NAME = '安全科技版（安卓四錄+360環景+六輪胎壓）';
+const NEW_SAFETY_PACKAGE_NAME = '安全科技版（9吋安卓機 四錄／環景擇一＋6輪胎壓）';
 
 const SWIFT_TAILGATE_CATEGORY = '滑特(升降尾門)';
 const DOUBLE_FOLD_TAILGATE_CATEGORY = '雙折尾門';
@@ -288,8 +291,8 @@ const VENDOR_QUOTE_ADDONS = [
 // 2026 卡旺配件表與 2025/11 商用車隔熱紙表中，原選單尚未拆開列出的品項。
 // 這裡只放客戶可見的名稱、售價與規格；業務價／成本另外存在內部成本資料，不進客戶報價。
 const SUPPLIER_SHEET_ADDONS = [
-  { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000, warrantyMonths: 12, desc: '中央置物盒另加 500 元；1 年保固' },
-  { id: 'qa-android-console-box', cat: '配備版本', name: '加購中央置物盒', price: 500, desc: '安全科技版、安卓＋四錄＆環景＋專用底座皆可加購' },
+  { id: 'qa-android-surround', cat: '駕駛科技', name: '9吋安卓機＋四錄／環景（擇一）＋專用底座', price: 35000, warrantyMonths: 12, choiceLabel: '影像系統', choices: ['四錄', '環景'], desc: '四錄、環景二選一；中央置物盒另加 500 元；1 年保固' },
+  { id: 'qa-android-console-box', cat: '配備版本', name: '加購中央置物盒', price: 500, desc: '安全科技版、9吋安卓機＋專用底座皆可加購' },
   { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000, warrantyMonths: 12, desc: '1 年保固' },
   { id: 'qa-cruise', cat: '駕駛科技', name: '定速巡航', price: 8000, warrantyMonths: 48, desc: '4 年保固' },
   { id: 'qa-media-controls', cat: '駕駛科技', name: '多媒體音控', price: 12000, warrantyMonths: 48, desc: '4 年保固' },
@@ -447,7 +450,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
       locks: ['qa-floor-rubber'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠底板
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
-    { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000,
+    { id: 'qa-pkg2', cat: '配備版本', name: NEW_SAFETY_PACKAGE_NAME, price: 40000, choiceLabel: '影像系統', choices: ['四錄', '環景'],
       desc: SAFETY_PACKAGE_DESC,
       includes: ['qa-android-surround', 'qa-tpms-6'] },
     { id: 'qa-pkg3', cat: '配備版本', name: '原裝多功能方向盤（定速巡航/音控鍵）', price: 20000,
@@ -667,7 +670,10 @@ export function resolveQuotePresets(row) {
       && migrated.desc === '中央置物盒另加 500 元；12 個月保固') {
       migrated = { ...migrated, desc: androidSurround.desc };
     }
-    if (migrated.id === 'qa-pkg2' && migrated.desc === PREVIOUS_SAFETY_PACKAGE_DESC) {
+    if (migrated.id === 'qa-pkg2' && migrated.name === OLD_SAFETY_PACKAGE_NAME) {
+      migrated = { ...migrated, name: NEW_SAFETY_PACKAGE_NAME };
+    }
+    if (migrated.id === 'qa-pkg2' && [PREVIOUS_SAFETY_PACKAGE_DESC, PREVIOUS_SAFETY_PACKAGE_DESC_V2].includes(migrated.desc)) {
       migrated = { ...migrated, desc: SAFETY_PACKAGE_DESC };
     }
     if (migrated.id === 'qa-leaf' && migrated.name === '鋼板避震彈簧') {
@@ -716,7 +722,7 @@ export function resolveQuotePresets(row) {
       const { parentId: _drop, ...rest } = migrated;
       migrated = { ...rest, ...(rest.cat === '駕駛科技' ? { cat: '配備版本' } : {}) };
       if (migrated.desc === '須搭配安卓＋四錄＆環景＋專用底座') {
-        migrated.desc = '安全科技版、安卓＋四錄＆環景＋專用底座皆可加購';
+        migrated.desc = '安全科技版、9吋安卓機＋專用底座皆可加購';
       }
     }
     const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];

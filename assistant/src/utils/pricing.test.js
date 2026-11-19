@@ -1317,7 +1317,7 @@ test('upgrades the old galvanized floor name and adds the dependent console opti
     resolved.addons.find((item) => item.id === 'qa-floor-galvanized').name,
     '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)',
   );
-  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '中央置物盒另加 500 元；1 年保固');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-android-surround').desc, '四錄、環景二選一；中央置物盒另加 500 元；1 年保固');
   assert.equal(resolved.addons.find((item) => item.id === 'qa-android-console-box').parentId, undefined);
 });
 
@@ -1349,4 +1349,23 @@ test('加購中央置物盒：獨立品項（沒有 parentId）、售價 500、�
   assert.equal(box.parentId, undefined);
   assert.equal(box.cat, '配備版本');
   assert.equal(old.addons.some((a) => a.id === 'qa-pkg2-console-box'), false);
+});
+
+test('安卓機與安全科技版都是四錄／環景二選一，舊設定升級後改名並帶入選項', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const fresh = resolveQuotePresets(null);
+  for (const id of ['qa-android-surround', 'qa-pkg2']) {
+    const it = fresh.addons.find((a) => a.id === id);
+    assert.deepEqual(it.choices, ['四錄', '環景']);
+    assert.ok(it.name.includes('擇一'));
+  }
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v33', addonCategories: ['配備版本', '駕駛科技'], addons: [
+    { id: 'qa-android-surround', cat: '駕駛科技', name: '安卓＋四錄＆環景＋專用底座', price: 35000 },
+    { id: 'qa-pkg2', cat: '配備版本', name: '安全科技版（安卓四錄+360環景+六輪胎壓）', price: 40000 },
+  ] });
+  for (const id of ['qa-android-surround', 'qa-pkg2']) {
+    const it = old.addons.find((a) => a.id === id);
+    assert.ok(it.name.includes('擇一'), id);
+    assert.deepEqual(it.choices, ['四錄', '環景'], id);
+  }
 });
