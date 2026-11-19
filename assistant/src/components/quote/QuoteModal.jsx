@@ -1115,15 +1115,9 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
             })()}
             <div className="rounded-xl border border-bdr bg-s1 p-3">
               <label htmlFor="quote-plan-name" className="block text-xs font-bold text-ink-2">📝 報價名稱（選填）</label>
-              <p className="mt-0.5 text-[11px] text-ink-3">同一位客戶做好幾種方案時，用名稱分開，例如「A方案 (實用路線)」。客戶看得到。</p>
+              <p className="mt-0.5 text-[11px] text-ink-3">同一位客戶做好幾種方案時，自己寫名稱分開，客戶看得到。</p>
               <input id="quote-plan-name" value={planName} onChange={(e) => setPlanName(e.target.value)} maxLength={40} autoComplete="off"
                 placeholder="例：B方案 (外觀＋實用)" className="mt-2 min-h-11 w-full text-sm font-semibold" />
-              <div className="mt-2 flex flex-wrap gap-2">
-                {['A方案', 'B方案', 'C方案'].map((label) => (
-                  <button key={label} type="button" onClick={() => setPlanName((cur) => (cur.trim() ? cur : `${label} `))}
-                    className="min-h-9 rounded-lg border border-bdr bg-s2 px-3 text-xs font-bold text-ink-2">{label}</button>
-                ))}
-              </div>
             </div>
             {(quote?.internalHeightPlanSummary || quote?.pendingRequirements?.length > 0) && (
               <details className="rounded-xl border border-warn/35 bg-warn/10 p-3" defaultOpen={quote?.pendingRequirements?.length > 0}>
