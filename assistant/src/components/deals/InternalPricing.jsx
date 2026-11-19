@@ -617,6 +617,13 @@ export function PricingEditorModal({
   const [lineGifts, setLineGifts] = useState(() => Object.fromEntries(
     (quote?.items || []).map((item) => [item.id, !!item.gift]),
   ));
+  // 每個配件的備註：和報價單同一個欄位（item.note），LINE 文字與報價圖會顯示
+  const [lineNotes, setLineNotes] = useState(() => Object.fromEntries(
+    (record.lines || []).filter((line) => !line.backendCustom).map((line) => [
+      line.id,
+      String(quote?.items?.find((item) => item.id === line.id)?.note ?? line.note ?? ''),
+    ]),
+  ));
   const [otherCosts, setOtherCosts] = useState(() => (record.otherCosts || []).map((row) => ({ ...row, amount: String(row.amount) })));
   const [customItems, setCustomItems] = useState(() => (record.lines || [])
     .filter((line) => line.backendCustom)
@@ -737,6 +744,7 @@ export function PricingEditorModal({
     supplierSelections,
     lines: [...regularLines, ...customLines].map((line) => ({
       ...line,
+      ...(Object.prototype.hasOwnProperty.call(lineNotes, line.id) ? { note: lineNotes[line.id].trim() } : {}),
       gift: quote ? !!lineGifts[line.id] : !!line.gift,
       supplierName: applicableSupplierCosts(costCatalog, line.catalogId, record.modelId)
         .find((option) => option.id === supplierSelections[line.id])?.supplier || null,
@@ -748,8 +756,13 @@ export function PricingEditorModal({
     items: (quote.items || []).filter((item) => !removedIds.includes(item.id)),
     generalDiscounts: cleanGeneralDiscounts,
   }, customItems) : null;
-  const updatedQuote = customQuote
+  const discountedQuote = customQuote
     ? applyPricingDiscountsToQuote(customQuote, cleanLineDiscounts, lineGifts) : null;
+  const updatedQuote = discountedQuote ? {
+    ...discountedQuote,
+    items: (discountedQuote.items || []).map((item) => (
+      Object.prototype.hasOwnProperty.call(lineNotes, item.id) ? { ...item, note: lineNotes[item.id].trim() } : item)),
+  } : null;
   const payableBeforeCentralDiscount = Math.max(0, preview.originalTotal - preview.itemDiscountTotal);
   const centralDiscountTooHigh = !!quote && generalDiscountTotal > payableBeforeCentralDiscount;
   const missingLines = (preview.lines || []).filter((line) => !line.costKnown);
@@ -877,6 +890,7 @@ export function PricingEditorModal({
               className="shrink-0 rounded-md border border-danger/30 px-2 py-0.5 text-[10px] text-danger" aria-label={`刪除${row.name}`}>🗑 刪除</button>
           </div>
           <p className="text-[10px] text-ink-3">原始售價 NT$ {formatMoney(salePrice)}・折後 NT$ {formatMoney(netPrice)}</p>
+          <NoteToggle name={row.name} value={row.note || ''} onChange={(note) => updateCustomItem(row.id, { note })} />
           {row.choices?.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-bold text-ink-2">{row.choiceLabel || '規格'}</span>
@@ -1114,6 +1128,10 @@ export function PricingEditorModal({
                   <p className="text-[10px] text-ink-3">
                     原始售價 NT$ {formatMoney(line.salePrice)}・折後 NT$ {formatMoney(previewLine.netPrice)}
                   </p>
+                  {quote && (
+                    <NoteToggle name={line.name} value={lineNotes[line.id] ?? ''}
+                      onChange={(note) => setLineNotes((current) => ({ ...current, [line.id]: note }))} />
+                  )}
                   {hasSupplierCosts && (
                     <div className="mt-1 space-y-1">
                       {cheapestSupplier && (
@@ -1390,6 +1408,30 @@ export function PricingBadges({ record }) {
       <span className={`text-[10px] rounded-full px-2 py-0.5 ${record.profit < 0 ? 'text-danger bg-danger/10' : 'text-ok bg-ok/10'}`}>
         利潤 {record.profit < 0 ? '−' : ''}{formatMoney(Math.abs(record.profit))}
       </span>
+    </div>
+  );
+}
+
+// 配件備註：平常只露出「＋ 備註」小按鈕（有內容時顯示一行摘要），點開才出現輸入框，可再收起
+function NoteToggle({ name, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const text = String(value || '');
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} aria-label={`${name}備註`}
+        className={`mt-1 block max-w-full truncate text-left text-[11px] rounded-md px-2 py-1 border ${text.trim() ? 'border-accent/40 bg-accent/5 text-ink-2' : 'border-dashed border-bdr text-ink-3'}`}>
+        {text.trim() ? `📝 ${text.trim().replace(/\s+/g, ' ')}` : '＋ 備註'}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-1 space-y-1">
+      <textarea value={text} onChange={(e) => onChange(e.target.value)} rows={2} autoFocus
+        placeholder="備註（會同步到報價單，客人看得到）" aria-label={`${name}備註內容`} className="text-xs w-full" />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-ink-3">與報價同步・LINE 文字與報價圖會顯示</span>
+        <button type="button" onClick={() => setOpen(false)} className="text-[11px] text-accent font-semibold px-2 py-1">收起</button>
+      </div>
     </div>
   );
 }
