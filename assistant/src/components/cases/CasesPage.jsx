@@ -792,8 +792,8 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
                       <button key={quote.id} type="button" onClick={() => { setPickQuote(false); onOpenQuote?.(item, quote.id); }}
                         className={`flex w-full items-center justify-between gap-3 rounded-xl border-2 p-3 text-left ${won ? 'border-danger/50 bg-danger/10' : 'border-bdr bg-s2'}`}>
                         <span className="min-w-0">
-                          <span className="block text-sm font-bold text-ink">{won ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</span>
-                          <span className="block text-xs text-ink-3">{quote.date || ''}{quote.note ? `・${quote.note}` : ''}</span>
+                          <span className="block text-sm font-bold text-ink">{won ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.planName || quote.model || '未填車型'}</span>
+                          <span className="block text-xs text-ink-3">{quote.planName ? `${quote.model || '未填車型'}・` : ''}{quote.date || ''}{quote.note ? `・${quote.note}` : ''}</span>
                         </span>
                         <strong className="shrink-0 text-gold">NT$ {formatMoney(quote.total)} ›</strong>
                       </button>
@@ -809,9 +809,9 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             onCancel={() => setDeleteQuote(null)}
             onVerified={async () => { await archiveQuoteDraft(deleteQuote.id); setDeleteQuote(null); }} />}
           {item.clientId && (showPhotos
-            ? <div className="space-y-2"><ClientPhotos clientId={item.clientId} caseId={item.id} /><button type="button" onClick={() => setShowPhotos(false)} className="btn-ghost min-h-10 w-full text-xs">收起照片</button></div>
+            ? <div className="space-y-2"><ClientPhotos clientId={item.clientId} caseId={item.id} /><button type="button" onClick={() => setShowPhotos(false)} className="btn-ghost min-h-10 w-full text-xs">收起照片與檔案</button></div>
             : <button type="button" onClick={() => setShowPhotos(true)} className="card flex min-h-14 w-full items-center justify-between px-4 py-3 text-sm font-bold text-ink">
-              <span>📷 案件照片</span><span className="text-xs font-semibold text-ink-3">車況、施工、交車照片・點開</span>
+              <span>📷 案件照片與檔案</span><span className="text-xs font-semibold text-ink-3">照片、PDF、合約・點開</span>
             </button>)}
           {showSheet && <OptionSheet item={item} deal={linkedDeal} quotes={linkedQuotes} onClose={() => setShowSheet(false)} onSave={(optionSheet) => onSaveCase({ ...item, optionSheet })} />}
 
@@ -845,7 +845,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
 
           {(section === 'overview' || section === 'quotes') && <section id="case-quotes" className="card p-4"><div className="flex items-center justify-between"><h2 className="font-bold text-ink">案件報價與成交</h2><button type="button" onClick={() => onOpenQuote?.(item, null)} className="text-xs text-gold">＋ 新報價</button></div>{linkedQuotes.length === 0 && !linkedDeal && <p className="text-sm text-ink-3 mt-3">尚未建立報價或成交資料。</p>}{!linkedDeal?.quoteId && ['won', 'delivery', 'completed'].includes(getCasePipelineStageId(item, { deals, quotes })) && linkedQuotes.length > 0 && <p role="alert" className="mt-3 rounded-xl border border-copper/40 bg-copper/10 px-3 py-2 text-xs font-bold text-copper">⚠ 已標為成交，但還沒指定是哪一張報價成交。請在下方選一張「指定這張成交」。</p>}
 {winnerError && <p role="alert" className="mt-2 text-xs font-semibold text-danger">{winnerError}</p>}
-{linkedQuotes.map((quote) => <div key={quote.id} className="mt-3"><button type="button" onClick={() => onOpenQuote?.(item, quote.id)} className="w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">{linkedDeal?.quoteId === quote.id ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</p><p className="text-xs text-ink-3">{quote.date}{quote.note ? `・${quote.note}` : ''}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>
+{linkedQuotes.map((quote) => <div key={quote.id} className="mt-3"><button type="button" onClick={() => onOpenQuote?.(item, quote.id)} className="w-full flex items-center justify-between gap-3 text-left"><div><p className="text-sm text-ink">{linkedDeal?.quoteId === quote.id ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.planName ? <b className="font-extrabold">{quote.planName}</b> : (quote.model || '未填車型')}</p><p className="text-xs text-ink-3">{quote.planName ? `${quote.model || '未填車型'}・` : ''}{quote.date}{quote.note ? `・${quote.note}` : ''}</p></div><strong className="text-gold">NT$ {formatMoney(quote.total)} ›</strong></button>
 <button type="button" onClick={() => setDeleteQuote(quote)} className="mt-1 min-h-9 text-[11px] font-semibold text-ink-3 underline underline-offset-2">🗑 刪除這張報價{linkedDeal?.quoteId === quote.id ? '（已成交）' : ''}</button>
 {!linkedDeal?.quoteId && item.status !== 'completed' && (pickWinnerId === quote.id
   ? <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl bg-s2 p-2"><p className="col-span-2 text-xs text-ink-2">確定客戶選的是這一張（NT$ {formatMoney(quote.total)}）？其他報價會標為「未採用」，內容保留。</p><button type="button" disabled={winnerBusy} onClick={() => setPickWinnerId(null)} className="btn-outline min-h-10 text-xs">先不要</button><button type="button" disabled={winnerBusy} onClick={() => pickWinner(quote.id)} className="btn-primary min-h-10 text-xs disabled:opacity-50">{winnerBusy ? '儲存中…' : '確定成交'}</button></div>

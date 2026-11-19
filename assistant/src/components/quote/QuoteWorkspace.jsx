@@ -99,7 +99,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         if (stageFilter !== 'all' && stageFilter !== 'trash' && quoteState(quote) !== stageFilter) return false;
         if (!needle) return true;
         const linked = clientMap.get(quote.clientId);
-        return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.model, quote.requirements, linked?.name, linked?.phone]
+        return [CASE_TYPE_LABEL[quoteType], quote.customerName, quote.customerPhone, quote.planName, quote.model, quote.requirements, linked?.name, linked?.phone]
           .some((value) => String(value || '').toLowerCase().includes(needle));
       });
   }, [activeQuotes, archivedQuotes, quoteDrafts, query, stageFilter, clientMap, caseById, caseByQuoteId, dealByCase]);
@@ -335,6 +335,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
                         : <span className="text-[10px] rounded-full bg-ok/10 text-ok border border-ok/30 px-2 py-0.5">價格已齊</span>}
                       {pendingRequirements > 0 && <span className="text-[10px] rounded-full bg-warn/10 text-warn border border-warn/30 px-2 py-0.5">需求待確認 {pendingRequirements} 項</span>}
                     </div>
+                    {quote.planName && <p className="mt-1.5 inline-block rounded-md border-2 border-ink bg-s2 px-2 py-0.5 text-sm font-extrabold text-ink">{quote.planName}</p>}
                     <p className="text-xs text-ink-3 mt-1">{quote.model || '未填車型'}・{dayjs(quote.date).format('YYYY/MM/DD')}</p>
                   </div>
                   <p className="text-right shrink-0">
@@ -423,7 +424,7 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
       {viewWonQuoteId && (() => {
         const deal = deals.find((row) => row.quoteId === viewWonQuoteId && !row.caseArchivedAt);
         const snapshot = deal?.quoteSnapshot || quoteDrafts.find((row) => row.id === viewWonQuoteId);
-        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><button type="button" onClick={() => setPinAction({ type: 'wonEdit', quote: quoteDrafts.find((row) => row.id === viewWonQuoteId) })} className="mt-3 min-h-12 w-full rounded-xl border-2 border-danger/50 bg-danger/10 text-sm font-bold text-ink">✏️ 客人追加／修改配件（需要密碼）</button><p className="mt-2 text-sm text-ink-2">{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
+        return snapshot ? <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center"><div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-5 shadow-panel"><div className="flex items-center justify-between"><h2 className="text-lg font-bold text-ink">已成交報價・固定版本</h2><button type="button" onClick={() => setViewWonQuoteId(null)} className="btn-outline min-h-11">關閉</button></div><button type="button" onClick={() => setPinAction({ type: 'wonEdit', quote: quoteDrafts.find((row) => row.id === viewWonQuoteId) })} className="mt-3 min-h-12 w-full rounded-xl border-2 border-danger/50 bg-danger/10 text-sm font-bold text-ink">✏️ 客人追加／修改配件（需要密碼）</button><p className="mt-2 text-sm text-ink-2">{snapshot.planName ? `【${snapshot.planName}】` : ''}{snapshot.customerName}・{snapshot.model || '未填車型'}</p><div className="mt-3 space-y-2">{(snapshot.items || []).map((item) => <div key={item.id} className="flex justify-between gap-2 rounded-lg bg-s2 p-2 text-xs text-ink"><span>{item.name}{item.optionValue ? `・${item.optionValue}` : ''}{item.gift ? '（贈送）' : ''}</span><span className="shrink-0">{item.gift ? '贈送' : item.pending ? '待詢價' : `NT$ ${formatMoney(item.price)}`}</span></div>)}</div><p className="mt-4 text-right font-bold text-accent">成交價 NT$ {formatMoney(deal?.amount ?? snapshot.total)}</p></div></div> : null;
       })()}
     </div>
   );

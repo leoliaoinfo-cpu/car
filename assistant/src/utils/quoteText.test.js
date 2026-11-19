@@ -115,3 +115,10 @@ test('套裝扣項合併成一行並顯示扣款合計', () => {
   });
   assert.match(message, /・特仕版套件：\+2\.7 萬\n　不含：行車紀錄器（已扣 0\.3 萬）/);
 });
+
+test('LINE 報價有報價名稱時，放在問候語下面第一行；沒有就不出現', () => {
+  const withPlan = buildQuoteMessage({ customerName: '王老闆', planName: 'A方案 (實用路線)', model: '雙廂6人座 5速手自排', items: [{ id: 'v', kind: 'vehicle', name: '車輛售價', price: 1038000 }] });
+  assert.match(withPlan, /^王老闆您好，目前方案整理如下：\n\n【A方案 \(實用路線\)】\n2027 年式 KIA 卡旺 K2500/);
+  const without = buildQuoteMessage({ customerName: '王老闆', model: '雙廂6人座 5速手自排', items: [{ id: 'v', kind: 'vehicle', name: '車輛售價', price: 1038000 }] });
+  assert.doesNotMatch(without, /【/);
+});

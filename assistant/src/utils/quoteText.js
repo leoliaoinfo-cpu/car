@@ -85,6 +85,7 @@ const INDENT = '　';
 /** 由報價單即時生成可直接貼到 LINE 的純文字報價（分區版）。 */
 export function buildQuoteMessage({
   customerName = '',
+  planName = '',
   model = '',
   modelYear = '',
   items = [],
@@ -98,6 +99,8 @@ export function buildQuoteMessage({
   const totals = calculateQuoteTotals(pricedItems, discounts);
   const lines = [`${String(customerName || '').trim()}您好，目前方案整理如下：`, ''];
 
+  const plan = String(planName || '').trim();
+  if (plan) lines.push(`【${plan}】`);
   const vehicle = selectedItems.find((item) => item.kind === 'vehicle' && !item.pending);
   if (vehicle) {
     const yearText = String(modelYear || DEFAULT_QUOTE_MODEL_YEAR).trim();

@@ -408,6 +408,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
     vehicleHeightCm: quote?.heightEstimateSettings?.vehicleHeightCm ?? '',
   }));
   const [note, setNote] = useState(quote?.note || '');
+  const [planName, setPlanName] = useState(quote?.planName || ''); // 報價名稱／方案名稱，例：A方案 (實用路線)
   const [requirements, setRequirements] = useState(quote?.requirements || '');
   const [linkedClientId, setLinkedClientId] = useState(quote?.clientId || client?.id || '');
   const initialClientId = quote?.clientId || client?.id || '';
@@ -531,6 +532,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   const total = totals.total;
   const textQuote = buildQuoteMessage({
     customerName,
+    planName,
     model,
     modelYear,
     items: selectedItems,
@@ -769,6 +771,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
       date: quote?.date || dayjs().format('YYYY-MM-DD'),
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
+      planName: planName.trim(),
       model: model.trim(),
       modelYear: Number(modelYear) || null,
       modelId,
@@ -1017,7 +1020,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   ].filter((group) => group.rows.length > 0);
 
   // 沒有改動（或還沒選任何品項）就直接關閉，有改動才問一次
-  const editSnapshot = JSON.stringify([model, items, note, requirements, customerName]);
+  const editSnapshot = JSON.stringify([model, items, note, requirements, customerName, planName]);
   const baselineRef = useRef(null);
   useEffect(() => {
     const timer = setTimeout(() => { baselineRef.current = editSnapshot; }, 700);
@@ -1110,6 +1113,18 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                 </div>
               );
             })()}
+            <div className="rounded-xl border border-bdr bg-s1 p-3">
+              <label htmlFor="quote-plan-name" className="block text-xs font-bold text-ink-2">📝 報價名稱（選填）</label>
+              <p className="mt-0.5 text-[11px] text-ink-3">同一位客戶做好幾種方案時，用名稱分開，例如「A方案 (實用路線)」。客戶看得到。</p>
+              <input id="quote-plan-name" value={planName} onChange={(e) => setPlanName(e.target.value)} maxLength={40} autoComplete="off"
+                placeholder="例：B方案 (外觀＋實用)" className="mt-2 min-h-11 w-full text-sm font-semibold" />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {['A方案', 'B方案', 'C方案'].map((label) => (
+                  <button key={label} type="button" onClick={() => setPlanName((cur) => (cur.trim() ? cur : `${label} `))}
+                    className="min-h-9 rounded-lg border border-bdr bg-s2 px-3 text-xs font-bold text-ink-2">{label}</button>
+                ))}
+              </div>
+            </div>
             {(quote?.internalHeightPlanSummary || quote?.pendingRequirements?.length > 0) && (
               <details className="rounded-xl border border-warn/35 bg-warn/10 p-3" defaultOpen={quote?.pendingRequirements?.length > 0}>
                 <summary className="cursor-pointer text-sm font-semibold text-warn">⚠️ 接待需求與施工檢查（僅內部顯示）</summary>
@@ -1666,6 +1681,12 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   </div>
                 )}
               </div>
+
+              {planName.trim() && (
+                <div style={{ marginBottom: 12 }}>
+                  <span style={{ display: 'inline-block', background: '#3a4a56', color: '#fff', fontSize: 14, fontWeight: 800, letterSpacing: 1, padding: '6px 16px', borderRadius: 999 }}>{planName.trim()}</span>
+                </div>
+              )}
 
               {/* 車型 */}
               {model.trim() && (
