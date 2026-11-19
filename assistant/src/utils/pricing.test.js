@@ -1392,3 +1392,12 @@ test('貨斗LED定位燈：燈組分類、售價 1990、三色擇一、成本 15
   const old = resolveQuotePresets({ _catalog: 'kavan-2026-v35', addonCategories: ['燈組'], addons: [] });
   assert.ok(old.addons.some((a) => a.id === 'qa-cargo-led-marker'));
 });
+
+test('新增 BOSS 白鐵擋泥板、DR 漫反射後防撞桿（RGB）、12.3吋安卓四錄旗艦機，舊選單升級後也有', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const want = { 'qa-boss-mudflap': 3580, 'qa-rear-dr-rgb': 13800, 'qa-android-flagship': 43800 };
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v36', addonCategories: ['金屬製研'], addons: [] });
+  for (const [id, price] of Object.entries(want)) {
+    assert.equal(old.addons.find((a) => a.id === id)?.price, price, id);
+  }
+});

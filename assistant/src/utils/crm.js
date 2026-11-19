@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v36';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v37';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -308,6 +308,9 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-phone-basic', cat: '配件', name: '一般手機架組', price: 1300 },
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
+  { id: 'qa-rear-dr-rgb', cat: '金屬製研', name: 'DR 漫反射後防撞桿（RGB 幻彩變色）', price: 13800, desc: '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）' },
+  { id: 'qa-boss-mudflap', cat: '金屬製研', name: 'BOSS 白鐵擋泥板', price: 3580, desc: '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨' },
+  { id: 'qa-android-flagship', cat: '駕駛科技', name: '12.3吋安卓四錄旗艦機（含K2500專用底座）', price: 43800, desc: '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價' },
   { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
   { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
   { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
