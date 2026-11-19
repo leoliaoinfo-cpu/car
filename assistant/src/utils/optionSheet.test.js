@@ -212,3 +212,14 @@ test('四錄／環景二選一：已經兩格都勾的舊表，重新帶入會�
   assert.equal(!!r2.items['android-around']?.on, false);
   assert.match(r2.needs.text, /四錄還是環景/);
 });
+
+test('Logo(烤漆改黑) 不會勾到車身烤漆，整行寫進客戶需求', () => {
+  const { sheet } = prefillFromQuote(emptySheet(), { items: [
+    { id: 'l', kind: 'addon', catalogId: 'qa-paint-logo', name: 'Logo(烤漆改黑)', price: 1500 },
+    { id: 'p', kind: 'addon', name: '車身烤漆改色', price: 39000, optionValue: '冰川水泥灰' },
+  ] });
+  assert.equal(sheet.items.paint.note, '冰川水泥灰');
+  assert.match(sheet.needs.text, /Logo\(烤漆改黑\)/);
+  const only = prefillFromQuote(emptySheet(), { items: [{ id: 'l', kind: 'addon', name: 'Logo(烤漆改黑)', price: 1500 }] }).sheet;
+  assert.equal(!!only.items.paint?.on, false);
+});

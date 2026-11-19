@@ -121,7 +121,7 @@ const RULES = [
   ['remote', /尾門遙控/], ['tailgate', /升降尾門|雙折尾門|尾門（|尾門\(/], ['leaf', /彈簧鋼板|彈簧片|支撐彈簧/], ['plate', /花板|錏花/], ['hrack', /H\s*架/i],
   ['canvas', /帆布|[二三四五]面帆|篷頂|蓬頂/], ['alubox', /鋁塑箱|冷凍冷藏箱|箱體/], ['wind', /順風板|導流板/], ['rack', /行李架|行李籃|橫桿/], ['skirt', /下護欄/],
   ['chin', /前下巴/], ['turnshell', /方向燈殼|方向燈白殼/], ['mirrorcover', /鏡蓋|後照鏡飾蓋|保護殼/], ['audio', /音響|高音喇叭|喇叭改裝/], ['horn', /警示喇叭/],
-  ['ts', /\bTS\b|避震/i], ['halo', /光環尾燈|LED\s*尾燈|HALO/i], ['og', /鋁圈|OMEGA|\bOG\b/i], ['fish-fog', /魚眼霧燈/], ['paint', /烤漆|改色|車身顏色/], ['phone', /手機架/],
+  ['ts', /\bTS\b|避震/i], ['halo', /光環尾燈|LED\s*尾燈|HALO/i], ['og', /鋁圈|OMEGA|\bOG\b/i], ['fish-fog', /魚眼霧燈/], ['paint', /烤漆|改色|車身顏色|珍珠漆/], ['phone', /手機架/],
 ];
 // 套裝名稱 → 展開成選配表上的項目
 const PACKAGES = [
@@ -193,8 +193,11 @@ export function androidChoice(item) {
 
 export function matchSheetIds(item) {
   const name = String(item?.name || '');
-  const catalogName = DEFAULT_QUOTE_PRESETS.addons?.find((a) => a.id === item?.catalogId)?.name || '';
+  const catalog = DEFAULT_QUOTE_PRESETS.addons?.find((a) => a.id === item?.catalogId);
+  const catalogName = catalog?.name || '';
   const text = `${name} ${catalogName}`;
+  // Logo、輪胎蓋這類「烤漆周邊」不是車身烤漆：紙本沒有這格，寫進客戶需求（不可勾到車身烤漆）
+  if (catalog?.cat === '烤漆周邊' || /logo|標誌|輪胎蓋|輪框蓋/i.test(name)) return [];
   // 9吋安卓機、安全科技版：四錄／環景只能二選一，只勾客人選的那一格；看不出來就兩格都不勾（帶入時提醒自己勾）
   const choice = androidChoice(item);
   if (/安全科技版/.test(name)) return choice ? [choice, 'tpms6'] : ['tpms6'];
