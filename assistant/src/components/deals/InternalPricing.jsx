@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { formatMoney, generateId } from '../../utils/crm';
 import {
@@ -656,6 +656,19 @@ export function PricingEditorModal({
   ]);
   const regularLines = (record.lines || []).filter((line) => !line.backendCustom && !removedIds.includes(line.id));
   const removedLines = (record.lines || []).filter((line) => removedIds.includes(line.id));
+  // 報價配件列：既有配件＋剛從型錄加的配件，一律依報價選單原本的分類順序排（車輛最前、不混排）
+  const categoryOrder = quotePresets?.addonCategories || [];
+  const catOfCatalogId = (catalogId, kind) => (kind === 'vehicle' ? '車輛' : (quotePresets?.addons || []).find((a) => a.id === catalogId)?.cat || '其他');
+  const catRank = (cat) => {
+    if (cat === '車輛') return -1;
+    const i = categoryOrder.indexOf(cat);
+    return i < 0 ? 999 : i;
+  };
+  const displayRows = [
+    ...regularLines.map((line) => ({ type: 'line', line, cat: catOfCatalogId(line.catalogId, line.kind), order: 0 })),
+    ...customItems.filter((row) => row.catalogId).map((row) => ({ type: 'added', row, cat: catOfCatalogId(row.catalogId), order: 1 })),
+  ].map((entry, index) => ({ ...entry, index }))
+    .sort((a, b) => catRank(a.cat) - catRank(b.cat) || a.order - b.order || a.index - b.index);
   const customLines = customItems.map((row) => {
     const salePrice = Math.max(0, Number(row.salePrice) || 0);
     return {
@@ -847,6 +860,60 @@ export function PricingEditorModal({
     }));
   }
 
+  // 從型錄加進來的配件：版面和既有配件同一種（成本、優惠、贈送），規格在這裡選
+  function renderAddedRow(row) {
+    const salePrice = Math.max(0, Number(row.salePrice) || 0);
+    const discount = Math.min(salePrice, Math.max(0, Number(row.discount) || 0));
+    const netPrice = Math.max(0, salePrice - discount);
+    const costKnown = row.cost !== '';
+    const contribution = costKnown ? netPrice - (Number(row.cost) || 0) : null;
+    const gift = !!lineGifts[row.id];
+    return (
+      <div className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${costKnown ? 'bg-s2 border-transparent' : 'bg-warn/5 border-warn/35'}`}>
+        <div className="min-w-0 space-y-1">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs text-ink">{row.name} <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] text-accent">新加</span></p>
+            <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
+              className="shrink-0 rounded-md border border-danger/30 px-2 py-0.5 text-[10px] text-danger" aria-label={`刪除${row.name}`}>🗑 刪除</button>
+          </div>
+          <p className="text-[10px] text-ink-3">原始售價 NT$ {formatMoney(salePrice)}・折後 NT$ {formatMoney(netPrice)}</p>
+          {row.choices?.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold text-ink-2">{row.choiceLabel || '規格'}</span>
+              {row.choices.map((choice) => (
+                <button key={choice} type="button" onClick={() => updateCustomItem(row.id, { optionValue: choice })}
+                  className={`min-h-9 rounded-lg border px-3 text-xs font-semibold ${row.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr text-ink-2'}`}>{choice}</button>
+              ))}
+              {!row.optionValue && <span className="text-[10px] text-danger">（必選）</span>}
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="block text-[9px] text-ink-3 mb-0.5">配件成本</span>
+            <input type="number" min="0" value={row.cost} onChange={(e) => updateCustomItem(row.id, { cost: e.target.value })} placeholder="配件成本" className="text-xs w-full" />
+          </label>
+          <label className="block">
+            <span className="block text-[9px] text-ink-3 mb-0.5">單項優惠（與報價同步）</span>
+            <input type="number" min="0" max={salePrice} value={row.discount}
+              onChange={(e) => { updateCustomItem(row.id, { discount: e.target.value }); if (gift) setLineGifts((c) => ({ ...c, [row.id]: false })); }}
+              placeholder="折扣金額" className="text-xs w-full" />
+          </label>
+          <button type="button" onClick={() => {
+            const next = !gift;
+            setLineGifts((c) => ({ ...c, [row.id]: next }));
+            updateCustomItem(row.id, { discount: next ? String(salePrice) : '' });
+          }} className={`min-h-11 rounded-lg border px-3 text-xs font-semibold col-span-2 ${gift ? 'border-ok bg-ok/15 text-ok' : 'border-bdr text-ink-2 hover:bg-s3'}`}>
+            {gift ? '✓ 此項已核定贈送' : '🎁 核定此項贈送'}
+          </button>
+          <p className={`text-[10px] text-right col-span-2 ${contribution == null ? 'text-warn font-semibold' : contribution < 0 ? 'text-danger' : 'text-ok'}`}>
+            {contribution == null ? '⚠️ 未設定成本' : `利潤貢獻 ${contribution < 0 ? '−' : ''}${formatMoney(Math.abs(contribution))}`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   async function saveInternalPricing() {
     setSaveError('');
     const incompleteCustom = customItems.some((row) => !row.name.trim()
@@ -1000,7 +1067,8 @@ export function PricingEditorModal({
                 )}
               </div>
             )}
-                  {removedLines.length > 0 && (
+                  {customError && <p role="alert" className="text-[11px] text-danger font-semibold">⚠️ {customError}</p>}
+              {removedLines.length > 0 && (
                 <div className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-[11px] text-ink-2 space-y-1">
                   <p className="font-semibold">已拿掉（按儲存後才生效）：</p>
                   {removedLines.map((line) => (
@@ -1015,7 +1083,11 @@ export function PricingEditorModal({
             </section>
           )}
           <div className="space-y-2">
-            {regularLines.map((line) => {
+            {displayRows.map((entry, rowIndex) => {
+              const header = (rowIndex === 0 || displayRows[rowIndex - 1].cat !== entry.cat)
+                ? <p className="text-[10px] font-bold text-ink-3 pt-1">{entry.cat}</p> : null;
+              if (entry.type === 'added') return <Fragment key={entry.row.id}>{header}{renderAddedRow(entry.row)}</Fragment>;
+              const line = entry.line;
               const supplierOptions = line.kind === 'addon'
                 ? applicableSupplierCosts(costCatalog, line.catalogId, record.modelId).sort((a, b) => a.cost - b.cost) : [];
               const cheapestSupplier = supplierOptions[0] || null;
@@ -1029,7 +1101,8 @@ export function PricingEditorModal({
                 ? lineCost
                 : previewLine.netPrice - lineCost;
               return (
-              <div key={line.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
+              <Fragment key={line.id}>{header}
+              <div className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] gap-2 items-center rounded-lg p-2.5 border ${lineCost == null ? 'bg-warn/5 border-warn/35' : 'bg-s2 border-transparent'}`}>
                 <div className="min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-xs text-ink truncate">{line.name}</p>
@@ -1095,6 +1168,7 @@ export function PricingEditorModal({
                   </p>
                 </div>
               </div>
+              </Fragment>
               );
             })}
           </div>
@@ -1153,7 +1227,7 @@ export function PricingEditorModal({
                   </div>
                 )}
                 {historyMessage && <p role="status" className="text-[11px] text-ok font-semibold">✓ {historyMessage}</p>}
-                {customItems.map((row) => {
+                {customItems.filter((row) => !row.catalogId).map((row) => {
                   const salePrice = Math.max(0, Number(row.salePrice) || 0);
                   const discount = Math.min(salePrice, Math.max(0, Number(row.discount) || 0));
                   const netPrice = Math.max(0, salePrice - discount);
