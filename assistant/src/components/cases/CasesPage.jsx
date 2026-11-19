@@ -603,6 +603,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
   const linkedDeal = findDealForCase(deals, item);
   const { confirmQuoteDeal, archiveQuoteDraft } = useApp();
   const [deleteQuote, setDeleteQuote] = useState(null);
+  const [pickQuote, setPickQuote] = useState(false); // 有多張報價時，先選要開哪一張
   const [showClose, setShowClose] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
@@ -767,13 +768,40 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             </section>}
           <section className="grid grid-cols-3 gap-2">
             <button type="button" disabled={!item.clientId} onClick={() => item.clientId && onOpenClient?.(item.clientId)} className="card min-h-16 px-2 py-3 text-xs font-bold text-accent disabled:opacity-40">👤 客戶資料</button>
-            <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
+            <button type="button" onClick={() => (linkedQuotes.length > 1 ? setPickQuote(true) : onOpenQuote?.(item, linkedQuotes[0]?.id || null))} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
             <button type="button" disabled={!linkedDeal} onClick={goToSop} className="card min-h-16 px-2 py-3 text-xs font-bold text-copper disabled:opacity-40">🚚 {linkedDeal ? '施工進度' : '尚未成交'}</button>
           </section>
           <button type="button" onClick={() => setShowSheet(true)} className="card flex min-h-14 w-full items-center justify-between px-4 py-3 text-sm font-bold text-ink">
             <span>📋 卡旺選配表</span>
             <span className="text-xs font-semibold text-ink-3">{sheetHasContent(normalizeSheet(item.optionSheet)) ? '已填寫・點開查看' : '照紙本格式，自己勾選'}</span>
           </button>
+          {pickQuote && (
+            <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-3 md:items-center" onClick={() => setPickQuote(false)}>
+              <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl border border-bdr bg-s1 p-4 shadow-panel" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold text-ink">要開哪一張報價？</h2>
+                  <button type="button" onClick={() => setPickQuote(false)} className="btn-outline min-h-11 px-3">關閉</button>
+                </div>
+                <p className="mt-1 text-xs text-ink-3">這個案件有 {linkedQuotes.length} 張報價，點一張來看或修改。</p>
+                <div className="mt-3 space-y-2">
+                  {[...linkedQuotes].sort((a, b) => String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''))).map((quote) => {
+                    const won = linkedDeal?.quoteId === quote.id;
+                    return (
+                      <button key={quote.id} type="button" onClick={() => { setPickQuote(false); onOpenQuote?.(item, quote.id); }}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border-2 p-3 text-left ${won ? 'border-danger/50 bg-danger/10' : 'border-bdr bg-s2'}`}>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-bold text-ink">{won ? '✓ 成交報價' : linkedDeal?.quoteId ? '未採用報價' : '報價'}・{quote.model || '未填車型'}</span>
+                          <span className="block text-xs text-ink-3">{quote.date || ''}{quote.note ? `・${quote.note}` : ''}</span>
+                        </span>
+                        <strong className="shrink-0 text-gold">NT$ {formatMoney(quote.total)} ›</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button type="button" onClick={() => { setPickQuote(false); onOpenQuote?.(item, null); }} className="btn-outline mt-3 min-h-12 w-full text-sm font-bold">＋ 新增一張報價</button>
+              </div>
+            </div>
+          )}
           {deleteQuote && <MasterPinDialog title="輸入密碼才能刪除" danger confirmLabel="確認刪除"
             description={`這張報價會放進回收筒（可以恢復）。${linkedDeal?.quoteId === deleteQuote.id ? '它是已成交的報價：成交紀錄、金額與配件核對表都保留，只是報價單從清單移到回收筒。' : ''}`}
             onCancel={() => setDeleteQuote(null)}
