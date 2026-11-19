@@ -5,18 +5,20 @@
     lights: '燈組升級', tail: 'LED 光環尾燈組', fog: '魚眼霧燈升級', gtr: 'GTR 大燈升級',
     'gtr-cut': '三階切線說明', 'gtr-plus': 'GTR plus 雙切驗車模組',
     aero: '外觀空力套件', paint: '車身改色', wheel: '鋁圈升級',
-    chassis: '底盤載重強化', metal: '金屬製研'
+    chassis: '底盤載重強化', metal: '金屬製研',
+    boss: 'BOSS 白鐵擋泥板', dr: 'DR 漫反射後防撞桿'
   };
   // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
   var SIZE = {
     price: [1024, 1535], package: [1080, 1438], equip: [1080, 1440], android: [1024, 1536], audio: [1060, 1484],
     lights: [1060, 1484], tail: [1050, 1498], fog: [1080, 1440], gtr: [1071, 1469], 'gtr-cut': [1080, 1451],
-    'gtr-plus': [1080, 1482], aero: [1080, 1350], paint: [1080, 1350], wheel: [1080, 1441], chassis: [1080, 1350], metal: [1080, 1440]
+    'gtr-plus': [1080, 1482], aero: [1080, 1350], paint: [1080, 1350], wheel: [1080, 1441], chassis: [1080, 1350], metal: [1080, 1440],
+    boss: [1080, 1528], dr: [1080, 1528]
   };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
-    { t: '底盤與金屬', i: ['chassis', 'metal'] },
+    { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr'] },
     { t: '配備與影音', i: ['android', 'audio'] },
     { t: '燈光', i: ['tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus'] }
   ];
