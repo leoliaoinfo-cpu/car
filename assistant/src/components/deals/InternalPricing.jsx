@@ -541,7 +541,8 @@ export function QuotePricingPanel({
   }, [clients, customPricingHistory, pricingRecords]);
   const quotes = useMemo(() => {
     const clientMap = new Map(clients.map((client) => [client.id, client]));
-    return quoteDrafts.map((quote) => ({
+    // 放進回收筒（刪除）的報價不再出現在利潤試算；成交紀錄與成本照舊保留，從回收筒恢復後會回來
+    return quoteDrafts.filter((quote) => !quote.archivedAt).map((quote) => ({
       client: clientMap.get(quote.clientId) || {
         id: quote.clientId || null,
         name: quote.customerName || '未填客戶',
