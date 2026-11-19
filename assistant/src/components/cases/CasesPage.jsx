@@ -9,6 +9,8 @@ import { addDays, today } from '../../utils/date';
 import { formatMoney, generateId } from '../../utils/crm';
 import { normalizeDeliveryWorkflow } from '../../utils/delivery';
 import CaseDeliveryChecklist from '../deals/CaseDeliveryChecklist';
+import OptionSheet from './OptionSheet';
+import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker } from '../ui';
 import { STOCK_STATUSES, stockAlert, summarizeStock } from '../../utils/stock';
 
@@ -485,6 +487,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
   const { confirmQuoteDeal } = useApp();
   const [showClose, setShowClose] = useState(false);
   const [closeBusy, setCloseBusy] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);
   async function closeCase(reason) {
     if (closeBusy) return;
     setCloseBusy(true);
@@ -649,6 +652,11 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
             <button type="button" onClick={() => onOpenQuote?.(item, linkedQuotes[0]?.id || null)} className="card min-h-16 px-2 py-3 text-xs font-bold text-gold">🧾 {linkedQuotes.length ? `報價 ${linkedQuotes.length}` : '建立報價'}</button>
             <button type="button" disabled={!linkedDeal} onClick={goToSop} className="card min-h-16 px-2 py-3 text-xs font-bold text-copper disabled:opacity-40">🚚 {linkedDeal ? '施工進度' : '尚未成交'}</button>
           </section>
+          <button type="button" onClick={() => setShowSheet(true)} className="card flex min-h-14 w-full items-center justify-between px-4 py-3 text-sm font-bold text-ink">
+            <span>📋 卡旺選配表</span>
+            <span className="text-xs font-semibold text-ink-3">{sheetHasContent(normalizeSheet(item.optionSheet)) ? '已填寫・點開查看' : '照紙本格式，自己勾選'}</span>
+          </button>
+          {showSheet && <OptionSheet item={item} deal={linkedDeal} quotes={linkedQuotes} onClose={() => setShowSheet(false)} onSave={(optionSheet) => onSaveCase({ ...item, optionSheet })} />}
 
           <nav className="grid grid-cols-4 gap-1 rounded-xl border border-bdr bg-s1 p-1 sticky top-[3.9rem] z-10">
             {[['overview', '總覽'], ['work', '工作'], ['quotes', '報價'], ['history', '紀錄']].map(([key, label]) => <button key={key} type="button" onClick={() => setSection(key)} className={`min-h-10 rounded-lg text-xs font-bold ${section === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}

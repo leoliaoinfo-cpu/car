@@ -29,7 +29,7 @@ npm ci
 npm run dev                      # 開發
 npm run build                    # 產出 dist/index.html（交付物）
 npm run preview -- --port 4173   # 預覽（測試用）
-node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 208 項全過）
+node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script；目前 215 項全過）
 ```
 - 端對端：`assistant/e2e/stock-flow.mjs`（需 `playwright-core`，先 preview；見檔頭說明）。完整驗證流程見 `.claude/skills/verify/SKILL.md`。
 - 測試資料庫名 `car_sales_assistant_v1`；測試前請自行 seed 或清空，**不要碰使用者真實資料**。
@@ -57,6 +57,7 @@ node --test $(find src -name '*.test.js')   # 單元測試（無 npm test script
 - **報價扣項（2026-11-18）**：「已選項目」每張卡有色塊標題列（編號＋完整名稱，金額在下一行）與粗邊框，扣項區用琥珀色邊框。已選配件（特仕版、安全科技版等套裝）可按「➖ 客人不要其中一項」記下不要的項目與扣款（`item.deductions[{name,amount}]`，編輯器元件 `ItemDeductions`、LINE 文字與報價圖都會寫「不含：○○（扣 ○○）」）。`item.price` 一律存**扣完後**金額，原價 = price + 扣項合計，總額／貸款／成交自動正確；它不是「優惠」，不進利潤讓利計算。**成本仍照整套計**（拿掉的零件成本要到後台自己調）；成交配件核對表會把「客人不要：○○」寫進該配件備註（`utils/stock.js`），不會自動拆掉整套。
 - **LINE 報價文字格式（2026-11-18，使用者提供範本）**：`utils/quoteText.js` 的 `buildQuoteMessage` 依配件在型錄的分類分區：🚚車輛本體（車價＋配備版本套裝）／📦車斗配備（貨斗底板、尾門、客製車體、帆布、金屬製研）／🔧底盤懸吊・煞車（底盤強化）／✨外觀燈光（燈組、空力、改色、鋁圈、隔熱紙）／🪑車內配備（駕駛科技、音響、配件、周邊配件）／🧩其他配件／📄其他費用／🎁贈品（有保固的註明年數）。每區用 ━ 框線，項目前「・」，備註與「不含：A＋B（已扣 ○ 萬）」縮排一行。**原價總計含贈品價值**，再列「贈品優惠」扣回，有贈品又有其他優惠時多一句「專案優惠加上贈品優惠，總優惠 ○ 元」；最終成交價不含贈品（計算沒變）。新增型錄分類時要到 `CATEGORY_SECTION` 補對應區塊，否則落到「其他配件」。
 - **成本加密保險箱（2026-11-18，使用者要求「成本鎖密碼的區域要加密，客戶資料沒差」）**：`utils/vault.js`（純函式、有測試）＋`vaultSession.js`＋設定→後台密碼的 `components/VaultSection.jsx`。成本密語（≥8 字、英數混合）經 PBKDF2-SHA256 60 萬次包住一把隨機 AES-256-GCM 資料金鑰；包好的金鑰存 `settings` 的 `vault` 列（可同步，沒密語拆不開）。**離開裝置才加密**：雲端 `data.json` 與備份檔裡 `pricingRecords`、`salaryMonths` 整筆加密、`settings` 的 `costCatalog`／`customPricingHistory`／`costDefaults` 整列加密、`deals` 的 cost/profit 等欄位加密（保留主鍵與 `_ts`，LWW 合併照舊）。每台裝置輸入一次密語，金鑰以「不可匯出」的 CryptoKey 存在獨立 IndexedDB `car_sales_vault_v1`。有 vault 但這台沒金鑰時**同步整個停住、絕不上傳**（`NEED_VAULT_MESSAGE`），避免把加密資料蓋掉；剛啟用時雲端明文會強制重傳一次加密版。**本機 IndexedDB 仍是明文**（報價／成交時要即時算成本），靠手機螢幕鎖與後台 PIN 擋。忘記密語無法復原。
+- **卡旺選配表（2026-11-19，使用者提供公司紙本確認表，要「一模一樣、自己設定勾選」）**：案件詳情「📋 卡旺選配表」（`components/cases/OptionSheet.jsx`）。照紙本格式：標題＋日期（民國）、車主／車型／車身號碼／車色／業代／貸款銀行／現金購車、6 個粗框勾選區（共 42 項，部分項目後面有可填的線）、舊換新／選牌／客戶需求。**勾選與文字都由使用者自己點、停手 0.8 秒自動存**在 `case.optionSheet`（隨案件同步；純邏輯與項目清單在 `utils/optionSheet.js`，有測試）。「✨依報價帶入勾選」只是起手式：用品名關鍵字比對、特仕版／安全科技版／原裝多功能方向盤／空力套裝會展開成小項、報價「扣項」的項目不勾、**只補勾不取消、比對不到的品名寫進客戶需求**（絕不默默丟掉）。「存成圖片」用固定 760px 的唯讀紙本版 html2canvas 輸出，手機編輯畫面則疊成單欄（`narrow`）。業代欄會記住上次填的（localStorage）。新增型錄配件時，到 `optionSheet.js` 的 `RULES` 補關鍵字，否則帶入時會落到客戶需求。
 - **產品介紹網頁**（使用者**討厭全黑／暗色系**，要溫暖誠懇的明亮風格：米白底、暖紅點綴、白色卡片；不要改回深色。使用者不要「點圖放大」也不要署名，已移除）：獨立靜態頁原始檔在 `product-site/`（與系統無關，不讀系統資料）。**2026-11-19 起改由使用者自己放在 Netlify**（https://incredible-pithivier-dea5ed.netlify.app），GitHub Pages 已不再部署 `/car/products/`；改內容後要把 `product-site/` 打包成 zip 給使用者，由他拖到 Netlify Deploys 覆蓋。後台＝網址後加 `?edit`（`product-site/app.js`）：拖拉排序後按「儲存發佈」，順序存成一個**公開 GitHub Gist**（`order.json`，只有照片順序），權杖用 **classic 且只勾 gist**，碰不到 repo／系統程式；**不要改回用 repo 寫入權杖**。第一次儲存會產生 Gist ID，要由 Claude 填進 `app.js` 的 `GIST_ID`，客戶端才讀得到（讀取順序：Gist → `order.json` → 預設）。「複製順序」仍可用，貼給 Claude 也能更新。
 - **客戶頁（階段 5）**：客戶詳情只留 基本資料、客戶案件（連到案件）、照片、待辦、「記錄聯繫」、互動時間軸；已移除 建立報價單／建立成交案／預計交車日／生日重要日子／計時提醒 與客戶頁案件流程看板（程式內部分狀態變數仍在、資料不動）。「記錄聯繫」不含「交車」（舊流程會建回訪提醒）。客戶清單搜尋框全寬。
 - **設定與用語（階段 6）**：設定分「常用（報價選單、雲端同步、備份還原）／進階」並可搜尋；客戶階段、自訂欄位、待辦範本、通知設定已收起（資料保留）。UI 用語統一：配件、廠商、客戶、回收筒。產品型錄（原廠文字）與接待、今天舊頁不改字。
