@@ -8,6 +8,20 @@ test('formats quote money in ten-thousand units without trailing zeroes', () => 
   assert.equal(formatWan(5000), '0.5萬');
 });
 
+test('LINE 金額不是整百元時寫完整元數，和報價圖一致（不四捨五入）', () => {
+  const message = buildQuoteMessage({
+    customerName: '楊老闆',
+    items: [
+      { id: 'car', kind: 'vehicle', name: '車輛售價', price: 888000 },
+      { id: 'shade', kind: 'addon', catalogId: 'qa-k2500-sunshade', name: '卡旺專用遮陽簾', price: 1280 },
+      { id: 'cap', kind: 'addon', name: '免鑰匙油箱蓋', price: 599 },
+    ],
+    generalDiscounts: [{ id: 'd1', name: '專案優惠', amount: 38000 }],
+  });
+  assert.match(message, /原價總計：889,879 元/);
+  assert.match(message, /✅ 最終優惠成交價：851,879 元$/);
+});
+
 test('shortens catalog names for a conversational LINE quote', () => {
   assert.equal(compactQuoteItemName('特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）'), '特仕版套件');
   assert.equal(compactQuoteItemName('升降尾門（2.5尺）'), '2.5呎升降尾門');
@@ -50,11 +64,11 @@ test('LINE 報價分區：車輛本體、車斗、底盤、外觀燈光、車內
   assert.match(message, /📦 車斗配備\n━+\n・2\.5呎升降尾門：\+3\.7 萬\n・尿素桶防撞桿：\+0\.55 萬\n　備註：黑色/);
   assert.match(message, /🔧 底盤懸吊・煞車\n━+\n・彈簧鋼板：\+0\.55 萬\n・煞車劃線碟＋競技來令片：\+1\.5 萬/);
   assert.match(message, /・LED 韓版後照鏡：\+0\.85 萬/);
-  assert.match(message, /・多媒體音控：\+1\.2 萬\n・卡旺專用遮陽簾：\+0\.13 萬/);
+  assert.match(message, /・多媒體音控：\+1\.2 萬\n・卡旺專用遮陽簾：\+1,280 元/);
   assert.match(message, /・定速巡航（價值 8,000 元，4 年保固）\n・卡旺方向盤皮革套（價值 499 元）/);
   // 原價含贈品價值，再以贈品優惠扣回，成交價不含贈品。
-  assert.match(message, /原價總計：119\.63 萬/);
-  assert.match(message, /專案優惠：-5\.7 萬\n贈品優惠：-0\.85 萬\n專案優惠加上贈品優惠，總優惠 65,499 元\n----------\n✅ 最終優惠成交價：113\.08 萬元$/);
+  assert.match(message, /原價總計：1,196,279 元/);
+  assert.match(message, /專案優惠：-5\.7 萬\n贈品優惠：-8,499 元\n專案優惠加上贈品優惠，總優惠 65,499 元\n----------\n✅ 最終優惠成交價：1,130,780 元$/);
 });
 
 test('沒有贈品也沒有優惠時，原價後直接接最終成交價', () => {

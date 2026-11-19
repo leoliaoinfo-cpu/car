@@ -10,8 +10,14 @@ export function formatWan(value) {
   return `${Number(amount.toFixed(2))}萬`;
 }
 
+/**
+ * LINE 文字的金額：整百元用「萬」（例 105.06 萬）；
+ * 不是整百元（例 1,050,569）就寫完整元數，避免四捨五入後和報價圖金額不一致。
+ */
 function formatLineWan(value) {
-  return formatWan(value).replace('萬', ' 萬');
+  const amount = money(value);
+  if (amount % 100 !== 0) return `${formatTwd(amount)} 元`;
+  return formatWan(amount).replace('萬', ' 萬');
 }
 
 function formatTwd(value) {
@@ -174,6 +180,7 @@ export function buildQuoteMessage({
   }
   if (discountLines.length) lines.push(...discountLines, '----------');
 
-  lines.push(`✅ 最終優惠成交價：${formatLineWan(totals.total)}元`);
+  const finalText = formatLineWan(totals.total);
+  lines.push(`✅ 最終優惠成交價：${finalText}${finalText.endsWith('萬') ? '元' : ''}`);
   return lines.join('\n');
 }
