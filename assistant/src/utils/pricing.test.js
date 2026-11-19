@@ -1369,3 +1369,13 @@ test('安卓機與安全科技版都是四錄／環景二選一，舊設定升�
     assert.deepEqual(it.choices, ['四錄', '環景'], id);
   }
 });
+
+test('雙廂高階套裝也要選四錄／環景，舊設定升級後帶入選項', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const fresh = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-double-cab-package');
+  assert.deepEqual(fresh.choices, ['四錄', '環景']);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v34', addonCategories: ['配備版本'], addons: [
+    { id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000 },
+  ] }).addons.find((a) => a.id === 'qa-double-cab-package');
+  assert.deepEqual(old.choices, ['四錄', '環景']);
+});

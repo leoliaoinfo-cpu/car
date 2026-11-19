@@ -150,7 +150,7 @@ function AddonCategoryCard({
     }
     if (addon.id === 'qa-double-cab-package') {
       return [
-        '特仕版', '多功能方向盤', '安全科技版', 'LED 後照鏡', 'GTR 魚眼頭燈',
+        '特仕版', '多功能方向盤', '安全科技版（四錄／環景二選一）', 'LED 後照鏡', 'GTR 魚眼頭燈',
         'X7 魚眼霧燈', 'TS 避震', '音響升級', '延長側踏', 'Travel 橫桿', '尿素桶防撞桿',
         '雙手機架', '室內牌照燈', '側邊照地燈', 'OMEGA 鋁圈', 'HALO 光環尾燈', 'KDM 擾流前下巴',
       ];
