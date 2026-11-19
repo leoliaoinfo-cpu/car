@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import {
-  SHEET_BOXES, SHEET_BOX_PAIRS, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
+  DEFAULT_LAYOUT, layoutToBoxes, normalizeLayout, newItemId, normalizeSheet, emptySheet, prefillFromQuote, sheetHasContent,
 } from '../../utils/optionSheet';
+import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } from '../../optionSheetLayout';
 
 const AGENT_KEY = 'car-sales.optionSheet.agent';
 const readAgent = () => { try { return localStorage.getItem(AGENT_KEY) || ''; } catch { return ''; } };
@@ -37,17 +38,19 @@ function Line({ value, onChange, readOnly, placeholder = '', style = {}, multili
   }
   if (multiline) {
     return <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={3}
-      style={{ ...base, border: 'none', borderBottom: `1.5px solid ${INK}`, width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />;
+      style={{ border: 'none', ...base, width: '100%', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.7 }} />;
   }
   return <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoComplete="off"
-    style={{ ...base, border: 'none', borderBottom: `1.5px solid ${INK}`, borderRadius: 0, padding: '2px 2px', minHeight: 0, height: 24 }} />;
+    style={{ border: 'none', ...base, borderRadius: 0, padding: '2px 2px', minHeight: 0, height: 24 }} />;
 }
 
 /** 紙本卡旺選配表（可編輯／唯讀兩用；唯讀版固定寬度，用來輸出圖片）。 */
-export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false }) {
+export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false, layout = DEFAULT_LAYOUT }) {
   const set = (patch) => onChange?.({ ...sheet, ...patch });
   const setItem = (id, patch) => set({ items: { ...sheet.items, [id]: { on: false, note: '', ...(sheet.items[id] || {}), ...patch } } });
-  const boxById = Object.fromEntries(SHEET_BOXES.map((b) => [b.id, b]));
+  const boxes = layoutToBoxes(layout);
+  const boxPairs = [];
+  for (let i = 0; i < boxes.length; i += 2) boxPairs.push(boxes.slice(i, i + 2));
 
   const field = (label, key, width) => (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, flex: width ? `0 0 ${width}` : '1 1 0', minWidth: 0 }}>
@@ -73,9 +76,9 @@ export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false }
       </span>
     );
   };
-  const renderBox = (id) => (
-    <div key={id} style={{ ...box, display: 'flex', flexDirection: 'column', gap: 7, justifyContent: 'center' }}>
-      {boxById[id].rows.map((row, i) => <div key={i} style={{ display: 'flex', gap: narrow ? '8px 16px' : 8, alignItems: 'center', minWidth: 0, flexWrap: narrow ? 'wrap' : 'nowrap' }}>{row.map(renderItem)}</div>)}
+  const renderBox = (b) => (
+    <div key={b.id} style={{ ...box, display: 'flex', flexDirection: 'column', gap: 7, justifyContent: 'center' }}>
+      {b.rows.map((row, i) => <div key={i} style={{ display: 'flex', gap: narrow ? '8px 16px' : 8, alignItems: 'center', minWidth: 0, flexWrap: narrow ? 'wrap' : 'nowrap' }}>{row.map(renderItem)}</div>)}
     </div>
   );
 
@@ -102,8 +105,8 @@ export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false }
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {SHEET_BOX_PAIRS.map(([l, r]) => (
-          <div key={l} style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>{renderBox(l)}{renderBox(r)}</div>
+        {boxPairs.map((pair) => (
+          <div key={pair[0].id} style={{ display: 'grid', gridTemplateColumns: narrow ? 'minmax(0,1fr)' : 'minmax(0,1fr) minmax(0,1fr)', gap: 10 }}>{pair.map(renderBox)}</div>
         ))}
       </div>
 
@@ -129,6 +132,76 @@ export function SheetPaper({ sheet, onChange, readOnly = false, narrow = false }
   );
 }
 
+
+function move(list, i, d) {
+  const j = i + d;
+  if (j < 0 || j >= list.length) return list;
+  const next = [...list];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
+}
+
+/** 編輯表單格式：自己新增／刪除／改名勾選項、決定哪些有填寫線、調整順序與區塊。 */
+function LayoutEditor({ layout, onChange, onDone, onReset }) {
+  const boxes = layout.boxes;
+  const [confirm, setConfirm] = useState(null); // 'reset' | `box:${id}` | `item:${id}`
+  const setBoxes = (next) => onChange({ boxes: next });
+  const setBox = (bi, patch) => setBoxes(boxes.map((b, i) => (i === bi ? { ...b, ...patch } : b)));
+  const setItem = (bi, ii, patch) => setBox(bi, { items: boxes[bi].items.map((it, k) => (k === ii ? { ...it, ...patch } : it)) });
+  const arrow = 'btn-outline min-h-10 min-w-10 px-0 text-sm disabled:opacity-30';
+
+  return (
+    <div className="flex-1 overflow-y-auto px-2 pb-24 pt-3">
+      <div className="mx-auto max-w-3xl space-y-3">
+        <p className="rounded-xl border border-bdr bg-s2 p-3 text-xs leading-relaxed text-ink-2">
+          在這裡設定選配表上有哪些勾選項。<b>改名、新增、刪除、調整順序</b>都可以；「有填寫線」打開，該項目後面就多一條可以打字的線（例如寫顏色）。
+          已經填過的舊案件資料不會因為你刪掉項目而消失。
+        </p>
+        {boxes.map((b, bi) => (
+          <section key={b.id} className="card space-y-2 p-3">
+            <div className="flex items-center gap-2">
+              <b className="flex-1 text-sm text-ink">區塊 {bi + 1}<span className="ml-2 text-[11px] font-normal text-ink-3">{bi % 2 === 0 ? '左邊' : '右邊'}</span></b>
+              <button type="button" className={arrow} disabled={bi === 0} onClick={() => setBoxes(move(boxes, bi, -1))} aria-label="區塊往前">↑</button>
+              <button type="button" className={arrow} disabled={bi === boxes.length - 1} onClick={() => setBoxes(move(boxes, bi, 1))} aria-label="區塊往後">↓</button>
+              {confirm === `box:${b.id}`
+                ? <><button type="button" className="btn-danger min-h-10 px-3 text-xs" onClick={() => { setBoxes(boxes.filter((_, i) => i !== bi)); setConfirm(null); }}>確定刪除</button>
+                  <button type="button" className="btn-outline min-h-10 px-3 text-xs" onClick={() => setConfirm(null)}>取消</button></>
+                : <button type="button" className="btn-outline min-h-10 px-3 text-xs text-danger" onClick={() => setConfirm(`box:${b.id}`)}>刪除區塊</button>}
+            </div>
+            {b.items.length === 0 && <p className="text-xs text-ink-3">這個區塊還沒有項目。</p>}
+            {b.items.map((it, ii) => (
+              <div key={it.id} className="rounded-xl border border-bdr bg-s1 p-2">
+                <div className="flex items-center gap-2">
+                  <input value={it.label} onChange={(e) => setItem(bi, ii, { label: e.target.value })} aria-label="項目名稱" placeholder="項目名稱" className="min-h-11 min-w-0 flex-1 text-sm" />
+                  <button type="button" className={arrow} disabled={ii === 0} onClick={() => setBox(bi, { items: move(b.items, ii, -1) })} aria-label="項目往上">↑</button>
+                  <button type="button" className={arrow} disabled={ii === b.items.length - 1} onClick={() => setBox(bi, { items: move(b.items, ii, 1) })} aria-label="項目往下">↓</button>
+                  {confirm === `item:${it.id}`
+                    ? <button type="button" className="btn-danger min-h-10 px-2 text-xs" onClick={() => { setBox(bi, { items: b.items.filter((_, k) => k !== ii) }); setConfirm(null); }}>確定刪除</button>
+                    : <button type="button" className="btn-outline min-h-10 min-w-10 px-0 text-sm text-danger" onClick={() => setConfirm(`item:${it.id}`)} aria-label="刪除項目">✕</button>}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1">
+                  <label className="flex min-h-10 items-center gap-2 text-xs text-ink-2"><input type="checkbox" checked={it.note} onChange={(e) => setItem(bi, ii, { note: e.target.checked })} className="h-5 w-5" />後面有填寫線</label>
+                  {ii > 0 && <label className="flex min-h-10 items-center gap-2 text-xs text-ink-2"><input type="checkbox" checked={it.sameRow} onChange={(e) => setItem(bi, ii, { sameRow: e.target.checked })} className="h-5 w-5" />和上一項同一行</label>}
+                </div>
+              </div>
+            ))}
+            <button type="button" className="btn-outline min-h-11 w-full text-sm font-bold" onClick={() => setBox(bi, { items: [...b.items, { id: newItemId(), label: '', note: false, sameRow: false }] })}>＋ 新增項目</button>
+          </section>
+        ))}
+        <button type="button" className="btn-outline min-h-12 w-full font-bold" onClick={() => setBoxes([...boxes, { id: `box-${newItemId()}`, items: [] }])}>＋ 新增區塊</button>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          {confirm === 'reset'
+            ? <span className="flex items-center gap-2 text-xs"><b className="text-danger">表單格式會變回原本紙本那樣，確定嗎？</b>
+              <button type="button" className="btn-danger min-h-11 px-3" onClick={() => { onReset(); setConfirm(null); }}>還原</button>
+              <button type="button" className="btn-outline min-h-11 px-3" onClick={() => setConfirm(null)}>取消</button></span>
+            : <button type="button" className="btn-ghost min-h-11 px-3 text-xs text-danger" onClick={() => setConfirm('reset')}>還原成原本的紙本格式</button>}
+          <button type="button" className="btn-primary min-h-12 px-6 font-bold" onClick={onDone}>完成</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** 全螢幕選配表：自己勾選、自動存檔、可依報價帶入、可存成圖片。 */
 export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   const baseHeader = useMemo(() => ({
@@ -141,6 +214,19 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   const [busy, setBusy] = useState(false);
   const [image, setImage] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [layout, setLayout] = useState(DEFAULT_LAYOUT);
+  const [editingLayout, setEditingLayout] = useState(false);
+  const layoutFirst = useRef(true);
+  const layoutDirty = useRef(false);
+  useEffect(() => { loadOptionSheetLayout().then(setLayout).catch(() => {}); }, []);
+  // 改格式也是停手 0.6 秒自動存；只有真的改過才寫進資料庫
+  useEffect(() => {
+    if (layoutFirst.current) { layoutFirst.current = false; return undefined; }
+    if (!layoutDirty.current) return undefined;
+    const timer = setTimeout(() => { saveOptionSheetLayout(layout).catch(() => {}); }, 600);
+    return () => clearTimeout(timer);
+  }, [layout]);
+  const changeLayout = (next) => { layoutDirty.current = true; setLayout(next); };
   const [narrow, setNarrow] = useState(() => window.innerWidth < 700);
   useEffect(() => {
     const on = () => setNarrow(window.innerWidth < 700);
@@ -163,7 +249,7 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
   function fillFromQuote() {
     const quote = quotes.find((q) => q.id === quoteId);
     if (!quote) { setMsg('這個案件還沒有報價可以帶入。'); return; }
-    const { sheet: next, unmatched } = prefillFromQuote(sheet, quote);
+    const { sheet: next, unmatched } = prefillFromQuote(sheet, quote, layout);
     setSheet(next);
     setMsg(unmatched.length
       ? `已依報價勾好。「${unmatched.join('、')}」紙本上沒有對應的格子，已寫進客戶需求。`
@@ -200,10 +286,14 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
           <p className="truncate text-sm font-bold text-ink">📋 卡旺選配表</p>
           <p className="truncate text-[11px] text-ink-3">{item.clientName}・點方框勾選，自動存檔</p>
         </div>
-        <button type="button" disabled={busy} onClick={exportImage} className="btn-primary min-h-11 px-4 text-sm disabled:opacity-40">{busy ? '產生中…' : '存成圖片'}</button>
+        {!editingLayout && <button type="button" onClick={() => setEditingLayout(true)} className="btn-outline min-h-11 px-3 text-xs font-bold">⚙ 編輯表單</button>}
+        {!editingLayout && <button type="button" disabled={busy} onClick={exportImage} className="btn-primary min-h-11 px-4 text-sm disabled:opacity-40">{busy ? '產生中…' : '存成圖片'}</button>}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-24 pt-3">
+      {editingLayout && <LayoutEditor layout={layout} onChange={changeLayout} onDone={() => setEditingLayout(false)}
+        onReset={async () => { layoutDirty.current = false; setLayout(await resetOptionSheetLayout()); }} />}
+
+      {!editingLayout && <div className="flex-1 overflow-y-auto px-2 pb-24 pt-3">
         <div className="mx-auto max-w-3xl space-y-3">
           {quotes.length > 0 && (
             <div className="card flex flex-wrap items-center gap-2 p-3">
@@ -218,7 +308,7 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
           {msg && <p role="status" className="rounded-xl border border-bdr bg-s2 p-3 text-xs leading-relaxed text-ink-2">{msg}</p>}
 
           <div className="overflow-hidden rounded-2xl border border-bdr bg-white shadow-card">
-            <SheetPaper sheet={sheet} onChange={setSheet} narrow={narrow} />
+            <SheetPaper sheet={sheet} onChange={setSheet} narrow={narrow} layout={layout} />
           </div>
 
           <div className="flex justify-end">
@@ -229,11 +319,11 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
                 <button type="button" onClick={() => setConfirmClear(false)} className="btn-outline min-h-11 px-3">取消</button></span>}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* 輸出圖片用：固定寬度的唯讀版，畫面外 */}
       <div aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }}>
-        <div ref={exportRef} style={{ width: 760, background: '#fff' }}><SheetPaper sheet={sheet} readOnly /></div>
+        <div ref={exportRef} style={{ width: 760, background: '#fff' }}><SheetPaper sheet={sheet} layout={layout} readOnly /></div>
       </div>
 
       {image && (

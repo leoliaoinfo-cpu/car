@@ -61,6 +61,48 @@ test('LED 霧燈與魚眼霧燈不混淆', () => {
 test('整理舊資料與空表判斷', () => {
   assert.equal(sheetHasContent(emptySheet()), false);
   const s = normalizeSheet({ color: '白', items: { rain: { on: true }, bogus: { on: true } } });
-  assert.equal(s.items.bogus, undefined);
+  assert.equal(s.items.bogus.on, true); // 保留所有 id（使用者可能刪過格式，舊資料不能丟）
   assert.equal(sheetHasContent(s), true);
+});
+
+import { DEFAULT_LAYOUT, normalizeLayout, layoutToBoxes, layoutItems } from './optionSheet.js';
+
+test('預設格式轉成畫面用的框，和紙本一致（6 框 43 項，帆布框 6 列）', () => {
+  const boxes = layoutToBoxes(DEFAULT_LAYOUT);
+  assert.equal(boxes.length, 6);
+  assert.equal(layoutItems(DEFAULT_LAYOUT).length, 43);
+  assert.equal(boxes[4].rows.length, 6);
+  assert.deepEqual(boxes[4].rows[1].map((x) => x[1]), ['彈簧片', '尾門遙控器']);
+});
+
+test('自訂格式：改名、新增有填寫線的項目、刪除；空白名稱會被丟掉', () => {
+  const layout = normalizeLayout({ boxes: [
+    { id: 'x', items: [{ id: 'a', label: '  行車紀錄器  ', note: false, sameRow: true }, { id: 'b', label: '', note: true }, { id: 'c', label: '遮陽簾', note: true, sameRow: true }] },
+  ] });
+  const items = layoutItems(layout);
+  assert.deepEqual(items.map((x) => x.label), ['行車紀錄器', '遮陽簾']);
+  assert.equal(items[0].sameRow, false); // 第一項不能「接上一項」
+  assert.equal(items[1].note, true);
+  assert.deepEqual(layoutToBoxes(layout)[0].rows.map((r) => r.length), [2]);
+});
+
+test('壞掉或沒有設定就用預設；重複 id 會自動換新', () => {
+  assert.equal(normalizeLayout(null), DEFAULT_LAYOUT);
+  assert.equal(normalizeLayout({ boxes: 'x' }), DEFAULT_LAYOUT);
+  const l = normalizeLayout({ boxes: [{ id: 'a', items: [{ id: 'same', label: 'A' }, { id: 'same', label: 'B' }] }] });
+  const ids = layoutItems(l).map((x) => x.id);
+  assert.equal(new Set(ids).size, 2);
+});
+
+test('刪掉項目後，舊案件已勾的資料仍保留；帶入時自訂項目用名稱比對，預設項被刪就改寫進客戶需求', () => {
+  const sheet = normalizeSheet({ items: { rain: { on: true, note: '' } } });
+  assert.equal(sheet.items.rain.on, true); // 即使目前格式沒有這項也不丟
+  const layout = normalizeLayout({ boxes: [{ id: 'a', items: [{ id: 'u1', label: '底盤除鏽', note: true }, { id: 'tint', label: '隔熱紙', note: true }] }] });
+  const r = prefillFromQuote(emptySheet(), { items: [
+    { id: '1', kind: 'addon', name: '底盤除鏽處理', price: 8000, note: '全車' },
+    { id: '2', kind: 'addon', name: '尿素桶防撞桿', price: 5500 }, // 預設有規則，但格式裡已刪掉
+  ] }, layout);
+  assert.equal(r.sheet.items.u1.on, true);
+  assert.deepEqual(r.unmatched, ['尿素桶防撞桿']);
+  assert.match(r.sheet.needs.text, /尿素桶防撞桿/);
 });

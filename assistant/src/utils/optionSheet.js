@@ -14,6 +14,57 @@ export const SHEET_BOXES = [
 // 紙本最上方 3 欄各自對應的框（左右兩欄）：b1|b2、b3|b4、b5|b6
 export const SHEET_BOX_PAIRS = [['b1', 'b2'], ['b3', 'b4'], ['b5', 'b6']];
 
+// ── 可自訂的表單格式（layout）：使用者可新增／刪除／改名項目、決定哪些有填寫線、調整順序 ──────────
+// layout = { boxes: [{ id, items: [{ id, label, note, sameRow }] }] }；sameRow=接在上一項同一行（一行最多 3 個）。
+function boxesToLayout(boxes) {
+  return {
+    boxes: boxes.map((b) => ({
+      id: b.id,
+      items: b.rows.flatMap((row) => row.map(([id, label, note], i) => ({ id, label, note: !!note, sameRow: i > 0 }))),
+    })),
+  };
+}
+export const DEFAULT_LAYOUT = boxesToLayout(SHEET_BOXES);
+const DEFAULT_IDS = new Set(SHEET_BOXES.flatMap((b) => b.rows.flat().map(([id]) => id)));
+
+export function newItemId() { return `u-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
+
+/** 整理自訂格式；沒有或壞掉就用預設。空白名稱的項目會被丟掉；每個項目 id 不重複。 */
+export function normalizeLayout(layout) {
+  const src = Array.isArray(layout?.boxes) ? layout : null;
+  if (!src) return DEFAULT_LAYOUT;
+  const seen = new Set();
+  const boxes = [];
+  src.boxes.forEach((b, bi) => {
+    const items = [];
+    for (const it of Array.isArray(b?.items) ? b.items : []) {
+      const label = String(it?.label || '').trim();
+      let id = String(it?.id || '');
+      if (!label) continue;
+      if (!id || seen.has(id)) id = newItemId();
+      seen.add(id);
+      items.push({ id, label: label.slice(0, 40), note: !!it.note, sameRow: !!it.sameRow && items.length > 0 });
+    }
+    boxes.push({ id: String(b?.id || `box${bi}`), items });
+  });
+  return { boxes };
+}
+
+/** layout → 畫面用的框（每框多列、每列 1～3 項） */
+export function layoutToBoxes(layout) {
+  return normalizeLayout(layout).boxes.map((b) => {
+    const rows = [];
+    for (const it of b.items) {
+      const last = rows[rows.length - 1];
+      if (it.sameRow && last && last.length < 3) last.push([it.id, it.label, it.note]);
+      else rows.push([[it.id, it.label, it.note]]);
+    }
+    return { id: b.id, rows };
+  });
+}
+
+export function layoutItems(layout) { return normalizeLayout(layout).boxes.flatMap((b) => b.items); }
+
 export const ALL_SHEET_ITEMS = SHEET_BOXES.flatMap((box) => box.rows.flat().map(([id, label, note]) => ({ id, label, note: !!note })));
 const LABEL_OF = Object.fromEntries(ALL_SHEET_ITEMS.map((x) => [x.id, x.label]));
 
@@ -37,7 +88,7 @@ export function normalizeSheet(sheet, base = {}) {
   const s = sheet && typeof sheet === 'object' ? sheet : {};
   const items = {};
   for (const [id, v] of Object.entries(s.items || {})) {
-    if (LABEL_OF[id] && v) items[id] = { on: !!v.on, note: String(v.note || '') };
+    if (v && typeof v === 'object') items[id] = { on: !!v.on, note: String(v.note || '') };
   }
   const flag = (v) => ({ on: !!v?.on, text: String(v?.text || '') });
   return {
@@ -104,23 +155,28 @@ export function matchSheetIds(item) {
  * 由報價帶入勾選。只「補勾、補備註」，不會把你已經勾好的取消；比對不到的品名放進客戶需求。
  * 回傳新的 sheet 與比對不到的品名清單。
  */
-export function prefillFromQuote(sheet, quote) {
+export function prefillFromQuote(sheet, quote, layout = null) {
   const next = normalizeSheet(sheet);
   const items = { ...next.items };
+  const shown = layoutItems(layout);
+  const visible = new Set(shown.map((x) => x.id));
+  const defaultNote = new Map(shown.map((x) => [x.id, x.note]));
   const unmatched = [];
   for (const item of quote?.items || []) {
-    if (!String(item?.name || '').trim() || item.kind === 'vehicle' || item.pending) continue;
+    const name = String(item?.name || '').trim();
+    if (!name || item.kind === 'vehicle' || item.pending) continue;
     if (item.kind === 'other') continue; // 領牌費、保險等不是選配
-    const ids = matchSheetIds(item);
-    if (!ids.length) { unmatched.push(String(item.name).trim()); continue; }
+    // 內建關鍵字 + 使用者自己新增的項目（品名含有該項目名稱就算）
+    const ids = matchSheetIds(item).filter((id) => visible.has(id));
+    for (const x of shown) if (!DEFAULT_IDS.has(x.id) && x.label && name.includes(x.label) && !ids.includes(x.id)) ids.push(x.id);
+    if (!ids.length) { unmatched.push(name); continue; }
     const cut = deductedIds(item);
     const note = noteOf(item);
-    const isPkg = ids.length > 1 || PACKAGES.some(([re]) => re.test(String(item.name)));
+    const isPkg = ids.length > 1 || PACKAGES.some(([re]) => re.test(name));
     for (const id of ids) {
       if (cut.has(id)) continue;
       const cur = items[id] || { on: false, note: '' };
-      const def = ALL_SHEET_ITEMS.find((x) => x.id === id);
-      items[id] = { on: true, note: cur.note || (def?.note && !isPkg ? (note || (['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? String(item.name).trim() : '')) : '') };
+      items[id] = { on: true, note: cur.note || (defaultNote.get(id) && !isPkg ? (note || (['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? name : '')) : '') };
     }
   }
   next.items = items;
@@ -132,4 +188,4 @@ export function prefillFromQuote(sheet, quote) {
   return { sheet: next, unmatched };
 }
 
-export function itemLabel(id) { return LABEL_OF[id] || id; }
+export function itemLabel(id, layout = null) { return layoutItems(layout).find((x) => x.id === id)?.label || LABEL_OF[id] || id; }
