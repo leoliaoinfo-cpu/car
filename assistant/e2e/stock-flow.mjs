@@ -98,7 +98,7 @@ await step('開案件→逐項核對：設再追日、標已備妥、警示解�
   await p.screenshot({path:`${S}/s6.png`,fullPage:true});
   // 後照鏡：一鍵標已備妥；帆布改狀態為已備妥
   // 改裝部（後照鏡）要到「已到貨」才算不缺；外包（客製帆布）要到「廠商已施作」
-  await p.locator('[role=radiogroup][aria-label="韓版後照鏡備品狀態"]').getByRole('radio', { name: '已到貨' }).click(); await p.waitForTimeout(500);
+  await p.locator('[role=radiogroup][aria-label="韓版後照鏡備品狀態"]').getByRole('radio', { name: '有庫存尚未安裝' }).click(); await p.waitForTimeout(500);
   await p.locator('[role=radiogroup][aria-label="客製帆布備品狀態"]').getByRole('radio', { name: '廠商已施作' }).click(); await p.waitForTimeout(600);
   d=(await dump('deals')).find(x=>x.quoteId==='qA');
   const okSt={'韓版後照鏡':'ready','客製帆布':'vendor_done'};

@@ -16,7 +16,7 @@ import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker, ConfirmDeleteButton, ChipSelect } from '../ui';
 import {
-  stockAlert, stockByCase, stockByKind, unlistedStockItems, vendorSequence, supplierForItem, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
+  stockAlert, stockByCase, stockByKind, unlistedStockItems, vendorSequence, supplierForItem, statusOptions, stockStatus, displayStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
 } from '../../utils/stock';
 
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
@@ -176,7 +176,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
 /** 狀態用勾選按鈕一排排開（不用下拉選單）：目前狀態實心，點哪個就改成哪個。 */
 function StatusChips({ row, disabled, label, onPick }) {
-  const current = stockStatus(row);
+  const current = displayStatus(row);
   return (
     <div role="radiogroup" aria-label={label} className="flex min-w-0 flex-wrap gap-1.5">
       {statusOptions(row).map(([id, text]) => {
@@ -287,7 +287,7 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
     <section className="space-y-3">
       <div className="card p-4">
         <h2 className="font-bold text-ink">尚缺配件</h2>
-        <p className="mt-1 text-xs leading-relaxed text-ink-3">只列已指定成交報價、還沒完工的案件。直接在這裡改狀態，不用進案件。外包：未聯繫→已聯繫→廠商已施作→已確認→已回報客戶；改裝部：缺貨→已叫貨→已到貨→已安裝。</p>
+        <p className="mt-1 text-xs leading-relaxed text-ink-3">只列已指定成交報價、還沒完工的案件。直接在這裡改狀態，不用進案件。外包：未聯繫→已聯繫→廠商已施作→已確認→已回報客戶；改裝部：缺貨中→有庫存尚未安裝→已安裝。</p>
         <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-bdr bg-s2 p-1">
           {[['customer', '依客戶'], ['part', '依配件（同類一起處理）']].map(([key, label]) => <button key={key} type="button" onClick={() => setMode(key)} className={`min-h-10 rounded-lg text-xs font-bold ${mode === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}
         </div>

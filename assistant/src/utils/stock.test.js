@@ -77,7 +77,8 @@ test('外包流程五步、改裝部四步，下一步按鈕依序往前；最�
   assert.equal(nextStatus({ ...vendor, status: 'checked' })[1], '已經回報客戶進度');
   assert.equal(nextStatus({ ...vendor, status: 'reported' }), null);
   const inhouse = { name: '彈簧鋼板', track: 'inhouse', status: 'todo' };
-  assert.deepEqual(statusOptions(inhouse).map(([, l]) => l), ['缺貨中', '已叫貨', '已到貨', '已安裝', '不需備品']);
+  assert.deepEqual(statusOptions(inhouse).map(([, l]) => l), ['缺貨中', '有庫存尚未安裝', '已安裝']);
+  assert.equal(statusLabel({ ...inhouse, status: 'inquiry' }), '缺貨中'); // 舊的已叫貨仍算缺貨中
   assert.equal(nextStatus({ ...inhouse, status: 'ready' })[1], '已安裝');
   assert.equal(nextStatus({ ...inhouse, status: 'installed' }), null);
 });

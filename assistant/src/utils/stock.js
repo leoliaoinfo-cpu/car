@@ -2,7 +2,7 @@
 //
 // 兩種流程（使用者 2026-11-19 定義）：
 //  • 外包（帆布、箱體、尾門、烤漆、H 架…）：未聯繫廠商 → 已聯繫廠商 → 廠商已施作 → 已確認沒問題 → 已經回報客戶進度
-//  • 改裝部配件：缺貨中 → 已叫貨 → 已到貨 → 已安裝（「已處理」與「已安裝」同義，合併）
+//  • 改裝部配件：缺貨中 → 有庫存尚未安裝 → 已安裝（舊的「已叫貨」視為缺貨中、「已到貨」＝有庫存尚未安裝）
 // 狀態代碼沿用舊的 todo／inquiry／ready／installed／not_needed，外包另加 vendor_done／checked／reported，
 // 舊資料不用轉換：外包項目的舊 ready 視為「廠商已施作」、舊 installed 視為「已確認沒問題」。
 import { DEFAULT_QUOTE_PRESETS } from './crm.js';
@@ -11,8 +11,9 @@ export const TRACK_LABELS = { vendor: '外包', inhouse: '改裝部' };
 export const VENDOR_STATUSES = [
   ['todo', '未聯繫廠商'], ['inquiry', '已聯繫廠商'], ['vendor_done', '廠商已施作'], ['checked', '已確認沒問題'], ['reported', '已經回報客戶進度'], ['not_needed', '不需要'],
 ];
+// 改裝部只分三種（使用者 2026-11-20：叫貨是公司的事，跟業務無關）：缺貨中／有庫存尚未安裝／已安裝
 export const INHOUSE_STATUSES = [
-  ['todo', '缺貨中'], ['inquiry', '已叫貨'], ['ready', '已到貨'], ['installed', '已安裝'], ['not_needed', '不需備品'],
+  ['todo', '缺貨中'], ['ready', '有庫存尚未安裝'], ['installed', '已安裝'],
 ];
 /** 相容舊程式：以改裝部的名稱當預設標籤。 */
 export const STOCK_STATUSES = INHOUSE_STATUSES;
@@ -39,25 +40,33 @@ export function stockStatus(item) {
   if (stockTrack(item) === 'vendor') {
     if (status === 'ready') return 'vendor_done';
     if (status === 'installed') return 'checked';
-  } else if (['vendor_done', 'checked', 'reported'].includes(status)) {
-    return status === 'vendor_done' ? 'ready' : 'installed';
+  } else {
+    if (['vendor_done', 'checked', 'reported'].includes(status)) return status === 'vendor_done' ? 'ready' : 'installed';
   }
   return status;
 }
 
+/** 畫面上要亮哪一格：改裝部舊的「已叫貨」還是缺貨中（資料不動，只是顯示）。 */
+export function displayStatus(item) {
+  const status = stockStatus(item);
+  return stockTrack(item) !== 'vendor' && status === 'inquiry' ? 'todo' : status;
+}
+
 export function statusOptions(item) {
-  return stockTrack(item) === 'vendor' ? VENDOR_STATUSES : INHOUSE_STATUSES;
+  if (stockTrack(item) === 'vendor') return VENDOR_STATUSES;
+  // 舊資料標過「不需備品」的，目前狀態還是要看得到
+  return stockStatus(item) === 'not_needed' ? [...INHOUSE_STATUSES, ['not_needed', '不需備品']] : INHOUSE_STATUSES;
 }
 
 export function statusLabel(item) {
-  const status = stockStatus(item);
+  const status = displayStatus(item);
   return statusOptions(item).find(([id]) => id === status)?.[1] || status;
 }
 
 /** 下一步按鈕：目前狀態的下一個（最後一步回傳 null）。 */
 export function nextStatus(item) {
   const options = statusOptions(item).filter(([id]) => id !== 'not_needed');
-  const index = options.findIndex(([id]) => id === stockStatus(item));
+  const index = options.findIndex(([id]) => id === displayStatus(item));
   return index >= 0 && index < options.length - 1 ? options[index + 1] : null;
 }
 

@@ -45,14 +45,14 @@ await step('外包：一路按「下一步」走到已回報客戶進度，狀�
   // 全部做完就不再列出
   if (await p.locator('[role=radiogroup][aria-label="力新做的帆布狀態"]').count()) throw new Error('做完的外包項目還在清單');
 });
-await step('改裝部：缺貨中→已叫貨（自動排再追日）→已到貨→已安裝', async () => {
+await step('改裝部：缺貨中→有庫存尚未安裝→已安裝', async () => {
   const sel = p.locator('[role=radiogroup][aria-label="尿素桶防撞桿狀態"]');
-  await sel.getByRole('radio', { name: '已叫貨' }).click(); await p.waitForTimeout(500);
+  await sel.getByRole('radio', { name: '有庫存尚未安裝' }).click(); await p.waitForTimeout(500);
   let it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i3');
-  if (it.status !== 'inquiry' || !it.followUpDate) throw new Error('已叫貨沒有自動排再追日 ' + JSON.stringify(it));
-  await sel.getByRole('radio', { name: '已到貨' }).click(); await p.waitForTimeout(500);
+  if (it.status !== 'ready') throw new Error('有庫存未存 ' + JSON.stringify(it));
+  await sel.getByRole('radio', { name: '已安裝' }).click(); await p.waitForTimeout(500);
   it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i3');
-  if (it.status !== 'ready') throw new Error('已到貨未存');
+  if (it.status !== 'installed') throw new Error('已安裝未存');
 });
 await step('切換成外包／改裝部（案件內），進度對應換算', async () => {
   await p.getByText('林德旺').first().click(); await p.waitForTimeout(900);
