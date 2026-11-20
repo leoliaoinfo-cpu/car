@@ -174,21 +174,36 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
   );
 }
 
+/** 狀態用勾選按鈕一排排開（不用下拉選單）：目前狀態實心，點哪個就改成哪個。 */
+function StatusChips({ row, disabled, label, onPick }) {
+  const current = stockStatus(row);
+  return (
+    <div role="radiogroup" aria-label={label} className="flex min-w-0 flex-wrap gap-1.5">
+      {statusOptions(row).map(([id, text]) => {
+        const on = id === current;
+        return (
+          <button key={id} type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => { if (!on) onPick(id); }}
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg border-2 px-3 text-sm font-bold ${on ? 'border-copper bg-copper text-white' : 'border-bdr bg-s1 text-ink-2'}`}>
+            <span aria-hidden="true" className={`flex h-4 w-4 items-center justify-center rounded border-2 text-[10px] ${on ? 'border-white bg-white/25 text-white' : 'border-ink-3/60 text-transparent'}`}>✓</span>{text}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function StockActions({ row, disabled, onChange, awaiting = false }) {
   const next = nextStatus(row);
   const settled = isSettledStock(row);
   // 等車中不自動排「3 天後再追」，不然車還沒到就一直被催
   const follow = awaiting ? '' : addDays(today(), 3);
   return (
-    <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-      <select aria-label={`${row.name}狀態`} value={stockStatus(row)} disabled={disabled}
-        onChange={(e) => onChange(statusPatch(row, e.target.value, follow))} className="min-h-11 w-full min-w-0 text-sm">
-        {statusOptions(row).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-      </select>
+    <div className="mt-2 flex flex-col gap-2">
+      <StatusChips row={row} disabled={disabled} label={`${row.name}狀態`} onPick={(id) => onChange(statusPatch(row, id, follow))} />
       {next
         ? <button type="button" disabled={disabled} onClick={() => onChange(statusPatch(row, next[0], follow))}
-          className={`min-h-11 rounded-lg border px-3 text-xs font-bold ${settled ? 'border-ok bg-ok/10 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>→ {next[1]}</button>
-        : <span className="flex min-h-11 items-center rounded-lg bg-ok/10 px-3 text-xs font-bold text-ok">✓ 完成</span>}
+          className={`min-h-10 w-full rounded-lg border px-3 text-xs font-bold ${settled ? 'border-ok bg-ok/10 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>→ {next[1]}</button>
+        : <span className="flex min-h-10 items-center justify-center rounded-lg bg-ok/10 px-3 text-xs font-bold text-ok">✓ 完成</span>}
     </div>
   );
 }
@@ -361,13 +376,20 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
               {group.rows.length > 1 && (
                 <div className="mt-3 rounded-xl border border-dashed border-bdr p-2.5">
                   <p className="text-[11px] font-bold text-ink-2">這一區全部一起改（{group.rows.length} 項）</p>
-                  <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                    <select aria-label={`${group.label}整區改成`} value={picked} onChange={(e) => setBatch({ key: group.key, status: e.target.value })} className="min-h-11 min-w-0 text-sm">
-                      <option value="">選要改成的狀態…</option>
-                      {options.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-                    </select>
+                  <div className="mt-1.5 space-y-2">
+                    <div role="radiogroup" aria-label={`${group.label}整區改成`} className="flex flex-wrap gap-1.5">
+                      {options.map(([id, label]) => {
+                        const on = picked === id;
+                        return (
+                          <button key={id} type="button" role="radio" aria-checked={on} onClick={() => setBatch({ key: group.key, status: on ? '' : id })}
+                            className={`flex min-h-11 items-center gap-1.5 rounded-lg border-2 px-3 text-sm font-bold ${on ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
+                            <span aria-hidden="true" className={`flex h-4 w-4 items-center justify-center rounded border-2 text-[10px] ${on ? 'border-white bg-white/25 text-white' : 'border-ink-3/60 text-transparent'}`}>✓</span>{label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <button type="button" disabled={!picked || saving === `batch:${group.key}`} onClick={() => setBatch({ key: group.key, status: picked, confirm: true })}
-                      className="min-h-11 rounded-lg border border-accent bg-accent/10 px-3 text-xs font-bold text-accent disabled:opacity-40">套用</button>
+                      className="min-h-11 w-full rounded-lg border border-accent bg-accent/10 px-3 text-sm font-bold text-accent disabled:opacity-40">{picked ? `套用：全部改成「${batchLabel}」` : '先選要改成的狀態'}</button>
                   </div>
                   {batch?.key === group.key && batch.confirm && picked && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-warn/15 p-2 text-xs font-bold text-black">
@@ -523,8 +545,8 @@ function StockRow({ row, disabled, delivered = false, awaiting = false, seq = nu
         ? <button type="button" disabled={disabled} onClick={() => onUpdate(statusPatch(row, next[0], follow))} className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold ${settled ? 'border-ok bg-ok/15 text-ok' : 'border-copper bg-copper/10 text-copper'}`}>→ {next[1]}</button>
         : <span className="flex min-h-11 shrink-0 items-center rounded-lg bg-ok/10 px-3 text-xs font-bold text-ok">✓ {statusLabel(row)}</span>}
     </div>
-    <div className="mt-2 grid grid-cols-2 gap-2">
-      <select aria-label={`${row.name}備品狀態`} value={status} onChange={(e) => onUpdate(statusPatch(row, e.target.value, follow))} disabled={disabled} className="min-h-11 w-full text-sm">{statusOptions(row).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+    <div className="mt-2 grid grid-cols-1 gap-2">
+      <StatusChips row={row} disabled={disabled} label={`${row.name}備品狀態`} onPick={(id) => onUpdate(statusPatch(row, id, follow))} />
       {status === 'inquiry'
         ? <label className="block text-[11px] text-ink-3">再追日期<input type="date" value={row.followUpDate || ''} onChange={(e) => onUpdate({ followUpDate: e.target.value })} aria-label={`${row.name}再追日期`} className={`min-h-11 w-full text-sm ${row.followUpDate || delivered ? '' : 'border-danger'}`} disabled={disabled} /></label>
         : <span />}

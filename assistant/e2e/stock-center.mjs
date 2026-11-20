@@ -36,28 +36,28 @@ await step('進入尚缺配件，依客戶：交車近的在前、標急、外�
 });
 await step('外包：一路按「下一步」走到已回報客戶進度，狀態與再追日正確', async () => {
   const card = p.locator('article').first();
-  const row = card.locator('div.rounded-xl:has(select[aria-label="力新做的帆布狀態"])');
+  const row = card.locator('div.rounded-xl:has([role=radiogroup][aria-label="力新做的帆布狀態"])');
   const labels = [];
   for (let i = 0; i < 4; i++) { labels.push((await row.locator('button').last().innerText()).trim()); await row.locator('button').last().click(); await p.waitForTimeout(500); }
   const d = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i1');
   if (labels.join('>') !== '→ 已聯繫廠商>→ 廠商已施作>→ 已確認沒問題>→ 已經回報客戶進度') throw new Error('下一步順序：' + labels.join('>'));
   if (d.status !== 'reported') throw new Error('最後狀態 ' + d.status);
   // 全部做完就不再列出
-  if (await p.locator('select[aria-label="力新做的帆布狀態"]').count()) throw new Error('做完的外包項目還在清單');
+  if (await p.locator('[role=radiogroup][aria-label="力新做的帆布狀態"]').count()) throw new Error('做完的外包項目還在清單');
 });
 await step('改裝部：缺貨中→已叫貨（自動排再追日）→已到貨→已安裝', async () => {
-  const sel = p.locator('select[aria-label="尿素桶防撞桿狀態"]');
-  await sel.selectOption('inquiry'); await p.waitForTimeout(500);
+  const sel = p.locator('[role=radiogroup][aria-label="尿素桶防撞桿狀態"]');
+  await sel.getByRole('radio', { name: '已叫貨' }).click(); await p.waitForTimeout(500);
   let it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i3');
   if (it.status !== 'inquiry' || !it.followUpDate) throw new Error('已叫貨沒有自動排再追日 ' + JSON.stringify(it));
-  await sel.selectOption('ready'); await p.waitForTimeout(500);
+  await sel.getByRole('radio', { name: '已到貨' }).click(); await p.waitForTimeout(500);
   it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i3');
   if (it.status !== 'ready') throw new Error('已到貨未存');
 });
 await step('切換成外包／改裝部（案件內），進度對應換算', async () => {
   await p.getByText('林德旺').first().click(); await p.waitForTimeout(900);
   await p.getByText('成交配件逐項核對').waitFor();
-  const row = p.locator('div.rounded-xl:has(select[aria-label="升降尾門（3.5尺）備品狀態"])').first();
+  const row = p.locator('div.rounded-xl:has([role=radiogroup][aria-label="升降尾門（3.5尺）備品狀態"])').first();
   await row.locator('summary').click();
   await row.locator('select[aria-label="升降尾門（3.5尺）類別"]').selectOption('inhouse'); await p.waitForTimeout(500);
   const it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i2');
