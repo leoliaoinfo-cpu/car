@@ -57,3 +57,18 @@ test('方向盤套改 600（海報為準）：預設 600、舊選單的 499 升�
   assert.equal(price(mk(499), 'qa-steering-leather-cover'), 600);
   assert.equal(price(mk(550), 'qa-steering-leather-cover'), 550);
 });
+
+test('方向盤套：4 種款式要選、成本＝售價 600 的八折 480（舊成本表的 499 升級換成 480），舊選單升級也帶入款式', async () => {
+  const { choiceGroupsOf } = await import('./choices.js');
+  const a = resolveQuotePresets(null).addons.find((x) => x.id === 'qa-steering-leather-cover');
+  assert.equal(a.price, 600);
+  assert.deepEqual(choiceGroupsOf(a).map((g) => g.label), ['款式']);
+  assert.deepEqual(a.choices, ['石墨灰【NAPPA皮革款】', '硫石紅【NAPPA皮革款】', '岩石棕色【NAPPA皮革款】', '紅色縫線【透氣牛皮+系列】']);
+  assert.equal(normalizeCostCatalog(null).addons['qa-steering-leather-cover'].cost, 480);
+  assert.equal(normalizeCostCatalog({ version: 21, models: {}, addons: { 'qa-steering-leather-cover': { cost: 499 } } }).addons['qa-steering-leather-cover'].cost, 480);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v56', addonCategories: ['周邊配件'], addons: [
+    { id: 'qa-steering-leather-cover', cat: '周邊配件', name: '卡旺方向盤皮革套', price: 499 },
+  ] }).addons.find((x) => x.id === 'qa-steering-leather-cover');
+  assert.equal(old.price, 600);
+  assert.equal(old.choices.length, 4);
+});

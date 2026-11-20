@@ -1000,8 +1000,8 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
   for (const [id, name, price] of ids) {
     const item = resolved.addons.find((row) => row.id === id);
     assert.deepEqual({ cat: item.cat, name: item.name, price: item.price }, { cat: '周邊配件', name, price });
-    // 方向盤套售價改 600（2026-11-20 海報），成本維持原本的 499（使用者還沒說要不要調）
-    assert.equal(costs.addons[id].cost, id === 'qa-steering-leather-cover' ? 499 : price, `${name}成本`);
+    // 方向盤套售價改 600（2026-11-20 海報），成本＝八折 480
+    assert.equal(costs.addons[id].cost, id === 'qa-steering-leather-cover' ? 480 : price, `${name}成本`);
   }
   assert.match(resolved.addons.find((item) => item.id === 'qa-side-led-housing').desc, /霧白側邊燈殼 2 顆.*橘色鹵素燈泡/);
 });

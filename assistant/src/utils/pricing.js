@@ -2,7 +2,7 @@
 import { VEHICLE_VARIANTS } from './vehicles.js';
 import { choiceLabelOf } from './choices.js';
 
-const COST_CATALOG_VERSION = 21;
+const COST_CATALOG_VERSION = 22;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -244,6 +244,11 @@ const V21_ADDON_COSTS = {
   'qa-grille-chrome': { cost: 2944 },
 };
 
+// 方向盤套（海報售價 600）：成本＝售價八折＝480（使用者 2026-11-20「方向盤套 600 的八折就是成本」；原本 499，升級時直接換成 480）。
+const V22_ADDON_COSTS = {
+  'qa-steering-leather-cover': { cost: 480 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -262,6 +267,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V19_ADDON_COSTS,
   ...V20_ADDON_COSTS,
   ...V21_ADDON_COSTS,
+  ...V22_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -728,6 +734,7 @@ export function normalizeCostCatalog(row) {
     ...(row?.addons || {}),
     // 2027 配件清單是最終標準：舊成本表升級時，這幾項直接換成清單的成本
     ...(row && previousVersion < 20 ? V20_ADDON_COSTS : {}),
+    ...(row && previousVersion < 22 ? V22_ADDON_COSTS : {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
   return {
