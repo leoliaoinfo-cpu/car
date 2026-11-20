@@ -74,7 +74,7 @@
         var grid = el('div', 'grid'); grid.setAttribute('data-g', gi);
         g.i.forEach(function (k) {
           var d = el('div', 'it'); d.setAttribute('data-k', k);
-          var im = el('img'); im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k];
+          var im = el('img'); im.src = 'img/' + k + '.webp'; im.alt = IMGS[k];
           d.appendChild(im); d.appendChild(el('b', '', IMGS[k])); grid.appendChild(d);
         });
         sec.appendChild(grid);
@@ -92,7 +92,7 @@
         g.i.forEach(function (k, n) {
           var f = el('figure', 'card');
           var ph = el('div', 'ph'); var im = el('img');
-          im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k]; im.loading = 'lazy'; im.decoding = 'async';
+          im.src = 'img/' + k + '.webp'; im.alt = IMGS[k]; im.loading = 'lazy'; im.decoding = 'async';
           if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; ph.style.aspectRatio = SIZE[k][0] + ' / ' + SIZE[k][1]; }
           ph.appendChild(im); f.appendChild(ph);
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);

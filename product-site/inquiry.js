@@ -103,18 +103,18 @@
 
   // ===== 狀態（只存在客人自己的手機）=====
   var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
-  var S = { cab: '', drive: '', sel: {}, name: '', note: '' };
+  var S = { cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
-  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.note = String(old.note || ''); } } catch (e) {}
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
-    var any = S.cab || S.drive || chosen().length || S.name || S.note || hadSaved;
+    var any = S.cab || S.drive || chosen().length || S.name || S.phone || S.note || hadSaved;
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
-    S = { cab: '', drive: '', sel: {}, name: '', note: '' }; hadSaved = false;
+    S = { cab: '', drive: '', sel: {}, name: '', phone: '', note: '' }; hadSaved = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
-    $('inqname').value = ''; $('inqnote').value = '';
+    $('inqname').value = ''; $('inqphone').value = ''; $('inqnote').value = '';
     refresh(); closeSheet(); toast('已重置，重新開始');
   }
 
@@ -281,6 +281,7 @@
   function buildText() {
     var L = ['【詢價單】'];
     if (S.name.trim()) L.push('稱呼：' + S.name.trim());
+    if (S.phone.trim()) L.push('電話：' + S.phone.trim());
     var vt = vehicleText(); L.push('車型：' + (vt || '還沒決定'));
     L.push('', '想詢價的配件：');
     chosen().forEach(function (it, i) {
@@ -324,7 +325,7 @@
     var mo = vp ? monthly(vp + t) : 0; $('inqmo').textContent = mo ? '全額貸款 84 期，月付約 ' + money(mo) + '（概算，實際依銀行核貸為準）' : '';
     $('inqprev').style.display = 'none';
   }
-  function openSheet() { $('inqname').value = S.name; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
+  function openSheet() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
   function closeSheet() { $('inqsheet').style.display = 'none'; document.body.style.overflow = ''; }
 
   function toast(m) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 4000); }
@@ -347,7 +348,7 @@
       return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : '請報價'), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
-    var H = 210 + 56;
+    var H = 210 + 56 + (S.phone.trim() ? 40 : 0);
     rows.forEach(function (r) { H += r.lines.length * 36 + 20 + (r.warn ? 28 : 0); });
     H += 40 + 70 + (vehPrice() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 90;
     c.width = W * 2; c.height = H * 2; g.scale(2, 2);
@@ -358,6 +359,7 @@
     var d = new Date(); g.fillText(d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate(), W - pad, y); g.textAlign = 'left';
     y += 46; g.fillStyle = '#2f2a25'; g.font = '600 26px ' + FONT;
     if (S.name.trim()) { g.fillText('稱呼：' + S.name.trim(), pad, y); y += 40; }
+    if (S.phone.trim()) { g.fillText('電話：' + S.phone.trim(), pad, y); y += 40; }
     var vt = vehicleText(); g.fillText('車型：' + (vt || '還沒決定'), pad, y); y += 30;
     g.strokeStyle = '#ebe0d0'; g.lineWidth = 2; g.beginPath(); g.moveTo(pad, y); g.lineTo(W - pad, y); g.stroke(); y += 40;
     rows.forEach(function (r, ri) {
@@ -401,6 +403,7 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('inqsheet').style.display === 'flex') closeSheet(); });
     function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
     $('inqname').oninput = function () { S.name = this.value; persist(); };
+    $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
     $('inqcopy').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製'); toast('已複製，貼到 LINE 傳給我就好'); }); };
     $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製，正在開 LINE…'); toast('已複製，貼上後傳送'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
