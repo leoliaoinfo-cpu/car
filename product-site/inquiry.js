@@ -228,9 +228,9 @@
     if (S.name.trim()) L.push('稱呼：' + S.name.trim());
     var vt = vehicleText(); L.push('車型：' + (vt || '還沒決定'));
     L.push('', '想詢價的配件：');
-    chosen().forEach(function (it) {
+    chosen().forEach(function (it, i) {
       var p = priceOf(it);
-      L.push('・' + plain(it) + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
+      L.push((i + 1) + '. ' + plain(it) + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
       var w = fitWarn(it); if (w) L.push('　' + w);
     });
     var t = total(), vp = vehPrice();
@@ -299,9 +299,9 @@
     if (S.name.trim()) { g.fillText('稱呼：' + S.name.trim(), pad, y); y += 40; }
     var vt = vehicleText(); g.fillText('車型：' + (vt || '還沒決定'), pad, y); y += 30;
     g.strokeStyle = '#ebe0d0'; g.lineWidth = 2; g.beginPath(); g.moveTo(pad, y); g.lineTo(W - pad, y); g.stroke(); y += 40;
-    rows.forEach(function (r) {
+    rows.forEach(function (r, ri) {
       g.fillStyle = '#2f2a25'; g.font = '600 26px ' + FONT;
-      r.lines.forEach(function (ln, i) { g.fillText((i ? '　' : '・') + ln, pad, y + i * 36); });
+      r.lines.forEach(function (ln, i) { g.fillText((i ? '　　' : (ri + 1) + '. ') + ln, pad, y + i * 36); });
       g.fillStyle = '#d9453b'; g.font = '800 26px ' + FONT; g.textAlign = 'right'; g.fillText(r.price, W - pad, y); g.textAlign = 'left';
       y += r.lines.length * 36 - 6;
       if (r.warn) { g.fillStyle = '#c0771a'; g.font = '22px ' + FONT; g.fillText(r.warn, pad + 24, y + 22); y += 28; }
