@@ -2,7 +2,7 @@
 import { VEHICLE_VARIANTS } from './vehicles.js';
 import { choiceLabelOf } from './choices.js';
 
-const COST_CATALOG_VERSION = 20;
+const COST_CATALOG_VERSION = 21;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -233,6 +233,17 @@ const V20_ADDON_COSTS = {
   'qa-boss-mudflap': { cost: 2780 },
 };
 
+// 配件海報新增的 7 個配件（使用者 2026-11-20：「八折價格是成本」）：成本＝售價×0.8，取整數元（涼感果凍坐墊 649×0.8＝519.2→519）。
+const V21_ADDON_COSTS = {
+  'qa-hana-ac-filter': { cost: 792 },
+  'qa-shift-knob-cover': { cost: 1184 },
+  'qa-dual-fast-charger': { cost: 1264 },
+  'qa-armrest-pillow': { cost: 656 },
+  'qa-cooling-seat-cushion': { cost: 519 },
+  'qa-toolbox-side': { cost: 6944 },
+  'qa-grille-chrome': { cost: 2944 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -250,6 +261,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V18_ADDON_COSTS,
   ...V19_ADDON_COSTS,
   ...V20_ADDON_COSTS,
+  ...V21_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -712,6 +724,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 17 ? V17_ADDON_COSTS : {}),
     ...(row && previousVersion < 18 ? V18_ADDON_COSTS : {}),
     ...(row && previousVersion < 19 ? V19_ADDON_COSTS : {}),
+    ...(row && previousVersion < 21 ? V21_ADDON_COSTS : {}), // 只補沒有的（在使用者已填之前展開）
     ...(row?.addons || {}),
     // 2027 配件清單是最終標準：舊成本表升級時，這幾項直接換成清單的成本
     ...(row && previousVersion < 20 ? V20_ADDON_COSTS : {}),
