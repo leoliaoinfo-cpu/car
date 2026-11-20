@@ -191,7 +191,7 @@ test('套裝備註拆成一點一點，提到哪一項就寫在那一項旁邊�
   assert.equal(again.needs.text, sheet.needs.text);
 });
 
-test('其他費用裡的客製帆布也會勾帆布並寫完整品名；領牌費照舊不進', () => {
+test('其他費用裡的客製帆布也會勾帆布並寫完整品名；領牌費等其他費用也帶進客戶需求（由使用者自己刪）', () => {
   const { sheet, unmatched } = prefillFromQuote(emptySheet(), { items: [
     { id: 'c', kind: 'other', name: '五面帆160CM +蓬頂(帆布往內鎖)', price: 20000 },
     { id: 'f', kind: 'other', name: '領牌費', price: 3000 },
@@ -199,7 +199,11 @@ test('其他費用裡的客製帆布也會勾帆布並寫完整品名；領牌�
   assert.equal(sheet.items.canvas.on, true);
   assert.equal(sheet.items.canvas.note, '五面帆160CM +蓬頂(帆布往內鎖)');
   assert.deepEqual(unmatched, []);
-  assert.equal(sheet.needs.text, '');
+  assert.equal(sheet.needs.text, '①領牌費');
+  // 選牌號碼填進選牌欄，不重複寫進客戶需求；報價的需求備忘也帶進來
+  const r = prefillFromQuote(emptySheet(), { requirements: '市場載貨、要防滑', items: [{ id: 'p', kind: 'other', name: '選牌(7275)', price: 2000 }] }).sheet;
+  assert.equal(r.plate.text, '7275');
+  assert.equal(r.needs.text, '①需求：市場載貨、要防滑');
 });
 
 test('四錄／環景二選一：已經兩格都勾的舊表，重新帶入會把沒選的那格取消；沒選規格會提醒', () => {

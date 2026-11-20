@@ -243,8 +243,15 @@ export function prefillFromQuote(sheet, quote, layout = null) {
     if (!name || item.pending) continue;
     // 車價、領牌費等不是選配，只帶備註；但「其他費用」裡自己打的客製品項（例：五面帆160CM＋蓬頂）比對得到就照樣勾
     const otherMatched = item.kind === 'other' && matchSheetIds(item).some((id) => visible.has(id));
-    if (item.kind === 'vehicle' || (item.kind === 'other' && !otherMatched)) {
+    if (item.kind === 'vehicle') {
       if (ownNote) pending.push({ label: compactName(name), note: ownNote, pkgIds: [] });
+      continue;
+    }
+    if (item.kind === 'other' && !otherMatched) {
+      // 領牌費、保險等「其他費用」也帶進客戶需求（使用者：報價上的每一項都不要漏，由他自己判斷刪除）；選牌號碼已填進「選牌」欄的不重複
+      const platePicked = /選牌/.test(name) && /選牌\s*[（(:：]?\s*[0-9A-Za-z][0-9A-Za-z-]{1,9}/.test(`${name} ${ownNote}`);
+      if (!platePicked) noteLines.push({ key: name, text: ownNote ? `${name}：${ownNote}` : name });
+      else if (ownNote && !/選牌/.test(ownNote)) noteLines.push({ key: `${name}：${ownNote}`, text: `${name}：${ownNote}` });
       continue;
     }
     // 內建關鍵字 + 使用者自己新增的項目（品名含有該項目名稱就算）
@@ -279,6 +286,9 @@ export function prefillFromQuote(sheet, quote, layout = null) {
   }
   const centralNote = String(quote?.note || '').trim();
   if (centralNote) pending.push({ label: '備註', note: centralNote, pkgIds: [] });
+  // 報價的「客戶需求／用途」（需求備忘）也一併帶進來
+  const requirements = String(quote?.requirements || '').trim();
+  if (requirements) pending.push({ label: '需求', note: requirements, pkgIds: [] });
   // 套裝、車價、中央備註的備註：拆成一點一點（1. 2. 3. 或換行），提到哪一項就寫在那一項旁邊
   // （例：「橡膠墊全封，底板用矽利康封起來」→ 橡膠墊），對不到任何一項的才寫進客戶需求
   for (const { label, note, pkgIds } of pending) {

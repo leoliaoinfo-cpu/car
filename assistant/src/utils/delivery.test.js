@@ -245,3 +245,21 @@ test('current workflow step is independent from display order', () => {
   assert.equal(getCurrentWorkflowStep(workflow)?.id, 'contact-tailgate');
   assert.equal(getCurrentWorkflowStep(reordered)?.id, 'contact-tailgate');
 });
+
+test('報價上的資訊與備註帶到對應的施工步驟（尾門／帆布／烤漆／H架／領牌／簽約），只讀取', async () => {
+  const { quoteNotesForSteps } = await import('./delivery.js');
+  const deal = { quoteSnapshot: { requirements: '市場載貨', note: '選牌7275，交車一起處理', items: [
+    { id: 'v', kind: 'vehicle', name: '車輛售價', note: '領牌人 莊天旗' },
+    { id: 'c', kind: 'other', name: '五面帆160CM +蓬頂(帆布往內鎖)' },
+    { id: 'p', kind: 'addon', name: '車身烤漆改色', note: '冰川水泥灰' },
+    { id: 'f', kind: 'other', name: '領牌費', note: '交車時收' },
+    { id: 'a', kind: 'addon', name: '尿素桶防撞桿', note: '橘色' },
+  ] } };
+  const notes = quoteNotesForSteps(deal);
+  assert.equal(notes['install-canvas'], '五面帆160CM +蓬頂(帆布往內鎖)');
+  assert.equal(notes['paint-body'], '車身烤漆改色：冰川水泥灰');
+  assert.equal(notes.inspection, '領牌費：交車時收');
+  assert.equal(notes['install-accessories'], '尿素桶防撞桿：橘色');
+  assert.match(notes.contract, /需求：市場載貨.*備註：選牌7275.*車輛售價：領牌人 莊天旗/);
+  assert.deepEqual(quoteNotesForSteps({}), {});
+});

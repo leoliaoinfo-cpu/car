@@ -2,16 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { stockAlert, stockItemsFromQuote, summarizeStock } from './stock.js';
 
-test('accessories and gifts enter the case checklist, while vehicle and other fees do not', () => {
+test('報價上每一項都帶進配件核對：配件與贈品照舊當備品，費用與車價備註當「報價資訊」（不算缺貨）', () => {
   const items = stockItemsFromQuote({ items: [
     { id: 'v', kind: 'vehicle', name: '車輛售價' },
+    { id: 'v2', kind: 'vehicle', name: '車輛售價', note: '領牌人 莊天旗', price: 888000 },
     { id: 'fee', kind: 'other', name: '文件費', price: 300 },
     { id: 'a', kind: 'addon', catalogId: 'mirror', name: '韓版後照鏡', gift: true, note: '黑色' },
     { id: 'b', kind: 'addon', name: '客製帆布', pending: true },
   ] });
-  assert.deepEqual(items.map((item) => [item.name, item.status]), [['韓版後照鏡', 'todo'], ['客製帆布', 'inquiry']]);
-  assert.equal(items[0].gift, true);
-  assert.equal(items[0].note, '黑色');
+  assert.deepEqual(items.map((item) => [item.id, item.status, !!item.info]), [['v2', 'todo', true], ['fee', 'todo', true], ['a', 'todo', false], ['b', 'inquiry', false]]);
+  assert.equal(items.find((item) => item.id === 'a').gift, true);
+  assert.equal(items.find((item) => item.id === 'a').note, '黑色');
+  assert.equal(items.find((item) => item.id === 'fee').quotePrice, 300);
+  // 報價資訊與隱藏的項目都不算缺貨、不進尚缺配件
+  const deal = { stockItems: items };
+  assert.deepEqual(missingStockItems(deal).map((row) => row.id), ['a', 'b']);
+  assert.equal(isSettledStock({ id: 'x', status: 'todo', hidden: true }), true);
+  assert.equal(isFinishedStock({ id: 'x', status: 'todo', hidden: true }), true);
 });
 
 test('bundle components are counted individually without counting the package again', () => {
@@ -193,10 +200,14 @@ test('「其他費用」裡自己打的外包配件（帆布、尾門…）也�
     { id: 'a', kind: 'addon', name: '前下巴套件', price: 9500 },
   ] };
   const items = stockItemsFromQuote(quote);
-  assert.deepEqual(items.map((row) => row.id), ['c', 'a']);
+  assert.deepEqual(items.map((row) => row.id), ['c', 'f', 'a']); // 領牌費也帶進來，但當報價資訊
   assert.equal(items[0].track, 'vendor');
+  assert.equal(items[0].info, undefined);
+  assert.equal(items[1].info, true);
   // 舊成交：核對表只有前下巴 → 只補帆布，不碰已經有的
   const deal = { quoteId: 'q1', stockItems: [{ id: 'a', name: '前下巴套件', status: 'ready' }] };
-  assert.deepEqual(unlistedStockItems(deal, quote).map((row) => row.id), ['c']);
-  assert.deepEqual(unlistedStockItems({ ...deal, stockItems: [...deal.stockItems, items[0]] }, quote), []);
+  assert.deepEqual(unlistedStockItems(deal, quote).map((row) => row.id), ['c', 'f']);
+  assert.deepEqual(unlistedStockItems({ ...deal, stockItems: [...deal.stockItems, items[0]] }, quote).map((row) => row.id), ['f']);
+  // 使用者刪掉的不會再提示
+  assert.deepEqual(unlistedStockItems({ ...deal, stockRemoved: ['f'] }, quote).map((row) => row.id), ['c']);
 });

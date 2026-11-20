@@ -10,7 +10,9 @@ const SETTLED = ['ready', 'installed'];
  * - 新追加的配件：新增為未處理（待廠商確認的自動排 3 天後再追）
  * - 報價裡拿掉的配件：還沒備貨的就移除；已備妥／已安裝的保留（實體已經處理過，不能默默消失）
  */
-export function mergeStockItems({ oldItems = [], freshItems = [], previousDerived = [], followUpDate = '' }) {
+export function mergeStockItems({ oldItems = [], freshItems: allFresh = [], previousDerived = [], followUpDate = '', removedIds = [] }) {
+  const gone = new Set(removedIds); // 使用者刪掉的項目，報價再怎麼改也不要加回來
+  const freshItems = allFresh.filter((row) => !gone.has(row.id));
   const prevNote = new Map(previousDerived.map((row) => [row.id, row.note || '']));
   const old = new Map(oldItems.map((row) => [row.id, row]));
   const freshIds = new Set(freshItems.map((row) => row.id));
@@ -19,7 +21,7 @@ export function mergeStockItems({ oldItems = [], freshItems = [], previousDerive
     if (!prev) return row.status === 'inquiry' && !row.followUpDate && followUpDate ? { ...row, followUpDate } : row;
     // 備註：使用者沒自己改過（和上次由報價帶出的一樣）才跟著報價更新
     const note = prev.note === (prevNote.get(row.id) ?? prev.note) ? row.note : prev.note;
-    return { ...prev, name: row.name, specification: row.specification, gift: row.gift, note };
+    return { ...prev, name: row.name, specification: row.specification, gift: row.gift, note, ...(row.quotePrice != null ? { quotePrice: row.quotePrice } : {}) };
   });
   const kept = oldItems.filter((row) => !freshIds.has(row.id) && SETTLED.includes(row.status));
   return { items: [...merged, ...kept], added: merged.filter((row) => !old.has(row.id)), removed: oldItems.filter((row) => !freshIds.has(row.id) && !SETTLED.includes(row.status)), kept };
@@ -44,7 +46,7 @@ export function missingWorkflowSteps({ deal, quote }) {
 export function planWonQuoteSync({ deal, quote, addons = [], followUpDate = '' }) {
   const fresh = stockItemsFromQuote(quote, addons);
   const previousDerived = deal?.quoteSnapshot ? stockItemsFromQuote(deal.quoteSnapshot, addons) : [];
-  const stock = mergeStockItems({ oldItems: deal?.stockItems || [], freshItems: fresh, previousDerived, followUpDate });
+  const stock = mergeStockItems({ oldItems: deal?.stockItems || [], freshItems: fresh, previousDerived, followUpDate, removedIds: deal?.stockRemoved || [] });
   const amount = nextDealAmount({ deal, quote });
   return {
     amount,

@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import { useApp } from '../../context';
 import { today } from '../../utils/date';
 import {
-  createWorkflowRestorePoint, generateDeliveryWorkflow,
+  createWorkflowRestorePoint, generateDeliveryWorkflow, quoteNotesForSteps,
   getCurrentWorkflowStep, isDeliveryFinalStep, normalizeDeliveryWorkflow, planDeliveryCompletion,
   restoreWorkflowChange, stockGuardItems, updateWorkflowStepStatus,
 } from '../../utils/delivery';
@@ -51,6 +51,7 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
 
   if (pendingRef.current === 0) flowRef.current = normalizeDeliveryWorkflow(deal);
   const workflow = flowRef.current;
+  const quoteNotes = useMemo(() => quoteNotesForSteps(deal), [deal]);
   const delivered = Boolean(deal.deliveredAt || (caseItem?.status === 'completed' && workflow.some((step) => isDeliveryFinalStep(step) && DONE.has(step.status))));
   const complete = workflow.filter((step) => DONE.has(step.status)).length;
   const percent = workflow.length ? Math.round(complete / workflow.length * 100) : 0;
@@ -201,6 +202,7 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
               )}
               <button type="button" onClick={() => setOpenStepId(open ? null : step.id)} className="min-w-0 flex-1 text-left" aria-expanded={open}>
                 <span className={`block text-sm font-bold ${finished ? 'text-ink-3 line-through' : 'text-ink'}`}>{index + 1}. {step.label}{step.status === 'na' ? '（略過）' : ''}</span>
+                {quoteNotes[step.id] && <span className="mt-0.5 block whitespace-pre-wrap text-[11px] font-semibold text-copper">📝 報價：{quoteNotes[step.id]}</span>}
                 <span className="mt-0.5 block text-[11px] text-ink-3">
                   {[isCurrent ? '現在做這步' : '', step.status === 'blocked' ? '卡住' : '', supplier || '', step.plannedDate ? `預計 ${dayjs(step.plannedDate).format('MM/DD')}` : ''].filter(Boolean).join('・') || (finished && step.completedAt ? `${dayjs(step.completedAt).format('MM/DD')} 完成` : '點開可填廠商、日期')}
                 </span>

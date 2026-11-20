@@ -110,6 +110,44 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
   return activateAvailableWorkflowSteps(steps);
 }
 
+// ── 報價上的資訊與備註帶到對應的施工步驟（2026-11-20，使用者：報價上的每一項都要帶進下一個環節）──────────────
+const STEP_NOTE_RULES = [
+  ['install-tailgate', /尾門|升降門/],
+  ['paint-body', /烤漆|噴漆|改色|車色/],
+  ['install-canvas', /帆布|[蓬篷]頂|[二三四五]面帆/],
+  ['install-body', /H\s*架|Ｈ架|箱體|廂體|鋁塑箱|冷凍/i],
+  ['inspection', /領牌|選牌|牌照|規費|驗車|保險|過戶/],
+];
+
+/**
+ * 依成交報價快照，整理每個施工步驟該看的報價資訊：{ 步驟id: '尾門：黑色；…' }。
+ * 只讀取、不寫進資料；新舊成交都適用。
+ */
+export function quoteNotesForSteps(deal) {
+  const snap = deal?.quoteSnapshot;
+  if (!snap) return {};
+  const items = (snap.items || []).filter((item) => String(item?.name || '').trim() && !item.pending);
+  const noteOf = (item) => String(item.note || item.description || '').trim();
+  const label = (item) => (noteOf(item) ? `${item.name.trim()}：${noteOf(item)}` : item.name.trim());
+  const out = {};
+  const used = new Set();
+  for (const [stepId, re] of STEP_NOTE_RULES) {
+    const hit = items.filter((item) => item.kind !== 'vehicle' && re.test(item.name));
+    if (!hit.length) continue;
+    out[stepId] = hit.map(label).join('；');
+    hit.forEach((item) => used.add(item.id));
+  }
+  const contract = [
+    String(snap.requirements || '').trim() && `需求：${String(snap.requirements).trim()}`,
+    String(snap.note || '').trim() && `備註：${String(snap.note).trim()}`,
+    ...items.filter((item) => item.kind === 'vehicle' && noteOf(item)).map((item) => `${item.name.trim()}：${noteOf(item)}`),
+  ].filter(Boolean);
+  if (contract.length) out.contract = contract.join('；');
+  const others = items.filter((item) => item.kind === 'addon' && !used.has(item.id) && noteOf(item));
+  if (others.length) out['install-accessories'] = others.map(label).join('；');
+  return out;
+}
+
 export function normalizeDeliveryWorkflow(deal = {}) {
   if (Array.isArray(deal.deliveryWorkflow) && deal.deliveryWorkflow.length) {
     const normalized = deal.deliveryWorkflow.map((step, index) => ({

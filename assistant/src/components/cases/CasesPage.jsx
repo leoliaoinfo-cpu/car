@@ -14,7 +14,7 @@ import OptionSheet from './OptionSheet';
 import MasterPinDialog from '../MasterPinDialog';
 import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
-import { ClientPicker } from '../ui';
+import { ClientPicker, ConfirmDeleteButton } from '../ui';
 import {
   stockAlert, stockByCase, stockByKind, unlistedStockItems, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
 } from '../../utils/stock';
@@ -274,9 +274,9 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
       </div>
       {unlisted.length > 0 && (
         <div className="rounded-xl border border-warn/50 bg-warn/15 p-3 text-xs text-black">
-          <p className="font-bold">報價裡有 {unlisted.reduce((n, row) => n + row.items.length, 0)} 項配件還沒列進配件核對（所以這裡看不到）：</p>
+          <p className="font-bold">報價上有 {unlisted.reduce((n, row) => n + row.items.length, 0)} 項還沒帶進配件核對（所以這裡看不到），帶進去後由你判斷隱藏或刪除：</p>
           <ul className="mt-1 space-y-0.5">{unlisted.map((row) => <li key={row.deal.id}>・{row.clientName}：{row.items.map((it) => it.name).join('、')}</li>)}</ul>
-          <button type="button" disabled={saving === 'unlisted'} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">{saving === 'unlisted' ? '加入中…' : '全部補進配件核對'}</button>
+          <button type="button" disabled={saving === 'unlisted'} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">{saving === 'unlisted' ? '加入中…' : '全部帶進配件核對'}</button>
         </div>
       )}
       {unverified.length > 0 && <p className="rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs text-warn">另有 {unverified.length} 筆舊成交尚未指定成交報價，配件需求未納入統計，請先核對。</p>}
@@ -440,16 +440,51 @@ function StockChecklist({ deal, quote, delivered = false, awaiting = false, addo
   if (!deal.quoteId) return <section className="card border-warn/40 p-4"><h2 className="font-bold text-ink">成交配件核對</h2><p className="mt-2 text-sm text-warn">這是舊的手動成交，尚無指定成交報價。系統不會猜測配件，也不會納入中央點貨。</p></section>;
   const missing = items.filter((item) => !isSettledStock(item));
   const unlisted = delivered ? [] : unlistedStockItems(deal, quote, addons);
+  const normalRows = items.filter((row) => !row.hidden && !row.info);
+  const infoRows = items.filter((row) => row.info && !row.hidden);
+  const hiddenRows = items.filter((row) => row.hidden);
+  // 刪除：從核對表拿掉，並記下 id，之後報價再改也不會加回來、也不會再提示「還沒帶進核對」
+  async function removeStock(id) {
+    setSaving(true);
+    try { await onSaveDeal({ ...deal, stockItems: items.filter((row) => row.id !== id), stockRemoved: [...new Set([...(deal.stockRemoved || []), id])] }); onError(''); }
+    catch (cause) { onError(cause?.message || '刪除失敗'); }
+    finally { setSaving(false); }
+  }
   async function addUnlisted() {
     setSaving(true);
     try { const stamp = new Date().toISOString(); await onSaveDeal({ ...deal, stockItems: [...items, ...unlisted.map((it) => ({ ...it, updatedAt: stamp }))] }); onError(''); }
     catch (cause) { onError(cause?.message || '加入失敗'); }
     finally { setSaving(false); }
   }
-  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{unlisted.length > 0 && <div className="mt-3 rounded-lg border border-warn/50 bg-warn/15 p-3 text-xs text-black"><p className="font-bold">報價裡有 {unlisted.length} 項配件還沒列進核對：{unlisted.map((it) => it.name).join('、')}</p><button type="button" disabled={saving} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">加進配件核對</button></div>}{items.length === 0 && unlisted.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{items.map((row) => <StockRow delivered={delivered} awaiting={awaiting} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} />)}</div></section>;
+  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{unlisted.length > 0 && <div className="mt-3 rounded-lg border border-warn/50 bg-warn/15 p-3 text-xs text-black"><p className="font-bold">報價上有 {unlisted.length} 項還沒帶進核對：{unlisted.map((it) => it.name).join('、')}</p><button type="button" disabled={saving} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">帶進配件核對</button></div>}{items.length === 0 && unlisted.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{normalRows.map((row) => <StockRow delivered={delivered} awaiting={awaiting} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div>
+    {infoRows.length > 0 && <div className="mt-4"><p className="text-xs font-bold text-ink-2">📎 報價上的其他項目與備註（費用、車價備註…）</p><p className="mt-0.5 text-[11px] text-ink-3">報價上的每一項都帶過來了，不算缺貨。你判斷：不用看的按「隱藏」，不要的按「刪除」，其實要備貨的按「改成要備貨」。</p><div className="mt-2 space-y-2">{infoRows.map((row) => <InfoStockRow key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div></div>}
+    {hiddenRows.length > 0 && <details className="mt-3 rounded-xl border border-bdr bg-s2/50"><summary className="min-h-11 cursor-pointer px-3 py-3 text-xs font-bold text-ink-2">已隱藏 {hiddenRows.length} 項（點開可顯示或刪除）</summary><div className="space-y-2 border-t border-bdr p-2">{hiddenRows.map((row) => <InfoStockRow key={row.id} hidden row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div></details>}
+  </section>;
 }
 
-function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate }) {
+/** 報價上帶過來的資訊（費用、車價備註）與已隱藏的項目：只有名稱、金額、備註，由使用者自己判斷。 */
+function InfoStockRow({ row, hidden = false, disabled, onUpdate, onRemove }) {
+  return <div className={`rounded-xl border border-bdr p-3 ${hidden ? 'bg-s1 opacity-80' : 'bg-s2'}`}>
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-bold text-ink">{row.name}{row.specification ? `・${row.specification}` : ''}</p>
+        {row.quotePrice > 0 && <p className="text-[11px] text-ink-3">報價 NT$ {formatMoney(row.quotePrice)}</p>}
+        {row.note && <p className="mt-1 whitespace-pre-wrap text-xs text-ink-2">備註：{row.note}</p>}
+      </div>
+    </div>
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {hidden
+        ? <button type="button" disabled={disabled} onClick={() => onUpdate({ hidden: false })} aria-label={`顯示${row.name}`} className="btn-outline min-h-10 px-3 text-xs font-bold">顯示</button>
+        : <>
+          {row.info && <button type="button" disabled={disabled} onClick={() => onUpdate({ info: false, status: 'todo' })} aria-label={`${row.name}改成要備貨`} className="btn-outline min-h-10 px-3 text-xs font-bold">改成要備貨</button>}
+          <button type="button" disabled={disabled} onClick={() => onUpdate({ hidden: true })} aria-label={`隱藏${row.name}`} className="btn-outline min-h-10 px-3 text-xs font-bold">🙈 隱藏</button>
+        </>}
+      <ConfirmDeleteButton onConfirm={onRemove} label="🗑 刪除" ariaLabel={`刪除${row.name}`} className="ml-auto min-h-10 px-3 text-xs font-bold" />
+    </div>
+  </div>;
+}
+
+function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate, onRemove }) {
   const [note, setNote] = useState(row.note || '');
   const status = stockStatus(row);
   const track = stockTrack(row);
@@ -485,6 +520,10 @@ function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate
         </label>
         <label className="block">數量<input type="number" aria-label={`${row.name}數量`} min="1" value={row.quantity || 1} onChange={(e) => onUpdate({ quantity: Math.max(1, Number(e.target.value) || 1) })} className="mt-1 min-h-11 w-full" disabled={disabled} /></label>
         <label className="block">廠商／客戶要求<input value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => { if (note !== (row.note || '')) onUpdate({ note }); }} placeholder="規格、廠商或客戶特殊要求" aria-label={`${row.name}備註`} className="mt-1 min-h-11 w-full" /></label>
+        <div className="flex items-center gap-2 pt-1">
+          <button type="button" disabled={disabled} onClick={() => onUpdate({ hidden: true })} aria-label={`隱藏${row.name}`} className="btn-outline min-h-11 flex-1 text-xs font-bold">🙈 隱藏（不算缺貨、不顯示）</button>
+          <ConfirmDeleteButton onConfirm={onRemove} label="🗑 刪除" ariaLabel={`刪除${row.name}`} className="min-h-11 shrink-0 px-3 text-xs font-bold" />
+        </div>
       </div>
     </details>
   </div>;

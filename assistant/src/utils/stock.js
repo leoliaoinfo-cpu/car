@@ -63,6 +63,7 @@ export function nextStatus(item) {
 
 /** 「不缺」：改裝部＝已到貨／已安裝；外包＝廠商已施作之後。不需要的也算。 */
 export function isSettledStock(item) {
+  if (item?.hidden || item?.info) return true; // 隱藏的、報價資訊（費用／車價備註）不算缺貨
   const status = stockStatus(item);
   if (status === 'not_needed') return true;
   return stockTrack(item) === 'vendor' ? ['vendor_done', 'checked', 'reported'].includes(status) : ['ready', 'installed'].includes(status);
@@ -70,6 +71,7 @@ export function isSettledStock(item) {
 
 /** 全部做完、不用再追：改裝部＝已安裝；外包＝已回報客戶進度。 */
 export function isFinishedStock(item) {
+  if (item?.hidden || item?.info) return true;
   const status = stockStatus(item);
   if (status === 'not_needed') return true;
   return stockTrack(item) === 'vendor' ? status === 'reported' : status === 'installed';
@@ -104,10 +106,19 @@ export function stockItemsFromQuote(quote, addons = []) {
   const withTrack = (row) => ({ ...row, track: defaultTrack(row, catalog) });
   const result = [];
   for (const item of quote?.items || []) {
-    // 一般費用／服務不是備品；非 addon 的實體贈品仍留給業務核對。
-    // 例外：自己在「其他費用」打的外包配件（例：五面帆160CM＋蓬頂、尾門、烤漆）是真的要找廠商做的東西，要列進核對。
-    const typedVendorItem = item.kind === 'other' && VENDOR_NAME.test(String(item.name || ''));
-    if (((item.kind !== 'addon' && !item.gift) && !typedVendorItem) || !String(item.name || '').trim()) continue;
+    // 報價上的每一項（含「其他費用」、車價備註）都帶進來，由使用者自己判斷要備貨、隱藏或刪除（2026-11-20）。
+    // 真的要備貨／找廠商的（addon、贈品、其他費用裡打的外包配件）照舊當配件；
+    // 領牌費、保險這類費用與車價只當「報價資訊」帶過來（info），不算缺貨、不催，使用者可「改成要備貨」、隱藏或刪除。
+    const name = String(item.name || '').trim();
+    if (!name) continue;
+    const noteText = joinNotes(item.note || item.vendorInquiryNote || item.description, deductionNote(item));
+    if (item.kind === 'vehicle' && !noteText) continue; // 車價沒有任何備註就沒有資訊可帶
+    const typedVendorItem = item.kind === 'other' && VENDOR_NAME.test(name);
+    if (item.kind !== 'addon' && !item.gift && !typedVendorItem) {
+      result.push({ id: item.id, catalogId: null, name, specification: String(item.optionValue || '').trim(), quantity: 1, status: 'todo',
+        note: noteText, gift: false, track: 'inhouse', info: true, quotePrice: Math.max(0, Number(item.price) || 0), sourceKind: item.kind });
+      continue;
+    }
     const components = item.bundlePricingMode === 'components' && item.bundleIncludedIds?.length
       ? item.bundleIncludedIds.filter((id) => !item.bundleExcludedIds?.includes(id)) : [];
     if (components.length) {
@@ -132,7 +143,7 @@ export function stockItemsFromQuote(quote, addons = []) {
  */
 export function unlistedStockItems(deal, quote, addons = []) {
   if (!deal?.quoteId || !quote) return [];
-  const have = new Set((deal.stockItems || []).map((row) => row.id));
+  const have = new Set([...(deal.stockItems || []).map((row) => row.id), ...(deal.stockRemoved || [])]); // 使用者刪掉的不再重新提示
   return stockItemsFromQuote(quote, addons).filter((row) => !have.has(row.id));
 }
 

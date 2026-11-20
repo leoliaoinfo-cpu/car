@@ -58,3 +58,17 @@ test('待廠商確認的新配件自動排 3 天後再追', () => {
   const r = mergeStockItems({ oldItems: [], freshItems: [{ id: 'n', name: 'N', status: 'inquiry' }], followUpDate: '2026-11-22' });
   assert.equal(r.items[0].followUpDate, '2026-11-22');
 });
+
+test('成交後改報價：使用者刪掉的配件核對項目不會被加回來，隱藏與報價資訊旗標保留', async () => {
+  const { mergeStockItems } = await import('./wonQuote.js');
+  const fresh = [
+    { id: 'a', name: '帆布', status: 'todo', note: '' },
+    { id: 'fee', name: '領牌費', status: 'todo', info: true, quotePrice: 3000, note: '' },
+    { id: 'n', name: '新配件', status: 'todo', note: '' },
+  ];
+  const old = [{ id: 'a', name: '帆布', status: 'inquiry', hidden: true, note: '' }];
+  const merged = mergeStockItems({ oldItems: old, freshItems: fresh, removedIds: ['fee'] });
+  assert.deepEqual(merged.items.map((row) => row.id), ['a', 'n']);
+  assert.equal(merged.items[0].hidden, true);
+  assert.equal(merged.items[0].status, 'inquiry');
+});
