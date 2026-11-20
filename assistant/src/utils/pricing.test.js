@@ -982,7 +982,7 @@ test('separates regular and double-fold liftgates and restores the accessory sec
 test('adds a peripheral accessory section with matching sale prices and costs', () => {
   const ids = [
     ['qa-k2500-sunshade', '卡旺專用遮陽簾', 1280],
-    ['qa-steering-leather-cover', '卡旺方向盤皮革套', 499],
+    ['qa-steering-leather-cover', '卡旺方向盤皮革套', 600],
     ['qa-dashboard-mat', '卡旺專用避光墊', 589],
     ['qa-double-cab-storage-box', '雙廂貨車置物盒', 389],
     ['qa-keyless-fuel-cap', '免鑰匙油箱蓋', 599],
@@ -1000,7 +1000,8 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
   for (const [id, name, price] of ids) {
     const item = resolved.addons.find((row) => row.id === id);
     assert.deepEqual({ cat: item.cat, name: item.name, price: item.price }, { cat: '周邊配件', name, price });
-    assert.equal(costs.addons[id].cost, price, `${name}成本`);
+    // 方向盤套售價改 600（2026-11-20 海報），成本維持原本的 499（使用者還沒說要不要調）
+    assert.equal(costs.addons[id].cost, id === 'qa-steering-leather-cover' ? 499 : price, `${name}成本`);
   }
   assert.match(resolved.addons.find((item) => item.id === 'qa-side-led-housing').desc, /霧白側邊燈殼 2 顆.*橘色鹵素燈泡/);
 });

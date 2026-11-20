@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v55';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v56';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -391,7 +391,7 @@ const PAINT_ACCESSORY_ADDONS = [
 
 const PERIPHERAL_ACCESSORY_ADDONS = [
   { id: 'qa-k2500-sunshade', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用遮陽簾', price: 1280, desc: '雙層車窗遮陽簾；網紗層＋隱私層' },
-  { id: 'qa-steering-leather-cover', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺方向盤皮革套', price: 499 },
+  { id: 'qa-steering-leather-cover', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺方向盤皮革套', price: 600, desc: '專用版型；多款可選' },
   { id: 'qa-dashboard-mat', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用避光墊', price: 589, desc: '反折射避光墊；2021年後卡旺適用' },
   { id: 'qa-double-cab-storage-box', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '雙廂貨車置物盒', price: 389, desc: '雙廂貨車專用' },
   { id: 'qa-keyless-fuel-cap', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '免鑰匙油箱蓋', price: 599, desc: '柴油油箱蓋' },
@@ -491,7 +491,7 @@ const V26_PREVIOUS_ADDON_DESCRIPTIONS = {
   'qa-android-flagship': '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價',
   'qa-urea': '原車鎖點結構穩固、保護尿素桶防止破損',
   // 配件海報（2026-11-20）補的說明；原本沒有說明的用空字串
-  'qa-k2500-sunshade': '', 'qa-dashboard-mat': '', 'qa-keyless-fuel-cap': '',
+  'qa-k2500-sunshade': '', 'qa-dashboard-mat': '', 'qa-keyless-fuel-cap': '', 'qa-steering-leather-cover': '',
   'qa-skid': '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器',
   'qa-ext': '貨斗延長+350mm',
 };
@@ -727,6 +727,8 @@ export function resolveQuotePresets(row) {
       const canvasDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
       if (canvasDefault) migrated = { ...migrated, price: canvasDefault.price, pendingPrice: canvasDefault.pendingPrice, desc: canvasDefault.desc };
     }
+    // 方向盤套改 600（使用者 2026-11-20，以配件海報為準）：還是舊預設價 499 的換成 600，自己改過價格的不動
+    if (migrated.id === 'qa-steering-leather-cover' && Number(migrated.price) === 499) migrated = { ...migrated, price: 600 };
     // 升降帆布（炬方特殊規格）：上一版還是待報價的，換成有售價（成本 120,000＋利潤 10,000）的新預設；使用者自己填過價格的不動
     if (migrated.id === 'qa-lift-canvas' && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) {
       const liftDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === 'qa-lift-canvas');

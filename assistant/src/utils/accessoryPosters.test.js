@@ -44,3 +44,16 @@ test('配件海報：舊成本表升級會補上八折成本，使用者已填�
   assert.equal(up['qa-hana-ac-filter'].cost, 792);
   assert.equal(up['qa-toolbox-side'].cost, 6944);
 });
+
+test('方向盤套改 600（海報為準）：預設 600、舊選單的 499 升級換成 600、自己改過價格的不動；LED 側邊照地燈與警示喇叭維持系統原價', () => {
+  const addons = resolveQuotePresets(null).addons;
+  const price = (list, id) => list.find((a) => a.id === id)?.price;
+  assert.equal(price(addons, 'qa-steering-leather-cover'), 600);
+  assert.equal(price(addons, 'qa-puddle-lamp'), 3500); // 用系統的，不是海報的 2,490
+  assert.equal(price(addons, 'qa-speaker'), 2800); // 用系統的，不是海報的 2,280
+  const mk = (p) => resolveQuotePresets({ _catalog: 'kavan-2026-v55', addonCategories: ['周邊配件'], addons: [
+    { id: 'qa-steering-leather-cover', cat: '周邊配件', name: '卡旺方向盤皮革套', price: p },
+  ] }).addons;
+  assert.equal(price(mk(499), 'qa-steering-leather-cover'), 600);
+  assert.equal(price(mk(550), 'qa-steering-leather-cover'), 550);
+});
