@@ -92,6 +92,10 @@
   add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
   add('cv-custom', '特殊訂製帆布', null, { note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
   add('cv-lift', '升降帆布（卡旺單廂・特殊電動升降）', 130000, { fit: '單廂', note: '降低（平車頭）高 195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm，斗內高 150–240cm）' });
+  add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
+  add('bx-alu260', '鋁塑車廂　大單廂 9.7 尺　室內高 2.6 米', 84000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
+  add('bx-alu-roof', '鋁塑車廂加購　特殊屋凸＋前凸', 33000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（約增加 700kg，不一定）' });
+  add('bx-alu-door', '鋁塑車廂加購　主駕側單開門', 5000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '副駕側單開門為標配' });
   add('bx-fridge', '冷凍冷藏箱', null, { note: '依箱體尺寸、使用溫層、冷凍機組、供電方式與施工規格報價' });
   add('bx-gull', '電動歐翼', null, { note: '依箱體尺寸、開啟方向、電動機構與施工規格報價' });
   add('bx-camper', '露營箱體', null, { note: '依箱體尺寸、內裝、水電配置與設備需求報價' });
@@ -118,7 +122,7 @@
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
     'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift'],
-    'cfg-box': ['bx-fridge', 'bx-gull', 'bx-camper']
+    'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
   };
 
   // ===== 狀態（只存在客人自己的手機）=====
@@ -147,7 +151,7 @@
   function minKnown(map) { var m = 0; Object.keys(map).forEach(function (k) { var v = map[k]; if (v && (!m || v < m)) m = v; }); return m; }
   function driveOk(d) { return !S.cab || !!(VPRICE[S.cab] && VPRICE[S.cab][d]); }
   function fitWarn(it) {
-    if (it.req && !it.req.some(function (id) { return S.sel[id]; })) return '🔒 要先選上面的「' + I[it.req[0]].n + '」';
+    if (it.req && !it.req.some(function (id) { return S.sel[id]; })) return '🔒 要先選上面的「' + (it.reqLabel || I[it.req[0]].n) + '」';
     if (it.cab) return S.cab && S.cab !== it.cab ? '⚠ 這是' + it.cab + '的價格，你選的是' + S.cab : '';
     if (!it.fit) return '';
     var f = it.fit;
@@ -245,7 +249,10 @@
     var cap = fig.querySelector('figcaption'); if (cap) cap.appendChild(el('i', 'selc', ''));
   }
   function toggle(id) {
-    if (S.sel[id]) delete S.sel[id]; else S.sel[id] = true;
+    if (S.sel[id]) delete S.sel[id]; else {
+      S.sel[id] = true;
+      if (I[id].grp) Object.keys(I).forEach(function (k) { if (k !== id && I[k].grp === I[id].grp) delete S.sel[k]; }); // 同組只能選一個（例：車廂室內高）
+    }
     persist(); refresh();
   }
 

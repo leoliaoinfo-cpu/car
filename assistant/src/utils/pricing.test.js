@@ -975,7 +975,7 @@ test('separates regular and double-fold liftgates and restores the accessory sec
     ['滑特(升降尾門)', '雙折尾門', '升降尾門的油壓缸', '尾門配件'],
   );
   assert.deepEqual(QUOTE_ADDON_SECTIONS.map((section) => [section.label, section.categories.length]), [
-    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 5], ['周邊配件', 1],
+    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 6], ['周邊配件', 1],
   ]);
 });
 
@@ -1000,8 +1000,8 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
   for (const [id, name, price] of ids) {
     const item = resolved.addons.find((row) => row.id === id);
     assert.deepEqual({ cat: item.cat, name: item.name, price: item.price }, { cat: '周邊配件', name, price });
-    // 方向盤套售價改 600（2026-11-20 海報），成本＝八折 480
-    assert.equal(costs.addons[id].cost, id === 'qa-steering-leather-cover' ? 480 : price, `${name}成本`);
+    // 方向盤套售價改 600（2026-11-20 海報），成本＝八折 480；其餘 6 項成本也是售價八折（使用者 2026-11-20「八折價格就是成本」）
+    assert.equal(costs.addons[id].cost, id === 'qa-steering-leather-cover' ? 480 : Math.round(price * 0.8), `${name}成本`);
   }
   assert.match(resolved.addons.find((item) => item.id === 'qa-side-led-housing').desc, /霧白側邊燈殼 2 顆.*橘色鹵素燈泡/);
 });
@@ -1009,11 +1009,11 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
 test('adds body-build categories with vendor-quote placeholders', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v21',
-    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體', '鋁塑車廂'].includes(category))],
     models: [], addons: [], subsidies: [],
   });
   const section = QUOTE_ADDON_SECTIONS.find((row) => row.label === '車體打造');
-  assert.deepEqual(section.categories, ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+  assert.deepEqual(section.categories, ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體', '鋁塑車廂']);
   assert.deepEqual(section.categories.map((category) => {
     const list = resolved.addons.filter((addon) => addon.cat === category);
     return [category, list.length, list.some((item) => item.pendingPrice)];
@@ -1023,9 +1023,10 @@ test('adds body-build categories with vendor-quote placeholders', () => {
     ['冷凍冷藏箱', 1, true],
     ['電動歐翼', 1, true],
     ['露營箱體', 1, true],
+    ['鋁塑車廂', 4, false],
   ]);
   assert.deepEqual(
-    resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 6),
+    resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 7),
     section.categories,
   );
 });
@@ -1546,4 +1547,28 @@ test('通用的「貨斗橡膠底板」已刪除：預設選單沒有，舊選�
   ] }).addons;
   assert.equal(old.some((a) => a.id === 'qa-floor-rubber'), false);
   assert.equal(old.filter((a) => a.id.startsWith('qa-floor-rubber-')).length, 6);
+});
+
+test('6 項成本等於售價的配件改成售價八折；使用者改過的成本不動', () => {
+  const fresh = normalizeCostCatalog(null);
+  assert.equal(fresh.addons['qa-k2500-sunshade'].cost, 1024);
+  assert.equal(fresh.addons['qa-side-led-bulb'].cost, 199);
+  const upgraded = normalizeCostCatalog({ version: 23, addons: { 'qa-k2500-sunshade': { cost: 1280 }, 'qa-dashboard-mat': { cost: 500 } } });
+  assert.equal(upgraded.addons['qa-k2500-sunshade'].cost, 1024, '還是原本等於售價的就換成八折');
+  assert.equal(upgraded.addons['qa-dashboard-mat'].cost, 500, '自己改過的不動');
+});
+
+test('鋁塑車廂 4 個品項：售價＝車體廠未稅成本＋利潤，成本已補', () => {
+  const resolved = resolveQuotePresets(null);
+  const costs = normalizeCostCatalog(null);
+  const rows = [
+    ['qa-alu-box-250', 81000, 76000], ['qa-alu-box-260', 84000, 79000],
+    ['qa-alu-box-front-roof', 33000, 28000], ['qa-alu-box-driver-door', 5000, 3000],
+  ];
+  for (const [id, price, cost] of rows) {
+    const item = resolved.addons.find((row) => row.id === id);
+    assert.equal(item.cat, '鋁塑車廂');
+    assert.equal(item.price, price, `${id}售價`);
+    assert.equal(costs.addons[id].cost, cost, `${id}成本`);
+  }
 });

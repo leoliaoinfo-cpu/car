@@ -100,7 +100,7 @@ function withWarrantyDescription(addon, description = '') {
   return [base, warranty].filter(Boolean).join('；');
 }
 
-const HEIGHT_BODY_CATEGORIES = new Set(['帆布', '客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+const HEIGHT_BODY_CATEGORIES = new Set(['帆布', '客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體', '鋁塑車廂']);
 
 function isHeightBodyAddon(addon, item) {
   return HEIGHT_BODY_CATEGORIES.has(addon?.cat)

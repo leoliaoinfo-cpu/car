@@ -21,7 +21,7 @@ export const STOCK_STATUSES = INHOUSE_STATUSES;
 
 // 預設歸外包：帆布、各種箱體、尾門系統、烤漆／改色、H 架
 const VENDOR_CATEGORY = /尾門|帆布|冷凍|歐翼|露營|改色|防刮|烤漆/;
-const VENDOR_NAME = /貼紙|刻字|帆布|[蓬篷]頂|[二三四五]面帆|橡膠墊|橡膠底板|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
+const VENDOR_NAME = /貼紙|刻字|帆布|[蓬篷]頂|[二三四五]面帆|橡膠墊|橡膠底板|箱體|冷凍冷藏|鋁塑箱|鋁塑車廂|尾門|烤漆|噴漆|改色|H\s*架/i;
 const CATALOG = new Map((DEFAULT_QUOTE_PRESETS.addons || []).map((addon) => [addon.id, addon]));
 
 /** 新配件預設歸哪一類（使用者可以逐項改）。 */
@@ -260,7 +260,7 @@ const VENDOR_KINDS = [
   ['升降帆布', /升降帆布/],
   ['橡膠墊', /橡膠墊|橡膠底板/],
   ['帆布', /帆布|[蓬篷]頂|[二三四五]面帆/],
-  ['箱體', /箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/],
+  ['箱體', /箱體|鋁塑箱|鋁塑車廂|冷凍|冷藏|歐翼|露營/],
   ['H 架', /H\s*架/i],
 ];
 
@@ -279,7 +279,7 @@ export function vendorSequence(items = []) {
     if (/升降帆布/.test(text)) return 'lift';
     if (/橡膠墊|橡膠底板/.test(text)) return 'rubber';
     if (/帆布|[蓬篷]頂|[二三四五]面帆/.test(text)) return 'canvas';
-    if (/H\s*架|箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/i.test(text)) return 'body';
+    if (/H\s*架|箱體|鋁塑箱|鋁塑車廂|冷凍|冷藏|歐翼|露營/i.test(text)) return 'body';
     return null;
   };
   const present = items.filter((item) => !item.hidden && !item.info && stockTrack(item) === 'vendor').map((item) => [item, kindOf(item)]).filter(([, kind]) => kind);

@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v57';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v58';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -231,7 +231,7 @@ const TAILGATE_ACCESSORY_CATEGORY = '尾門配件';
 const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
-const BODY_BUILD_CATEGORIES = ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
+const BODY_BUILD_CATEGORIES = ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體', '鋁塑車廂'];
 const PERIPHERAL_ACCESSORY_CATEGORY = '周邊配件';
 const TAILGATE_PRICE_BY_SIZE_ID = {
   '35': 40000,
@@ -440,6 +440,23 @@ const BODY_BUILD_ADDONS = [
   {
     id: 'qa-camper-box', cat: '露營箱體', name: '露營箱體', price: 0, pendingPrice: true,
     desc: '依箱體尺寸、內裝、水電配置與設備需求確認後報價',
+  },
+  // 鋁塑車廂（車體廠泰穩，卡旺大單廂 9.7 尺）：售價＝車體廠未稅成本＋利潤（成本在 pricing.js 的 V24_ADDON_COSTS）。
+  {
+    id: 'qa-alu-box-250', cat: '鋁塑車廂', group: 'g-alu-box-height', name: '鋁塑車廂－大單廂 9.7 尺（室內高 2.5 米）', price: 81000,
+    desc: '標配含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備',
+  },
+  {
+    id: 'qa-alu-box-260', cat: '鋁塑車廂', group: 'g-alu-box-height', name: '鋁塑車廂－大單廂 9.7 尺（室內高 2.6 米）', price: 84000,
+    desc: '標配含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備',
+  },
+  {
+    id: 'qa-alu-box-front-roof', cat: '鋁塑車廂', name: '鋁塑車廂加購－特殊屋凸＋前凸', price: 33000,
+    desc: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（廠商經驗約增加 700kg，不一定）',
+  },
+  {
+    id: 'qa-alu-box-driver-door', cat: '鋁塑車廂', name: '鋁塑車廂加購－主駕側單開門', price: 5000,
+    desc: '副駕側單開門為標配；主駕側另加一個單開門',
   },
 ];
 

@@ -2,7 +2,7 @@
 import { VEHICLE_VARIANTS } from './vehicles.js';
 import { choiceLabelOf } from './choices.js';
 
-const COST_CATALOG_VERSION = 23;
+const COST_CATALOG_VERSION = 24;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -256,6 +256,32 @@ const V23_ADDON_COSTS = {
   'qa-tailgate-double-cylinder': { cost: 8000 },
 };
 
+// 使用者 2026-11-20「八折價格就是成本」：這 6 項原本成本被設成等於售價（利潤 0），改成售價八折（取整數元）。
+// 升級時只有「成本還是原本那個等於售價的數字」才換，使用者自己改過的不動。
+const V24_COST_FIXES = {
+  'qa-k2500-sunshade': [1280, 1024],
+  'qa-dashboard-mat': [589, 471],
+  'qa-double-cab-storage-box': [389, 311],
+  'qa-keyless-fuel-cap': [599, 479],
+  'qa-side-led-housing': [1190, 952],
+  'qa-side-led-bulb': [249, 199],
+};
+// 鋁塑車廂（車體廠泰穩，未稅、彰化廠、業務價；使用者 2026-11-20 提供）：2.5 米 76,000、2.6 米 79,000、屋凸＋前凸 +28,000、主駕側單開門 +3,000。只補沒有的。
+const V24_ADDON_COSTS = {
+  'qa-alu-box-250': { cost: 76000 },
+  'qa-alu-box-260': { cost: 79000 },
+  'qa-alu-box-front-roof': { cost: 28000 },
+  'qa-alu-box-driver-door': { cost: 3000 },
+};
+function applyV24CostFixes(addons) {
+  const out = { ...addons };
+  for (const [id, [oldCost, newCost]] of Object.entries(V24_COST_FIXES)) {
+    const current = out[id]?.cost;
+    if (current == null || Number(current) === oldCost) out[id] = { ...(out[id] || {}), cost: newCost };
+  }
+  return out;
+}
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -276,6 +302,8 @@ const DEFAULT_ADDON_COSTS = {
   ...V21_ADDON_COSTS,
   ...V22_ADDON_COSTS,
   ...V23_ADDON_COSTS,
+  ...V24_ADDON_COSTS,
+  ...Object.fromEntries(Object.entries(V24_COST_FIXES).map(([id, [, cost]]) => [id, { cost }])),
 };
 
 function migrateV7Costs(addons) {
@@ -740,12 +768,14 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 19 ? V19_ADDON_COSTS : {}),
     ...(row && previousVersion < 21 ? V21_ADDON_COSTS : {}), // 只補沒有的（在使用者已填之前展開）
     ...(row && previousVersion < 23 ? V23_ADDON_COSTS : {}),
+    ...(row && previousVersion < 24 ? V24_ADDON_COSTS : {}),
     ...(row?.addons || {}),
     // 2027 配件清單是最終標準：舊成本表升級時，這幾項直接換成清單的成本
     ...(row && previousVersion < 20 ? V20_ADDON_COSTS : {}),
     ...(row && previousVersion < 22 ? V22_ADDON_COSTS : {}),
   };
-  const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
+  const fixedAddons = row && previousVersion < 24 ? applyV24CostFixes(versionedAddons) : versionedAddons;
+  const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(fixedAddons) : fixedAddons;
   return {
     ...EMPTY_COST_CATALOG,
     ...(row || {}),
