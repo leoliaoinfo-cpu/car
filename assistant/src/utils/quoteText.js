@@ -64,7 +64,7 @@ const SECTION_DEFS = [
 ];
 const CATEGORY_SECTION = {
   '配備版本': 'body',
-  '貨斗底板': 'bed', '客製車體': 'bed', '客製帆布': 'bed', '升降帆布': 'bed', '冷凍冷藏箱': 'bed', '電動歐翼': 'bed', '露營箱體': 'bed', '金屬製研': 'bed',
+  '貨斗底板': 'bed', '客製車體': 'bed', '帆布': 'bed', '客製帆布': 'bed', '升降帆布': 'bed', '冷凍冷藏箱': 'bed', '電動歐翼': 'bed', '露營箱體': 'bed', '金屬製研': 'bed',
   '底盤強化': 'chassis',
   '燈組': 'look', '外觀空力': 'look', '車身改色': 'look', '防刮漆料': 'look', '烤漆周邊': 'look', '鋁圈': 'look',
   '駕駛科技': 'inside', '音響': 'inside', '配件': 'inside', '周邊配件': 'inside',

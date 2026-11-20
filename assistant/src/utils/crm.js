@@ -214,7 +214,9 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v44';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v45';
+// 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
+const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -229,7 +231,7 @@ const TAILGATE_ACCESSORY_CATEGORY = '尾門配件';
 const WINDOW_FILM_CATEGORIES = [
   '隔熱紙（前擋／全車型）', '隔熱紙（單廂）', '隔熱紙（大單廂）', '隔熱紙（雙廂）',
 ];
-const BODY_BUILD_CATEGORIES = ['客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
+const BODY_BUILD_CATEGORIES = ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'];
 const PERIPHERAL_ACCESSORY_CATEGORY = '周邊配件';
 const TAILGATE_PRICE_BY_SIZE_ID = {
   '35': 40000,
@@ -388,17 +390,17 @@ const PERIPHERAL_ACCESSORY_ADDONS = [
 ];
 
 const BODY_BUILD_ADDONS = [
-  { id: 'qa-canvas-single-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-single-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-single-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
-  { id: 'qa-canvas-large-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-large-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-large-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
-  { id: 'qa-canvas-double-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂標準高', price: 14500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-double-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂降低版', price: 15500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-double-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂加高 1 台尺', price: 18500, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-single-standard', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-single-lowered', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-single-raised', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-large-standard', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-large-lowered', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-large-raised', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-double-standard', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂標準高', price: 14500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-double-lowered', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂降低版', price: 15500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-double-raised', cat: '帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂加高 1 台尺', price: 18500, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
   {
-    id: 'qa-custom-canvas', cat: '客製帆布', group: 'g-custom-canvas', name: '特殊訂製帆布', price: 0, pendingPrice: true,
+    id: 'qa-custom-canvas', cat: '帆布', group: 'g-custom-canvas', name: '特殊訂製帆布', price: 0, pendingPrice: true,
     desc: '特殊高度、材質、開門方式或施工內容需另向廠商詢價',
   },
   {
@@ -809,7 +811,18 @@ export function resolveQuotePresets(row) {
   const activeMigratedAddons = migratedAddons.filter(Boolean);
   const addonIds = new Set(activeMigratedAddons.map((item) => item.id));
   const addonNames = new Set(activeMigratedAddons.map((item) => item.name));
-  const categoryAliases = row.addonCategoryAliases || {};
+  const categoryAliases = { ...(row.addonCategoryAliases || {}) };
+  // 舊選單的「客製帆布」分類改名「帆布」（使用者沒自己改過名才動；舊名記進 aliases 讓之後的預設品項對得上）
+  const hasLegacyCanvas = (Array.isArray(row.addonCategories) && row.addonCategories.includes(LEGACY_CANVAS_CATEGORY))
+    || activeMigratedAddons.some((item) => item.cat === LEGACY_CANVAS_CATEGORY);
+  if (hasLegacyCanvas && !(LEGACY_CANVAS_CATEGORY in categoryAliases)) {
+    categoryAliases[LEGACY_CANVAS_CATEGORY] = '帆布';
+  }
+  for (let i = 0; i < activeMigratedAddons.length; i += 1) {
+    if (activeMigratedAddons[i].cat === LEGACY_CANVAS_CATEGORY && categoryAliases[LEGACY_CANVAS_CATEGORY] === '帆布') {
+      activeMigratedAddons[i] = { ...activeMigratedAddons[i], cat: '帆布' };
+    }
+  }
   const newAddons = REQUIRED_QUOTE_ADDONS.filter((item) => !addonIds.has(item.id) && !addonNames.has(item.name))
     .map((item) => ({ ...item, cat: categoryAliases[item.cat] || item.cat }));
   const addons = [...activeMigratedAddons, ...newAddons]
@@ -817,7 +830,8 @@ export function resolveQuotePresets(row) {
     .filter(Boolean);
   const previousTailgateCategory = categoryAliases['升降尾門'] || '升降尾門';
   const previousFilmCategory = categoryAliases.隔熱紙 || '隔熱紙';
-  const originalCategories = [...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)];
+  const originalCategories = [...new Set([...(Array.isArray(row.addonCategories) ? row.addonCategories : QUOTE_ADDON_CATS)]
+    .map((category) => (category === LEGACY_CANVAS_CATEGORY && categoryAliases[LEGACY_CANVAS_CATEGORY] === '帆布' ? '帆布' : category)))];
   const storedCategories = originalCategories
     .filter((category) => !['升降尾門', previousTailgateCategory, '隔熱紙', previousFilmCategory].includes(category));
   const swiftCategory = categoryAliases['滑特(升降尾門)'] || '滑特(升降尾門)';
@@ -842,7 +856,7 @@ export function resolveQuotePresets(row) {
     const insertAt = storedCategories.indexOf('底盤強化');
     storedCategories.splice(insertAt < 0 ? storedCategories.length : insertAt, 0, ...missingFilmCategories);
   }
-  // 車體打造分類：缺哪個就補在「前一個分類」後面（升降帆布排在客製帆布之後）
+  // 車體打造分類：缺哪個就補在「前一個分類」後面（升降帆布排在帆布之後）
   BODY_BUILD_CATEGORIES.forEach((category, index) => {
     if (storedCategories.includes(category)) return;
     const previous = index > 0 ? BODY_BUILD_CATEGORIES[index - 1] : (categoryAliases['客製車體'] || '客製車體');

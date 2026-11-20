@@ -16,7 +16,7 @@ import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker, ConfirmDeleteButton } from '../ui';
 import {
-  stockAlert, stockByCase, stockByKind, unlistedStockItems, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
+  stockAlert, stockByCase, stockByKind, unlistedStockItems, vendorSequence, supplierForItem, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
 } from '../../utils/stock';
 
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
@@ -193,6 +193,18 @@ function StockActions({ row, disabled, onChange, awaiting = false }) {
   );
 }
 
+/** 廠商施工先後順序（第 N 步）與對應廠商（廠商名冊裡承作項目有這個配件的），讓你一眼知道先做哪個、找誰。 */
+function VendorInfo({ row, seq, suppliers }) {
+  const supplier = stockTrack(row) === 'vendor' ? supplierForItem(row, suppliers) : null;
+  if (!seq && !supplier) return null;
+  return (
+    <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-2">
+      {seq ? <span className="badge border border-copper/50 bg-copper/10 font-bold text-copper">第 {seq} 步</span> : null}
+      {supplier ? <span>🤝 {supplier.name}{supplier.contact ? `・${supplier.contact}` : ''}{supplier.phone ? <a href={`tel:${supplier.phone}`} className="ml-1 font-bold text-accent" aria-label={`撥打${supplier.name}`}>📞</a> : null}</span> : null}
+    </p>
+  );
+}
+
 function CarBadge({ entry }) {
   if (!entry?.awaiting) return null;
   const label = carMonthLabel(entry.expectedCarMonth);
@@ -200,6 +212,7 @@ function CarBadge({ entry }) {
 }
 
 function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSaveDeal }) {
+  const { suppliers = [] } = useApp();
   const [mode, setMode] = useState('customer');
   const [who, setWho] = useState(''); // 只看某位客戶（案件 id）；空白＝全部
   const [onlyUrgent, setOnlyUrgent] = useState(false);
@@ -302,6 +315,7 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
                     {row.gift && <span className="text-[11px] font-normal text-ink-3">贈品</span>}
                   </p>
                   {row.note && <p className="mt-0.5 text-[11px] text-ink-3">{row.note}</p>}
+                  <VendorInfo row={row} seq={row.seq} suppliers={suppliers} />
                   <StockActions row={row} awaiting={entry.awaiting} disabled={saving === row.id} onChange={(patch) => change(entry, row.id, patch)} />
                   {stockStatus(row) === 'inquiry' && row.followUpDate && <p className="mt-1 text-[11px] text-ink-3">再追日 {dayjs(row.followUpDate).format('M/D')}</p>}
                 </div>
@@ -338,6 +352,7 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
                     </button>
                     <p className="mt-0.5 text-xs text-ink-2">{row.name}{row.specification ? `・${row.specification}` : ''}{(Number(row.quantity) || 1) > 1 ? ` × ${row.quantity}` : ''}</p>
                     {row.note && <p className="text-[11px] text-ink-3">{row.note}</p>}
+                    <VendorInfo row={row} seq={null} suppliers={suppliers} />
                     <StockActions row={row} awaiting={row.awaiting} disabled={saving === row.id || saving === `batch:${group.key}`} onChange={(patch) => change({ deal: row.deal }, row.id, patch)} />
                     {stockStatus(row) === 'inquiry' && row.followUpDate && <p className="mt-1 text-[11px] text-ink-3">再追日 {dayjs(row.followUpDate).format('M/D')}</p>}
                   </div>
@@ -427,6 +442,7 @@ function CarArrivalCard({ item, onSaveCase, onError }) {
 }
 
 function StockChecklist({ deal, quote, delivered = false, awaiting = false, addons = [], onSaveDeal, onError }) {
+  const { suppliers = [] } = useApp();
   const [saving, setSaving] = useState(false);
   const items = deal.stockItems || [];
   async function updateStock(id, patch) {
@@ -440,7 +456,10 @@ function StockChecklist({ deal, quote, delivered = false, awaiting = false, addo
   if (!deal.quoteId) return <section className="card border-warn/40 p-4"><h2 className="font-bold text-ink">成交配件核對</h2><p className="mt-2 text-sm text-warn">這是舊的手動成交，尚無指定成交報價。系統不會猜測配件，也不會納入中央點貨。</p></section>;
   const missing = items.filter((item) => !isSettledStock(item));
   const unlisted = delivered ? [] : unlistedStockItems(deal, quote, addons);
-  const normalRows = items.filter((row) => !row.hidden && !row.info);
+  const seqMap = vendorSequence(items);
+  // 廠商施工先後順序：有編號的（橡膠墊→帆布…）依順序排在前面，其餘維持原順序
+  const normalRows = items.filter((row) => !row.hidden && !row.info)
+    .sort((a, b) => (seqMap.get(a.id) ?? 99) - (seqMap.get(b.id) ?? 99));
   const infoRows = items.filter((row) => row.info && !row.hidden);
   const hiddenRows = items.filter((row) => row.hidden);
   // 刪除：從核對表拿掉，並記下 id，之後報價再改也不會加回來、也不會再提示「還沒帶進核對」
@@ -456,7 +475,7 @@ function StockChecklist({ deal, quote, delivered = false, awaiting = false, addo
     catch (cause) { onError(cause?.message || '加入失敗'); }
     finally { setSaving(false); }
   }
-  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{unlisted.length > 0 && <div className="mt-3 rounded-lg border border-warn/50 bg-warn/15 p-3 text-xs text-black"><p className="font-bold">報價上有 {unlisted.length} 項還沒帶進核對：{unlisted.map((it) => it.name).join('、')}</p><button type="button" disabled={saving} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">帶進配件核對</button></div>}{items.length === 0 && unlisted.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{normalRows.map((row) => <StockRow delivered={delivered} awaiting={awaiting} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div>
+  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{unlisted.length > 0 && <div className="mt-3 rounded-lg border border-warn/50 bg-warn/15 p-3 text-xs text-black"><p className="font-bold">報價上有 {unlisted.length} 項還沒帶進核對：{unlisted.map((it) => it.name).join('、')}</p><button type="button" disabled={saving} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">帶進配件核對</button></div>}{items.length === 0 && unlisted.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{normalRows.map((row) => <StockRow delivered={delivered} awaiting={awaiting} seq={seqMap.get(row.id)} supplier={stockTrack(row) === 'vendor' ? supplierForItem(row, suppliers) : null} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div>
     {infoRows.length > 0 && <div className="mt-4"><p className="text-xs font-bold text-ink-2">📎 報價上的其他項目與備註（費用、車價備註…）</p><p className="mt-0.5 text-[11px] text-ink-3">報價上的每一項都帶過來了，不算缺貨。你判斷：不用看的按「隱藏」，不要的按「刪除」，其實要備貨的按「改成要備貨」。</p><div className="mt-2 space-y-2">{infoRows.map((row) => <InfoStockRow key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div></div>}
     {hiddenRows.length > 0 && <details className="mt-3 rounded-xl border border-bdr bg-s2/50"><summary className="min-h-11 cursor-pointer px-3 py-3 text-xs font-bold text-ink-2">已隱藏 {hiddenRows.length} 項（點開可顯示或刪除）</summary><div className="space-y-2 border-t border-bdr p-2">{hiddenRows.map((row) => <InfoStockRow key={row.id} hidden row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} onRemove={() => removeStock(row.id)} />)}</div></details>}
   </section>;
@@ -484,7 +503,7 @@ function InfoStockRow({ row, hidden = false, disabled, onUpdate, onRemove }) {
   </div>;
 }
 
-function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate, onRemove }) {
+function StockRow({ row, disabled, delivered = false, awaiting = false, seq = null, supplier = null, onUpdate, onRemove }) {
   const [note, setNote] = useState(row.note || '');
   const status = stockStatus(row);
   const track = stockTrack(row);
@@ -495,6 +514,7 @@ function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <p className="font-bold text-ink"><span className={`badge mr-1.5 ${track === 'vendor' ? 'bg-copper/15 text-copper' : 'bg-teal/15 text-teal'}`}>{TRACK_LABELS[track]}</span>{row.name}{row.specification ? `・${row.specification}` : ''} × {row.quantity || 1}</p>
+        {(seq || supplier) && <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-ink-2">{seq ? <span className="badge border border-copper/50 bg-copper/10 font-bold text-copper">第 {seq} 步</span> : null}{supplier ? <span>🤝 {supplier.name}{supplier.contact ? `・${supplier.contact}` : ''}{supplier.phone ? <a href={`tel:${supplier.phone}`} className="ml-1 font-bold text-accent" aria-label={`撥打${supplier.name}`}>📞</a> : null}</span> : null}</p>}
         {row.fromBundle && <p className="text-[11px] text-ink-3">來自套件：{row.fromBundle}</p>}
         {row.gift && <p className="text-[11px] text-copper">贈送配件，仍需備品</p>}
         {row.note && <p className="mt-1 whitespace-pre-wrap text-xs text-ink-2">備註：{row.note}</p>}

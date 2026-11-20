@@ -263,3 +263,19 @@ test('報價上的資訊與備註帶到對應的施工步驟（尾門／帆布�
   assert.match(notes.contract, /需求：市場載貨.*備註：選牌7275.*車輛售價：領牌人 莊天旗/);
   assert.deepEqual(quoteNotesForSteps({}), {});
 });
+
+test('施工步驟的廠商先後順序：一般 橡膠墊 → 帆布；有升降帆布 升降帆布 → 橡膠墊 → 帆布', () => {
+  const ids = (names) => generateDeliveryWorkflow({ pricing: { lines: names.map((name) => ({ name })) } }).map((step) => step.id);
+  const normal = ids(['貨斗橡膠墊－只鋪底面（雙廂）', '三面帆布－雙廂標準高']);
+  assert.ok(normal.indexOf('install-rubber') < normal.indexOf('install-canvas'));
+  assert.equal(normal.includes('install-lift-canvas'), false);
+  const lift = ids(['貨斗橡膠墊－全封（單廂）', '升降帆布', '三面帆布－單廂標準高']);
+  assert.ok(lift.indexOf('install-lift-canvas') < lift.indexOf('install-rubber'));
+  assert.ok(lift.indexOf('install-rubber') < lift.indexOf('install-canvas'));
+  // 只有升降帆布：不會多出一般帆布步驟
+  const only = ids(['升降帆布']);
+  assert.ok(only.includes('install-lift-canvas'));
+  assert.equal(only.includes('install-canvas'), false);
+  const flow = generateDeliveryWorkflow({ pricing: { lines: [{ name: '貨斗橡膠墊－只鋪底面（雙廂）' }, { name: '三面帆布－雙廂標準高' }] } });
+  assert.equal(flow.find((step) => step.id === 'install-canvas').dependsOn, 'install-rubber');
+});

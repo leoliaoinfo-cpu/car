@@ -13,6 +13,8 @@ export const DELIVERY_DEFAULT_DAYS = {
   'install-tailgate': 3,
   'paint-body': 3,
   'install-canvas': 2,
+  'install-lift-canvas': 2,
+  'install-rubber': 1,
   'install-body': 2,
   wash: 1,
   'install-accessories': 1,
@@ -79,7 +81,12 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
     ...(pricing?.lines || []).flatMap((line) => [line.name, line.description, line.note]),
   ].filter(Boolean).join(' ');
   const hasTailgate = includesAny(source, ['尾門', '升降門']);
-  const hasCanvas = includesAny(source, ['帆布']);
+  // 升降帆布與一般帆布分開看（先後順序不同）
+  const lineNames = (pricing?.lines || []).map((line) => String(line?.name || ''));
+  const hasLiftCanvas = lineNames.some((name) => /升降帆布/.test(name)) || includesAny(String(deal.note || ''), ['升降帆布']);
+  const hasCanvas = lineNames.some((name) => /帆布|[蓬篷]頂|[二三四五]面帆/.test(name) && !/升降帆布/.test(name))
+    || (!lineNames.length && includesAny(source, ['帆布']) && !hasLiftCanvas);
+  const hasRubber = includesAny(source, ['橡膠墊', '橡膠底板']);
   const hasPaint = includesAny(source, ['烤漆', '噴漆', '改色', '車色']);
   const hasRackOrBody = includesAny(source, ['H架', 'Ｈ架', '箱體', '廂體']);
 
@@ -94,6 +101,15 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
   if (hasPaint) {
     steps.push(workflowStep('paint-body', '車體烤漆與外觀確認', '烤漆', previous));
     previous = 'paint-body';
+  }
+  // 廠商先後順序（使用者 2026-11-20）：一般 橡膠墊 → 帆布；有升降帆布時 升降帆布 → 橡膠墊 → 帆布
+  if (hasLiftCanvas) {
+    steps.push(workflowStep('install-lift-canvas', '安裝升降帆布', '帆布', previous));
+    previous = 'install-lift-canvas';
+  }
+  if (hasRubber) {
+    steps.push(workflowStep('install-rubber', '鋪貨斗橡膠墊', '橡膠墊', previous));
+    previous = 'install-rubber';
   }
   if (hasCanvas) {
     steps.push(workflowStep('install-canvas', '安裝帆布', '帆布', previous));
@@ -114,7 +130,9 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
 const STEP_NOTE_RULES = [
   ['install-tailgate', /尾門|升降門/],
   ['paint-body', /烤漆|噴漆|改色|車色/],
-  ['install-canvas', /帆布|[蓬篷]頂|[二三四五]面帆/],
+  ['install-lift-canvas', /升降帆布/],
+  ['install-rubber', /橡膠墊|橡膠底板/],
+  ['install-canvas', /帆布|[蓬篷]頂|[二三四五]面帆/, /升降帆布/],
   ['install-body', /H\s*架|Ｈ架|箱體|廂體|鋁塑箱|冷凍/i],
   ['inspection', /領牌|選牌|牌照|規費|驗車|保險|過戶/],
 ];
@@ -131,8 +149,8 @@ export function quoteNotesForSteps(deal) {
   const label = (item) => (noteOf(item) ? `${item.name.trim()}：${noteOf(item)}` : item.name.trim());
   const out = {};
   const used = new Set();
-  for (const [stepId, re] of STEP_NOTE_RULES) {
-    const hit = items.filter((item) => item.kind !== 'vehicle' && re.test(item.name));
+  for (const [stepId, re, except] of STEP_NOTE_RULES) {
+    const hit = items.filter((item) => item.kind !== 'vehicle' && re.test(item.name) && !(except && except.test(item.name)));
     if (!hit.length) continue;
     out[stepId] = hit.map(label).join('；');
     hit.forEach((item) => used.add(item.id));

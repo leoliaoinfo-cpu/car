@@ -211,3 +211,26 @@ test('「其他費用」裡自己打的外包配件（帆布、尾門…）也�
   // 使用者刪掉的不會再提示
   assert.deepEqual(unlistedStockItems({ ...deal, stockRemoved: ['f'] }, quote).map((row) => row.id), ['c']);
 });
+
+test('廠商施工先後順序：一般 橡膠墊 → 帆布；有升降帆布 升降帆布 → 橡膠墊 → 帆布；只有一種不編號；橡膠墊算外包', async () => {
+  const { vendorSequence, stockKind, stockTrack, stockByCase, supplierForItem } = await import('./stock.js');
+  const rubber = { id: 'r', name: '貨斗橡膠墊－只鋪底面（雙廂）', status: 'todo' };
+  const canvas = { id: 'c', name: '三面帆布－雙廂標準高', status: 'todo' };
+  const lift = { id: 'l', name: '升降帆布', status: 'todo' };
+  assert.equal(stockTrack(rubber), 'vendor');
+  assert.equal(stockKind(rubber).label, '橡膠墊');
+  assert.equal(stockKind(lift).label, '升降帆布');
+  assert.equal(stockKind(canvas).label, '帆布');
+  assert.deepEqual([...vendorSequence([canvas, rubber])], [['c', 2], ['r', 1]]);
+  assert.deepEqual([...vendorSequence([canvas, rubber, lift])].sort(), [['c', 3], ['l', 1], ['r', 2]]);
+  assert.equal(vendorSequence([rubber]).size, 0);
+  assert.equal(vendorSequence([canvas, { ...rubber, hidden: true }]).size, 0);
+  // 尚缺配件（依客戶）：橡膠墊排在帆布前面，並帶 seq
+  const entries = stockByCase([{ id: 'd', caseId: 'k', quoteId: 'q', stockItems: [canvas, rubber] }], [{ id: 'k', status: 'active' }]);
+  assert.deepEqual(entries[0].rows.map((row) => [row.id, row.seq]), [['r', 1], ['c', 2]]);
+  // 廠商名冊：承作項目有「橡膠墊」的廠商對應到橡膠墊
+  const suppliers = [{ id: 's', name: '信順汽車配件', contact: '陳泰元', services: ['橡膠墊'], active: true }];
+  assert.equal(supplierForItem(rubber, suppliers)?.name, '信順汽車配件');
+  assert.equal(supplierForItem(canvas, suppliers), null);
+  assert.equal(supplierForItem(rubber, [{ ...suppliers[0], active: false }]), null);
+});

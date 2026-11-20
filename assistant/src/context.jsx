@@ -14,6 +14,7 @@ import {
   buildPricingRecord, collectCustomItemHistory, EMPTY_COST_CATALOG, normalizeCostCatalog, normalizeCustomItemHistory,
 } from './utils/pricing';
 import { stockItemsFromQuote } from './utils/stock';
+import { seedDefaultSuppliers } from './defaultSuppliers';
 import { planWonQuoteSync } from './utils/wonQuote';
 import { canonicalizeQuotes, collectReferencedCaseIds, findGhostQuoteCases, planQuoteCaseLink } from './utils/quotes';
 import { generateDeliveryWorkflow, normalizeDeliveryWorkflow as normalizeDeliveryWorkflowSafe, planDeliveryCompletion, selectPreSaleItemsToClose } from './utils/delivery';
@@ -307,7 +308,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, suppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, customPricingHistoryRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
+        const [clients, cats, stages, customFields, deals, dealFields, pricingRecords, quoteDrafts, receptionSessions, rawSuppliers, cases, workItems, activities, tasks, events, timers, thresholdRow, templateRow, presetsRow, costCatalogRow, customPricingHistoryRow, industriesRow, heightConfigRow, caseNumberSequenceRow] = await Promise.all([
           db.getAll('clients'),
           db.getAll('cats'),
           db.getAll('stages'),
@@ -333,6 +334,8 @@ export function AppProvider({ children }) {
           db.get('settings', 'heightConfig').catch(() => null),
           db.get('settings', 'caseNumberSequence').catch(() => null),
         ]);
+        // 使用者告知的合作廠商（信順汽車配件）第一次載入時加進名冊一次
+        const suppliers = await seedDefaultSuppliers(db, rawSuppliers);
 
         const resolvedCats = cats.length > 0 ? cats : DEFAULT_CATS;
         const resolvedStages = stages.length > 0 ? stages : DEFAULT_STAGES;

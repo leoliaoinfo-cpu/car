@@ -19,7 +19,7 @@ export const STOCK_STATUSES = INHOUSE_STATUSES;
 
 // 預設歸外包：帆布、各種箱體、尾門系統、烤漆／改色、H 架
 const VENDOR_CATEGORY = /尾門|帆布|冷凍|歐翼|露營|改色|防刮|烤漆/;
-const VENDOR_NAME = /帆布|[蓬篷]頂|[二三四五]面帆|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
+const VENDOR_NAME = /帆布|[蓬篷]頂|[二三四五]面帆|橡膠墊|橡膠底板|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
 const CATALOG = new Map((DEFAULT_QUOTE_PRESETS.addons || []).map((addon) => [addon.id, addon]));
 
 /** 新配件預設歸哪一類（使用者可以逐項改）。 */
@@ -147,6 +147,13 @@ export function unlistedStockItems(deal, quote, addons = []) {
   return stockItemsFromQuote(quote, addons).filter((row) => !have.has(row.id));
 }
 
+/** 這個配件對應的廠商（廠商名冊裡「承作項目」有出現在配件名稱裡的）；只看啟用中的。 */
+export function supplierForItem(item, suppliers = []) {
+  const text = `${item?.name || ''} ${item?.fromBundle || ''}`;
+  return (suppliers || []).find((supplier) => supplier?.active !== false
+    && (supplier.services || []).some((service) => String(service || '').trim() && text.includes(String(service).trim()))) || null;
+}
+
 export function summarizeStock(deals = [], cases = []) {
   const activeCaseIds = new Set(cases.filter((item) => !item.deletedAt && !['completed', 'closed'].includes(item.status)).map((item) => item.id));
   const rows = [];
@@ -219,7 +226,10 @@ export function stockByCase(deals = [], cases = [], now = new Date()) {
       caseId: caseItem.id, dealId: deal.id, deal, clientName: deal.clientName || caseItem.clientName || '未命名客戶',
       deliveryDate: target, days, urgent: !awaiting && missing > 0 && days != null && days <= 7, missing,
       awaiting, expectedCarMonth: caseItem.expectedCarMonth || '', carArrivedAt: caseItem.carArrivedAt || '',
-      rows: [...rows].sort((a, b) => rank(a) - rank(b)),
+      rows: (() => {
+        const seq = vendorSequence(rows);
+        return [...rows].sort((a, b) => rank(a) - rank(b) || (seq.get(a.id) ?? 99) - (seq.get(b.id) ?? 99)).map((row) => (seq.has(row.id) ? { ...row, seq: seq.get(row.id) } : row));
+      })(),
     });
   }
   return out.sort((a, b) => (a.days == null) - (b.days == null) || (a.days ?? 0) - (b.days ?? 0)
@@ -229,12 +239,34 @@ export function stockByCase(deals = [], cases = [], now = new Date()) {
 
 // ── 依配件分區（集體作業）：同一種配件放在一起，一次處理好幾位客戶 ─────────────────────────────
 const VENDOR_KINDS = [
+  ['升降帆布', /升降帆布/],
+  ['橡膠墊', /橡膠墊|橡膠底板/],
   ['帆布', /帆布|[蓬篷]頂|[二三四五]面帆/],
   ['尾門', /尾門/],
   ['烤漆／改色', /烤漆|噴漆|改色|珍珠漆|logo|輪胎蓋/i],
   ['箱體', /箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/],
   ['H 架', /H\s*架/i],
 ];
+
+/**
+ * 廠商施工先後順序（使用者 2026-11-20）：一般是 橡膠墊 → 帆布；車上有「升降帆布」時要 升降帆布 → 橡膠墊 → 帆布。
+ * 只有同一台車同時有兩種以上才編號；回傳 Map（配件 id → 第幾步）。
+ */
+export function vendorSequence(items = []) {
+  const kindOf = (item) => {
+    const text = `${item?.name || ''} ${item?.fromBundle || ''}`;
+    if (/升降帆布/.test(text)) return 'lift';
+    if (/橡膠墊|橡膠底板/.test(text)) return 'rubber';
+    if (/帆布|[蓬篷]頂|[二三四五]面帆/.test(text)) return 'canvas';
+    return null;
+  };
+  const present = items.filter((item) => !item.hidden && !item.info && stockTrack(item) === 'vendor').map((item) => [item, kindOf(item)]).filter(([, kind]) => kind);
+  const kinds = new Set(present.map(([, kind]) => kind));
+  if (kinds.size < 2) return new Map();
+  const order = kinds.has('lift') ? ['lift', 'rubber', 'canvas'] : ['rubber', 'canvas'];
+  const ranked = order.filter((kind) => kinds.has(kind));
+  return new Map(present.map(([item, kind]) => [item.id, ranked.indexOf(kind) + 1]));
+}
 
 /** 這個配件屬於哪一區：外包看名稱（帆布、尾門…），改裝部看型錄分類（燈組、駕駛科技…），都對不到就歸「其他」。 */
 export function stockKind(item, catalog = CATALOG) {

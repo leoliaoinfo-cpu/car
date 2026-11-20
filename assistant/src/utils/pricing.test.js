@@ -1008,16 +1008,16 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
 test('adds body-build categories with vendor-quote placeholders', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v21',
-    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
     models: [], addons: [], subsidies: [],
   });
   const section = QUOTE_ADDON_SECTIONS.find((row) => row.label === '車體打造');
-  assert.deepEqual(section.categories, ['客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+  assert.deepEqual(section.categories, ['帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
   assert.deepEqual(section.categories.map((category) => {
     const list = resolved.addons.filter((addon) => addon.cat === category);
     return [category, list.length, list.some((item) => item.pendingPrice)];
   }), [
-    ['客製帆布', 10, true],
+    ['帆布', 10, true],
     ['升降帆布', 1, true],
     ['冷凍冷藏箱', 1, true],
     ['電動歐翼', 1, true],
@@ -1471,4 +1471,22 @@ test('貨斗橡膠墊：全封／只鋪底面（並列兩種做法）× 單廂�
   const up = normalizeCostCatalog({ version: 16, models: {}, addons: { 'qa-floor-rubber-full-s': { cost: 5300 } } });
   assert.equal(up.addons['qa-floor-rubber-full-s'].cost, 5300); // 使用者自己改過的不蓋
   assert.equal(up.addons['qa-floor-rubber-only-l'].cost, 2400);
+});
+
+test('分類「客製帆布」改名「帆布」：新選單用新名稱；舊選單升級時分類與品項一起改名，使用者自己改過的名稱不動', async () => {
+  const { resolveQuotePresets, DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
+  assert.equal(DEFAULT_QUOTE_PRESETS.addons.some((a) => a.cat === '客製帆布'), false);
+  assert.ok(DEFAULT_QUOTE_PRESETS.addonCategories.includes('帆布'));
+  assert.equal(DEFAULT_QUOTE_PRESETS.addonCategories.includes('客製帆布'), false);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v44', addonCategories: ['配備版本', '客製帆布', '冷凍冷藏箱'], addons: [
+    { id: 'qa-canvas-single-standard', cat: '客製帆布', name: '三面帆布－單廂標準高', price: 19500 }] });
+  assert.equal(old.addonCategories.includes('客製帆布'), false);
+  assert.equal(old.addonCategories.filter((c) => c === '帆布').length, 1);
+  assert.equal(old.addons.find((a) => a.id === 'qa-canvas-single-standard').cat, '帆布');
+  assert.equal(old.addons.some((a) => a.cat === '客製帆布'), false);
+  assert.equal(old.addonCategoryAliases['客製帆布'], '帆布');
+  // 使用者自己把「客製帆布」改成別的名字：不動
+  const custom = resolveQuotePresets({ _catalog: 'kavan-2026-v44', addonCategories: ['配備版本', '我的帆布'], addonCategoryAliases: { 客製帆布: '我的帆布' },
+    addons: [{ id: 'qa-canvas-single-standard', cat: '我的帆布', name: '三面帆布－單廂標準高', price: 19500 }] });
+  assert.equal(custom.addons.find((a) => a.id === 'qa-canvas-single-standard').cat, '我的帆布');
 });
