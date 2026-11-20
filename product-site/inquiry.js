@@ -145,11 +145,13 @@
     var b = el('button', 'chip' + (on ? ' on' : '') + (off ? ' off' : ''), label); b.type = 'button';
     if (off) b.disabled = true; else b.onclick = fn; return b;
   }
-  function renderVeh() {
-    var box = $('veh'); if (!box) return; box.innerHTML = '';
-    var card = el('div', 'veh-card');
-    card.appendChild(el('div', 'veh-h', '① 先選你的車型（可略過）'));
-    card.appendChild(el('div', 'veh-s', '選好後，配件的適用提醒與烤漆價格會跟著變'));
+  function vehChips(box, withHead) {
+    box.innerHTML = '';
+    var card = withHead ? el('div', 'veh-card') : box;
+    if (withHead) {
+      card.appendChild(el('div', 'veh-h', '① 選你的車型（可略過）'));
+      card.appendChild(el('div', 'veh-s', '選好後，會算出車價，配件的適用提醒也會跟著變'));
+    }
     var r1 = el('div', 'chips'); CABS.forEach(function (c) {
       r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, false, function () {
         S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh();
@@ -159,9 +161,10 @@
       r2.appendChild(chip(d, S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
     }); card.appendChild(r2);
     var vt = vehicleText();
-    if (vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
-    box.appendChild(card);
+    if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
+    if (withHead) box.appendChild(card);
   }
+  function renderVeh() { var box = $('veh'); if (box) vehChips(box, true); }
 
   // ===== 圖片下面的勾選列 =====
   function attach(fig, imgKey) {
@@ -177,6 +180,7 @@
       if (it.note) { nm.appendChild(el('br')); nm.appendChild(el('small', 'inote', it.note)); }
       top.appendChild(nm);
       top.appendChild(el('span', 'ipr', ''));
+      top.setAttribute('role', 'checkbox'); top.setAttribute('aria-checked', 'false');
       top.onclick = function () { toggle(id); };
       row.appendChild(top);
       row.appendChild(el('div', 'iwarn', ''));
@@ -191,6 +195,7 @@
       wrap.appendChild(row);
     });
     fig.appendChild(wrap);
+    var cap = fig.querySelector('figcaption'); if (cap) cap.appendChild(el('i', 'selc', ''));
   }
   function toggle(id) {
     if (S.sel[id]) delete S.sel[id]; else S.sel[id] = true;
@@ -202,6 +207,7 @@
     Array.prototype.forEach.call(rows, function (row) {
       var id = row.getAttribute('data-iid'), it = I[id], on = !!S.sel[id];
       row.classList.toggle('on', on);
+      row.querySelector('.itop').setAttribute('aria-checked', on ? 'true' : 'false');
       var p = priceOf(it), pr = row.querySelector('.ipr');
       if (it.byCab && !S.cab) pr.textContent = '依車廂報價';
       else pr.textContent = p ? money(p) : '價格請洽業務';
@@ -212,15 +218,23 @@
     });
   }
 
+  function syncCounts() {
+    Array.prototype.forEach.call(document.querySelectorAll('figure.card'), function (f) {
+      var c = f.querySelector('.selc'); if (!c) return;
+      var n = f.querySelectorAll('.irow.on').length;
+      c.textContent = '已選 ' + n; c.classList.toggle('on', n > 0);
+    });
+  }
   // ===== 底部「詢價單」按鈕 =====
   function syncBar() {
     var bar = $('inqbar'); if (!bar) return;
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
-    if (n) { $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
+    document.body.classList.toggle('has-inq', n > 0);
+    if (n) { $('inqv').textContent = S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）'; $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
-  function refresh() { renderVeh(); syncRows(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
+  function refresh() { renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
 
   // ===== 詢價單視窗 =====
   function buildText() {
@@ -255,7 +269,7 @@
       var x = el('button', 'sx', '✕'); x.type = 'button'; x.setAttribute('aria-label', '移除'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
       r.appendChild(x); list.appendChild(r);
     });
-    var vt = vehicleText(); $('inqveh').textContent = '車型：' + (vt || '還沒選（可回上面選）');
+    $('inqveh').textContent = ''; vehChips($('inqvehbox'), false);
     var t = total(), vp = vehPrice(); var h = '';
     if (vp) h += '車價 ' + money(vp) + '\n';
     if (t) h += '配件合計 ' + money(t) + '\n';
@@ -333,16 +347,19 @@
   }
 
   function init() {
-    renderVeh(); syncRows(); syncBar();
+    renderVeh(); syncRows(); syncCounts(); syncBar();
     $('inqbar').onclick = openSheet;
     $('inqclose').onclick = closeSheet;
+    $('inqsheet').onclick = function (e) { if (e.target === this) closeSheet(); };
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('inqsheet').style.display === 'flex') closeSheet(); });
+    function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
     $('inqname').oninput = function () { S.name = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
-    $('inqcopy').onclick = function () { copyText(buildText(), function () { toast('已複製，貼到 LINE 傳給我就好'); }); };
-    $('inqline').onclick = function () { copyText(buildText(), function () { toast('已複製，貼上後傳送'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
+    $('inqcopy').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製'); toast('已複製，貼到 LINE 傳給我就好'); }); };
+    $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製，正在開 LINE…'); toast('已複製，貼上後傳送'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
     $('inqimg').onclick = saveImage;
     $('inqclear').onclick = function () { if (confirm('清空已勾選的項目？')) { S.sel = {}; persist(); refresh(); closeSheet(); } };
   }
 
-  window.KPInq = { attach: attach, sync: function () { renderVeh(); syncRows(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
+  window.KPInq = { attach: attach, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
 })();

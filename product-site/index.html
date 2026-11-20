@@ -45,6 +45,9 @@ footer{line-height:1.8}
 .cta a{flex:1;max-width:182px;text-align:center;text-decoration:none;font-weight:700;font-size:15.5px;padding:14px 10px;border-radius:999px;color:#fff}
 .cta .c1{background:linear-gradient(180deg,var(--ac2),var(--ac));box-shadow:0 8px 20px rgba(217,69,59,.3)}
 .cta .c2{background:linear-gradient(180deg,#22d472,var(--line));box-shadow:0 8px 20px rgba(6,199,85,.25)}
+.steps{display:flex;gap:6px;justify-content:center;list-style:none;margin:20px 0 0;padding:0;flex-wrap:wrap}
+.steps li{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#5a4e43;background:#fff;border:1px solid #f0dcc3;border-radius:999px;padding:6px 12px 6px 7px}
+.steps b{width:20px;height:20px;border-radius:50%;background:var(--ac);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
 .sign{margin-top:16px;font-size:13px;color:var(--mute)}
 
 /* ===== 快速鍵 ===== */
@@ -141,14 +144,21 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 .irow.on .box{background:var(--ac);border-color:var(--ac);color:#fff}
 .inm{flex:1;font-size:14.5px;font-weight:700;line-height:1.4}
 .inm em{display:inline-block;font-style:normal;font-size:11px;font-weight:700;color:#8a5a2c;background:#fff3e0;border:1px solid #f0dcc3;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.selc{display:none;font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--ac);border-radius:999px;padding:2px 10px}
+.selc.on{display:inline-block}
+.sheet .veh-box .chips{margin-top:6px}
+.sheet .veh-box .chip{font-size:14px;padding:8px 13px}
 .inote{font-size:12px;font-weight:600;color:var(--mute)}
 .ipr{flex:none;font-size:15px;font-weight:800;color:var(--ac);text-align:right}.ipr.ask{font-size:12.5px;color:var(--mute);font-weight:600}
 .iwarn{display:none;font-size:12.5px;color:#b9680f;font-weight:700;padding:0 12px 9px 46px}
 .iopts{display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:0 12px 11px 46px;font-size:13px;color:var(--mute);font-weight:700}
-#inqbar{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));z-index:13;align-items:center;gap:10px;border:0;border-radius:999px;padding:13px 22px;color:#fff;font-size:16px;font-weight:800;font-family:inherit;background:linear-gradient(180deg,#3a342e,#1f1b17);box-shadow:0 10px 26px rgba(0,0,0,.3);white-space:nowrap}
-#inqbar small{font-size:13px;font-weight:600;color:#ffd9d4}
-#call.hide+#inqbar{bottom:calc(16px + env(safe-area-inset-bottom))}
-@media(min-width:720px){#inqbar{bottom:90px}#call.hide+#inqbar{bottom:24px}}
+#inqbar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:13;align-items:center;justify-content:space-between;gap:10px;border:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));color:#fff;font-family:inherit;text-align:left;background:linear-gradient(180deg,#3a342e,#1f1b17);box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+#inqbar .ib-l{display:flex;flex-direction:column;line-height:1.35;font-size:16px;font-weight:800}
+#inqbar .ib-l small{font-size:12.5px;font-weight:600;color:#d8cfc4}
+#inqbar .ib-r{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:800;background:linear-gradient(180deg,var(--ac2),var(--ac));border-radius:999px;padding:11px 18px;white-space:nowrap}
+body.has-inq #call{display:none}
+body.has-inq main{padding-bottom:150px}
+@media(min-width:720px){#inqbar{left:50%;right:auto;width:560px;transform:translateX(-50%);bottom:16px;border-radius:999px;padding:12px 14px 12px 22px}}
 #inqsheet{display:none;position:fixed;inset:0;z-index:35;background:rgba(47,42,37,.55);align-items:flex-end;justify-content:center}
 .sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom))}
 @media(min-width:720px){#inqsheet{align-items:center}.sheet{border-radius:24px}}
@@ -214,6 +224,7 @@ GitHub 權杖（token）
     <a class="c1" href="tel:0979670565">📞 打電話給我</a>
     <a class="c2" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE 聊聊</a>
   </div>
+  <ol class="steps"><li><b>1</b>選車型</li><li><b>2</b>勾想問的配件</li><li><b>3</b>傳 LINE 給我</li></ol>
 </header>
 
 <nav><div class="navwrap"><div id="nav"></div></div></nav>
@@ -247,11 +258,12 @@ GitHub 權杖（token）
 <footer>圖片為原廠與配件廠行銷資料<br>實際內容以現場說明為準</footer>
 
 <div id="call"><a href="tel:0979670565">📞 打電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE</a></div>
-<button id="inqbar" type="button">🧾 我的詢價單 <b id="inqn"></b> <small id="inqt"></small></button>
+<button id="inqbar" type="button"><span class="ib-l"><span>🧾 我的詢價單 <b id="inqn"></b></span><small id="inqv"></small></span><span class="ib-r"><span id="inqt"></span><span>›</span></span></button>
 
 <div id="inqsheet"><div class="sheet">
   <h3>我的詢價單 <button id="inqclose" type="button" aria-label="關閉">✕</button></h3>
   <div id="inqveh"></div>
+  <div class="veh-box" id="inqvehbox"></div>
   <div id="inqlist"></div>
   <div id="inqtot"></div>
   <label>怎麼稱呼你（選填）<input id="inqname" maxlength="20" autocomplete="off"></label>
