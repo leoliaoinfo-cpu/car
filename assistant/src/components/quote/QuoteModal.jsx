@@ -188,6 +188,20 @@ function AddonCategoryCard({
     const separators = isPackageAddon(addon) ? /[\uff1b\u3001]/ : /\uff1b/;
     return addon.desc.split(separators).map((part) => part.trim()).filter(Boolean);
   };
+  // 要選顏色／規格的配件：勾了就直接展開在該配件正下方（不用往下找）
+  const choiceBlock = (addon) => {
+    if (!hasChoices(addon) || !isPicked(addon)) return null;
+    const selectedItem = selectedItemForAddon(addon);
+    if (!selectedItem) return null;
+    const done = isChoiceComplete(addon, selectedItem.optionValue);
+    return (
+      <div key={`${addon.id}-choice`} className={`mt-1.5 rounded-lg border p-2.5 ${done ? 'border-accent/30 bg-accent/5' : 'border-danger/50 bg-danger/10'}`}>
+        <p className="mb-2 text-xs font-bold text-ink-2">{addon.name}：請跟客戶確認{choiceGroupsOf(addon).map((g) => g.label).join('、')}</p>
+        <ChoicePicker addon={addon} value={selectedItem.optionValue}
+          onChange={(optionValue) => onPickChoice?.(selectedItem.id, { optionLabel: choiceLabelOf(addon), optionValue })} />
+      </div>
+    );
+  };
   return (
     <div className="rounded-lg border border-bdr/60 bg-s1/70 overflow-hidden">
       <button type="button"
@@ -291,6 +305,7 @@ function AddonCategoryCard({
                       style={picked ? { background: color, borderColor: color, color: '#fff' } : { borderColor: color + '66', color }}>
                       {lockedBy ? (lockedBy.overlap ? '🔒 重疊' : '🔒 套裝已含') : picked ? '✓ 已加入' : '＋ 加入報價'}
                     </button>
+                    {choiceBlock(addon)}
                   </div>
                 );
               })}
@@ -304,7 +319,8 @@ function AddonCategoryCard({
                 const packageAddon = isPackageAddon(addon);
                 const heightImpact = addonHeightImpact(addon, heightConfig);
                 return (
-                  <button key={addon.id} type="button" disabled={!!lockedBy}
+                  <div key={addon.id}>
+                  <button type="button" disabled={!!lockedBy}
                     title={lockedBy ? (lockedBy.overlap ? `與「${lockedBy.name}」重疊，不可同時加入` : `已含於「${lockedBy.name}」，不可重複加入`) : addon.desc || ''}
                     onClick={() => toggleLine(addon)}
                     className={`flex w-full min-h-12 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${packageAddon ? 'border-2 border-red-500' : 'border'} ${lockedBy ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -333,6 +349,8 @@ function AddonCategoryCard({
                       {lockedBy ? (lockedBy.overlap ? '重疊' : '套裝已含') : addon.pendingPrice ? '待報價' : formatMoney(addon.price)}
                     </span>
                   </button>
+                  {choiceBlock(addon)}
+                  </div>
                 );
                 };
                 // 依車廂分區（單廂／大單廂／雙廂）：名稱帶車廂的品項在有 2 種以上時用色塊標題分開
@@ -349,19 +367,6 @@ function AddonCategoryCard({
               })()}
             </div>
           )}
-          {/* 需要選規格（例如燈光顏色）的配件：勾了就在原地選，不用往下找 */}
-          {list.filter((addon) => hasChoices(addon) && isPicked(addon)).map((addon) => {
-            const selectedItem = selectedItemForAddon(addon);
-            if (!selectedItem) return null;
-            const done = isChoiceComplete(addon, selectedItem.optionValue);
-            return (
-              <div key={`${addon.id}-choice`} className={`rounded-lg border p-2.5 ${done ? 'border-accent/30 bg-accent/5' : 'border-danger/50 bg-danger/10'}`}>
-                <p className="mb-2 text-xs font-bold text-ink-2">{addon.name}：請跟客戶確認{choiceGroupsOf(addon).map((g) => g.label).join('、')}</p>
-                <ChoicePicker addon={addon} value={selectedItem.optionValue}
-                  onChange={(optionValue) => onPickChoice?.(selectedItem.id, { optionLabel: choiceLabelOf(addon), optionValue })} />
-              </div>
-            );
-          })}
           {list.filter((addon) => addon.pendingPrice && isPicked(addon)).map((addon) => {
             const selectedItem = selectedItemForAddon(addon);
             if (!selectedItem) return null;
