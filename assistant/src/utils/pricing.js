@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 17;
+const COST_CATALOG_VERSION = 18;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -209,6 +209,13 @@ const V17_ADDON_COSTS = {
   'qa-floor-rubber-only-d': { cost: 2000 },
 };
 
+// 大單廂三面帆布：價格與單廂一樣（使用者 2026-11-20），成本也比照單廂。
+const V18_ADDON_COSTS = {
+  'qa-canvas-large-standard': { cost: 14500 },
+  'qa-canvas-large-lowered': { cost: 15500 },
+  'qa-canvas-large-raised': { cost: 18000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -223,6 +230,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V15_ADDON_COSTS,
   ...V16_ADDON_COSTS,
   ...V17_ADDON_COSTS,
+  ...V18_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -683,6 +691,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 15 ? V15_ADDON_COSTS : {}),
     ...(row && previousVersion < 16 ? V16_ADDON_COSTS : {}),
     ...(row && previousVersion < 17 ? V17_ADDON_COSTS : {}),
+    ...(row && previousVersion < 18 ? V18_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;

@@ -975,7 +975,7 @@ test('separates regular and double-fold liftgates and restores the accessory sec
     ['滑特(升降尾門)', '雙折尾門', '升降尾門的油壓缸', '尾門配件'],
   );
   assert.deepEqual(QUOTE_ADDON_SECTIONS.map((section) => [section.label, section.categories.length]), [
-    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 4], ['周邊配件', 1],
+    ['尾門系統', 4], ['隔熱紙', 4], ['車身顏色', 3], ['車體打造', 5], ['周邊配件', 1],
   ]);
 });
 
@@ -1008,27 +1008,28 @@ test('adds a peripheral accessory section with matching sale prices and costs', 
 test('adds body-build categories with vendor-quote placeholders', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v21',
-    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
+    addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories.filter((category) => !['客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].includes(category))],
     models: [], addons: [], subsidies: [],
   });
   const section = QUOTE_ADDON_SECTIONS.find((row) => row.label === '車體打造');
-  assert.deepEqual(section.categories, ['客製帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
+  assert.deepEqual(section.categories, ['客製帆布', '升降帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體']);
   assert.deepEqual(section.categories.map((category) => {
     const list = resolved.addons.filter((addon) => addon.cat === category);
     return [category, list.length, list.some((item) => item.pendingPrice)];
   }), [
     ['客製帆布', 10, true],
+    ['升降帆布', 1, true],
     ['冷凍冷藏箱', 1, true],
     ['電動歐翼', 1, true],
     ['露營箱體', 1, true],
   ]);
   assert.deepEqual(
-    resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 5),
+    resolved.addonCategories.slice(resolved.addonCategories.indexOf('客製車體') + 1, resolved.addonCategories.indexOf('客製車體') + 6),
     section.categories,
   );
 });
 
-test('prices confirmed canvas options at supplier cost plus three thousand and keeps large cab pending', () => {
+test('prices confirmed canvas options at supplier cost plus three thousand; large cab is the same price as single cab', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v22',
     addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
@@ -1050,9 +1051,24 @@ test('prices confirmed canvas options at supplier cost plus three thousand and k
     assert.equal(catalog.addons[id]?.cost, cost);
     assert.equal(sale - cost, 3000);
   }
+  // 大單廂與單廂同價、同成本（使用者 2026-11-20）
   const largeCab = resolved.addons.filter((item) => item.id.startsWith('qa-canvas-large-'));
   assert.equal(largeCab.length, 3);
-  assert.ok(largeCab.every((item) => item.pendingPrice === true && item.price === 0));
+  assert.deepEqual(largeCab.map((item) => [item.id, item.price, !!item.pendingPrice]).sort(),
+    [['qa-canvas-large-lowered', 18500, false], ['qa-canvas-large-raised', 21000, false], ['qa-canvas-large-standard', 17500, false]]);
+  const fresh = normalizeCostCatalog(null);
+  assert.equal(fresh.addons['qa-canvas-large-standard'].cost, 14500);
+  assert.equal(fresh.addons['qa-canvas-large-lowered'].cost, 15500);
+  assert.equal(fresh.addons['qa-canvas-large-raised'].cost, 18000);
+  // 上一版存進手機、還是待報價的大單廂帆布，升級後換成同價；使用者自己改過價格的不動
+  const stale = resolveQuotePresets({ _catalog: 'kavan-2026-v42', addonCategories: ['客製帆布'], addons: [
+    { id: 'qa-canvas-large-standard', cat: '客製帆布', name: '三面帆布－大單廂標準高', price: 0, pendingPrice: true },
+    { id: 'qa-canvas-large-lowered', cat: '客製帆布', name: '三面帆布－大單廂降低版', price: 19999 }] });
+  assert.equal(stale.addons.find((a) => a.id === 'qa-canvas-large-standard').price, 17500);
+  assert.ok(!stale.addons.find((a) => a.id === 'qa-canvas-large-standard').pendingPrice);
+  assert.equal(stale.addons.find((a) => a.id === 'qa-canvas-large-lowered').price, 19999);
+  assert.ok(stale.addons.some((a) => a.id === 'qa-lift-canvas')); // 新增的升降帆布分類也會補進舊選單
+  assert.equal(normalizeCostCatalog({ version: 17, models: {}, addons: {} }).addons['qa-canvas-large-raised'].cost, 18000);
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
