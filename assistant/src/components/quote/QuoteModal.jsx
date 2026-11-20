@@ -130,6 +130,33 @@ function isPackageAddon(addon) {
     || (Array.isArray(addon.includes) && addon.includes.length > 0);
 }
 
+const CAB_GROUPS = [
+  { key: 'single', label: '單廂', color: '#2563eb', re: /單廂/ },
+  { key: 'large', label: '大單廂', color: '#c55a11', re: /大單廂/ },
+  { key: 'double', label: '雙廂', color: '#7c3aed', re: /雙廂/ },
+];
+
+/** 同一分類裡品名帶「單廂／大單廂／雙廂」且有 2 種以上時，依車廂分區；否則回傳 null（維持原樣）。 */
+function cabGroups(list) {
+  const cabOf = (addon) => {
+    const name = String(addon.name || '');
+    if (/大單廂/.test(name)) return 'large';
+    if (/雙廂/.test(name)) return 'double';
+    if (/單廂/.test(name)) return 'single';
+    return '';
+  };
+  const present = new Set(list.map(cabOf).filter(Boolean));
+  if (present.size < 2) return null;
+  const out = [];
+  const common = list.filter((addon) => !cabOf(addon));
+  if (common.length) out.push({ key: 'common', label: '通用', color: '#64748b', items: common });
+  for (const group of CAB_GROUPS) {
+    const items = list.filter((addon) => cabOf(addon) === group.key);
+    if (items.length) out.push({ key: group.key, label: group.label, color: group.color, items });
+  }
+  return out;
+}
+
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
@@ -267,7 +294,8 @@ function AddonCategoryCard({
             </div>
           ) : (
             <div className="space-y-1.5">
-              {list.map((addon) => {
+              {(() => {
+                const renderRow = (addon) => {
                 const picked = isPicked(addon);
                 const lockedBy = bundleLocks.get(addon.id);
                 const packageAddon = isPackageAddon(addon);
@@ -302,7 +330,19 @@ function AddonCategoryCard({
                     </span>
                   </button>
                 );
-              })}
+                };
+                // 依車廂分區（單廂／大單廂／雙廂）：名稱帶車廂的品項在有 2 種以上時用色塊標題分開
+                const groups = cabGroups(list);
+                if (!groups) return list.map(renderRow);
+                return groups.map((group) => (
+                  <div key={group.key} className="overflow-hidden rounded-lg border-2" style={{ borderColor: group.color }}>
+                    <div className="flex items-center justify-between px-3 py-1.5 text-sm font-bold text-white" style={{ background: group.color }}>
+                      <span>{group.label}</span><span className="text-xs font-semibold opacity-90">{group.items.length} 項</span>
+                    </div>
+                    <div className="space-y-1.5 bg-s1/60 p-1.5">{group.items.map(renderRow)}</div>
+                  </div>
+                ));
+              })()}
             </div>
           )}
           {/* 需要選規格（例如燈光顏色）的配件：勾了就在原地選，不用往下找 */}
