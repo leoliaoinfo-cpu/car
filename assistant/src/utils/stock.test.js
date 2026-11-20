@@ -183,3 +183,20 @@ test('依配件分區：外包照帆布／尾門／烤漆…分，改裝部看�
   assert.equal(stockAlert(deals[0], cases[0], now).deliveryRisk, false);
   assert.equal(stockAlert(deals[0], { ...cases[0], awaitingCar: false }, now).deliveryRisk, true);
 });
+
+test('「其他費用」裡自己打的外包配件（帆布、尾門…）也要列進配件核對；領牌費不要；舊成交可補列', async () => {
+  const { stockItemsFromQuote, unlistedStockItems } = await import('./stock.js');
+  const quote = { items: [
+    { id: 'v', kind: 'vehicle', name: '車輛售價', price: 888000 },
+    { id: 'c', kind: 'other', name: '五面帆160CM +蓬頂(帆布往內鎖)', price: 20000 },
+    { id: 'f', kind: 'other', name: '領牌費', price: 3000 },
+    { id: 'a', kind: 'addon', name: '前下巴套件', price: 9500 },
+  ] };
+  const items = stockItemsFromQuote(quote);
+  assert.deepEqual(items.map((row) => row.id), ['c', 'a']);
+  assert.equal(items[0].track, 'vendor');
+  // 舊成交：核對表只有前下巴 → 只補帆布，不碰已經有的
+  const deal = { quoteId: 'q1', stockItems: [{ id: 'a', name: '前下巴套件', status: 'ready' }] };
+  assert.deepEqual(unlistedStockItems(deal, quote).map((row) => row.id), ['c']);
+  assert.deepEqual(unlistedStockItems({ ...deal, stockItems: [...deal.stockItems, items[0]] }, quote), []);
+});

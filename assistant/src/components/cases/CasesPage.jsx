@@ -16,7 +16,7 @@ import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
 import { ClientPicker } from '../ui';
 import {
-  stockAlert, stockByCase, stockByKind, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
+  stockAlert, stockByCase, stockByKind, unlistedStockItems, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
 } from '../../utils/stock';
 
 const STATUS_FILTERS = [...CASE_LIST_FILTERS, ['deleted', '回收筒']];
@@ -27,7 +27,7 @@ const STAGE_PILL = {
 };
 
 export default function CasesPage({ focusId, startNewToken, initialClientId, onFocusConsumed, onStartConsumed, onNewClosed, onDetailClosed, onOpenClient, onOpenQuote, onOpenOperations }) {
-  const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, events, cats, stages, saveCase, saveDeal, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
+  const { cases, deletedCases = [], workItems, activities, tasks, clients, deals, quoteDrafts, quotePresets, events, cats, stages, saveCase, saveDeal, deleteCase, restoreCase, saveWorkItem, saveActivity, saveClient, saveTask, updateClient } = useApp();
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(null);
@@ -85,7 +85,7 @@ export default function CasesPage({ focusId, startNewToken, initialClientId, onF
 
       {dupGroups.length > 0 && <button type="button" onClick={() => setShowDup(true)} className="min-h-12 w-full rounded-xl border border-warn/50 bg-warn/10 px-4 text-left text-sm font-bold text-warn">⚠ {dupGroups.map((g) => g.clientName).slice(0, 3).join('、')}{dupGroups.length > 3 ? '等' : ''} 有案件可能重複・點這裡整理</button>}
       {(showStock || missingStockCount > 0) && <button type="button" onClick={() => setShowStock((value) => !value)} className={`min-h-12 w-full rounded-xl border px-4 text-left text-sm font-bold ${showStock ? 'border-copper bg-copper/12 text-copper' : 'border-bdr bg-s1 text-ink'}`}>📦 {showStock ? '返回案件列表' : `尚缺配件 ${missingStockCount} 項・點我看要叫哪些貨`}</button>}
-      {showStock ? <StockCenter deals={deals} cases={cases} onSaveDeal={saveDeal} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
+      {showStock ? <StockCenter deals={deals} cases={cases} quotes={quoteDrafts} addons={quotePresets?.addons || []} onSaveDeal={saveDeal} onOpenCase={(id) => { setShowStock(false); openedByFocus.current = false; setSelectedId(id); }} /> : <>
 
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋姓名、電話、車牌、車型或案件名稱…" className="w-full min-h-11" />
       <div className="flex gap-2 overflow-x-auto pb-1">
@@ -199,7 +199,7 @@ function CarBadge({ entry }) {
   return <span className="badge border border-copper/50 bg-copper/10 text-copper">🚚 等車中{label ? `・${label}` : ''}</span>;
 }
 
-function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
+function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSaveDeal }) {
   const [mode, setMode] = useState('customer');
   const [who, setWho] = useState(''); // 只看某位客戶（案件 id）；空白＝全部
   const [onlyUrgent, setOnlyUrgent] = useState(false);
@@ -210,6 +210,21 @@ function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
   const list = useMemo(() => all.filter((entry) => (!who || entry.caseId === who) && (!onlyUrgent || entry.urgent)), [all, who, onlyUrgent]);
   const groups = useMemo(() => stockByKind(list), [list]);
   const urgentCount = all.filter((entry) => entry.urgent).length;
+  // 報價裡有、但配件核對表還沒列入的項目（例：以前「其他費用」裡打的帆布沒被算進來）
+  const unlisted = useMemo(() => {
+    const open = new Map(cases.filter((item) => !item.deletedAt && !['completed', 'closed'].includes(item.status)).map((item) => [item.id, item]));
+    return deals.filter((deal) => deal.quoteId && !deal.caseArchivedAt && open.has(deal.caseId))
+      .map((deal) => ({ deal, clientName: deal.clientName || open.get(deal.caseId)?.clientName || '未命名客戶', items: unlistedStockItems(deal, deal.quoteSnapshot || quotes.find((q) => q.id === deal.quoteId), addons) }))
+      .filter((row) => row.items.length);
+  }, [deals, cases, quotes, addons]);
+  async function addUnlisted() {
+    setSaving('unlisted'); setError('');
+    try {
+      const stamp = new Date().toISOString();
+      for (const { deal, items } of unlisted) await onSaveDeal({ ...deal, stockItems: [...(deal.stockItems || []), ...items.map((it) => ({ ...it, updatedAt: stamp }))] });
+    } catch (cause) { setError(cause?.message || '儲存失敗，請再試一次'); }
+    finally { setSaving(''); }
+  }
   const unverified = deals.filter((deal) => !deal.quoteId && !deal.caseArchivedAt && cases.some((item) => (item.id === deal.caseId || item.dealId === deal.id) && item.status !== 'completed'));
 
   async function change(entry, rowId, patch) {
@@ -257,6 +272,13 @@ function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
             className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold disabled:opacity-40 ${onlyUrgent ? 'border-danger bg-danger text-white' : 'border-bdr bg-s1 text-ink-2'}`}>只看急件（{urgentCount}）</button>
         </div>
       </div>
+      {unlisted.length > 0 && (
+        <div className="rounded-xl border border-warn/50 bg-warn/15 p-3 text-xs text-black">
+          <p className="font-bold">報價裡有 {unlisted.reduce((n, row) => n + row.items.length, 0)} 項配件還沒列進配件核對（所以這裡看不到）：</p>
+          <ul className="mt-1 space-y-0.5">{unlisted.map((row) => <li key={row.deal.id}>・{row.clientName}：{row.items.map((it) => it.name).join('、')}</li>)}</ul>
+          <button type="button" disabled={saving === 'unlisted'} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">{saving === 'unlisted' ? '加入中…' : '全部補進配件核對'}</button>
+        </div>
+      )}
       {unverified.length > 0 && <p className="rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs text-warn">另有 {unverified.length} 筆舊成交尚未指定成交報價，配件需求未納入統計，請先核對。</p>}
       {error && <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs font-semibold text-danger">{error}</p>}
 
@@ -271,7 +293,6 @@ function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
               </div>
               <strong className={`shrink-0 text-sm ${entry.missing ? 'text-danger' : 'text-ok'}`}>{entry.missing ? `還差 ${entry.missing} 樣` : '都到齊了'} ›</strong>
             </button>
-            {entry.awaiting && <p className="mt-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-copper">車還沒到：外包建議等車到再聯繫廠商（帆布可以先預告），避免客人反悔取消。這段時間不會自動催你。</p>}
             <div className="mt-2 space-y-2">
               {entry.rows.map((row) => (
                 <div key={row.id} className={`rounded-xl border border-bdr p-3 ${row.gift ? 'bg-s1 opacity-80' : 'bg-s2'}`}>
@@ -294,7 +315,6 @@ function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
         : groups.map((group) => {
           const options = statusOptions(group.rows[0]).filter(([id]) => id !== 'not_needed');
           const picked = batch?.key === group.key ? batch.status : '';
-          const waitingCount = group.rows.filter((row) => row.awaiting).length;
           const batchLabel = options.find(([id]) => id === picked)?.[1] || '';
           return (
             <div key={group.key} className="card p-4">
@@ -307,7 +327,6 @@ function StockCenter({ deals, cases, onOpenCase, onSaveDeal }) {
                 </div>
                 <strong className={`shrink-0 text-sm ${group.missing ? 'text-danger' : 'text-ok'}`}>{group.missing ? `尚缺 ${group.missing}` : '都到齊了'}</strong>
               </div>
-              {group.track === 'vendor' && waitingCount > 0 && <p className="mt-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-copper">其中 {waitingCount} 位客戶車還沒到：建議等車到再聯繫廠商（帆布可先預告），避免客人反悔取消。</p>}
               <div className="mt-2 space-y-2">
                 {group.rows.map((row) => (
                   <div key={`${row.dealId}:${row.id}`} className="rounded-xl border border-bdr bg-s2 p-3">
@@ -407,7 +426,7 @@ function CarArrivalCard({ item, onSaveCase, onError }) {
   );
 }
 
-function StockChecklist({ deal, quote, delivered = false, awaiting = false, onSaveDeal, onError }) {
+function StockChecklist({ deal, quote, delivered = false, awaiting = false, addons = [], onSaveDeal, onError }) {
   const [saving, setSaving] = useState(false);
   const items = deal.stockItems || [];
   async function updateStock(id, patch) {
@@ -420,7 +439,14 @@ function StockChecklist({ deal, quote, delivered = false, awaiting = false, onSa
   }
   if (!deal.quoteId) return <section className="card border-warn/40 p-4"><h2 className="font-bold text-ink">成交配件核對</h2><p className="mt-2 text-sm text-warn">這是舊的手動成交，尚無指定成交報價。系統不會猜測配件，也不會納入中央點貨。</p></section>;
   const missing = items.filter((item) => !isSettledStock(item));
-  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{items.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{items.map((row) => <StockRow delivered={delivered} awaiting={awaiting} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} />)}</div></section>;
+  const unlisted = delivered ? [] : unlistedStockItems(deal, quote, addons);
+  async function addUnlisted() {
+    setSaving(true);
+    try { const stamp = new Date().toISOString(); await onSaveDeal({ ...deal, stockItems: [...items, ...unlisted.map((it) => ({ ...it, updatedAt: stamp }))] }); onError(''); }
+    catch (cause) { onError(cause?.message || '加入失敗'); }
+    finally { setSaving(false); }
+  }
+  return <section id="case-stock" className="card p-4"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-ink">📦 成交配件逐項核對</h2><span className={`text-xs font-bold ${delivered ? 'text-ink-3' : missing.length ? 'text-copper' : 'text-ok'}`}>{delivered ? '已交車' : missing.length ? `尚缺 ${missing.length} 項` : '已全部核對'}</span></div><p className="mt-1 text-xs text-ink-3">只依「{quote?.model || deal.model || '成交報價'}」的成交版本建立。贈送實體配件也要核對。</p>{deal.pricingNeedsReview && <p className="mt-2 rounded-lg bg-warn/10 p-2 text-xs font-bold text-warn">舊成交已連結報價；原成交價與成本紀錄保留，請到後台核對利潤。</p>}{(quote?.requirements || quote?.note) && <div className="mt-2 rounded-lg border border-copper/30 bg-copper/10 p-3"><p className="text-xs font-bold text-copper">聯繫廠商前必看</p><p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-ink-2">{[quote.requirements, quote.note].filter(Boolean).join('\n')}</p></div>}{unlisted.length > 0 && <div className="mt-3 rounded-lg border border-warn/50 bg-warn/15 p-3 text-xs text-black"><p className="font-bold">報價裡有 {unlisted.length} 項配件還沒列進核對：{unlisted.map((it) => it.name).join('、')}</p><button type="button" disabled={saving} onClick={addUnlisted} className="btn-primary mt-2 min-h-11 w-full text-sm font-bold disabled:opacity-50">加進配件核對</button></div>}{items.length === 0 && unlisted.length === 0 && <p className="mt-3 rounded-lg bg-s2 p-3 text-xs text-ink-3">這張報價沒有可核對的配件。</p>}<div className="mt-3 space-y-2">{items.map((row) => <StockRow delivered={delivered} awaiting={awaiting} key={row.id} row={row} disabled={saving} onUpdate={(patch) => updateStock(row.id, patch)} />)}</div></section>;
 }
 
 function StockRow({ row, disabled, delivered = false, awaiting = false, onUpdate }) {
@@ -730,6 +756,7 @@ function CaseEditSheet({ item, currentPipeline = 'new', workItems = [], hasLinke
 }
 
 function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities, deals, quotes, onClose, onSaveCase, onSaveDeal, onDeleteCase, onSaveWorkItem, onSaveActivity, onSaveTask, onUpdateClient, onOpenClient, onOpenQuote, onOpenOperations }) {
+  const { quotePresets } = useApp();
   const [newTitle, setNewTitle] = useState('');
   const [addingWork, setAddingWork] = useState(false);
   const [due, setDue] = useState('');
@@ -975,7 +1002,7 @@ function CaseDetail({ item, phone = '', workItems, tasks, caseQueue, activities,
 
           {(section === 'overview' || section === 'work') && linkedDeal && <CaseDeliveryChecklist key={linkedDeal.id} deal={linkedDeal} caseItem={item} onGoStock={goToStock} />}
 
-          {(section === 'overview' || section === 'work') && linkedDeal && <StockChecklist delivered={item.status === 'completed'} awaiting={isAwaitingCar(item)} deal={linkedDeal} quote={linkedDeal.quoteSnapshot || linkedQuotes.find((quote) => quote.id === linkedDeal.quoteId)} onSaveDeal={onSaveDeal} onError={setStockError} />}
+          {(section === 'overview' || section === 'work') && linkedDeal && <StockChecklist delivered={item.status === 'completed'} awaiting={isAwaitingCar(item)} addons={quotePresets?.addons || []} deal={linkedDeal} quote={linkedDeal.quoteSnapshot || linkedQuotes.find((quote) => quote.id === linkedDeal.quoteId)} onSaveDeal={onSaveDeal} onError={setStockError} />}
           {stockError && <p role="alert" className="rounded-xl bg-danger/10 p-3 text-sm text-danger">{stockError}</p>}
 
           {(section === 'work' || (section === 'overview' && pending.length > 0)) && <section className="card p-4">

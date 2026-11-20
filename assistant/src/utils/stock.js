@@ -19,7 +19,7 @@ export const STOCK_STATUSES = INHOUSE_STATUSES;
 
 // 預設歸外包：帆布、各種箱體、尾門系統、烤漆／改色、H 架
 const VENDOR_CATEGORY = /尾門|帆布|冷凍|歐翼|露營|改色|防刮|烤漆/;
-const VENDOR_NAME = /帆布|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
+const VENDOR_NAME = /帆布|[蓬篷]頂|[二三四五]面帆|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
 const CATALOG = new Map((DEFAULT_QUOTE_PRESETS.addons || []).map((addon) => [addon.id, addon]));
 
 /** 新配件預設歸哪一類（使用者可以逐項改）。 */
@@ -105,7 +105,9 @@ export function stockItemsFromQuote(quote, addons = []) {
   const result = [];
   for (const item of quote?.items || []) {
     // 一般費用／服務不是備品；非 addon 的實體贈品仍留給業務核對。
-    if ((item.kind !== 'addon' && !item.gift) || !String(item.name || '').trim()) continue;
+    // 例外：自己在「其他費用」打的外包配件（例：五面帆160CM＋蓬頂、尾門、烤漆）是真的要找廠商做的東西，要列進核對。
+    const typedVendorItem = item.kind === 'other' && VENDOR_NAME.test(String(item.name || ''));
+    if (((item.kind !== 'addon' && !item.gift) && !typedVendorItem) || !String(item.name || '').trim()) continue;
     const components = item.bundlePricingMode === 'components' && item.bundleIncludedIds?.length
       ? item.bundleIncludedIds.filter((id) => !item.bundleExcludedIds?.includes(id)) : [];
     if (components.length) {
@@ -122,6 +124,16 @@ export function stockItemsFromQuote(quote, addons = []) {
     }
   }
   return result;
+}
+
+/**
+ * 報價裡有、但配件核對表還沒列入的項目（例：舊成交當時「其他費用」裡的帆布沒被算進來）。
+ * 只回傳「核對表裡沒有這個 id」的項目；不會動到已經有的項目與它們的狀態。
+ */
+export function unlistedStockItems(deal, quote, addons = []) {
+  if (!deal?.quoteId || !quote) return [];
+  const have = new Set((deal.stockItems || []).map((row) => row.id));
+  return stockItemsFromQuote(quote, addons).filter((row) => !have.has(row.id));
 }
 
 export function summarizeStock(deals = [], cases = []) {
