@@ -63,6 +63,7 @@
 
   function render() {
     var root = $('groups'), nav = $('nav');
+    var vb = $('veh'); if (vb && vb.parentNode !== root.parentNode) root.parentNode.insertBefore(vb, root); // 先放回原位，免得被清掉
     root.innerHTML = ''; nav.innerHTML = ''; order = [];
     var shown = 0;
     groups.forEach(function (g, gi) {
@@ -97,6 +98,7 @@
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
           if (window.KPInq) KPInq.attach(f, k);
           list.appendChild(f);
+          if (k === 'price' && $('veh')) list.appendChild($('veh')); // 車價圖之後才出現選單
         });
         sec.appendChild(list);
       }
