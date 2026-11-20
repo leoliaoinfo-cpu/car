@@ -1490,3 +1490,12 @@ test('分類「客製帆布」改名「帆布」：新選單用新名稱；舊�
     addons: [{ id: 'qa-canvas-single-standard', cat: '我的帆布', name: '三面帆布－單廂標準高', price: 19500 }] });
   assert.equal(custom.addons.find((a) => a.id === 'qa-canvas-single-standard').cat, '我的帆布');
 });
+
+test('升降帆布加入炬方參考規格（規格選項），價格仍待報價', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const it = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-lift-canvas');
+  assert.equal(it.pendingPrice, true);
+  assert.equal(it.choiceLabel, '規格');
+  assert.deepEqual(it.choices, ['卡旺單廂・特殊電動升降（炬方鐵架帆布參考規格）']);
+  assert.match(it.desc, /120,000/);
+});
