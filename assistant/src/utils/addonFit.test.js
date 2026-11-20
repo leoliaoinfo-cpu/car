@@ -16,6 +16,8 @@ test('配件適用車型：不適用才提醒，還沒選車型或適用就不�
   assert.match(addonFitWarning('qa-roof', v('qm-5')), /適用單廂、大單廂，這台是雙廂/);
   assert.equal(addonFitWarning('qa-interior-led-double', v('qm-5')), '');
   assert.match(addonFitWarning('qa-interior-led-single', v('qm-6')), /這台是雙廂/);
+  assert.match(addonFitWarning('qa-shift-knob-cover', v('qm-1')), /適用自排，這台是手排/);
+  assert.equal(addonFitWarning('qa-shift-knob-cover', v('qm-2')), '');
   assert.equal(addonFitWarning('qa-atc', null), '');
   assert.equal(addonFitWarning('qa-tpms-6', v('qm-1')), '');
 });

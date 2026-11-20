@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v54';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v55';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -331,6 +331,8 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-rear-dr-rgb', cat: '金屬製研', name: 'DR 漫反射後防撞桿（RGB 幻彩變色）', price: 13800, desc: '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）；需變更；尾門車無法安裝' },
   { id: 'qa-boss-mudflap', cat: '金屬製研', name: 'BOSS 白鐵擋泥板', price: 3580, desc: '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨；附BO$$貼紙' },
   { id: 'qa-android-flagship', cat: '駕駛科技', name: '12.3吋安卓四錄旗艦機（含K2500專用底座）', price: 43800, warrantyMonths: 12, desc: '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價；中央置物盒另加 500 元；1 年保固' },
+  { id: 'qa-toolbox-side', cat: '客製車體', name: '貨斗側掛工具箱', price: 8680, desc: '韓國進口；側掛收納' },
+  { id: 'qa-grille-chrome', cat: '外觀空力', name: '電鍍水箱護罩', price: 3680, desc: '亮面電鍍；車頭中網' },
   { id: 'qa-gps-a18', cat: '駕駛科技', name: '4G GPS 車輛定位器（A18 4G LITE）', price: 9900,
     desc: '即時定位／歷史軌跡（最長180天軌跡回放）／電子圍籬／異常警報（超速提醒、震動警報、防拆提醒、進出圍欄通知）／電量顯示；定位 GPS／4G／Wi-Fi／LBS；電壓 DC 9–90V；尺寸 74×30×13.4mm；備用電池 50mAh；4G 網卡贈送 2 年（俊宇客戶再加碼贈送 1 年，合計 3 年）；GPS 車機永久保固；合約到期續約約 $300／月；專案優惠價 9,900 元' },
   { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
@@ -388,11 +390,17 @@ const PAINT_ACCESSORY_ADDONS = [
 ];
 
 const PERIPHERAL_ACCESSORY_ADDONS = [
-  { id: 'qa-k2500-sunshade', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用遮陽簾', price: 1280 },
+  { id: 'qa-k2500-sunshade', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用遮陽簾', price: 1280, desc: '雙層車窗遮陽簾；網紗層＋隱私層' },
   { id: 'qa-steering-leather-cover', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺方向盤皮革套', price: 499 },
-  { id: 'qa-dashboard-mat', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用避光墊', price: 589 },
+  { id: 'qa-dashboard-mat', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '卡旺專用避光墊', price: 589, desc: '反折射避光墊；2021年後卡旺適用' },
   { id: 'qa-double-cab-storage-box', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '雙廂貨車置物盒', price: 389, desc: '雙廂貨車專用' },
-  { id: 'qa-keyless-fuel-cap', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '免鑰匙油箱蓋', price: 599 },
+  { id: 'qa-keyless-fuel-cap', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '免鑰匙油箱蓋', price: 599, desc: '柴油油箱蓋' },
+  // 2026-11-20 使用者提供的配件海報（車室細節升級／車室舒適升級）；成本還沒提供（顯示待補成本）
+  { id: 'qa-hana-ac-filter', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: 'Hanafilter 冷氣濾網', price: 990, desc: '卡旺專用；韓國製造' },
+  { id: 'qa-shift-knob-cover', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '自排排檔桿保護蓋', price: 1480, desc: '碳纖維紋路排檔飾蓋；自排車款' },
+  { id: 'qa-dual-fast-charger', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '雙孔車用快充頭', price: 1580, desc: '12V–24V；Type-C 45W＋USB 18W' },
+  { id: 'qa-armrest-pillow', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '中央扶手靠枕', price: 820, desc: '黑色菱格紋；側邊收納袋' },
+  { id: 'qa-cooling-seat-cushion', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '涼感果凍坐墊', price: 649, desc: '黑色前座款；1 顆' },
   {
     id: 'qa-side-led-housing', cat: PERIPHERAL_ACCESSORY_CATEGORY, name: '側邊 LED 方向燈殼', price: 1190,
     desc: '霧白側邊燈殼 2 顆，內含橘色鹵素燈泡',
@@ -482,6 +490,10 @@ const V26_PREVIOUS_ADDON_DESCRIPTIONS = {
   'qa-boss-mudflap': '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨',
   'qa-android-flagship': '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價',
   'qa-urea': '原車鎖點結構穩固、保護尿素桶防止破損',
+  // 配件海報（2026-11-20）補的說明；原本沒有說明的用空字串
+  'qa-k2500-sunshade': '', 'qa-dashboard-mat': '', 'qa-keyless-fuel-cap': '',
+  'qa-skid': '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器',
+  'qa-ext': '貨斗延長+350mm',
 };
 
 export const DEFAULT_QUOTE_PRESETS = {
@@ -539,10 +551,10 @@ export const DEFAULT_QUOTE_PRESETS = {
     // 金屬製研
     { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, choiceLabel: '顏色', choices: ['橘色', '黑色'], desc: '原車鎖點結構穩固、保護尿素桶防止破損；橘色／黑色' },
     { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
-    { id: 'qa-skid', cat: '金屬製研', name: '4WD 專用鋁合金下護板', price: 12500, desc: '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
+    { id: 'qa-skid', cat: '金屬製研', name: '4WD 專用鋁合金下護板', price: 12500, desc: '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器；噴砂橘' },
     { id: 'qa-rear', cat: '金屬製研', name: '車尾後防撞桿', price: 7500, desc: '需變更；尾門車無法安裝' },
     { id: 'qa-roof', cat: '金屬製研', name: '車頂行李籃', price: 15500, desc: '單廂、大單廂專用' },
-    { id: 'qa-ext', cat: '金屬製研', name: '貨斗延伸護欄（+350mm）', price: 8500, desc: '貨斗延長+350mm' },
+    { id: 'qa-ext', cat: '金屬製研', name: '貨斗延伸護欄（+350mm）', price: 8500, desc: '貨斗延長+350mm；尾門展開・延伸護欄' },
     // 車身改色（烤漆爐烘烤；消光霧面另計）
     { id: 'qa-paint1', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（單廂）', price: 36000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
     { id: 'qa-paint2', cat: '車身改色', group: 'g-paint', name: '車身烤漆改色（大單廂）', price: 37000, desc: '烤漆爐烘烤。消光霧面(30度)效果為雙層消光漆、另加$8000' },
@@ -804,7 +816,7 @@ export function resolveQuotePresets(row) {
     }
     const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];
     const latestDefault = DEFAULT_QUOTE_PRESETS.addons.find((addon) => addon.id === migrated.id);
-    if (latestDefault && [].concat(V26_PREVIOUS_ADDON_DESCRIPTIONS[migrated.id] || []).includes(migrated.desc)) {
+    if (latestDefault && [].concat(V26_PREVIOUS_ADDON_DESCRIPTIONS[migrated.id] ?? []).includes(migrated.desc || '')) {
       migrated = { ...migrated, desc: latestDefault.desc };
     }
     if (previousDefault && latestDefault
