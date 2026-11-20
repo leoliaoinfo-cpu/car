@@ -36,7 +36,9 @@
   add('aero-chin', '前下巴套件', 9500);
   add('aero-mirror', '後照鏡飾蓋', 2800);
   add('aero-signal', '方向燈殼', 1200);
-  add('paint', '車身烤漆改色', null, { byCab: { '單廂': 36000, '大單廂': 37000, '雙廂': 39000 }, note: '標準色消光黑' });
+  add('paint-s', '車身烤漆改色（單廂）', 36000, { cab: '單廂', note: '標準色消光黑，使用烤漆爐烘烤' });
+  add('paint-l', '車身烤漆改色（大單廂）', 37000, { cab: '大單廂', note: '標準色消光黑，使用烤漆爐烘烤' });
+  add('paint-d', '車身烤漆改色（雙廂）', 39000, { cab: '雙廂', note: '標準色消光黑，使用烤漆爐烘烤' });
   add('paint-matte', '消光霧面（雙層消光漆）加價', 8000);
   add('rob2', 'roberlo 防刮漆料（2~2.5呎尾門）', 9000);
   add('rob3', 'roberlo 防刮漆料（3~3.5呎尾門）', 10000);
@@ -84,7 +86,7 @@
     package: ['pkg-dbl'], android: ['android123'], audio: ['audio'], tail: ['tail'], fog: ['fog'],
     gtr: ['gtr'], 'gtr-plus': ['gtrplus'],
     aero: ['aero-all', 'aero-chin', 'aero-mirror', 'aero-signal'],
-    paint: ['paint', 'paint-matte', 'rob2', 'rob3', 'rob4'], wheel: ['omega'],
+    paint: ['paint-s', 'paint-l', 'paint-d', 'paint-matte', 'rob2', 'rob3', 'rob4'], wheel: ['omega'],
     chassis: ['ts', 'leaf-plate', 'bush', 'atc', 'spring'],
     metal: ['urea', 'side-step', 'skid4wd', 'rear-bar', 'roof-rack', 'travel'],
     boss: ['boss'], dr: ['dr'],
@@ -110,6 +112,7 @@
   function priceOf(it) { return it.byCab ? (S.cab ? it.byCab[S.cab] : null) : it.p; }
   function driveOk(d) { return !S.cab || !!(VPRICE[S.cab] && VPRICE[S.cab][d]); }
   function fitWarn(it) {
+    if (it.cab) return S.cab && S.cab !== it.cab ? '⚠ 這是' + it.cab + '的價格，你選的是' + S.cab : '';
     if (!it.fit) return '';
     var f = it.fit;
     if (f === '2WD' || f === '4WD') { if (S.drive && S.drive.indexOf(f) !== 0) return '⚠ 適用 ' + f + '，你選的是 ' + S.drive.split(' ')[0]; return ''; }
@@ -124,6 +127,8 @@
   }
 
   function chosen() { return Object.keys(S.sel).filter(function (id) { return I[id]; }).map(function (id) { return I[id]; }); }
+  function vehPrice() { var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null; return v ? Math.round(v * 10000) : 0; }
+  function grand() { return vehPrice() + total(); }
   function total() { var t = 0; chosen().forEach(function (it) { var p = priceOf(it); if (p) t += p; }); return t; }
   function vehicleText() {
     if (!S.cab && !S.drive) return '';
@@ -210,7 +215,7 @@
     var bar = $('inqbar'); if (!bar) return;
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
-    if (n) { $('inqn').textContent = n + ' 項'; var t = total(); $('inqt').textContent = t ? '配件 ' + money(t) : ''; }
+    if (n) { $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
   function refresh() { renderVeh(); syncRows(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
@@ -227,7 +232,11 @@
       if (it.note) L.push('　' + it.note);
       var w = fitWarn(it); if (w) L.push('　' + w);
     });
-    var t = total(); if (t) L.push('', '配件合計：' + money(t));
+    var t = total(), vp = vehPrice();
+    if (vp || t) L.push('');
+    if (vp) L.push('車價：' + money(vp));
+    if (t) L.push('配件合計：' + money(t));
+    if (vp && t) L.push('車＋配件：' + money(vp + t));
     if (S.note.trim()) L.push('', '備註：' + S.note.trim());
     L.push('', '＊價格依網頁標示，實際以現場報價為準');
     return L.join('\n');
@@ -246,7 +255,11 @@
       r.appendChild(x); list.appendChild(r);
     });
     var vt = vehicleText(); $('inqveh').textContent = '車型：' + (vt || '還沒選（可回上面選）');
-    var t = total(); $('inqtot').textContent = t ? '配件合計 ' + money(t) : '';
+    var t = total(), vp = vehPrice(); var h = '';
+    if (vp) h += '車價 ' + money(vp) + '\n';
+    if (t) h += '配件合計 ' + money(t) + '\n';
+    if (vp && t) h += '車＋配件 ' + money(vp + t);
+    $('inqtot').textContent = h.replace(/\n$/, '');
     $('inqprev').style.display = 'none';
   }
   function openSheet() { $('inqname').value = S.name; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
@@ -274,7 +287,7 @@
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
     var H = 210 + 56;
     rows.forEach(function (r) { H += r.lines.length * 36 + 20 + (r.warn ? 28 : 0); });
-    H += 40 + 70 + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 90;
+    H += 40 + 70 + (vehPrice() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 90;
     c.width = W * 2; c.height = H * 2; g.scale(2, 2);
     g.fillStyle = '#fbf7f1'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#d9453b'; g.fillRect(0, 0, W, 10);
@@ -294,8 +307,11 @@
       y += 26;
     });
     g.strokeStyle = '#ebe0d0'; g.beginPath(); g.moveTo(pad, y - 6); g.lineTo(W - pad, y - 6); g.stroke(); y += 40;
-    var t = total();
-    if (t) { g.fillStyle = '#2f2a25'; g.font = '800 30px ' + FONT; g.fillText('配件合計', pad, y); g.fillStyle = '#d9453b'; g.textAlign = 'right'; g.fillText(money(t), W - pad, y); g.textAlign = 'left'; y += 44; }
+    var t = total(), vp = vehPrice();
+    function line(lb, v, big) { g.fillStyle = '#2f2a25'; g.font = (big ? '800 32px ' : '700 27px ') + FONT; g.fillText(lb, pad, y); g.fillStyle = '#d9453b'; g.textAlign = 'right'; g.fillText(money(v), W - pad, y); g.textAlign = 'left'; y += 44; }
+    if (vp) line('車價', vp);
+    if (t) line('配件合計', t, !vp);
+    if (vp && t) line('車＋配件', vp + t, true);
     if (noteLines.length) { g.fillStyle = '#4b4137'; g.font = '24px ' + FONT; y += 6; noteLines.forEach(function (ln) { g.fillText(ln, pad, y); y += 34; }); y += 10; }
     g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; g.fillText('＊價格依網頁標示，實際以現場報價為準', pad, y + 20);
     return c;
