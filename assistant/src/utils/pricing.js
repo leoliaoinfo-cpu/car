@@ -2,7 +2,7 @@
 import { VEHICLE_VARIANTS } from './vehicles.js';
 import { choiceLabelOf } from './choices.js';
 
-const COST_CATALOG_VERSION = 22;
+const COST_CATALOG_VERSION = 23;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -249,6 +249,13 @@ const V22_ADDON_COSTS = {
   'qa-steering-leather-cover': { cost: 480 },
 };
 
+// 車體廠（泰穩）業務價成本，未稅、彰化廠（使用者 2026-11-20 提供對話）：黑鐵 2.5 呎單缸尾門基本價 32,000；雙缸油壓缸 8,000。
+// 只補沒有的，使用者自己填過的不動。
+const V23_ADDON_COSTS = {
+  'qa-tailgate-25': { cost: 32000 },
+  'qa-tailgate-double-cylinder': { cost: 8000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -268,6 +275,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V20_ADDON_COSTS,
   ...V21_ADDON_COSTS,
   ...V22_ADDON_COSTS,
+  ...V23_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -731,6 +739,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 18 ? V18_ADDON_COSTS : {}),
     ...(row && previousVersion < 19 ? V19_ADDON_COSTS : {}),
     ...(row && previousVersion < 21 ? V21_ADDON_COSTS : {}), // 只補沒有的（在使用者已填之前展開）
+    ...(row && previousVersion < 23 ? V23_ADDON_COSTS : {}),
     ...(row?.addons || {}),
     // 2027 配件清單是最終標準：舊成本表升級時，這幾項直接換成清單的成本
     ...(row && previousVersion < 20 ? V20_ADDON_COSTS : {}),
