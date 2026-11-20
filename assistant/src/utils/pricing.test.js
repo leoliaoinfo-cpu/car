@@ -634,7 +634,7 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-star-led-head'].cost, 3000);
   assert.equal(catalog.addons['qa-star-led-tail'].cost, 2000);
   assert.equal(catalog.addons['qa-star-led-fog'].cost, 1400);
-  assert.equal(catalog.addons['qa-puddle-lamp'].cost, 2800);
+  assert.equal(catalog.addons['qa-puddle-lamp'].cost, 2500); // 2027 配件清單：獎金 1,000
   assert.equal(catalog.addons['qa-interior-led-single'], undefined);
   assert.equal(catalog.addons['qa-interior-led-double'], undefined);
   assert.equal(catalog.addons['qa-turn'], undefined);
@@ -646,7 +646,7 @@ test('seeds the latest supplier sheet costs from sale price minus bonus', () => 
   assert.equal(catalog.addons['qa-ts'].cost, 25300);
   assert.equal(catalog.addons['qa-block'].cost, 6800);
   assert.equal(catalog.addons['qa-atc'].cost, 17000);
-  assert.equal(catalog.addons['qa-leaf'].cost, 14500);
+  assert.equal(catalog.addons['qa-leaf'].cost, 13500); // 2027 配件清單：獎金 2,000
   assert.equal(catalog.addons['qa-urea'].cost, 4500);
   assert.equal(catalog.addons['qa-side'].cost, 15900);
   assert.equal(catalog.addons['qa-rear'].cost, 6000);
@@ -868,13 +868,13 @@ test('matches every known latest-sheet cost to sale price minus bonus', () => {
     ['qa-android-surround', 35000, 10000], ['qa-tpms-6', 5000, 1000],
     ['qa-cruise', 8000, 5000], ['qa-media-controls', 12000, 4000],
     ['qa-lip', 9500, 2000], ['qa-mcover', 2800, 800],
-    ['qa-tlsound', 9500, 2000], ['qa-led', 15000, 5500],
+    ['qa-tlsound', 9500, 2000], ['qa-led', 15000, 6000],
     ['qa-star-led-head', 4000, 1000], ['qa-star-led-tail', 2500, 500],
-    ['qa-star-led-fog', 1800, 400], ['qa-puddle-lamp', 3500, 700],
+    ['qa-star-led-fog', 1800, 400], ['qa-puddle-lamp', 3500, 1000],
     ['qa-phone', 3000, 700], ['qa-mirror1', 8500, 1500],
     ['qa-mirror2', 5000, 1000], ['qa-speaker', 2800, 800],
     ['qa-ts', 29800, 4500], ['qa-block', 7800, 1000],
-    ['qa-atc', 18500, 1500], ['qa-leaf', 15500, 1000],
+    ['qa-atc', 18500, 1500], ['qa-leaf', 15500, 2000],
     ['qa-urea', 5500, 1000], ['qa-side', 18900, 3000],
     ['qa-skid', 12500, 3000], ['qa-rear', 7500, 1500],
     ['qa-rear-dr', 12800, 2000], ['qa-roof', 15500, 2000],
@@ -1424,11 +1424,12 @@ test('新增 BOSS 白鐵擋泥板、DR 漫反射後防撞桿（RGB）、12.3吋�
   }
 });
 
-test('12.3吋安卓四錄旗艦機成本 33,800：利潤與9吋安卓機相同（10,000）', async () => {
+test('12.3吋安卓四錄旗艦機成本 34,800：依 2027 配件清單（獎金 9,000），舊成本表升級也換成 34,800', async () => {
   const cat = normalizeCostCatalog(null);
-  assert.equal(43800 - cat.addons['qa-android-flagship'].cost, 35000 - cat.addons['qa-android-surround'].cost);
+  assert.equal(cat.addons['qa-android-flagship'].cost, 34800);
+  assert.equal(43800 - cat.addons['qa-android-flagship'].cost, 9000);
   const up = normalizeCostCatalog({ version: 15, models: {}, addons: { 'qa-android-surround': { cost: 25000 } } });
-  assert.equal(up.addons['qa-android-flagship'].cost, 33800);
+  assert.equal(up.addons['qa-android-flagship'].cost, 34800);
 });
 
 test('貨斗橡膠墊：全封／只鋪底面（並列兩種做法）× 單廂／大單廂／雙廂 6 種，成本＋利潤 2,000；特仕版鎖住；舊選單與舊成本表升級後正確', async () => {

@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 19;
+const COST_CATALOG_VERSION = 20;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -221,6 +221,17 @@ const V19_ADDON_COSTS = {
   'qa-lift-canvas': { cost: 120000 },
 };
 
+// 2027 卡旺配件清單（使用者 2026-11-20 提供，成本＝建議售價－獎金，視為最終業務成本標準）。
+// 與舊內建成本不同的幾項：升級時直接換成清單的成本（使用者明講以清單為準）。
+const V20_ADDON_COSTS = {
+  'qa-led': { cost: 9000 },
+  'qa-puddle-lamp': { cost: 2500 },
+  'qa-leaf': { cost: 13500 },
+  'qa-rear-dr-rgb': { cost: 11800 },
+  'qa-android-flagship': { cost: 34800 },
+  'qa-boss-mudflap': { cost: 2780 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -237,6 +248,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V17_ADDON_COSTS,
   ...V18_ADDON_COSTS,
   ...V19_ADDON_COSTS,
+  ...V20_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -700,6 +712,8 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 18 ? V18_ADDON_COSTS : {}),
     ...(row && previousVersion < 19 ? V19_ADDON_COSTS : {}),
     ...(row?.addons || {}),
+    // 2027 配件清單是最終標準：舊成本表升級時，這幾項直接換成清單的成本
+    ...(row && previousVersion < 20 ? V20_ADDON_COSTS : {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;
   return {

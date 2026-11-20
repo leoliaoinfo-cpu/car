@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v49';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v50';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -329,9 +329,9 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-phone-basic', cat: '配件', name: '一般手機架組', price: 1300 },
   { id: 'qa-phone-a-pillar', cat: '配件', name: 'A柱手機架組', price: 1500 },
   { id: 'qa-brake-kit', cat: '底盤強化', name: '煞車劃線碟＋競技來令片', price: 15000, desc: '只改前煞車' },
-  { id: 'qa-rear-dr-rgb', cat: '金屬製研', name: 'DR 漫反射後防撞桿（RGB 幻彩變色）', price: 13800, desc: '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）' },
-  { id: 'qa-boss-mudflap', cat: '金屬製研', name: 'BOSS 白鐵擋泥板', price: 3580, desc: '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨' },
-  { id: 'qa-android-flagship', cat: '駕駛科技', name: '12.3吋安卓四錄旗艦機（含K2500專用底座）', price: 43800, desc: '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價' },
+  { id: 'qa-rear-dr-rgb', cat: '金屬製研', name: 'DR 漫反射後防撞桿（RGB 幻彩變色）', price: 13800, desc: '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）；需變更；尾門車無法安裝' },
+  { id: 'qa-boss-mudflap', cat: '金屬製研', name: 'BOSS 白鐵擋泥板', price: 3580, desc: '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨；附BO$$貼紙' },
+  { id: 'qa-android-flagship', cat: '駕駛科技', name: '12.3吋安卓四錄旗艦機（含K2500專用底座）', price: 43800, warrantyMonths: 12, desc: '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價；中央置物盒另加 500 元；1 年保固' },
   { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
   { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
   { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },
@@ -465,7 +465,12 @@ const V26_PREVIOUS_ADDON_DESCRIPTIONS = {
   'qa-star-led-fog': '黃金／白光；6 個月保固',
   'qa-puddle-lamp': '有裝防水快速開關；6 個月保固',
   'qa-tail': '原車尾燈模組3D開模、KIA K2500卡旺專用型。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固',
-  'qa-omega': 'OMEGA WHEELS。減重22公斤 & 載重值+300公斤',
+  'qa-omega': ['OMEGA WHEELS。減重22公斤 & 載重值+300公斤', '全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤'],
+  // 2027 卡旺配件清單（2026-11-20）新增的備註
+  'qa-rear-dr-rgb': '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）',
+  'qa-boss-mudflap': '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨',
+  'qa-android-flagship': '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價',
+  'qa-urea': '原車鎖點結構穩固、保護尿素桶防止破損',
 };
 
 export const DEFAULT_QUOTE_PRESETS = {
@@ -521,7 +526,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-atc', cat: '底盤強化', name: 'ATC 防傾桿', price: 18500, desc: '2WD；優力膠套換紅色強化版' },
     { id: 'qa-leaf', cat: '底盤強化', name: '強化支撐彈簧', price: 15500, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
     // 金屬製研
-    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, desc: '原車鎖點結構穩固、保護尿素桶防止破損' },
+    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, desc: '原車鎖點結構穩固、保護尿素桶防止破損；橘色／黑色' },
     { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
     { id: 'qa-skid', cat: '金屬製研', name: '4WD 專用鋁合金下護板', price: 12500, desc: '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
     { id: 'qa-rear', cat: '金屬製研', name: '車尾後防撞桿', price: 7500, desc: '需變更；尾門車無法安裝' },
@@ -537,7 +542,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-rob2', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
     { id: 'qa-rob3', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
     // 鋁圈
-    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: '全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
+    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: '2WD；全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
   subsidies: [
     { id: 'qs-1', name: '汰舊換新補助', amount: 50000, funding: 'company' },
@@ -787,7 +792,7 @@ export function resolveQuotePresets(row) {
     }
     const previousDefault = V16_PREVIOUS_ADDON_DEFAULTS[migrated.id];
     const latestDefault = DEFAULT_QUOTE_PRESETS.addons.find((addon) => addon.id === migrated.id);
-    if (latestDefault && migrated.desc === V26_PREVIOUS_ADDON_DESCRIPTIONS[migrated.id]) {
+    if (latestDefault && [].concat(V26_PREVIOUS_ADDON_DESCRIPTIONS[migrated.id] || []).includes(migrated.desc)) {
       migrated = { ...migrated, desc: latestDefault.desc };
     }
     if (previousDefault && latestDefault
