@@ -25,7 +25,7 @@
   add('mirror-view', '後照鏡組－全視線', 5000);
   add('horn-mod', '專用喇叭改裝', 2800);
   add('phone2', '雙手機架組合（兩隻）', 3000, { optLabel: '固定方式', opts: ['重力', '磁吸'] });
-  add('pkg-dbl', '雙廂高階套裝', 250000, { fit: '雙廂', note: '原配件價值 275,000' });
+  add('pkg-dbl', '雙廂高階套裝', 250000, { fit: '雙廂', note: '套餐價 25 萬（原價 275,000）' });
   add('android123', '12.3 吋安卓四錄旗艦機', 43800);
   add('audio', '音響升級', 9500);
   add('tail', 'LED 光環尾燈組', 11800);
@@ -57,9 +57,9 @@
   add('dr', 'DR 漫反射後防撞桿（RGB 幻彩）', 13800, { note: '需變更／尾門車無法安裝' });
   add('hana', 'Hanafilter 冷氣濾網', 990);
   add('shift', '自排排檔桿保護蓋', 1480, { fit: '自排' });
-  add('charger2', '雙孔車用快充頭（Type-C 45W＋USB 18W）', 1580);
+  add('charger2', '車用快充頭（雙孔 Type-C 45W＋USB 18W，12V–24V）', 1580);
   add('rail', '貨斗加長延伸護欄', 8500);
-  add('toolbox', '貨斗側掛工具箱', 8680);
+  add('toolbox', '貨斗側掛工具箱（大箱／灰色 625×365×320mm）', 8680);
   add('grille', '電鍍水箱護罩', 3680);
   add('cargo-led', '貨斗 LED 定位燈（一組4條）', 1990, { optLabel: '燈色', opts: ['藍紫', '白', '紅'] });
   add('horn', '高低音警示喇叭', 2280);
@@ -74,9 +74,7 @@
   add('cup-dbl', '雙廂置杯收納架', 389, { fit: '雙廂' });
   add('pedal', '鋁合金腳踏板（油門＋煞車）', 1880, { fit: '自排' });
   add('cup-pad', '置杯架防滑墊', 1190);
-  add('charger-super', '車用超級快充頭（12V–24V）', 1580);
   add('opener', '安全帶造型開瓶器', 890);
-  add('toolbox-big', '貨斗側掛工具箱（大箱／灰色 625×365×320mm）', 8680);
   add('gps', '4G GPS 車輛定位器（A18）', 9900, { note: '4G 網卡贈送 2 年，GPS 車機永久保固' });
 
   // 圖片 → 項目（同一項目出現在多張圖時，勾選會同步）
@@ -97,7 +95,7 @@
     peri1: ['sunshade', 'fuelcap', 'puddle'],
     func: ['phone-grip', 'cup-dbl', 'pedal'],
     cabin2: ['cup-pad', 'armrest', 'pedal', 'cushion'],
-    peri2: ['charger-super', 'opener', 'toolbox-big'],
+    peri2: ['charger2', 'opener', 'toolbox'],
     gps: ['gps']
   };
 
@@ -169,6 +167,7 @@
       top.appendChild(el('span', 'box', '✓'));
       var nm = el('span', 'inm'); nm.appendChild(document.createTextNode(it.n));
       var tag = fitTag(it); if (tag) nm.appendChild(el('em', '', tag));
+      if (it.note) { nm.appendChild(el('br')); nm.appendChild(el('small', 'inote', it.note)); }
       top.appendChild(nm);
       top.appendChild(el('span', 'ipr', ''));
       top.onclick = function () { toggle(id); };
@@ -225,6 +224,7 @@
     chosen().forEach(function (it) {
       var p = priceOf(it);
       L.push('・' + it.n + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
+      if (it.note) L.push('　' + it.note);
       var w = fitWarn(it); if (w) L.push('　' + w);
     });
     var t = total(); if (t) L.push('', '配件合計：' + money(t));
