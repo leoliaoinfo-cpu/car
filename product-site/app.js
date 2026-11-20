@@ -134,6 +134,19 @@
     }
     updCall();
   }
+  // 左右滑動切換分類（手機）
+  (function () {
+    var x0 = null, y0 = 0;
+    document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (x0 == null || edit || $('inqsheet').style.display === 'flex') { x0 = null; return; }
+      var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+      if (Math.abs(dx) < 90 || Math.abs(dy) > 50 || Math.abs(dx) < Math.abs(dy) * 2.2) return;
+      if (e.target.closest && e.target.closest('#nav, .iopts, input, textarea')) return;
+      var ids = tabIds(), i = ids.indexOf(active), n = i + (dx < 0 ? 1 : -1);
+      if (n >= 0 && n < ids.length) setTab(ids[n]);
+    }, { passive: true });
+  })();
   var seeCta = true;
   function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || active === 'contact'); }
 

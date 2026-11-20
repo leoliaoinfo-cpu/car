@@ -242,6 +242,12 @@
   }
   function syncCounts() {
     syncVbars();
+    Array.prototype.forEach.call(document.querySelectorAll('#nav a'), function (a) {
+      var pane = document.getElementById(a.getAttribute('data-t')); if (!pane) return;
+      var n = pane.querySelectorAll('.irow.on').length, b = a.querySelector('.tc');
+      if (!b) { b = el('b', 'tc', ''); a.appendChild(b); }
+      b.textContent = n; b.classList.toggle('on', n > 0);
+    });
     Array.prototype.forEach.call(document.querySelectorAll('figure.card'), function (f) {
       var c = f.querySelector('.selc'); if (!c) return;
       var n = f.querySelectorAll('.irow.on').length;
@@ -287,6 +293,11 @@
       var r = el('div', 'srow');
       var left = el('div', 'sl'); left.appendChild(el('b', '', plain(it) + optText(it)));
       var w = fitWarn(it); if (w) left.appendChild(el('small', 'warn', w));
+      if (it.opts) {
+        var oc = el('div', 'sopts');
+        it.opts.forEach(function (o) { var b = el('button', 'chip s' + (S.sel[it.id] === o ? ' on' : ''), o); b.type = 'button'; b.onclick = function () { S.sel[it.id] = o; persist(); refresh(); }; oc.appendChild(b); });
+        left.appendChild(oc);
+      }
       r.appendChild(left);
       var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : '請報價')));
       var x = el('button', 'sx', '✕'); x.type = 'button'; x.setAttribute('aria-label', '移除'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
