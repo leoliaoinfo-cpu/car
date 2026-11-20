@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 16;
+const COST_CATALOG_VERSION = 17;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -198,6 +198,16 @@ const V16_ADDON_COSTS = {
   'qa-android-flagship': { cost: 33800 },
 };
 
+// 貨斗橡膠底板成本（使用者 2026-11-20 提供）：依車型（單廂／大單廂／雙廂）與施工方式（全封／只鋪）。
+const V17_ADDON_COSTS = {
+  'qa-floor-rubber-full-s': { cost: 5200 },
+  'qa-floor-rubber-full-l': { cost: 4800 },
+  'qa-floor-rubber-full-d': { cost: 4000 },
+  'qa-floor-rubber-only-s': { cost: 2600 },
+  'qa-floor-rubber-only-l': { cost: 2400 },
+  'qa-floor-rubber-only-d': { cost: 2000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -211,6 +221,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V14_ADDON_COSTS,
   ...V15_ADDON_COSTS,
   ...V16_ADDON_COSTS,
+  ...V17_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -670,6 +681,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 14 ? V14_ADDON_COSTS : {}),
     ...(row && previousVersion < 15 ? V15_ADDON_COSTS : {}),
     ...(row && previousVersion < 16 ? V16_ADDON_COSTS : {}),
+    ...(row && previousVersion < 17 ? V17_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;

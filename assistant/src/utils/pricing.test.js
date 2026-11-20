@@ -1408,3 +1408,26 @@ test('12.3吋安卓四錄旗艦機成本 33,800：利潤與9吋安卓機相同�
   const up = normalizeCostCatalog({ version: 15, models: {}, addons: { 'qa-android-surround': { cost: 25000 } } });
   assert.equal(up.addons['qa-android-flagship'].cost, 33800);
 });
+
+test('貨斗橡膠底板：依車型（單廂／大單廂／雙廂）與施工方式（全封／只鋪）6 種，成本照使用者提供；特仕版鎖住全部；舊選單與舊成本表升級後也有', async () => {
+  const { resolveQuotePresets, DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
+  const want = {
+    'qa-floor-rubber-full-s': 5200, 'qa-floor-rubber-full-l': 4800, 'qa-floor-rubber-full-d': 4000,
+    'qa-floor-rubber-only-s': 2600, 'qa-floor-rubber-only-l': 2400, 'qa-floor-rubber-only-d': 2000,
+  };
+  const fresh = normalizeCostCatalog(null);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v37', addonCategories: ['貨斗底板'], addons: [] });
+  const upCost = normalizeCostCatalog({ version: 16, models: {}, addons: { 'qa-floor-rubber-full-s': { cost: 5300 } } });
+  for (const [id, cost] of Object.entries(want)) {
+    const item = DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === id);
+    assert.equal(item.cat, '貨斗底板', id);
+    assert.equal(item.pendingPrice, true, id); // 售價使用者還沒給，維持待確認
+    assert.equal(fresh.addons[id].cost, cost, id);
+    assert.ok(old.addons.some((a) => a.id === id), id);
+    if (id !== 'qa-floor-rubber-full-s') assert.equal(upCost.addons[id].cost, cost, id);
+  }
+  assert.equal(upCost.addons['qa-floor-rubber-full-s'].cost, 5300); // 使用者自己改過的不蓋掉
+  const pkg1 = DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === 'qa-pkg1');
+  for (const id of Object.keys(want)) assert.ok(pkg1.locks.includes(id), id);
+  assert.ok(pkg1.locks.includes('qa-floor-rubber'));
+});

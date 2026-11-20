@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v37';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v38';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -258,6 +258,12 @@ export const QUOTE_ADDON_SECTIONS = [
 
 const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
+  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
+  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（大單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
+  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（雙廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
+  { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
+  { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（大單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
+  { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（雙廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
@@ -452,7 +458,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     ...REQUIRED_QUOTE_ADDONS,
     // 配備版本升級
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
-      locks: ['qa-floor-rubber'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠底板
+      locks: ['qa-floor-rubber', 'qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠底板（含依車型分的全封／只鋪 6 種）
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
     { id: 'qa-pkg2', cat: '配備版本', name: NEW_SAFETY_PACKAGE_NAME, price: 40000, choiceLabel: '影像系統', choices: ['四錄', '環景'],
       desc: SAFETY_PACKAGE_DESC,
