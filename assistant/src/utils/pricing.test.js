@@ -1409,7 +1409,7 @@ test('12.3吋安卓四錄旗艦機成本 33,800：利潤與9吋安卓機相同�
   assert.equal(up.addons['qa-android-flagship'].cost, 33800);
 });
 
-test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× 單廂／大單廂／雙廂 6 種，成本＋利潤 3,000；特仕版鎖住；舊選單與舊成本表升級後正確', async () => {
+test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× 單廂／大單廂／雙廂 6 種，成本＋利潤 2,000；特仕版鎖住；舊選單與舊成本表升級後正確', async () => {
   const { resolveQuotePresets, DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
   const want = {
     'qa-floor-rubber-full-s': ['貨斗橡膠墊－全封（單廂）', 5200], 'qa-floor-rubber-full-l': ['貨斗橡膠墊－全封（大單廂）', 4800], 'qa-floor-rubber-full-d': ['貨斗橡膠墊－全封（雙廂）', 4000],
@@ -1421,7 +1421,7 @@ test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× �
     const item = DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === id);
     assert.equal(item.cat, '貨斗底板', id);
     assert.equal(item.name, name);
-    assert.equal(item.price, cost + 3000, id);
+    assert.equal(item.price, cost + 2000, id);
     assert.ok(!item.pendingPrice, id);
     assert.equal(fresh.addons[id].cost, cost, id);
     assert.ok(old.addons.some((a) => a.id === id), id);
@@ -1434,6 +1434,9 @@ test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× �
     { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', name: '貨斗橡膠底板－只鋪（單廂）', price: 5600 },
     { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', name: '我自己取的名字', price: 9999 }] });
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-s').name, '貨斗橡膠墊－全封（單廂）');
+  // 上一版預設價（成本＋3,000）換成新預設（成本＋2,000）；使用者自己改過的價格不動
+  assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-s').price, 7200);
+  assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-s').price, 4600);
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-s').name, '貨斗橡膠墊－只鋪底面（單廂）');
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-l').name, '我自己取的名字');
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-l').price, 9999);

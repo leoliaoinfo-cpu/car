@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v40';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v41';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -256,14 +256,20 @@ export const QUOTE_ADDON_SECTIONS = [
   { key: 'peripheral-accessories', label: '周邊配件', categories: [PERIPHERAL_ACCESSORY_CATEGORY] },
 ];
 
+// 貨斗橡膠墊上一版預設售價（成本＋利潤 3,000）；升級時只有「還是這個價」的才換成新預設，使用者改過的不動
+const RUBBER_PREVIOUS_PRICES = {
+  'qa-floor-rubber-full-s': 8200, 'qa-floor-rubber-full-l': 7800, 'qa-floor-rubber-full-d': 7000,
+  'qa-floor-rubber-only-s': 5600, 'qa-floor-rubber-only-l': 5400, 'qa-floor-rubber-only-d': 5000,
+};
+
 const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（單廂）', price: 8200, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
-  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（大單廂）', price: 7800, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
-  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（雙廂）', price: 7000, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
-  { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（單廂）', price: 5600, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
-  { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（大單廂）', price: 5400, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
-  { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（雙廂）', price: 5000, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
+  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（單廂）', price: 7200, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（大單廂）', price: 6800, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（雙廂）', price: 6000, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（單廂）', price: 4600, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
+  { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（大單廂）', price: 4400, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
+  { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（雙廂）', price: 4000, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
@@ -677,7 +683,11 @@ export function resolveQuotePresets(row) {
       const floorDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
       if (floorDefault) {
         // 還是待報價的 → 換成有售價的新預設；名稱還是上一版預設（貨斗橡膠底板－全封／只鋪）→ 改成「貨斗橡膠墊－全封／只鋪底面（車型）」；使用者自己改過的不動
-        if (migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) migrated = { ...migrated, price: floorDefault.price, pendingPrice: floorDefault.pendingPrice };
+        // 價格：待報價、或還是上一版預設（成本＋3,000）的，換成現在的預設（成本＋2,000）；使用者自己改過的價格不動
+        const previousPrice = RUBBER_PREVIOUS_PRICES[migrated.id];
+        if ((migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) || Number(migrated.price) === previousPrice) {
+          migrated = { ...migrated, price: floorDefault.price, pendingPrice: floorDefault.pendingPrice };
+        }
         if (/^貨斗橡膠底板－(?:全封|只鋪)/.test(String(migrated.name))) migrated = { ...migrated, name: floorDefault.name, desc: floorDefault.desc };
       }
     }
