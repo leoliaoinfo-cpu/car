@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v50';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v51';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -332,6 +332,8 @@ const SUPPLIER_SHEET_ADDONS = [
   { id: 'qa-rear-dr-rgb', cat: '金屬製研', name: 'DR 漫反射後防撞桿（RGB 幻彩變色）', price: 13800, desc: '二次照明警示燈；RGB幻彩變色；APP控色；原車孔位對鎖；鍍鋅鐵製；合法變更申請（變更須依監理規定辦理）；需變更；尾門車無法安裝' },
   { id: 'qa-boss-mudflap', cat: '金屬製研', name: 'BOSS 白鐵擋泥板', price: 3580, desc: '304厚白鐵；鏡面拋光；原廠孔位；直上安裝；高辨識度；強化防護；耐操耐磨；附BO$$貼紙' },
   { id: 'qa-android-flagship', cat: '駕駛科技', name: '12.3吋安卓四錄旗艦機（含K2500專用底座）', price: 43800, warrantyMonths: 12, desc: '12.3吋超寬螢幕；1080P四錄高清；8GB RAM / 128GB ROM；MTK八核心；4G SIM卡聯網；無線CarPlay；K2500專用底座；建議完工價；中央置物盒另加 500 元；1 年保固' },
+  { id: 'qa-gps-a18', cat: '駕駛科技', name: '4G GPS 車輛定位器（A18 4G LITE）', price: 9900,
+    desc: '即時定位／歷史軌跡（最長180天軌跡回放）／電子圍籬／異常警報（超速提醒、震動警報、防拆提醒、進出圍欄通知）／電量顯示；定位 GPS／4G／Wi-Fi／LBS；電壓 DC 9–90V；尺寸 74×30×13.4mm；備用電池 50mAh；4G 網卡贈送 2 年（俊宇客戶再加碼贈送 1 年，合計 3 年）；GPS 車機永久保固；合約到期續約約 $300／月；專案優惠價 9,900 元' },
   { id: 'qa-rear-dr', cat: '金屬製研', name: 'DR 車尾後防撞桿（紅光）', price: 12800, desc: '需變更；尾門車無法安裝' },
   { id: 'qa-film-fsk-front', cat: WINDOW_FILM_CATEGORIES[0], group: 'g-film-front', name: 'FSK 隔熱紙－前擋（KS78）', price: 8000, desc: '料號 99PVYPUFSKB122；單廂／大單廂／雙廂' },
   { id: 'qa-film-fsk-body-s', cat: WINDOW_FILM_CATEGORIES[1], group: 'g-film-body', name: 'FSK 隔熱紙－車身（KS20／KS40・單廂）', price: 6000, desc: '料號 99PVYPUFSKB120S' },

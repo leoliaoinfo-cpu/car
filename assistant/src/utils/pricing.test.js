@@ -1505,3 +1505,17 @@ test('升降帆布炬方規格：售價 130,000（成本 120,000＋利潤 10,000
   assert.equal(old.price, 130000);
   assert.ok(!old.pendingPrice);
 });
+
+test('4G GPS 車輛定位器：駕駛科技、售價 9,900、成本與獎金還沒提供所以待補成本；舊選單升級會補上', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const it = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-gps-a18');
+  assert.equal(it.cat, '駕駛科技');
+  assert.equal(it.price, 9900);
+  assert.ok(!it.pendingPrice);
+  assert.match(it.desc, /永久保固/);
+  assert.equal(normalizeCostCatalog(null).addons['qa-gps-a18'], undefined);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v50', addonCategories: ['駕駛科技'], addons: [
+    { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000 },
+  ] }).addons;
+  assert.ok(old.some((a) => a.id === 'qa-gps-a18' && a.price === 9900));
+});
