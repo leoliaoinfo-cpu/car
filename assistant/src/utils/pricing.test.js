@@ -1392,14 +1392,14 @@ test('安卓機與安全科技版都是四錄／環景二選一，舊設定升�
   }
 });
 
-test('雙廂高階套裝也要選四錄／環景，舊設定升級後帶入選項', async () => {
+test('雙廂高階套裝要選影像系統（四錄／環景）加後照鏡顏色（黑／白），舊設定升級後帶入選項', async () => {
   const { resolveQuotePresets } = await import('./crm.js');
   const fresh = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-double-cab-package');
-  assert.deepEqual(fresh.choices, ['四錄', '環景']);
+  assert.deepEqual(fresh.choices, ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡']);
   const old = resolveQuotePresets({ _catalog: 'kavan-2026-v34', addonCategories: ['配備版本'], addons: [
     { id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000 },
   ] }).addons.find((a) => a.id === 'qa-double-cab-package');
-  assert.deepEqual(old.choices, ['四錄', '環景']);
+  assert.deepEqual(old.choices, ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡']);
 });
 
 test('貨斗LED定位燈：燈組分類、售價 1990、三色擇一、成本 1592（八折）', async () => {

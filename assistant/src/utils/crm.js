@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v46';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v47';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -357,7 +357,7 @@ const LATEST_CATALOG_ADDONS = [
     desc: '兩支一組；法規認證合法變更；雙廂專用',
   },
   {
-    id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000, choiceLabel: '影像系統', choices: ['四錄', '環景'], // 內含的安全科技版：四錄／環景二選一
+    id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000, choiceLabel: '影像系統＋後照鏡顏色', choices: ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡'], // 內含安全科技版（四錄／環景二選一）與 LED 韓版後照鏡（黑／白）
     desc: '雙廂專用。型錄方案價 250,000 元，原配件價值標示 275,000 元；包含特仕版、多功能方向盤、安全科技版（四錄／環景二選一）、LED後照鏡、GTR魚眼頭燈、X7魚眼霧燈、TS避震、音響升級、延長側踏、Travel橫桿、尿素桶防撞桿、雙手機架、室內牌照燈、側邊照地燈、OMEGA鋁圈、HALO光環尾燈及KDM擾流前下巴',
     includes: [
       'qa-pkg1', 'qa-pkg3', 'qa-pkg2', 'qa-mirror1', 'qa-gtr', 'qa-fog', 'qa-ts', 'qa-tlsound',
