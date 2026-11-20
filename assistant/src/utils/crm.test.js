@@ -41,11 +41,11 @@ test('legacy customers are classified from purchase and modification cases', () 
 test('重疊規則：特仕版鎖橡膠底板、LED韓版後照鏡鎖鏡蓋與空力套裝，舊設定升級後也帶入', async () => {
   const { DEFAULT_QUOTE_PRESETS, resolveQuotePresets } = await import('./crm.js');
   const by = (presets, id) => presets.addons.find((a) => a.id === id);
-  assert.deepEqual(by(DEFAULT_QUOTE_PRESETS, 'qa-pkg1').locks, ['qa-floor-rubber', 'qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d']);
+  assert.deepEqual(by(DEFAULT_QUOTE_PRESETS, 'qa-pkg1').locks, ['qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d']);
   assert.deepEqual(by(DEFAULT_QUOTE_PRESETS, 'qa-mirror1').locks, ['qa-mcover', 'qa-aero']);
   // 使用者之前存過的設定（沒有 locks）升級後要補上
   const old = { _catalog: 'kavan-2026-v29', addonCategories: ['配備版本'], addons: DEFAULT_QUOTE_PRESETS.addons.map(({ locks, ...rest }) => rest) };
   const resolved = resolveQuotePresets(old);
-  assert.deepEqual(by(resolved, 'qa-pkg1').locks, ['qa-floor-rubber', 'qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d']);
+  assert.deepEqual(by(resolved, 'qa-pkg1').locks, ['qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d']);
   assert.deepEqual(by(resolved, 'qa-mcover').locks, ['qa-mirror1']);
 });

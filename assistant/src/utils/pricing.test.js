@@ -1150,7 +1150,8 @@ test('uses 4.5 percent as the default customer loan estimate', () => {
 
 test('splits cargo floors and liftgates into quote categories with special orders pending', () => {
   const addons = DEFAULT_QUOTE_PRESETS.addons;
-  assert.equal(addons.find((item) => item.id === 'qa-floor-rubber').cat, '貨斗底板');
+  assert.equal(addons.find((item) => item.id === 'qa-floor-rubber-full-s').cat, '貨斗底板');
+  assert.equal(addons.some((item) => item.id === 'qa-floor-rubber'), false); // 通用橡膠底板已刪除（2026-11-20）
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-30').price, 40000);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-35').price, 40000);
   assert.equal(addons.find((item) => item.id === 'qa-tailgate-40').price, 43000);
@@ -1224,9 +1225,9 @@ test('moves saved tailgates into size and cylinder categories without restoring 
 test('preserves a custom addon category when upgrading saved quote presets', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v8', models: [], subsidies: [],
-    addons: [{ ...DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === 'qa-floor-rubber'), cat: '工地底板' }],
+    addons: [{ ...DEFAULT_QUOTE_PRESETS.addons.find((item) => item.id === 'qa-floor-rubber-full-s'), cat: '工地底板' }],
   });
-  assert.equal(resolved.addons.find((item) => item.id === 'qa-floor-rubber').cat, '工地底板');
+  assert.equal(resolved.addons.find((item) => item.id === 'qa-floor-rubber-full-s').cat, '工地底板');
 });
 
 test('renames an addon category, its items and existing quote review markers without merging categories', () => {
@@ -1484,7 +1485,7 @@ test('貨斗橡膠墊：全封／只鋪底面（並列兩種做法）× 單廂�
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-l').price, 9999);
   const pkg1 = DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === 'qa-pkg1');
   for (const id of Object.keys(want)) assert.ok(pkg1.locks.includes(id), id);
-  assert.ok(pkg1.locks.includes('qa-floor-rubber'));
+  assert.ok(!pkg1.locks.includes('qa-floor-rubber'));
   const up = normalizeCostCatalog({ version: 16, models: {}, addons: { 'qa-floor-rubber-full-s': { cost: 5300 } } });
   assert.equal(up.addons['qa-floor-rubber-full-s'].cost, 5300); // 使用者自己改過的不蓋
   assert.equal(up.addons['qa-floor-rubber-only-l'].cost, 2400);
@@ -1534,4 +1535,14 @@ test('4G GPS 車輛定位器：駕駛科技、售價 9,900、成本與獎金還�
     { id: 'qa-tpms-6', cat: '駕駛科技', name: '6輪胎壓偵測器', price: 5000 },
   ] }).addons;
   assert.ok(old.some((a) => a.id === 'qa-gps-a18' && a.price === 9900));
+});
+
+test('通用的「貨斗橡膠底板」已刪除：預設選單沒有，舊選單升級時也拿掉，依車型的 6 種橡膠墊留著', async () => {
+  const { resolveQuotePresets, DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
+  assert.equal(DEFAULT_QUOTE_PRESETS.addons.some((a) => a.id === 'qa-floor-rubber'), false);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v53', addonCategories: ['貨斗底板'], addons: [
+    { id: 'qa-floor-rubber', cat: '貨斗底板', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
+  ] }).addons;
+  assert.equal(old.some((a) => a.id === 'qa-floor-rubber'), false);
+  assert.equal(old.filter((a) => a.id.startsWith('qa-floor-rubber-')).length, 6);
 });

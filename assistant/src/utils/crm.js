@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v53';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v54';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -272,7 +272,6 @@ const RUBBER_PREVIOUS_PRICES = {
 };
 
 const VENDOR_QUOTE_ADDONS = [
-  { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
   { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（單廂）', price: 7200, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
   { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（大單廂）', price: 6800, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
   { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（雙廂）', price: 6000, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
@@ -495,7 +494,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     ...REQUIRED_QUOTE_ADDONS,
     // 配備版本升級
     { id: 'qa-pkg1', cat: '配備版本', name: '特仕版套件（行車紀錄器/GPS/踏墊/晴雨窗/隔熱紙…）', price: 30000,
-      locks: ['qa-floor-rubber', 'qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠墊（含依車型分的全封／只鋪底面 6 種）
+      locks: ['qa-floor-rubber-full-s', 'qa-floor-rubber-full-l', 'qa-floor-rubber-full-d', 'qa-floor-rubber-only-s', 'qa-floor-rubber-only-l', 'qa-floor-rubber-only-d'], // 特仕版已含貨斗橡膠墊 5mm，不可再單選橡膠墊（含依車型分的全封／只鋪底面 6 種）
       desc: '電子式前後行車紀錄器、GPS天眼測速、PVC格紋防水踏墊、Kia卡旺深黑晴雨窗(組)、專用倒車蜂鳴器、貨斗橡膠墊5mm加厚、SmithBella奈米隔熱紙' },
     { id: 'qa-pkg2', cat: '配備版本', name: NEW_SAFETY_PACKAGE_NAME, price: 40000, choiceLabel: '影像系統', choices: ['四錄', '環景'],
       desc: SAFETY_PACKAGE_DESC,
@@ -668,6 +667,7 @@ export function resolveQuotePresets(row) {
   const normalizeCurrentAddon = (item) => {
     if (item.id === 'qa-lighting-custom') return null;
     if (item.id === 'qa-pkg2-console-box') return null; // 已併入獨立的「加購中央置物盒」
+    if (item.id === 'qa-floor-rubber') return null; // 通用的「貨斗橡膠底板」已刪除（使用者 2026-11-20），只留依車型的 6 種橡膠墊
     const isCargoFloor = item.id?.startsWith('qa-floor-')
       || ['貨斗底板', cargoFloorCategory].includes(item.cat);
     if (!isCargoFloor || String(item.desc || '').includes('5mm')) return item;
