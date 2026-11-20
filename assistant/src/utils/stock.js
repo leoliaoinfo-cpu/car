@@ -19,7 +19,7 @@ export const STOCK_STATUSES = INHOUSE_STATUSES;
 
 // 預設歸外包：帆布、各種箱體、尾門系統、烤漆／改色、H 架
 const VENDOR_CATEGORY = /尾門|帆布|冷凍|歐翼|露營|改色|防刮|烤漆/;
-const VENDOR_NAME = /帆布|[蓬篷]頂|[二三四五]面帆|橡膠墊|橡膠底板|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
+const VENDOR_NAME = /貼紙|刻字|帆布|[蓬篷]頂|[二三四五]面帆|橡膠墊|橡膠底板|箱體|冷凍冷藏|鋁塑箱|尾門|烤漆|噴漆|改色|H\s*架/i;
 const CATALOG = new Map((DEFAULT_QUOTE_PRESETS.addons || []).map((addon) => [addon.id, addon]));
 
 /** 新配件預設歸哪一類（使用者可以逐項改）。 */
@@ -228,7 +228,7 @@ export function stockByCase(deals = [], cases = [], now = new Date()) {
       awaiting, expectedCarMonth: caseItem.expectedCarMonth || '', carArrivedAt: caseItem.carArrivedAt || '',
       rows: (() => {
         const seq = vendorSequence(rows);
-        return [...rows].sort((a, b) => rank(a) - rank(b) || (seq.get(a.id) ?? 99) - (seq.get(b.id) ?? 99)).map((row) => (seq.has(row.id) ? { ...row, seq: seq.get(row.id) } : row));
+        return [...rows].sort((a, b) => rank(a) - rank(b) || (seq.get(a.id) ?? stickerRank(a)) - (seq.get(b.id) ?? stickerRank(b))).map((row) => (seq.has(row.id) ? { ...row, seq: seq.get(row.id) } : row));
       })(),
     });
   }
@@ -238,12 +238,14 @@ export function stockByCase(deals = [], cases = [], now = new Date()) {
 }
 
 // ── 依配件分區（集體作業）：同一種配件放在一起，一次處理好幾位客戶 ─────────────────────────────
+// 順序＝廠商施工先後（使用者 2026-11-20）：尾門→烤漆→升降帆布→橡膠墊→帆布→箱體／H 架；貼紙刻字可先下單製作、最後才貼，所以排最前面
 const VENDOR_KINDS = [
+  ['貼紙刻字', /貼紙|刻字/],
+  ['尾門', /尾門/],
+  ['烤漆／改色', /烤漆|噴漆|改色|珍珠漆|logo|輪胎蓋/i],
   ['升降帆布', /升降帆布/],
   ['橡膠墊', /橡膠墊|橡膠底板/],
   ['帆布', /帆布|[蓬篷]頂|[二三四五]面帆/],
-  ['尾門', /尾門/],
-  ['烤漆／改色', /烤漆|噴漆|改色|珍珠漆|logo|輪胎蓋/i],
   ['箱體', /箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/],
   ['H 架', /H\s*架/i],
 ];
@@ -252,19 +254,24 @@ const VENDOR_KINDS = [
  * 廠商施工先後順序（使用者 2026-11-20）：一般是 橡膠墊 → 帆布；車上有「升降帆布」時要 升降帆布 → 橡膠墊 → 帆布。
  * 只有同一台車同時有兩種以上才編號；回傳 Map（配件 id → 第幾步）。
  */
+const stickerRank = (item) => (/貼紙|刻字/.test(`${item?.name || ''}`) ? 0 : 99);
+
 export function vendorSequence(items = []) {
   const kindOf = (item) => {
     const text = `${item?.name || ''} ${item?.fromBundle || ''}`;
+    if (/貼紙|刻字/.test(text)) return null; // 貼紙刻字不編號：先下單製作、最後才貼
+    if (/尾門/.test(text)) return 'tailgate';
+    if (/烤漆|噴漆|改色/.test(text)) return 'paint';
     if (/升降帆布/.test(text)) return 'lift';
     if (/橡膠墊|橡膠底板/.test(text)) return 'rubber';
     if (/帆布|[蓬篷]頂|[二三四五]面帆/.test(text)) return 'canvas';
+    if (/H\s*架|箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/i.test(text)) return 'body';
     return null;
   };
   const present = items.filter((item) => !item.hidden && !item.info && stockTrack(item) === 'vendor').map((item) => [item, kindOf(item)]).filter(([, kind]) => kind);
   const kinds = new Set(present.map(([, kind]) => kind));
   if (kinds.size < 2) return new Map();
-  const order = kinds.has('lift') ? ['lift', 'rubber', 'canvas'] : ['rubber', 'canvas'];
-  const ranked = order.filter((kind) => kinds.has(kind));
+  const ranked = ['tailgate', 'paint', 'lift', 'rubber', 'canvas', 'body'].filter((kind) => kinds.has(kind));
   return new Map(present.map(([item, kind]) => [item.id, ranked.indexOf(kind) + 1]));
 }
 

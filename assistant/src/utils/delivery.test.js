@@ -279,3 +279,10 @@ test('施工步驟的廠商先後順序：一般 橡膠墊 → 帆布；有升�
   const flow = generateDeliveryWorkflow({ pricing: { lines: [{ name: '貨斗橡膠墊－只鋪底面（雙廂）' }, { name: '三面帆布－雙廂標準高' }] } });
   assert.equal(flow.find((step) => step.id === 'install-canvas').dependsOn, 'install-rubber');
 });
+
+test('施工順序含貼紙刻字：配件安裝→貼紙→驗車與變更', async () => {
+  const { generateDeliveryWorkflow } = await import('./delivery.js');
+  const ids = generateDeliveryWorkflow({ deal: {}, pricing: { lines: [{ name: '電動尾門' }, { name: '車體烤漆' }, { name: '三面帆布' }, { name: '車身貼紙刻字' }] } }).map((s) => s.id);
+  assert.deepEqual(ids.filter((id) => ['install-tailgate', 'paint-body', 'install-canvas', 'install-accessories', 'install-sticker', 'inspection'].includes(id)),
+    ['install-tailgate', 'paint-body', 'install-canvas', 'install-accessories', 'install-sticker', 'inspection']);
+});

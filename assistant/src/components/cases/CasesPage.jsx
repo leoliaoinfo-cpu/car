@@ -459,7 +459,7 @@ function StockChecklist({ deal, quote, delivered = false, awaiting = false, addo
   const seqMap = vendorSequence(items);
   // 廠商施工先後順序：有編號的（橡膠墊→帆布…）依順序排在前面，其餘維持原順序
   const normalRows = items.filter((row) => !row.hidden && !row.info)
-    .sort((a, b) => (seqMap.get(a.id) ?? 99) - (seqMap.get(b.id) ?? 99));
+    .sort((a, b) => (seqMap.get(a.id) ?? (/貼紙|刻字/.test(a.name || '') ? 0 : 99)) - (seqMap.get(b.id) ?? (/貼紙|刻字/.test(b.name || '') ? 0 : 99)));
   const infoRows = items.filter((row) => row.info && !row.hidden);
   const hiddenRows = items.filter((row) => row.hidden);
   // 刪除：從核對表拿掉，並記下 id，之後報價再改也不會加回來、也不會再提示「還沒帶進核對」

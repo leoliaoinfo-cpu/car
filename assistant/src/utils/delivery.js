@@ -16,6 +16,7 @@ export const DELIVERY_DEFAULT_DAYS = {
   'install-lift-canvas': 2,
   'install-rubber': 1,
   'install-body': 2,
+  'install-sticker': 1,
   wash: 1,
   'install-accessories': 1,
   inspection: 1,
@@ -88,6 +89,7 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
     || (!lineNames.length && includesAny(source, ['帆布']) && !hasLiftCanvas);
   const hasRubber = includesAny(source, ['橡膠墊', '橡膠底板']);
   const hasPaint = includesAny(source, ['烤漆', '噴漆', '改色', '車色']);
+  const hasSticker = lineNames.some((name) => /貼紙|刻字/.test(name)) || includesAny(source, ['貼紙', '刻字']);
   const hasRackOrBody = includesAny(source, ['H架', 'Ｈ架', '箱體', '廂體']);
 
   const steps = [workflowStep('contract', '簽約與施工內容確認', '行政')];
@@ -121,7 +123,13 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
   }
   steps.push(workflowStep('wash', '車輛清洗', '洗車', previous));
   steps.push(workflowStep('install-accessories', '改裝配件安裝與功能確認', '配件安裝', 'wash'));
-  steps.push(workflowStep('inspection', '完工驗收與領牌確認', '驗車', 'install-accessories'));
+  // 貼紙刻字：可以先下單製作，但要車子都做完才貼（排在改裝配件之後、驗車之前）
+  let beforeInspection = 'install-accessories';
+  if (hasSticker) {
+    steps.push(workflowStep('install-sticker', '貼車體貼紙刻字（車都做完再貼）', '貼紙', 'install-accessories'));
+    beforeInspection = 'install-sticker';
+  }
+  steps.push(workflowStep('inspection', '驗車與變更（含領牌確認）', '驗車', beforeInspection));
   steps.push(workflowStep('delivery', '交車前確認與正式交車', '交車', 'inspection'));
   return activateAvailableWorkflowSteps(steps);
 }
@@ -133,8 +141,9 @@ const STEP_NOTE_RULES = [
   ['install-lift-canvas', /升降帆布/],
   ['install-rubber', /橡膠墊|橡膠底板/],
   ['install-canvas', /帆布|[蓬篷]頂|[二三四五]面帆/, /升降帆布/],
+  ['install-sticker', /貼紙|刻字/],
   ['install-body', /H\s*架|Ｈ架|箱體|廂體|鋁塑箱|冷凍/i],
-  ['inspection', /領牌|選牌|牌照|規費|驗車|保險|過戶/],
+  ['inspection', /領牌|選牌|牌照|規費|驗車|變更|保險|過戶/],
 ];
 
 /**

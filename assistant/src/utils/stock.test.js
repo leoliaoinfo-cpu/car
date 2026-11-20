@@ -184,8 +184,8 @@ test('依配件分區：外包照帆布／尾門／烤漆…分，改裝部看�
   assert.equal(entries.find((e) => e.caseId === 'k1').awaiting, true);
   assert.equal(entries.find((e) => e.caseId === 'k2').urgent, true);
   const groups = stockByKind(entries);
-  assert.deepEqual(groups.map((g) => g.label), ['帆布', '烤漆／改色', '燈組']);
-  assert.deepEqual(groups[0].rows.map((r) => r.clientName), ['王小姐', '楊老闆']); // 急的客戶排前面
+  assert.deepEqual(groups.map((g) => g.label), ['烤漆／改色', '帆布', '燈組']);
+  assert.deepEqual(groups[1].rows.map((r) => r.clientName), ['王小姐', '楊老闆']); // 急的客戶排前面
   assert.equal(stockKind({ name: '一般手機架組' }).track, 'inhouse');
   assert.equal(stockAlert(deals[0], cases[0], now).deliveryRisk, false);
   assert.equal(stockAlert(deals[0], { ...cases[0], awaitingCar: false }, now).deliveryRisk, true);
@@ -233,4 +233,12 @@ test('廠商施工先後順序：一般 橡膠墊 → 帆布；有升降帆布 �
   assert.equal(supplierForItem(rubber, suppliers)?.name, '信順汽車配件');
   assert.equal(supplierForItem(canvas, suppliers), null);
   assert.equal(supplierForItem(rubber, [{ ...suppliers[0], active: false }]), null);
+});
+
+test('廠商先後：尾門→烤漆→帆布；貼紙刻字不編號但排最前', async () => {
+  const { vendorSequence, stockKind } = await import('./stock.js');
+  const it = (id, name) => ({ id, name, track: 'vendor' });
+  const seq = vendorSequence([it('c', '三面帆布'), it('p', '車體烤漆'), it('t', '電動尾門'), it('s', '車身貼紙刻字')]);
+  assert.deepEqual([...seq].sort(), [['c', 3], ['p', 2], ['t', 1]]);
+  assert.equal(stockKind(it('s', '車身貼紙刻字')).label, '貼紙刻字');
 });
