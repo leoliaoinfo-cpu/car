@@ -78,6 +78,24 @@
   add('opener', '安全帶造型開瓶器', 890);
   add('gps', '4G GPS 車輛定位器（A18）', 9900, { note: '4G 網卡贈送 2 年，GPS 車機永久保固' });
 
+  // ===== 尾門／帆布／車廂體（規格與價格取自業務系統的報價選單；不含任何成本）=====
+  add('tg-lift', '升降尾門', null, { keep: 1, optLabel: '尺寸', opts: ['2.5尺', '3尺', '3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '2.5尺': 37000, '3尺': 40000, '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '選尺寸後算價；再選下面的油壓缸與配件' });
+  add('tg-fold', '雙折尾門', null, { keep: 1, optLabel: '尺寸', opts: ['3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '單折／雙折同尺寸同價；實際承重與施工規格需確認' });
+  add('tg-cyl2', '雙缸油壓缸（800～1,000kg）', 8000, { req: ['tg-lift'], note: '搭配升降尾門；實際承重依車型、平台與施工內容確認' });
+  add('tg-cyl4', '四缸油壓缸（約1,200kg 特製規格）', null, { req: ['tg-lift'], note: '需確認載重、平台尺寸與車體後報價' });
+  add('tg-step', '尾門腳踏', 1000, { req: ['tg-lift'], note: '升降尾門用輔助腳踏' });
+  add('tg-remote', '尾門遙控', 2000, { req: ['tg-lift'], note: '升降尾門遙控操作' });
+  var CV = { '單廂': 0, '大單廂': 0, '雙廂': 0 };
+  function cvp(a, b) { return { '單廂': a, '大單廂': a, '雙廂': b }; }
+  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, byCab: cvp(19500, 14500), note: '實際高度及 2WD／4WD 適用性於施工前確認' });
+  add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
+  add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
+  add('cv-custom', '特殊訂製帆布', null, { note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
+  add('cv-lift', '升降帆布（卡旺單廂・特殊電動升降）', 130000, { fit: '單廂', note: '降低（平車頭）高 195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm，斗內高 150–240cm）' });
+  add('bx-fridge', '冷凍冷藏箱', null, { note: '依箱體尺寸、使用溫層、冷凍機組、供電方式與施工規格報價' });
+  add('bx-gull', '電動歐翼', null, { note: '依箱體尺寸、開啟方向、電動機構與施工規格報價' });
+  add('bx-camper', '露營箱體', null, { note: '依箱體尺寸、內裝、水電配置與設備需求報價' });
+
   // 圖片 → 項目（同一項目出現在多張圖時，勾選會同步）
   var BY_IMG = {
     equip: ['safe', 'special', 'wheelsw'],
@@ -97,7 +115,10 @@
     func: ['phone-grip', 'cup-dbl', 'pedal'],
     cabin2: ['cup-pad', 'armrest', 'pedal', 'cushion'],
     peri2: ['charger2', 'opener', 'toolbox'],
-    gps: ['gps']
+    gps: ['gps'],
+    'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
+    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift'],
+    'cfg-box': ['bx-fridge', 'bx-gull', 'bx-camper']
   };
 
   // ===== 狀態（只存在客人自己的手機）=====
@@ -119,9 +140,14 @@
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
-  function priceOf(it) { return it.byCab ? (S.cab ? it.byCab[S.cab] : null) : it.p; }
+  function priceOf(it) {
+    if (it.optPrice) { var o = S.sel[it.id]; return typeof o === 'string' && it.optPrice[o] ? it.optPrice[o] : null; }
+    return it.byCab ? (S.cab ? it.byCab[S.cab] : null) : it.p;
+  }
+  function minKnown(map) { var m = 0; Object.keys(map).forEach(function (k) { var v = map[k]; if (v && (!m || v < m)) m = v; }); return m; }
   function driveOk(d) { return !S.cab || !!(VPRICE[S.cab] && VPRICE[S.cab][d]); }
   function fitWarn(it) {
+    if (it.req && !it.req.some(function (id) { return S.sel[id]; })) return '🔒 要先選上面的「' + I[it.req[0]].n + '」';
     if (it.cab) return S.cab && S.cab !== it.cab ? '⚠ 這是' + it.cab + '的價格，你選的是' + S.cab : '';
     if (!it.fit) return '';
     var f = it.fit;
@@ -151,7 +177,7 @@
     return s + (v ? '（標價 ' + v + ' 萬）' : '');
   }
   // 詢價單只放品名：去掉結尾的說明括號（車廂別的烤漆除外）
-  function plain(it) { return it.cab ? it.n : it.n.replace(/（[^）]*）$/, ''); }
+  function plain(it) { return it.cab || it.keep ? it.n : it.n.replace(/（[^）]*）$/, ''); }
   function optText(it) { var o = S.sel[it.id]; return o && o !== true ? '（' + o + '）' : (it.opts ? '（' + it.optLabel + '：還沒選）' : ''); }
 
   // ===== 車型選擇面板 =====
@@ -232,7 +258,8 @@
       row.classList.toggle('on', on);
       row.querySelector('.itop').setAttribute('aria-checked', on ? 'true' : 'false');
       var p = priceOf(it), pr = row.querySelector('.ipr');
-      if (it.byCab && !S.cab) pr.textContent = '依車廂報價';
+      if (it.byCab && !S.cab) pr.textContent = money(minKnown(it.byCab)) + ' 起';
+      else if (it.optPrice && typeof S.sel[id] !== 'string') pr.textContent = money(minKnown(it.optPrice)) + ' 起';
       else pr.textContent = p ? money(p) : '價格請洽業務';
       pr.classList.toggle('ask', !p);
       var w = row.querySelector('.iwarn'), msg = fitWarn(it); w.textContent = msg.replace('⚠ ', '⛔ 不適用：'); w.style.display = msg ? 'block' : 'none';
@@ -319,7 +346,7 @@
         left.appendChild(oc);
       }
       r.appendChild(left);
-      var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : '請報價')));
+      var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : (it.optPrice ? '先選尺寸' : '請報價'))));
       var x = el('button', 'sx', '✕'); x.type = 'button'; x.setAttribute('aria-label', '移除'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
       r.appendChild(x); list.appendChild(r);
     });

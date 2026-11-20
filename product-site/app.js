@@ -9,7 +9,8 @@
     boss: 'BOSS 白鐵擋泥板', dr: 'DR 漫反射後防撞桿',
     cabin1: '車室細節升級', guard: '防護收納配件', extlight: '外觀燈飾與警示', comfort: '車室舒適升級',
     peri1: '實用周邊升級', func: '車室機能配件', cabin2: '車室實用配件', peri2: '周邊機能配件',
-    gps: '4G GPS 車輛定位器', 'gps-app': '智慧定位五大核心功能'
+    gps: '4G GPS 車輛定位器', 'gps-app': '智慧定位五大核心功能',
+    'cfg-tailgate': '尾門', 'cfg-canvas': '帆布', 'cfg-box': '車廂體（冷凍冷藏箱・電動歐翼・露營箱體）'
   };
   // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
   var SIZE = {
@@ -22,6 +23,7 @@
   };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
+    { t: '尾門・帆布・箱體', i: ['cfg-tailgate', 'cfg-canvas', 'cfg-box'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
     { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr', 'guard'] },
     { t: '配備與影音', i: ['android', 'audio', 'gps', 'gps-app'] },
@@ -30,6 +32,7 @@
   ];
   // 併圖：副圖 → 主圖（副圖不另外開卡，放在主圖卡的下面一起介紹、一起勾選）
   var PAIR = { 'gps-app': 'gps' };
+  var CFG_SUB = { 'cfg-tailgate': '選尺寸，價格依尺寸計算；油壓缸與配件要先選升降尾門', 'cfg-canvas': '價格依你上面選的車廂顯示（還沒選就顯示最低價起）；高度寫在每個名稱裡', 'cfg-box': '依尺寸與規格另外報價，勾起來我幫你算' };
   var KEY = 'kp-cfg';
   // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
   // 第一次在後台按「儲存發佈」會自動建立，ID 填進下面這行後客戶端就會讀它。
@@ -76,6 +79,7 @@
         var grid = el('div', 'grid'); grid.setAttribute('data-g', gi);
         g.i.forEach(function (k) {
           var d = el('div', 'it'); d.setAttribute('data-k', k);
+          if (k.indexOf('cfg-') === 0) { d.appendChild(el('b', '', '🧩 ' + IMGS[k] + '（選擇卡，非圖片）')); grid.appendChild(d); return; }
           var im = el('img'); im.src = 'img/' + k + '.webp'; im.alt = IMGS[k];
           d.appendChild(im); d.appendChild(el('b', '', IMGS[k])); grid.appendChild(d);
         });
@@ -95,6 +99,12 @@
           // 兩張圖算同一個產品時放進同一張卡（例：GPS 定位器＋智慧定位功能）
           var mate = PAIR[k];
           if (mate && g.i.indexOf(mate) >= 0) return; // 這張已併到主圖的卡裡
+          if (k.indexOf('cfg-') === 0) { // 選擇卡（沒有海報圖）：尾門／帆布／箱體
+            var cf = el('figure', 'card cfg'); var cc = el('figcaption'); cc.appendChild(el('span', '', IMGS[k])); cf.appendChild(cc);
+            if (CFG_SUB[k]) cf.appendChild(el('p', 'sub', CFG_SUB[k]));
+            if (window.KPInq) KPInq.attach(cf, k);
+            list.appendChild(cf); return;
+          }
           var f = el('figure', 'card');
           var ks = [k]; Object.keys(PAIR).forEach(function (m) { if (PAIR[m] === k && g.i.indexOf(m) >= 0) ks.push(m); });
           ks.forEach(function (kk) {
@@ -102,7 +112,7 @@
             im.src = 'img/' + kk + '.webp'; im.alt = IMGS[kk]; im.loading = 'lazy'; im.decoding = 'async';
             if (SIZE[kk]) { im.width = SIZE[kk][0]; im.height = SIZE[kk][1]; ph.style.aspectRatio = SIZE[kk][0] + ' / ' + SIZE[kk][1]; }
             ph.appendChild(im); f.appendChild(ph);
-            ph.onclick = function () { openLb(g.i, g.i.indexOf(kk)); };
+            ph.onclick = function () { var pk = g.i.filter(function (x) { return x.indexOf('cfg-') !== 0; }); openLb(pk, pk.indexOf(kk)); };
           });
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
           if (window.KPInq) KPInq.attach(f, k);
