@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v45';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v46';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -503,7 +503,7 @@ export const DEFAULT_QUOTE_PRESETS = {
       desc: '原車尾燈模組3D開模、KIA K2500卡旺專用型；前方向燈需一併更換 LED。符合驗車規範：後尾燈-煞車燈-後方向燈-雙倒車燈-反光片；6 個月保固' },
     { id: 'qa-fog', cat: '燈組', name: 'X7 魚眼霧燈（黃金眼/6000K白光）', price: 5800, warrantyMonths: 6, choiceLabel: '燈光顏色', choices: ['黃金眼', '6000K 白光'],
       desc: 'SD 次世代魚眼霧燈、光型集中且照射度廣。黃金眼色系／6000K 白光色系；6 個月保固' },
-    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, warrantyMonths: 6, locks: ['qa-mcover', 'qa-aero'], desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
+    { id: 'qa-mirror1', cat: '燈組', group: 'g-mirror', name: 'LED 韓版後照鏡', price: 8500, warrantyMonths: 6, choiceLabel: '後照鏡顏色', choices: ['黑', '白'], locks: ['qa-mcover', 'qa-aero'], desc: 'LED 方向燈＋全視線鏡片；6 個月保固' },
     { id: 'qa-mirror2', cat: '燈組', group: 'g-mirror', name: '全視線後照鏡', price: 5000, desc: '塑料黑、整片全視線鏡片' },
     // 音響
     { id: 'qa-tlsound', cat: '音響', name: '音響喇叭升級 4P', price: 9500, warrantyMonths: 12,
