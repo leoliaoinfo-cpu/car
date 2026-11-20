@@ -136,6 +136,8 @@
     var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null;
     return s + (v ? '（標價 ' + v + ' 萬）' : '');
   }
+  // 詢價單只放品名：去掉結尾的說明括號（車廂別的烤漆除外）
+  function plain(it) { return it.cab ? it.n : it.n.replace(/（[^）]*）$/, ''); }
   function optText(it) { var o = S.sel[it.id]; return o && o !== true ? '（' + o + '）' : (it.opts ? '（' + it.optLabel + '：還沒選）' : ''); }
 
   // ===== 車型選擇面板 =====
@@ -228,8 +230,7 @@
     L.push('', '想詢價的配件：');
     chosen().forEach(function (it) {
       var p = priceOf(it);
-      L.push('・' + it.n + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
-      if (it.note) L.push('　' + it.note);
+      L.push('・' + plain(it) + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
       var w = fitWarn(it); if (w) L.push('　' + w);
     });
     var t = total(), vp = vehPrice();
@@ -247,7 +248,7 @@
     var its = chosen();
     its.forEach(function (it) {
       var r = el('div', 'srow');
-      var left = el('div', 'sl'); left.appendChild(el('b', '', it.n + optText(it)));
+      var left = el('div', 'sl'); left.appendChild(el('b', '', plain(it) + optText(it)));
       var w = fitWarn(it); if (w) left.appendChild(el('small', 'warn', w));
       r.appendChild(left);
       var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : '請報價')));
@@ -282,7 +283,7 @@
     }
     var rows = its.map(function (it) {
       var p = priceOf(it);
-      return { lines: wrap(it.n + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : '請報價'), warn: fitWarn(it) };
+      return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : '請報價'), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
     var H = 210 + 56;
