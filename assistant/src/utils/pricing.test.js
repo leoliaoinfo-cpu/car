@@ -1409,7 +1409,7 @@ test('12.3吋安卓四錄旗艦機成本 33,800：利潤與9吋安卓機相同�
   assert.equal(up.addons['qa-android-flagship'].cost, 33800);
 });
 
-test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× 單廂／大單廂／雙廂 6 種，成本＋利潤 2,000；特仕版鎖住；舊選單與舊成本表升級後正確', async () => {
+test('貨斗橡膠墊：全封／只鋪底面（並列兩種做法）× 單廂／大單廂／雙廂 6 種，成本＋利潤 2,000；特仕版鎖住；舊選單與舊成本表升級後正確', async () => {
   const { resolveQuotePresets, DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
   const want = {
     'qa-floor-rubber-full-s': ['貨斗橡膠墊－全封（單廂）', 5200], 'qa-floor-rubber-full-l': ['貨斗橡膠墊－全封（大單廂）', 4800], 'qa-floor-rubber-full-d': ['貨斗橡膠墊－全封（雙廂）', 4000],
@@ -1427,12 +1427,15 @@ test('貨斗橡膠墊：全封（特殊要求）／只鋪底面（標準）× �
     assert.ok(old.addons.some((a) => a.id === id), id);
   }
   assert.match(DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === 'qa-floor-rubber-full-s').desc, /矽利康封死/);
+  assert.doesNotMatch(DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === 'qa-floor-rubber-full-s').desc, /特殊要求/);
   assert.match(DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === 'qa-floor-rubber-only-s').desc, /螺絲鎖固.*透氣/);
   // 上一版存進手機的選單：改成新名稱；使用者自己改過的名稱／價格不動
   const stale = resolveQuotePresets({ _catalog: 'kavan-2026-v39', addonCategories: ['貨斗底板'], addons: [
     { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', name: '貨斗橡膠底板－全封（單廂）', price: 8200 },
     { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', name: '貨斗橡膠底板－只鋪（單廂）', price: 5600 },
-    { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', name: '我自己取的名字', price: 9999 }] });
+    { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', name: '我自己取的名字', price: 9999 },
+    { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', name: '貨斗橡膠墊－全封（雙廂）', price: 6000, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' }] });
+  assert.doesNotMatch(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-d').desc, /特殊要求/);
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-s').name, '貨斗橡膠墊－全封（單廂）');
   // 上一版預設價（成本＋3,000）換成新預設（成本＋2,000）；使用者自己改過的價格不動
   assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-s').price, 7200);

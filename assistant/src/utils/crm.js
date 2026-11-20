@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v41';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v42';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -264,9 +264,9 @@ const RUBBER_PREVIOUS_PRICES = {
 
 const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（單廂）', price: 7200, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
-  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（大單廂）', price: 6800, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
-  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（雙廂）', price: 6000, desc: '材質厚度 5mm；特殊要求：橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（單廂）', price: 7200, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（大單廂）', price: 6800, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
+  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－全封（雙廂）', price: 6000, desc: '材質厚度 5mm；橡膠墊鋪滿、邊縫用矽利康封死' },
   { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（單廂）', price: 4600, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
   { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（大單廂）', price: 4400, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
   { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠墊－只鋪底面（雙廂）', price: 4000, desc: '材質厚度 5mm；螺絲鎖固，保留透氣空隙' },
@@ -689,6 +689,8 @@ export function resolveQuotePresets(row) {
           migrated = { ...migrated, price: floorDefault.price, pendingPrice: floorDefault.pendingPrice };
         }
         if (/^貨斗橡膠底板－(?:全封|只鋪)/.test(String(migrated.name))) migrated = { ...migrated, name: floorDefault.name, desc: floorDefault.desc };
+        // 說明還是上一版預設（寫了「特殊要求」）的 → 換成現在的說明（全封只是和只鋪底面並列的兩種做法，不是特殊要求）
+        if (String(migrated.desc || '').includes('特殊要求：')) migrated = { ...migrated, desc: floorDefault.desc };
       }
     }
     if (migrated.id === 'qa-floor-galvanized'
