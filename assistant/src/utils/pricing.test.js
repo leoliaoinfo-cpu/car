@@ -1417,11 +1417,18 @@ test('貨斗橡膠底板：依車型（單廂／大單廂／雙廂）與施工�
   };
   const fresh = normalizeCostCatalog(null);
   const old = resolveQuotePresets({ _catalog: 'kavan-2026-v37', addonCategories: ['貨斗底板'], addons: [] });
+  // 上一版（還是待報價）已存的選單，升級後換成有售價；使用者自己改過價格的不動
+  const stale = resolveQuotePresets({ _catalog: 'kavan-2026-v38', addonCategories: ['貨斗底板'], addons: [
+    { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', name: '貨斗橡膠底板－全封（單廂）', price: 0, pendingPrice: true },
+    { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', name: '貨斗橡膠底板－只鋪（單廂）', price: 9999 }] });
+  assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-full-s').price, 8200);
+  assert.equal(stale.addons.find((a) => a.id === 'qa-floor-rubber-only-s').price, 9999);
   const upCost = normalizeCostCatalog({ version: 16, models: {}, addons: { 'qa-floor-rubber-full-s': { cost: 5300 } } });
   for (const [id, cost] of Object.entries(want)) {
     const item = DEFAULT_QUOTE_PRESETS.addons.find((a) => a.id === id);
     assert.equal(item.cat, '貨斗底板', id);
-    assert.equal(item.pendingPrice, true, id); // 售價使用者還沒給，維持待確認
+    assert.equal(item.price, cost + 3000, id); // 售價＝成本＋利潤 3,000（使用者 2026-11-20）
+    assert.ok(!item.pendingPrice, id);
     assert.equal(fresh.addons[id].cost, cost, id);
     assert.ok(old.addons.some((a) => a.id === id), id);
     if (id !== 'qa-floor-rubber-full-s') assert.equal(upCost.addons[id].cost, cost, id);

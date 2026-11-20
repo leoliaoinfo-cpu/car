@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v38';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v39';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -258,12 +258,12 @@ export const QUOTE_ADDON_SECTIONS = [
 
 const VENDOR_QUOTE_ADDONS = [
   { id: 'qa-floor-rubber', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依車型與貨斗尺寸向廠商確認價格' },
-  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
-  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（大單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
-  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（雙廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；全封施工；售價待確認' },
-  { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
-  { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（大單廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
-  { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（雙廂）', price: 0, pendingPrice: true, desc: '材質厚度 5mm；只鋪橡膠底板；售價待確認' },
+  { id: 'qa-floor-rubber-full-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（單廂）', price: 8200, desc: '材質厚度 5mm；全封施工' },
+  { id: 'qa-floor-rubber-full-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（大單廂）', price: 7800, desc: '材質厚度 5mm；全封施工' },
+  { id: 'qa-floor-rubber-full-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－全封（雙廂）', price: 7000, desc: '材質厚度 5mm；全封施工' },
+  { id: 'qa-floor-rubber-only-s', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（單廂）', price: 5600, desc: '材質厚度 5mm；只鋪橡膠底板' },
+  { id: 'qa-floor-rubber-only-l', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（大單廂）', price: 5400, desc: '材質厚度 5mm；只鋪橡膠底板' },
+  { id: 'qa-floor-rubber-only-d', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗橡膠底板－只鋪（雙廂）', price: 5000, desc: '材質厚度 5mm；只鋪橡膠底板' },
   { id: 'qa-floor-galvanized', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花板（鍍鋅鐵板） 台語：灰板(花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-galvanized-flat', cat: '貨斗底板', group: 'g-cargo-floor', name: '錏花平板（鍍鋅鋼板） 台語：灰板(沒花紋的)', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
   { id: 'qa-floor-stainless', cat: '貨斗底板', group: 'g-cargo-floor', name: '貨斗白鐵底板', price: 0, pendingPrice: true, desc: '材質厚度 5mm；依貨斗尺寸與施工規格向廠商確認價格' },
@@ -672,6 +672,11 @@ export function resolveQuotePresets(row) {
       && item.pendingPrice === true
       && (Number(item.price) || 0) === 0;
     let migrated = isPreviousDefault ? { ...item, ...airDeflector } : item;
+    // 貨斗橡膠底板（依車型）：上一版還是「待報價」的，換成有售價（成本＋利潤 3,000）的新預設；使用者改過價格的不動
+    if (/^qa-floor-rubber-(?:full|only)-[sld]$/.test(migrated.id) && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) {
+      const floorDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
+      if (floorDefault) migrated = { ...migrated, price: floorDefault.price, pendingPrice: floorDefault.pendingPrice, desc: floorDefault.desc };
+    }
     if (migrated.id === 'qa-floor-galvanized'
       && migrated.name === '錏花板（鍍鋅鋼板） 台語：灰板') {
       migrated = { ...migrated, ...galvanizedFloor };
