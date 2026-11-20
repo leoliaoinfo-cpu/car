@@ -144,8 +144,8 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 .irow.on .box{background:var(--ac);border-color:var(--ac);color:#fff}
 .inm{flex:1;font-size:14.5px;font-weight:700;line-height:1.4}
 .inm em{display:inline-block;font-style:normal;font-size:11px;font-weight:700;color:#8a5a2c;background:#fff3e0;border:1px solid #f0dcc3;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px}
-.selc{display:none;font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--ac);border-radius:999px;padding:2px 10px}
-.selc.on{display:inline-block}
+figure.card figcaption i.selc{display:none;font-style:normal;font-size:12px;font-weight:800;color:#fff;background:var(--ac);border-radius:999px;padding:2px 10px}
+figure.card figcaption i.selc.on{display:inline-block}
 .sheet .veh-box .chips{margin-top:6px}
 .sheet .veh-box .chip{font-size:14px;padding:8px 13px}
 .inote{font-size:12px;font-weight:600;color:var(--mute)}
@@ -184,6 +184,23 @@ body.has-inq main{padding-bottom:150px}
 #inqprev a{display:inline-block;margin-top:8px;color:var(--ac);font-weight:800}
 body.edit #veh,body.edit #inqbar,body.edit #inqsheet{display:none!important}
 
+body:not(.edit) .pane{display:none}
+body:not(.edit) .pane.on{display:block;animation:paneIn .35s ease}
+@keyframes paneIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.vbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-4px 0 14px;background:#fff;border:1px solid var(--bd);border-radius:14px;padding:9px 12px;font-size:14px;font-weight:700;color:#5a4e43}
+.vbar button{border:0;background:var(--acsoft);color:var(--ac);font-weight:800;font-size:13.5px;border-radius:999px;padding:7px 14px;font-family:inherit}
+.nextbtn{display:block;width:100%;margin:22px 0 8px;border:1.5px solid #f0c9c4;background:#fff;color:var(--ac);font-size:16.5px;font-weight:800;border-radius:999px;padding:15px;font-family:inherit;box-shadow:0 4px 14px rgba(217,69,59,.12)}
+.trust{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin-top:16px;font-size:12.5px;color:#6f6256;font-weight:600}
+.trust span:before{content:"✓ ";color:var(--ac);font-weight:800}
+.cabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cabcard{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;border:1.5px solid var(--bd);background:#fff;border-radius:16px;padding:12px 4px;font-family:inherit;color:var(--ink)}
+.cabcard b{font-size:17px}.cabcard span{font-size:12px;color:var(--mute);font-weight:600}
+.cabcard em{font-style:normal;font-size:11.5px;color:#7b6f63;line-height:1.3;margin:4px 0;min-height:30px}
+.cabcard strong{font-size:14.5px;color:var(--ac)}
+.cabcard.on{border-color:var(--ac);background:var(--acsoft);box-shadow:0 4px 14px rgba(217,69,59,.2)}
+.veh-m{margin-top:6px;font-size:13.5px;font-weight:700;color:#5a4e43}
+#inqmo{text-align:right;font-size:13px;color:var(--mute);font-weight:600;margin:0 4px}
+.map{display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--ac);font-weight:700;font-size:14px;text-decoration:none}
 /* ===== 後台（?edit）===== */
 #bar{display:none;position:sticky;top:0;z-index:15;background:#fff;color:#111;padding:10px 12px;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;border-bottom:1px solid var(--bd)}
 body.edit #bar{display:flex}body.edit nav,body.edit #call,body.edit #contact,body.edit .hero,body.edit footer{display:none}
@@ -219,12 +236,14 @@ GitHub 權杖（token）
 
 <header class="hero">
   <span class="eyebrow">KIA 商用車彰化區總代理</span>
-  <h1>歡迎來看看<br><b>卡旺 K2500</b><br>車型與改裝配件</h1>
+  <h1>挑好你的<b>卡旺 K2500</b><br>馬上知道總共多少</h1>
+  <div class="lead"><p>選車型、勾配件，<br>車價、總額、月付，當場算給你看。</p></div>
   <div class="cta">
     <a class="c1" href="tel:0979670565">📞 打電話給我</a>
     <a class="c2" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE 聊聊</a>
   </div>
   <ol class="steps"><li><b>1</b>選車型</li><li><b>2</b>勾想問的配件</li><li><b>3</b>傳 LINE 給我</li></ol>
+  <div class="trust"><span>KIA 商用車彰化區總代理</span><span>彰化所・員林所可看車</span><span>選購配備皆享保固</span></div>
 </header>
 
 <nav><div class="navwrap"><div id="nav"></div></div></nav>
@@ -233,10 +252,10 @@ GitHub 權杖（token）
 <div id="veh"></div>
 <div id="groups"></div>
 
-<section id="contact">
-<div class="sh"><h2>有問題，直接問我</h2></div>
+<section id="contact" class="pane">
+<div class="sh"><h2>想看車？直接約我</h2></div>
 <div class="contact-card">
-  <div class="hello"><p>想先問問價格、配備怎麼選，</p><p>或是想來店看車，都歡迎聯絡我。</p></div>
+  <div class="hello"><p>把詢價單傳給我，我幫你算出正式報價。</p><p>想先來店看車、試乘，也歡迎直接約。</p></div>
   <div class="who">
     <div class="avatar">廖</div>
     <div><b>廖冠銘 <span>LEO</span></b><small>KIA 商用車彰化區總代理<br>俊宇車業有限公司</small></div>
@@ -247,8 +266,8 @@ GitHub 權杖（token）
   </div>
   <div class="qrs"><div><img src="img/qr-line.png" alt="LINE QR" loading="lazy"><small>LINE</small></div><div><img src="img/qr-fb.png" alt="Facebook QR" loading="lazy"><small>Facebook</small></div></div>
   <div class="shops">
-    <div class="shop"><div class="pin">📍</div><div><b>彰化所</b><span>彰化市線東路一段478號</span></div></div>
-    <div class="shop"><div class="pin">📍</div><div><b>員林所</b><span>員林市莒光路524號</span></div></div>
+    <div class="shop"><div class="pin">📍</div><div><b>彰化所</b><span>彰化市線東路一段478號</span><br><a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=%E5%BD%B0%E5%8C%96%E5%B8%82%E7%B7%9A%E6%9D%B1%E8%B7%AF%E4%B8%80%E6%AE%B5478%E8%99%9F">🧭 導航過去</a></div></div>
+    <div class="shop"><div class="pin">📍</div><div><b>員林所</b><span>員林市莒光路524號</span><br><a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=%E5%93%A1%E6%9E%97%E5%B8%82%E8%8E%92%E5%85%89%E8%B7%AF524%E8%99%9F">🧭 導航過去</a></div></div>
   </div>
   <p class="tip">開車到彰化所，<br>請直接從旁邊的「服務廠入口車道」進來：</p>
   <img class="ent" src="img/entrance.jpg" alt="彰化所服務廠入口" loading="lazy">
@@ -266,6 +285,7 @@ GitHub 權杖（token）
   <div class="veh-box" id="inqvehbox"></div>
   <div id="inqlist"></div>
   <div id="inqtot"></div>
+  <div id="inqmo"></div>
   <label>怎麼稱呼你（選填）<input id="inqname" maxlength="20" autocomplete="off"></label>
   <label>想補充的話（選填）<textarea id="inqnote" maxlength="300" placeholder="例如：想要年底前交車、預算多少…"></textarea></label>
   <div class="sbtns">

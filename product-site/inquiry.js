@@ -129,6 +129,10 @@
   function chosen() { return Object.keys(S.sel).filter(function (id) { return I[id]; }).map(function (id) { return I[id]; }); }
   function vehPrice() { var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null; return v ? Math.round(v * 10000) : 0; }
   function grand() { return vehPrice() + total(); }
+  var TAGS = { '單廂': '最經典 實用首選', '大單廂': '超大貨斗 工作效率更高', '雙廂': '載人載貨 兩用更彈性' };
+  function minPrice(c) { var m = 0; Object.keys(VPRICE[c]).forEach(function (d) { var v = VPRICE[c][d]; if (!m || v < m) m = v; }); return m; }
+  // 全額貸款 84 期概算月付（業務對客戶報價單用同一個概算，不顯示利率）
+  function monthly(amount) { if (!amount) return 0; var r = 0.045 / 12, n = 84; return Math.round(amount * r / (1 - Math.pow(1 + r, -n))); }
   function total() { var t = 0; chosen().forEach(function (it) { var p = priceOf(it); if (p) t += p; }); return t; }
   function vehicleText() {
     if (!S.cab && !S.drive) return '';
@@ -150,18 +154,24 @@
     var card = withHead ? el('div', 'veh-card') : box;
     if (withHead) {
       card.appendChild(el('div', 'veh-h', '① 選你的車型（可略過）'));
-      card.appendChild(el('div', 'veh-s', '選好後，會算出車價，配件的適用提醒也會跟著變'));
+      card.appendChild(el('div', 'veh-s', '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
     }
-    var r1 = el('div', 'chips'); CABS.forEach(function (c) {
-      r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, false, function () {
-        S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh();
-      }));
-    }); card.appendChild(r1);
+    var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
+    if (withHead) {
+      var cg = el('div', 'cabs'); CABS.forEach(function (c) {
+        var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); b.appendChild(el('strong', '', minPrice(c) + ' 萬起'));
+        cg.appendChild(b);
+      }); card.appendChild(cg);
+    } else {
+      var r1 = el('div', 'chips'); CABS.forEach(function (c) { r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, false, function () { pick(c); })); }); card.appendChild(r1);
+    }
     var r2 = el('div', 'chips'); DRIVES.forEach(function (d) {
       r2.appendChild(chip(d, S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
     }); card.appendChild(r2);
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
+    if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
     if (withHead) box.appendChild(card);
   }
   function renderVeh() { var box = $('veh'); if (box) vehChips(box, true); }
@@ -218,7 +228,20 @@
     });
   }
 
+  var vbars = [];
+  function vbar(sec, go) {
+    var d = el('div', 'vbar'); var t = el('span', ''); var b = el('button', '', '更改'); b.type = 'button'; b.onclick = go;
+    d.appendChild(t); d.appendChild(b); sec.appendChild(d); vbars.push({ t: t, b: b });
+  }
+  function syncVbars() {
+    vbars.forEach(function (v) {
+      var has = S.cab || S.drive;
+      v.t.textContent = has ? '🚚 你的車：' + (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '🚚 還沒選車型（可略過）';
+      v.b.textContent = has ? '更改' : '去選車型 ›';
+    });
+  }
   function syncCounts() {
+    syncVbars();
     Array.prototype.forEach.call(document.querySelectorAll('figure.card'), function (f) {
       var c = f.querySelector('.selc'); if (!c) return;
       var n = f.querySelectorAll('.irow.on').length;
@@ -231,7 +254,7 @@
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
     document.body.classList.toggle('has-inq', n > 0);
-    if (n) { $('inqv').textContent = S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）'; $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
+    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
   function refresh() { renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
@@ -275,6 +298,7 @@
     if (t) h += '配件合計 ' + money(t) + '\n';
     if (vp && t) h += '車＋配件 ' + money(vp + t);
     $('inqtot').textContent = h.replace(/\n$/, '');
+    var mo = vp ? monthly(vp + t) : 0; $('inqmo').textContent = mo ? '全額貸款 84 期，月付約 ' + money(mo) + '（概算，實際依銀行核貸為準）' : '';
     $('inqprev').style.display = 'none';
   }
   function openSheet() { $('inqname').value = S.name; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
@@ -361,5 +385,5 @@
     $('inqclear').onclick = function () { if (confirm('清空已勾選的項目？')) { S.sel = {}; persist(); refresh(); closeSheet(); } };
   }
 
-  window.KPInq = { attach: attach, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
+  window.KPInq = { attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
 })();

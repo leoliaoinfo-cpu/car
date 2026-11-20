@@ -56,20 +56,19 @@
 
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.textContent = html; return e; }
 
-  var NAV_ICON = {};
-  var order = []; // 放大瀏覽用：目前畫面上圖片順序
-
+  var active = ''; // 目前顯示的分頁（g0、g1…或 contact）
   function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function tabIds() { return Array.prototype.map.call($('nav').children, function (a) { return a.getAttribute('data-t'); }); }
 
   function render() {
     var root = $('groups'), nav = $('nav');
     var vb = $('veh'); if (vb && vb.parentNode !== root.parentNode) root.parentNode.insertBefore(vb, root); // 先放回原位，免得被清掉
-    root.innerHTML = ''; nav.innerHTML = ''; order = [];
-    var shown = 0;
-    groups.forEach(function (g, gi) {
-      if (!edit && !g.i.length) return;
-      shown++;
-      var sec = el('section'); sec.id = 'g' + gi;
+    root.innerHTML = ''; nav.innerHTML = '';
+    var shown = [];
+    groups.forEach(function (g, gi) { if (edit || g.i.length) shown.push(gi); });
+    shown.forEach(function (gi, si) {
+      var g = groups[gi];
+      var sec = el('section', 'pane'); sec.id = 'g' + gi;
       if (edit) {
         sec.appendChild(el('h2', '', g.t));
         var grid = el('div', 'grid'); grid.setAttribute('data-g', gi);
@@ -81,19 +80,20 @@
         sec.appendChild(grid);
         new Sortable(grid, { group: 'p', animation: 150, delay: 150, delayOnTouchOnly: true, ghostClass: 'sortable-ghost' });
       } else {
-        var a = el('a'); a.href = '#g' + gi; a.setAttribute('data-t', 'g' + gi);
-        a.appendChild(el('i', '', pad(shown))); a.appendChild(document.createTextNode(g.t)); nav.appendChild(a);
+        var a = el('a'); a.href = '#g' + gi; a.setAttribute('data-t', 'g' + gi); a.setAttribute('role', 'tab');
+        a.appendChild(el('i', '', pad(si + 1))); a.appendChild(document.createTextNode(g.t));
+        a.onclick = function (e) { e.preventDefault(); setTab('g' + gi); };
+        nav.appendChild(a);
         var sh = el('div', 'sh');
-        sh.appendChild(el('span', 'no', pad(shown))); sh.appendChild(el('h2', '', g.t)); sh.appendChild(el('span', 'ct', g.i.length + ' 項'));
+        sh.appendChild(el('span', 'no', pad(si + 1))); sh.appendChild(el('h2', '', g.t)); sh.appendChild(el('span', 'ct', g.i.length + ' 張'));
         sec.appendChild(sh);
+        if (si > 0 && window.KPInq) KPInq.vbar(sec, function () { setTab('g' + shown[0]); var v = $('veh'); if (v) setTimeout(function () { v.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); });
         var list = el('div', 'list');
         g.i.forEach(function (k, n) {
-          var idx = order.length; order.push(k);
           var f = el('figure', 'card');
           var ph = el('div', 'ph'); var im = el('img');
-          im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k];
+          im.src = 'img/' + k + '.jpg'; im.alt = IMGS[k]; im.loading = 'lazy'; im.decoding = 'async';
           if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; ph.style.aspectRatio = SIZE[k][0] + ' / ' + SIZE[k][1]; }
-          if (idx > 1) im.loading = 'lazy';
           ph.appendChild(im); f.appendChild(ph);
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
           if (window.KPInq) KPInq.attach(f, k);
@@ -101,45 +101,52 @@
           if (k === 'price' && $('veh')) list.appendChild($('veh')); // 車價圖之後才出現選單
         });
         sec.appendChild(list);
+        // 下一類：一路看下去，不用自己找
+        var nextG = shown[si + 1];
+        var nb = el('button', 'nextbtn', nextG != null ? '下一類：' + groups[nextG].t + '　›' : '都看完了 → 聯絡我、預約看車　›');
+        nb.type = 'button'; nb.onclick = function () { setTab(nextG != null ? 'g' + nextG : 'contact'); };
+        sec.appendChild(nb);
       }
       root.appendChild(sec);
     });
     if (!edit) {
-      var c = el('a', 'contact'); c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.textContent = '💬 聯絡我'; nav.appendChild(c);
+      var c = el('a', '', '💬 聯絡看車'); c.className = 'contact'; c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.setAttribute('role', 'tab');
+      c.onclick = function (e) { e.preventDefault(); setTab('contact'); };
+      nav.appendChild(c);
+      var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
+      setTab(active, true);
       observe();
       if (window.KPInq) KPInq.sync();
     }
   }
 
-  // 捲到哪一區，上方快速鍵就亮哪一顆；圖片進入畫面時淡入
-  var io1, io2;
+  function setTab(id, keepScroll) {
+    active = id;
+    var navEl = $('nav');
+    Array.prototype.forEach.call(document.querySelectorAll('.pane'), function (p) { p.classList.toggle('on', p.id === id); });
+    Array.prototype.forEach.call(navEl.children, function (a) {
+      var on = a.getAttribute('data-t') === id; a.classList.toggle('on', on); a.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) navEl.scrollTo({ left: a.offsetLeft - (navEl.clientWidth - a.offsetWidth) / 2, behavior: keepScroll ? 'auto' : 'smooth' });
+    });
+    if (!keepScroll) {
+      var top = document.querySelector('main').getBoundingClientRect().top + window.pageYOffset - $('nav').offsetHeight - 6;
+      if (window.pageYOffset > top) window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    }
+    updCall();
+  }
+  var seeCta = true;
+  function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || active === 'contact'); }
+
+  // 圖片進入畫面時淡入；首屏已有大按鈕時收起底部聯絡列（避免重複）
+  var io2;
   function observe() {
     if (!('IntersectionObserver' in window)) { document.querySelectorAll('figure.card').forEach(function (f) { f.classList.add('in'); }); return; }
-    if (io1) io1.disconnect(); if (io2) io2.disconnect();
+    if (io2) io2.disconnect();
     io2 = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io2.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
     document.querySelectorAll('figure.card').forEach(function (f) { io2.observe(f); });
-    var secs = Array.prototype.slice.call(document.querySelectorAll('#groups section, #contact'));
-    var setOn = function (id) {
-      var navEl = $('nav');
-      Array.prototype.forEach.call(navEl.children, function (a) {
-        var on = a.getAttribute('data-t') === id;
-        a.classList.toggle('on', on);
-        if (on) { var l = a.offsetLeft - (navEl.clientWidth - a.offsetWidth) / 2; navEl.scrollTo({ left: l, behavior: 'smooth' }); }
-      });
-    };
-    io1 = new IntersectionObserver(function (es) {
-      es.forEach(function (e) { if (e.isIntersecting) setOn(e.target.id); });
-    }, { rootMargin: '-35% 0px -60% 0px' });
-    secs.forEach(function (s) { io1.observe(s); });
-    // 首屏已有大按鈕、或聯絡區已在畫面時，收起底部聯絡列（避免重複）
-    if (secs[0]) setOn(secs[0].id);
-    var seeCta = true, seeContact = false;
-    var upd = function () { $('call').classList.toggle('hide', seeCta || seeContact); };
-    new IntersectionObserver(function (es) { seeCta = es[0].isIntersecting; upd(); }, { threshold: 0.2 }).observe(document.querySelector('.cta'));
-    new IntersectionObserver(function (es) { seeContact = es[0].isIntersecting && es[0].intersectionRatio > 0.25; upd(); }, { threshold: [0, 0.25, 0.5] }).observe($('contact'));
-    upd();
+    if (!observe.cta) { observe.cta = new IntersectionObserver(function (es) { seeCta = es[0].isIntersecting; updCall(); }, { threshold: 0.2 }); observe.cta.observe(document.querySelector('.cta')); }
+    updCall();
   }
-
 
   function collect() {
     var out = [];
