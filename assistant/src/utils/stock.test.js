@@ -112,7 +112,7 @@ test('外包／改裝部互換：進度對應換算，不倒退也不憑空前�
 
 test('報價帶出的核對項目自動帶 track', () => {
   const rows = stockItemsFromQuote({ items: [
-    { id: 'a', kind: 'addon', name: '三面帆布－雙廂降低版', price: 13500 },
+    { id: 'a', kind: 'addon', name: '三面帆布－雙廂降低版', price: 15500 },
     { id: 'b', kind: 'addon', name: '彈簧鋼板', price: 5500 },
   ] });
   assert.deepEqual(rows.map((r) => r.track), ['vendor', 'inhouse']);

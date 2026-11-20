@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v43';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v44';
 
 const PREVIOUS_SAFETY_PACKAGE_DESC = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控&360度環景、無線Carplay、卡旺專用底座）；六輪胎壓偵測器（6輪數據獨立顯示、太陽能與usb供電）';
 const PREVIOUS_SAFETY_PACKAGE_DESC_V2 = '安卓四錄整合多媒體（台灣美邁、9吋安卓觸控螢幕、高清四錄影監控 & 360度環景、無線 CarPlay、卡旺專用底座）；6輪胎壓偵測器（6輪數據獨立顯示、太陽能與 USB 供電）';
@@ -255,6 +255,13 @@ export const QUOTE_ADDON_SECTIONS = [
   { key: 'body-build', label: '車體打造', categories: BODY_BUILD_CATEGORIES },
   { key: 'peripheral-accessories', label: '周邊配件', categories: [PERIPHERAL_ACCESSORY_CATEGORY] },
 ];
+
+// 三面帆布上一版預設售價（成本＋利潤 3,000）；升級時只有「還是這個價」的才換成新預設（成本＋5,000），使用者改過的不動
+const CANVAS_PREVIOUS_PRICES = {
+  'qa-canvas-single-standard': 17500, 'qa-canvas-single-lowered': 18500, 'qa-canvas-single-raised': 21000,
+  'qa-canvas-large-standard': 17500, 'qa-canvas-large-lowered': 18500, 'qa-canvas-large-raised': 21000,
+  'qa-canvas-double-standard': 12500, 'qa-canvas-double-lowered': 13500, 'qa-canvas-double-raised': 16500,
+};
 
 // 貨斗橡膠墊上一版預設售價（成本＋利潤 3,000）；升級時只有「還是這個價」的才換成新預設，使用者改過的不動
 const RUBBER_PREVIOUS_PRICES = {
@@ -381,15 +388,15 @@ const PERIPHERAL_ACCESSORY_ADDONS = [
 ];
 
 const BODY_BUILD_ADDONS = [
-  { id: 'qa-canvas-single-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 17500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-single-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 18500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-single-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂加高 1 台尺', price: 21000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
-  { id: 'qa-canvas-large-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂標準高', price: 17500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-large-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂降低版', price: 18500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-large-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂加高 1 台尺', price: 21000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
-  { id: 'qa-canvas-double-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂標準高', price: 12500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
-  { id: 'qa-canvas-double-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂降低版', price: 13500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
-  { id: 'qa-canvas-double-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂加高 1 台尺', price: 16500, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-single-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-single-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-single-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-large-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂標準高', price: 19500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-large-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂降低版', price: 20500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-large-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－大單廂加高 1 台尺', price: 23000, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
+  { id: 'qa-canvas-double-standard', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂標準高', price: 14500, desc: '斗上高度約 148 cm；實際高度及 2WD／4WD 適用性於施工前確認' },
+  { id: 'qa-canvas-double-lowered', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂降低版', price: 15500, desc: '最低斗上高度約 130 cm，平頂且不修改原有頭立；實際適用性於施工前確認' },
+  { id: 'qa-canvas-double-raised', cat: '客製帆布', group: 'g-custom-canvas', name: '三面帆布－雙廂加高 1 台尺', price: 18500, desc: '標準高增加約 30.3 cm，推估斗上高度約 178 cm；實際完工高度於施工前確認' },
   {
     id: 'qa-custom-canvas', cat: '客製帆布', group: 'g-custom-canvas', name: '特殊訂製帆布', price: 0, pendingPrice: true,
     desc: '特殊高度、材質、開門方式或施工內容需另向廠商詢價',
@@ -687,6 +694,11 @@ export function resolveQuotePresets(row) {
     if (/^qa-canvas-large-(?:standard|lowered|raised)$/.test(migrated.id) && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) {
       const canvasDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
       if (canvasDefault) migrated = { ...migrated, price: canvasDefault.price, pendingPrice: canvasDefault.pendingPrice, desc: canvasDefault.desc };
+    }
+    // 三面帆布利潤抓 5,000（使用者 2026-11-20）：還是上一版預設價（成本＋3,000）的換成新預設；使用者自己改過的價格不動
+    if (CANVAS_PREVIOUS_PRICES[migrated.id] != null && Number(migrated.price) === CANVAS_PREVIOUS_PRICES[migrated.id]) {
+      const canvasDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
+      if (canvasDefault) migrated = { ...migrated, price: canvasDefault.price };
     }
     if (/^qa-floor-rubber-(?:full|only)-[sld]$/.test(migrated.id)) {
       const floorDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);

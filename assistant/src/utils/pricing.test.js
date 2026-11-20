@@ -1029,19 +1029,19 @@ test('adds body-build categories with vendor-quote placeholders', () => {
   );
 });
 
-test('prices confirmed canvas options at supplier cost plus three thousand; large cab is the same price as single cab', () => {
+test('prices confirmed canvas options at supplier cost plus five thousand; large cab is the same price as single cab', () => {
   const resolved = resolveQuotePresets({
     key: 'quotePresets', _catalog: 'kavan-2026-v22',
     addonCategories: [...DEFAULT_QUOTE_PRESETS.addonCategories],
     models: [], addons: [], subsidies: [],
   });
   const expected = {
-    'qa-canvas-single-standard': [14500, 17500],
-    'qa-canvas-single-lowered': [15500, 18500],
-    'qa-canvas-single-raised': [18000, 21000],
-    'qa-canvas-double-standard': [9500, 12500],
-    'qa-canvas-double-lowered': [10500, 13500],
-    'qa-canvas-double-raised': [13500, 16500],
+    'qa-canvas-single-standard': [14500, 19500],
+    'qa-canvas-single-lowered': [15500, 20500],
+    'qa-canvas-single-raised': [18000, 23000],
+    'qa-canvas-double-standard': [9500, 14500],
+    'qa-canvas-double-lowered': [10500, 15500],
+    'qa-canvas-double-raised': [13500, 18500],
   };
   const catalog = normalizeCostCatalog({ key: 'costCatalog', version: 8, models: {}, addons: {} });
   for (const [id, [cost, sale]] of Object.entries(expected)) {
@@ -1049,13 +1049,13 @@ test('prices confirmed canvas options at supplier cost plus three thousand; larg
     assert.equal(addon?.price, sale);
     assert.equal(addon?.pendingPrice, undefined);
     assert.equal(catalog.addons[id]?.cost, cost);
-    assert.equal(sale - cost, 3000);
+    assert.equal(sale - cost, 5000); // 帆布利潤 5,000（使用者 2026-11-20）
   }
   // 大單廂與單廂同價、同成本（使用者 2026-11-20）
   const largeCab = resolved.addons.filter((item) => item.id.startsWith('qa-canvas-large-'));
   assert.equal(largeCab.length, 3);
   assert.deepEqual(largeCab.map((item) => [item.id, item.price, !!item.pendingPrice]).sort(),
-    [['qa-canvas-large-lowered', 18500, false], ['qa-canvas-large-raised', 21000, false], ['qa-canvas-large-standard', 17500, false]]);
+    [['qa-canvas-large-lowered', 20500, false], ['qa-canvas-large-raised', 23000, false], ['qa-canvas-large-standard', 19500, false]]);
   const fresh = normalizeCostCatalog(null);
   assert.equal(fresh.addons['qa-canvas-large-standard'].cost, 14500);
   assert.equal(fresh.addons['qa-canvas-large-lowered'].cost, 15500);
@@ -1064,11 +1064,17 @@ test('prices confirmed canvas options at supplier cost plus three thousand; larg
   const stale = resolveQuotePresets({ _catalog: 'kavan-2026-v42', addonCategories: ['客製帆布'], addons: [
     { id: 'qa-canvas-large-standard', cat: '客製帆布', name: '三面帆布－大單廂標準高', price: 0, pendingPrice: true },
     { id: 'qa-canvas-large-lowered', cat: '客製帆布', name: '三面帆布－大單廂降低版', price: 19999 }] });
-  assert.equal(stale.addons.find((a) => a.id === 'qa-canvas-large-standard').price, 17500);
+  assert.equal(stale.addons.find((a) => a.id === 'qa-canvas-large-standard').price, 19500);
   assert.ok(!stale.addons.find((a) => a.id === 'qa-canvas-large-standard').pendingPrice);
   assert.equal(stale.addons.find((a) => a.id === 'qa-canvas-large-lowered').price, 19999);
   assert.ok(stale.addons.some((a) => a.id === 'qa-lift-canvas')); // 新增的升降帆布分類也會補進舊選單
   assert.equal(normalizeCostCatalog({ version: 17, models: {}, addons: {} }).addons['qa-canvas-large-raised'].cost, 18000);
+  // 利潤由 3,000 調成 5,000：上一版預設價換成新價格，使用者自己改過的不動
+  const oldProfit = resolveQuotePresets({ _catalog: 'kavan-2026-v43', addonCategories: ['客製帆布'], addons: [
+    { id: 'qa-canvas-single-standard', cat: '客製帆布', name: '三面帆布－單廂標準高', price: 17500 },
+    { id: 'qa-canvas-double-raised', cat: '客製帆布', name: '三面帆布－雙廂加高 1 台尺', price: 17000 }] });
+  assert.equal(oldProfit.addons.find((a) => a.id === 'qa-canvas-single-standard').price, 19500);
+  assert.equal(oldProfit.addons.find((a) => a.id === 'qa-canvas-double-raised').price, 17000);
 });
 
 test('lets a version-2 cost catalog keep edited values and intentional blanks', () => {
