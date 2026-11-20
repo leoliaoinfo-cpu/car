@@ -102,11 +102,21 @@
   };
 
   // ===== 狀態（只存在客人自己的手機）=====
-  var KEY = 'kp-inq';
+  var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
   var S = { cab: '', drive: '', sel: {}, name: '', note: '' };
-  try { localStorage.removeItem(KEY); } catch (e) {} // 舊版存在手機裡的勾選一次清掉
-  try { var old = JSON.parse(sessionStorage.getItem(KEY)); if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.note = String(old.note || ''); } } catch (e) {}
-  function persist() { try { sessionStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} } // 只記在這次瀏覽，關掉網頁就重來
+  try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
+  var hadSaved = false;
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.note = String(old.note || ''); } } catch (e) {}
+  function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
+  function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
+  function resetAll() {
+    var any = S.cab || S.drive || chosen().length || S.name || S.note || hadSaved;
+    if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
+    S = { cab: '', drive: '', sel: {}, name: '', note: '' }; hadSaved = false;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    $('inqname').value = ''; $('inqnote').value = '';
+    refresh(); closeSheet(); toast('已重置，重新開始');
+  }
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
@@ -155,6 +165,7 @@
     var card = withHead ? el('div', 'veh-card') : box;
     if (withHead) {
       card.appendChild(el('div', 'veh-h', '① 選你的車型（可略過）'));
+      if (S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
       card.appendChild(el('div', 'veh-s', '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
     }
     var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
@@ -394,7 +405,8 @@
     $('inqcopy').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製'); toast('已複製，貼到 LINE 傳給我就好'); }); };
     $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製，正在開 LINE…'); toast('已複製，貼上後傳送'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
     $('inqimg').onclick = saveImage;
-    $('inqclear').onclick = function () { if (confirm('清空已勾選的項目？')) { S.sel = {}; persist(); refresh(); closeSheet(); } };
+    $('inqreset').onclick = resetAll;
+    $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };
   }
 
   window.KPInq = { attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };

@@ -130,7 +130,8 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 
 /* ===== 詢價單 ===== */
 #veh{padding-top:0;grid-column:1/-1}
-.veh-card{background:#fff;border:1px solid var(--bd);border-radius:22px;padding:18px 16px;box-shadow:var(--shadow)}
+.veh-card{position:relative;background:#fff;border:1px solid var(--bd);border-radius:22px;padding:18px 16px;box-shadow:var(--shadow)}
+.rst{position:absolute;right:14px;top:14px;border:1px solid var(--bd);background:#fff;color:var(--mute);font-size:13px;font-weight:700;border-radius:999px;padding:6px 12px;font-family:inherit}
 .veh-h{font-size:18px;font-weight:800}.veh-s{font-size:13px;color:var(--mute);margin:2px 0 12px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .chip{border:1.5px solid var(--bd);background:#fff;color:#5a4e43;font-size:15px;font-weight:700;padding:10px 15px;border-radius:999px;font-family:inherit}
@@ -224,7 +225,7 @@ body.edit section h2{font-size:18px;margin:0 0 8px}
 #set div{background:#fff;color:#2f2a25;border-radius:16px;padding:16px;max-width:420px;width:100%;font-size:14px;line-height:1.6;max-height:90vh;overflow:auto}
 #set input{width:100%;padding:10px;font-size:16px;border:1px solid #ddd0bd;border-radius:8px;margin:4px 0 10px}
 #set button{border:0;border-radius:8px;padding:9px 14px;font-size:15px;font-weight:700;background:var(--ac);color:#fff;margin-right:8px}#set button.g{background:#eee6da;color:#2f2a25}
-#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#2f2a25;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;display:none;max-width:90%}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:#2f2a25;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;display:none;max-width:90%}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}figure.card{transition:none;opacity:1;transform:none}}
 </style>
 </head>
@@ -300,7 +301,8 @@ GitHub 權杖（token）
   <div class="sbtns">
     <button class="line" id="inqline" type="button">💬 複製文字，開 LINE 傳給我</button>
     <div class="two"><button class="g" id="inqimg" type="button">🖼 產生圖片</button><button class="g" id="inqcopy" type="button">只複製文字</button></div>
-    <button class="lk" id="inqclear" type="button">清空重選</button>
+    <div class="two"><button class="g" id="inqsave" type="button">💾 儲存在這支手機</button><button class="g" id="inqreset" type="button">↺ 重置</button></div>
+    <p class="hint">沒按「儲存」的話，重新整理就會清空</p>
   </div>
 </div></div>
 
