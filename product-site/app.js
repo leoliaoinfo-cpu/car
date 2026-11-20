@@ -28,6 +28,8 @@
     { t: '燈光', i: ['tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus', 'extlight'] },
     { t: '車室與周邊', i: ['cabin1', 'comfort', 'peri1', 'func', 'cabin2', 'peri2'] }
   ];
+  // 併圖：副圖 → 主圖（副圖不另外開卡，放在主圖卡的下面一起介紹、一起勾選）
+  var PAIR = { 'gps-app': 'gps' };
   var KEY = 'kp-cfg';
   // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
   // 第一次在後台按「儲存發佈」會自動建立，ID 填進下面這行後客戶端就會讀它。
@@ -90,11 +92,18 @@
         if (si > 0 && window.KPInq) KPInq.vbar(sec, function () { setTab('g' + shown[0]); var v = $('veh'); if (v) setTimeout(function () { v.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); });
         var list = el('div', 'list');
         g.i.forEach(function (k, n) {
+          // 兩張圖算同一個產品時放進同一張卡（例：GPS 定位器＋智慧定位功能）
+          var mate = PAIR[k];
+          if (mate && g.i.indexOf(mate) >= 0) return; // 這張已併到主圖的卡裡
           var f = el('figure', 'card');
-          var ph = el('div', 'ph'); var im = el('img');
-          im.src = 'img/' + k + '.webp'; im.alt = IMGS[k]; im.loading = 'lazy'; im.decoding = 'async';
-          if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; ph.style.aspectRatio = SIZE[k][0] + ' / ' + SIZE[k][1]; }
-          ph.appendChild(im); f.appendChild(ph);
+          var ks = [k]; Object.keys(PAIR).forEach(function (m) { if (PAIR[m] === k && g.i.indexOf(m) >= 0) ks.push(m); });
+          ks.forEach(function (kk) {
+            var ph = el('div', 'ph'); var im = el('img');
+            im.src = 'img/' + kk + '.webp'; im.alt = IMGS[kk]; im.loading = 'lazy'; im.decoding = 'async';
+            if (SIZE[kk]) { im.width = SIZE[kk][0]; im.height = SIZE[kk][1]; ph.style.aspectRatio = SIZE[kk][0] + ' / ' + SIZE[kk][1]; }
+            ph.appendChild(im); f.appendChild(ph);
+            ph.onclick = function () { openLb(g.i, g.i.indexOf(kk)); };
+          });
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
           if (window.KPInq) KPInq.attach(f, k);
           list.appendChild(f);
@@ -139,7 +148,7 @@
     var x0 = null, y0 = 0;
     document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
     document.addEventListener('touchend', function (e) {
-      if (x0 == null || edit || $('inqsheet').style.display === 'flex') { x0 = null; return; }
+      if (x0 == null || edit || $('lb').style.display === 'flex' || $('inqsheet').style.display === 'flex') { x0 = null; return; }
       var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
       if (Math.abs(dx) < 90 || Math.abs(dy) > 50 || Math.abs(dx) < Math.abs(dy) * 2.2) return;
       if (e.target.closest && e.target.closest('#nav, .iopts, input, textarea')) return;
@@ -147,6 +156,54 @@
       if (n >= 0 && n < ids.length) setTab(ids[n]);
     }, { passive: true });
   })();
+  // ===== 圖片放大（點海報開啟；可縮放、拖動、左右切換）=====
+  var LB = { keys: [], i: 0, z: 1, fw: 200 };
+  function lbApply() { $('lbi').style.width = Math.round(LB.fw * LB.z) + 'px'; $('lbz').textContent = Math.round(LB.z * 100) + '%'; }
+  function lbFit() {
+    var st = $('lbs'), im = $('lbi'), r = (im.naturalHeight / im.naturalWidth) || 1.4;
+    LB.fw = Math.max(140, Math.min(st.clientWidth - 24, (st.clientHeight - 24) / r)); lbApply();
+  }
+  function lbShow(i) {
+    var n = LB.keys.length; LB.i = (i + n) % n; LB.z = 1;
+    var k = LB.keys[LB.i], im = $('lbi');
+    im.onload = lbFit; im.src = 'img/' + k + '.webp'; im.alt = IMGS[k] || '';
+    $('lbt').textContent = (IMGS[k] || '') + '　' + (LB.i + 1) + ' / ' + n;
+    $('lbs').scrollTo(0, 0); $('lbp').style.display = $('lbn').style.display = n > 1 ? '' : 'none'; lbApply();
+  }
+  function openLb(keys, idx) { LB.keys = keys.slice(); $('lb').style.display = 'flex'; document.body.style.overflow = 'hidden'; lbShow(idx); }
+  function closeLb() { $('lb').style.display = 'none'; document.body.style.overflow = ''; }
+  function zoomTo(z) { LB.z = Math.max(1, Math.min(4, z)); lbApply(); }
+  (function () {
+    $('lbx').onclick = closeLb;
+    $('lbp').onclick = function () { lbShow(LB.i - 1); };
+    $('lbn').onclick = function () { lbShow(LB.i + 1); };
+    $('lbm').onclick = function () { zoomTo(LB.z - 0.5); };
+    $('lbpl').onclick = function () { zoomTo(LB.z + 0.5); };
+    $('lbr').onclick = function () { zoomTo(1); };
+    $('lbi').ondblclick = function () { zoomTo(LB.z > 1 ? 1 : 2.5); };
+    window.addEventListener('resize', function () { if ($('lb').style.display === 'flex') lbFit(); });
+    document.addEventListener('keydown', function (e) {
+      if ($('lb').style.display !== 'flex') return;
+      if (e.key === 'Escape') closeLb(); else if (e.key === 'ArrowLeft') lbShow(LB.i - 1); else if (e.key === 'ArrowRight') lbShow(LB.i + 1);
+      else if (e.key === '+' || e.key === '=') zoomTo(LB.z + 0.5); else if (e.key === '-') zoomTo(LB.z - 0.5);
+    });
+    // 手機：雙指縮放、沒放大時左右滑換張
+    var st = $('lbs'), d0 = 0, z0 = 1, sx = null, sy = 0;
+    function dist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    st.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) { d0 = dist(e.touches); z0 = LB.z; sx = null; } else { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+    }, { passive: true });
+    st.addEventListener('touchmove', function (e) {
+      if (e.touches.length === 2 && d0) { e.preventDefault(); zoomTo(z0 * dist(e.touches) / d0); }
+    }, { passive: false });
+    st.addEventListener('touchend', function (e) {
+      if (d0 && e.touches.length < 2) { d0 = 0; return; }
+      if (sx == null || LB.z > 1.05) { sx = null; return; }
+      var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy; sx = null;
+      if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) lbShow(LB.i + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  })();
+
   var seeCta = true;
   function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || active === 'contact'); }
 
@@ -219,7 +276,7 @@
       $('set').style.display = 'none'; toast('設定已存，再按一次「儲存發佈」');
     };
   } else {
-    // 不提供放大瀏覽（使用者決定）
+    // 點圖放大：見 openLb（使用者 2026-11-20 改變決定，要有放大）
   }
 
   function getJson(url) {

@@ -31,7 +31,6 @@
   add('tail', 'LED 光環尾燈組', 11800);
   add('fog', '魚眼霧燈', 5800, { optLabel: '色系', opts: ['黃金眼', '6000K 白光'] });
   add('gtr', 'GTR 大燈升級', 28900);
-  add('gtrplus', 'GTR plus 雙切驗車模組', null);
   add('aero-all', '空力套裝', 12000);
   add('aero-chin', '前下巴套件', 9500);
   add('aero-mirror', '後照鏡飾蓋', 2800);
@@ -84,7 +83,7 @@
     equip: ['safe', 'special', 'wheelsw'],
     lights: ['ledset', 'mirror-led', 'mirror-view', 'horn-mod', 'phone2'],
     package: ['pkg-dbl'], android: ['android123'], audio: ['audio'], tail: ['tail'], fog: ['fog'],
-    gtr: ['gtr'], 'gtr-plus': ['gtrplus'],
+    gtr: ['gtr'],
     aero: ['aero-all', 'aero-chin', 'aero-mirror', 'aero-signal'],
     paint: ['paint-s', 'paint-l', 'paint-d', 'paint-matte', 'rob2', 'rob3', 'rob4'], wheel: ['omega'],
     chassis: ['ts', 'leaf-plate', 'bush', 'atc', 'spring'],
@@ -228,13 +227,15 @@
     var rows = document.querySelectorAll('.irow');
     Array.prototype.forEach.call(rows, function (row) {
       var id = row.getAttribute('data-iid'), it = I[id], on = !!S.sel[id];
+      var bad = !!fitWarn(it);
+      row.classList.toggle('off', bad); row.querySelector('.itop').disabled = bad;
       row.classList.toggle('on', on);
       row.querySelector('.itop').setAttribute('aria-checked', on ? 'true' : 'false');
       var p = priceOf(it), pr = row.querySelector('.ipr');
       if (it.byCab && !S.cab) pr.textContent = '依車廂報價';
       else pr.textContent = p ? money(p) : '價格請洽業務';
       pr.classList.toggle('ask', !p);
-      var w = row.querySelector('.iwarn'), msg = fitWarn(it); w.textContent = msg; w.style.display = msg ? 'block' : 'none';
+      var w = row.querySelector('.iwarn'), msg = fitWarn(it); w.textContent = msg.replace('⚠ ', '⛔ 不適用：'); w.style.display = msg ? 'block' : 'none';
       var oc = row.querySelector('.iopts');
       if (oc) { oc.style.display = on ? 'flex' : 'none'; Array.prototype.forEach.call(oc.querySelectorAll('button'), function (b) { b.classList.toggle('on', S.sel[id] === b.getAttribute('data-o')); }); }
     });
@@ -275,7 +276,13 @@
     if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
-  function refresh() { renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
+  // 換車型後，不適用的配件自動取消勾選並提醒
+  function prune() {
+    var gone = [];
+    Object.keys(S.sel).forEach(function (id) { var it = I[id]; if (it && fitWarn(it)) { delete S.sel[id]; gone.push(plain(it)); } });
+    if (gone.length) toast('已取消不適用的配件：' + gone.join('、'));
+  }
+  function refresh() { prune(); renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
 
   // ===== 詢價單視窗 =====
   function buildText() {
@@ -396,7 +403,7 @@
   }
 
   function init() {
-    renderVeh(); syncRows(); syncCounts(); syncBar();
+    prune(); renderVeh(); syncRows(); syncCounts(); syncBar();
     $('inqbar').onclick = openSheet;
     $('inqclose').onclick = closeSheet;
     $('inqsheet').onclick = function (e) { if (e.target === this) closeSheet(); };

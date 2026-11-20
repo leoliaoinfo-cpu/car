@@ -129,10 +129,16 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 #lb .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;color:var(--ink)}
 #lb .top span{font-size:15px;font-weight:700}#lb .top small{color:var(--mute);margin-left:8px;font-weight:500}
 #lb .x{width:42px;height:42px;border:1px solid var(--bd);border-radius:50%;background:#fff;color:var(--ink);font-size:18px;box-shadow:0 2px 8px rgba(120,84,50,.12)}
-#lb .stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
-#lb .stage img{max-width:100%;max-height:100%;touch-action:pinch-zoom;user-select:none;border-radius:6px;box-shadow:var(--shadow)}
-#lb .nv{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:1px solid var(--bd);border-radius:50%;background:rgba(255,255,255,.95);color:var(--ink);font-size:24px;box-shadow:0 4px 12px rgba(120,84,50,.2)}
+#lb .sw{flex:1;min-height:0;position:relative}
+#lb .stage{position:absolute;inset:0;overflow:auto;display:flex;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y}
+#lb .stage img{margin:auto;display:block;flex:none;user-select:none;-webkit-user-drag:none;border-radius:6px;box-shadow:var(--shadow);background:#fff}
+#lb .nv{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:1px solid var(--bd);border-radius:50%;background:rgba(255,255,255,.95);color:var(--ink);font-size:24px;box-shadow:0 4px 12px rgba(120,84,50,.2);z-index:2}
 #lb .nv.p{left:10px}#lb .nv.n{right:10px}
+#lb .zbar{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 0 calc(12px + env(safe-area-inset-bottom))}
+#lb .zbar button{border:1px solid var(--bd);background:#fff;color:var(--ink);font-size:18px;font-weight:800;border-radius:999px;min-width:46px;height:42px;padding:0 14px;font-family:inherit}
+#lb .zbar span{min-width:54px;text-align:center;font-weight:700;color:var(--mute);font-size:14px}
+.ph{cursor:zoom-in}
+.ph:after{content:"🔍 點圖放大";position:absolute;right:10px;bottom:10px;font-size:12px;font-weight:700;color:#fff;background:rgba(47,42,37,.62);border-radius:999px;padding:4px 10px;pointer-events:none}
 #lb .hint{text-align:center;color:var(--mute);font-size:12.5px;padding:8px 0 calc(14px + env(safe-area-inset-bottom))}
 
 
@@ -150,6 +156,9 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 .items{padding:2px 12px 14px;border-top:1px solid var(--bd);background:#fffdf9}
 .items-h{font-size:12.5px;color:var(--mute);font-weight:700;padding:10px 4px 4px}
 .irow{border-radius:14px;margin-top:6px;border:1.5px solid var(--bd);background:#fff}
+.irow.off{opacity:.55;background:#f4efe8;border-style:dashed}
+.irow.off .itop{cursor:not-allowed}
+.irow.off .box{background:#eee;border-style:dashed;border-color:#d8cdbd}
 .irow.on{border-color:var(--ac);background:var(--acsoft)}
 .itop{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;text-align:left;border:0;background:none;padding:9px 12px;font-family:inherit;color:var(--ink)}
 .box{flex:none;width:30px;height:30px;border-radius:9px;border:2px solid #cdbfae;background:#fff;color:transparent;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center}
@@ -249,6 +258,11 @@ GitHub 權杖（token）
 <button id="f-ok">儲存設定</button><button class="g" id="f-no">取消</button>
 </div></div>
 <div id="toast"></div>
+<div id="lb" role="dialog" aria-label="圖片放大">
+  <div class="top"><span id="lbt"></span><button class="x" id="lbx" type="button" aria-label="關閉">✕</button></div>
+  <div class="sw"><div class="stage" id="lbs"><img id="lbi" alt=""></div><button class="nv p" id="lbp" type="button" aria-label="上一張">‹</button><button class="nv n" id="lbn" type="button" aria-label="下一張">›</button></div>
+  <div class="zbar"><button id="lbm" type="button" aria-label="縮小">－</button><span id="lbz">100%</span><button id="lbpl" type="button" aria-label="放大">＋</button><button id="lbr" type="button">還原</button></div>
+</div>
 
 <header class="hero">
   <span class="eyebrow">KIA 商用車彰化區總代理</span>
