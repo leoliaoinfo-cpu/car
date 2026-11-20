@@ -6,6 +6,9 @@ import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonica
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
 import { Field, ConfirmDeleteButton, ChipSelect } from '../ui';
+import ChoicePicker from './ChoicePicker';
+import { addonFitWarning } from '../../utils/addonFit';
+import { choiceGroupsOf, hasChoices, isChoiceComplete, choiceLabelOf, missingChoiceLabels } from '../../utils/choices';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, includedQuoteItems, mergeQuoteDiscounts, normalizeDiscount, normalizeQuoteItems,
@@ -160,7 +163,7 @@ function cabGroups(list) {
 function AddonCategoryCard({
   cat, list, aliases, expanded, isPicked, reviewedNoOptionCategories,
   setExpandedAddonCategories, setNoOptionCategories, showDesc, toggleLine, bundleLocks,
-  allAddons, selectedItemForAddon, updateVendorInquiryNote, onPickChoice, heightConfig,
+  allAddons, selectedItemForAddon, updateVendorInquiryNote, onPickChoice, heightConfig, fitVariant,
 }) {
   const color = catColor(cat);
   const pickedCount = list.filter((addon) => isPicked(addon)).length;
@@ -241,8 +244,8 @@ function AddonCategoryCard({
                         保固 {Number(addon.warrantyMonths) % 12 === 0 ? `${Number(addon.warrantyMonths) / 12} 年` : `${addon.warrantyMonths} 個月`}
                       </span>
                     )}
-                    {Array.isArray(addon.choices) && addon.choices.length > 0 && (
-                      <p className="mt-1 text-[10px] font-semibold text-accent">需選{addon.choiceLabel || '規格'}：{addon.choices.join(' / ')}</p>
+                    {hasChoices(addon) && (
+                      <p className="mt-1 text-[10px] font-semibold text-accent">需選{choiceGroupsOf(addon).map((g) => `${g.label}（${g.choices.join(' / ')}）`).join('、')}</p>
                     )}
                     {descriptionLines.length > 0 && (
                       packageAddon ? (
@@ -318,12 +321,13 @@ function AddonCategoryCard({
                         {warrantyText(addon)}
                       </span>
                     )}
-                    {Array.isArray(addon.choices) && addon.choices.length > 0 && (
+                    {hasChoices(addon) && (
                       <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${picked ? 'bg-white/20 text-white' : 'bg-accent/10 text-accent'}`}>
-                        需選{addon.choiceLabel || '規格'}
+                        需選{choiceGroupsOf(addon).map((g) => g.label).join('、')}
                       </span>
                     )}
                     {heightImpact && <span className={`text-[9px] font-bold ${picked ? '' : 'text-warn'}`}>⚠️ {heightImpact.shortLabel}</span>}
+                    {addonFitWarning(addon.id, fitVariant) && <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${picked ? 'bg-white/25 text-white' : 'bg-warn/15 text-black'}`}>⚠️ {addonFitWarning(addon.id, fitVariant)}</span>}
                     </span>
                     <span className="shrink-0 text-sm font-bold" style={{ color: picked ? '#fff' : color }}>
                       {lockedBy ? (lockedBy.overlap ? '重疊' : '套裝已含') : addon.pendingPrice ? '待報價' : formatMoney(addon.price)}
@@ -346,21 +350,15 @@ function AddonCategoryCard({
             </div>
           )}
           {/* 需要選規格（例如燈光顏色）的配件：勾了就在原地選，不用往下找 */}
-          {list.filter((addon) => Array.isArray(addon.choices) && addon.choices.length > 0 && isPicked(addon)).map((addon) => {
+          {list.filter((addon) => hasChoices(addon) && isPicked(addon)).map((addon) => {
             const selectedItem = selectedItemForAddon(addon);
             if (!selectedItem) return null;
+            const done = isChoiceComplete(addon, selectedItem.optionValue);
             return (
-              <div key={`${addon.id}-choice`} className={`rounded-lg border p-2.5 ${selectedItem.optionValue ? 'border-accent/30 bg-accent/5' : 'border-danger/50 bg-danger/10'}`}>
-                <p className="text-xs font-bold text-ink-2">{addon.name}：選{addon.choiceLabel || '規格'}{!selectedItem.optionValue && <span className="text-danger">（必選）</span>}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {addon.choices.map((choice) => (
-                    <button key={choice} type="button"
-                      onClick={() => onPickChoice?.(selectedItem.id, { optionLabel: addon.choiceLabel || '規格', optionValue: choice })}
-                      className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${selectedItem.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
-                      {selectedItem.optionValue === choice ? '✓ ' : ''}{choice}
-                    </button>
-                  ))}
-                </div>
+              <div key={`${addon.id}-choice`} className={`rounded-lg border p-2.5 ${done ? 'border-accent/30 bg-accent/5' : 'border-danger/50 bg-danger/10'}`}>
+                <p className="mb-2 text-xs font-bold text-ink-2">{addon.name}：請跟客戶確認{choiceGroupsOf(addon).map((g) => g.label).join('、')}</p>
+                <ChoicePicker addon={addon} value={selectedItem.optionValue}
+                  onChange={(optionValue) => onPickChoice?.(selectedItem.id, { optionLabel: choiceLabelOf(addon), optionValue })} />
               </div>
             );
           })}
@@ -730,7 +728,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
         catalogId,
         description: desc,
         note: '',
-        optionLabel: addon.choiceLabel || '',
+        optionLabel: choiceLabelOf(addon),
         optionValue: '',
         bodyHeightCm: '',
         vendorInquiryNote: '',
@@ -846,7 +844,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
           it.description,
         ),
         note: String(it.note || '').trim(),
-        optionLabel: String(it.optionLabel || quotePresets.addons.find((addon) => addon.id === it.catalogId)?.choiceLabel || '').trim(),
+        optionLabel: String(it.optionLabel || choiceLabelOf(quotePresets.addons.find((addon) => addon.id === it.catalogId)) || '').trim(),
         optionValue: String(it.optionValue || '').trim(),
         bodyHeightCm: Number(it.bodyHeightCm) > 0 ? Number(it.bodyHeightCm) : null,
         requirementStatus: it.requirementStatus || null,
@@ -897,11 +895,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
   function confirmAddonReview() {
     const missingChoice = selectedItems.find((item) => {
       const addon = quotePresets.addons.find((candidate) => candidate.id === item.catalogId);
-      return Array.isArray(addon?.choices) && addon.choices.length > 0 && !String(item.optionValue || '').trim();
+      return hasChoices(addon) && !isChoiceComplete(addon, item.optionValue);
     });
     if (missingChoice) {
       const addon = quotePresets.addons.find((candidate) => candidate.id === missingChoice.catalogId);
-      setExportError(`請先選擇「${missingChoice.name}」的${addon?.choiceLabel || '規格'}。`);
+      setExportError(`請先選擇「${missingChoice.name}」的${missingChoiceLabels(addon, missingChoice.optionValue).join('、')}。`);
       return false;
     }
     // 不再逐一確認 27 個配件分類，也不跳原生確認視窗。
@@ -1253,7 +1251,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       setExpandedAddonCategories={setExpandedAddonCategories}
                       setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
                       bundleLocks={bundleLocks} allAddons={quotePresets.addons}
-                      heightConfig={heightConfig}
+                      heightConfig={heightConfig} fitVariant={selectedVehicleVariant}
                       selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
                       updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} onPickChoice={(itemId, patch) => setItem(itemId, patch)} />;
                   }
@@ -1292,7 +1290,7 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                               setExpandedAddonCategories={setExpandedAddonCategories}
                               setNoOptionCategories={setNoOptionCategories} showDesc={showDesc} toggleLine={toggleLine}
                               bundleLocks={bundleLocks} allAddons={quotePresets.addons}
-                              heightConfig={heightConfig}
+                              heightConfig={heightConfig} fitVariant={selectedVehicleVariant}
                               selectedItemForAddon={(addon) => items.find((item) => item.catalogId === addon.id || item.name.trim() === addon.name)}
                               updateVendorInquiryNote={(itemId, value) => setItem(itemId, { vendorInquiryNote: value })} onPickChoice={(itemId, patch) => setItem(itemId, patch)} />
                           ))}
@@ -1501,19 +1499,11 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                       ⚠️ {heightImpact.detail}
                     </p>
                   )}
-                  {Array.isArray(catalogAddon?.choices) && catalogAddon.choices.length > 0 && (
+                  {hasChoices(catalogAddon) && (
                     <div className="rounded-lg border border-accent/30 bg-accent/5 p-2">
-                      <p className="mb-1.5 text-[10px] font-bold text-ink-2">{catalogAddon.choiceLabel || '規格'} <span className="text-danger">必選</span></p>
-                      <div className="flex flex-wrap gap-2">
-                        {catalogAddon.choices.map((choice) => (
-                          <button key={choice} type="button"
-                            onClick={() => setItem(it.id, { optionLabel: catalogAddon.choiceLabel || '規格', optionValue: choice })}
-                            className={`min-h-11 rounded-lg border px-3 text-xs font-semibold ${it.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
-                            {it.optionValue === choice ? '✓ ' : ''}{choice}
-                          </button>
-                        ))}
-                      </div>
-                      {!it.optionValue && <p className="mt-1.5 text-[10px] font-semibold text-warn">尚未選擇，儲存或輸出前必須確認。</p>}
+                      <ChoicePicker addon={catalogAddon} value={it.optionValue} small
+                        onChange={(optionValue) => setItem(it.id, { optionLabel: choiceLabelOf(catalogAddon), optionValue })} />
+                      {!isChoiceComplete(catalogAddon, it.optionValue) && <p className="mt-1.5 text-[10px] font-semibold text-warn">尚未選擇完，儲存或輸出前必須跟客戶確認。</p>}
                     </div>
                   )}
                   {isModificationItem && (

@@ -1392,14 +1392,30 @@ test('安卓機與安全科技版都是四錄／環景二選一，舊設定升�
   }
 });
 
-test('雙廂高階套裝要選影像系統（四錄／環景）加後照鏡顏色（黑／白），舊設定升級後帶入選項', async () => {
+test('雙廂高階套裝內含的配件有顏色／規格，每一組都要選（影像系統、後照鏡、霧燈、尿素桶、鋁圈），舊設定升級後帶入', async () => {
   const { resolveQuotePresets } = await import('./crm.js');
+  const { choiceGroupsOf } = await import('./choices.js');
+  const labels = ['影像系統', '後照鏡顏色', 'X7魚眼霧燈顏色', '尿素桶防撞桿顏色', '手機架固定方式', 'OMEGA鋁圈配色'];
   const fresh = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-double-cab-package');
-  assert.deepEqual(fresh.choices, ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡']);
+  assert.deepEqual(choiceGroupsOf(fresh).map((g) => g.label), labels);
+  assert.deepEqual(choiceGroupsOf(fresh).map((g) => g.choices), [['四錄', '環景'], ['黑', '白'], ['黃金眼', '6000K 白光'], ['橘色', '黑色'], ['重力', '磁吸'], ['全銀', '內黑']]);
   const old = resolveQuotePresets({ _catalog: 'kavan-2026-v34', addonCategories: ['配備版本'], addons: [
     { id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000 },
   ] }).addons.find((a) => a.id === 'qa-double-cab-package');
-  assert.deepEqual(old.choices, ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡']);
+  assert.deepEqual(choiceGroupsOf(old).map((g) => g.label), labels);
+});
+
+test('尿素桶防撞桿要選顏色（橘色／黑色）、OMEGA 鋁圈要選配色（全銀／內黑），舊選單升級自動補上', async () => {
+  const { resolveQuotePresets } = await import('./crm.js');
+  const fresh = resolveQuotePresets(null).addons;
+  assert.deepEqual(fresh.find((a) => a.id === 'qa-urea').choices, ['橘色', '黑色']);
+  assert.deepEqual(fresh.find((a) => a.id === 'qa-omega').choices, ['全銀', '內黑']);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v51', addonCategories: ['金屬製研', '鋁圈'], addons: [
+    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500 },
+    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800 },
+  ] }).addons;
+  assert.deepEqual(old.find((a) => a.id === 'qa-urea').choices, ['橘色', '黑色']);
+  assert.deepEqual(old.find((a) => a.id === 'qa-omega').choices, ['全銀', '內黑']);
 });
 
 test('貨斗LED定位燈：燈組分類、售價 1990、三色擇一、成本 1592（八折）', async () => {

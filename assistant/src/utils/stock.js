@@ -6,6 +6,7 @@
 // 狀態代碼沿用舊的 todo／inquiry／ready／installed／not_needed，外包另加 vendor_done／checked／reported，
 // 舊資料不用轉換：外包項目的舊 ready 視為「廠商已施作」、舊 installed 視為「已確認沒問題」。
 import { DEFAULT_QUOTE_PRESETS } from './crm.js';
+import { parseChoiceValue } from './choices.js';
 
 export const TRACK_LABELS = { vendor: '外包', inhouse: '改裝部' };
 export const VENDOR_STATUSES = [
@@ -133,8 +134,12 @@ export function stockItemsFromQuote(quote, addons = []) {
     if (components.length) {
       for (const id of components) {
         const component = catalog.get(id);
+        // 客人在套裝上選的顏色／規格，寫到對應的零件上（例：後照鏡選「黑」→ LED 韓版後照鏡：黑）
+        const parent = catalog.get(item.catalogId);
+        const picked = parent ? Object.values(parseChoiceValue(parent, item.optionValue)) : [];
+        const spec = (component?.choices || []).find((c) => picked.includes(c)) || '';
         result.push(withTrack({ id: `${item.id}:${id}`, catalogId: id, name: component?.name || `${item.name}・${id}`,
-          specification: String(component?.choiceLabel || '').trim(), quantity: 1, status: item.pending ? 'inquiry' : 'todo',
+          specification: spec, quantity: 1, status: item.pending ? 'inquiry' : 'todo',
           note: joinNotes(item.note || item.description, deductionNote(item)), gift: !!item.gift, fromBundle: item.name }));
       }
     } else {

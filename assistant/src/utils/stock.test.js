@@ -243,3 +243,19 @@ test('廠商先後：尾門→烤漆→帆布；貼紙刻字不編號但排最�
   assert.deepEqual([...seq].sort(), [['c', 3], ['p', 2], ['t', 1]]);
   assert.equal(stockKind(it('s', '車身貼紙刻字')).label, '貼紙刻字');
 });
+
+test('套裝拆成零件進配件核對時，規格寫客人選的顏色（後照鏡黑、霧燈黃金眼…）', async () => {
+  const { stockItemsFromQuote } = await import('./stock.js');
+  const { DEFAULT_QUOTE_PRESETS } = await import('./crm.js');
+  const quote = { items: [{ id: 'p', kind: 'addon', catalogId: 'qa-double-cab-package', name: '雙廂高階套裝（17項配備）', price: 250000,
+    bundlePricingMode: 'components', bundleIncludedIds: ['qa-mirror1', 'qa-fog', 'qa-urea', 'qa-omega', 'qa-pkg2', 'qa-ts'],
+    optionValue: '影像系統：四錄；後照鏡顏色：黑；X7魚眼霧燈顏色：6000K 白光；尿素桶防撞桿顏色：橘色；手機架固定方式：重力；OMEGA鋁圈配色：內黑' }] };
+  const rows = stockItemsFromQuote(quote, DEFAULT_QUOTE_PRESETS.addons);
+  const spec = (id) => rows.find((r) => r.catalogId === id)?.specification;
+  assert.equal(spec('qa-mirror1'), '黑');
+  assert.equal(spec('qa-fog'), '6000K 白光');
+  assert.equal(spec('qa-urea'), '橘色');
+  assert.equal(spec('qa-omega'), '內黑');
+  assert.equal(spec('qa-pkg2'), '四錄');
+  assert.equal(spec('qa-ts'), '');
+});

@@ -133,6 +133,27 @@ const RULES = [
   ['chin', /前下巴/], ['turnshell', /方向燈殼|方向燈白殼/], ['mirrorcover', /鏡蓋|後照鏡飾蓋|保護殼/], ['audio', /音響|高音喇叭|喇叭改裝/], ['horn', /警示喇叭/],
   ['ts', /\bTS\b|避震/i], ['halo', /光環尾燈|LED\s*尾燈|HALO/i], ['og', /鋁圈|OMEGA|\bOG\b/i], ['fish-fog', /魚眼霧燈/], ['paint', /烤漆|改色|車身顏色|珍珠漆/], ['phone', /手機架/],
 ];
+// 雙廂高階套裝（17 項）展開成選配表上的格子；影像系統四錄／環景依客人選的那一格；GTR 魚眼頭燈紙本沒有對應格（改寫進客戶需求）
+const DOUBLE_CAB_IDS = [
+  'recorder', 'rain', 'buzzer', 'tint', 'rubber', // 特仕版
+  'cruise', 'media', // 原裝多功能方向盤
+  'tpms6', // 安全科技版的胎壓（四錄／環景另外依選擇勾）
+  'led-mirror', 'fish-fog', 'ts', 'audio', 'step', 'rack', 'urea', 'phone', 'led-inner', 'led-side', 'og', 'halo', 'chin',
+];
+// 套裝的顏色／規格選項 → 寫在選配表哪一格旁邊
+const CHOICE_TO_SHEET = { '後照鏡顏色': 'led-mirror', 'X7魚眼霧燈顏色': 'fish-fog', '尿素桶防撞桿顏色': 'urea', '手機架固定方式': 'phone', 'OMEGA鋁圈配色': 'og' };
+const isDoubleCabPackage = (item) => item?.catalogId === 'qa-double-cab-package' || /雙廂高階套裝/.test(String(item?.name || ''));
+
+/** 「影像系統：四錄；後照鏡顏色：黑」→ { 影像系統: '四錄', 後照鏡顏色: '黑' }（舊格式或沒有組名就回空）。 */
+function labeledChoices(value) {
+  const out = {};
+  for (const part of String(value || '').split('；')) {
+    const i = part.indexOf('：');
+    if (i > 0) out[part.slice(0, i).trim()] = part.slice(i + 1).trim();
+  }
+  return out;
+}
+
 // 套裝名稱 → 展開成選配表上的項目
 const PACKAGES = [
   [/特仕版/, ['recorder', 'rain', 'buzzer', 'tint', 'rubber']],
@@ -210,6 +231,7 @@ export function matchSheetIds(item) {
   if (catalog?.cat === '烤漆周邊' || /logo|標誌|輪胎蓋|輪框蓋/i.test(name)) return [];
   // 9吋安卓機、安全科技版：四錄／環景只能二選一，只勾客人選的那一格；看不出來就兩格都不勾（帶入時提醒自己勾）
   const choice = androidChoice(item);
+  if (isDoubleCabPackage(item)) return choice ? [choice, ...DOUBLE_CAB_IDS] : [...DOUBLE_CAB_IDS];
   if (/安全科技版/.test(name)) return choice ? [choice, 'tpms6'] : ['tpms6'];
   if (item?.catalogId === 'qa-android-surround' || /擇一.*專用底座|安卓.*四錄.*環景|安卓.*環景.*四錄/.test(name)) {
     return choice ? [choice] : [];
@@ -259,18 +281,20 @@ export function prefillFromQuote(sheet, quote, layout = null) {
     for (const x of shown) if (!DEFAULT_IDS.has(x.id) && x.label && name.includes(x.label) && !ids.includes(x.id)) ids.push(x.id);
     if (!ids.length) {
       unmatched.push(name);
-      noteLines.push({ key: name, text: ownNote ? `${name}：${ownNote}` : name });
+      const opt = String(item.optionValue || '').trim();
+      const label = opt ? `${name}（${opt}）` : name;
+      noteLines.push({ key: name, text: ownNote ? `${label}：${ownNote}` : label });
       continue;
     }
     const cut = deductedIds(item);
     const note = noteOf(item);
     // 四錄／環景是二選一：報價明確選了一個，就把另一格取消（那格自己寫過字的不動）
-    const isAndroidPick = /安全科技版|安卓/.test(name) || item.catalogId === 'qa-android-surround';
+    const isAndroidPick = /安全科技版|安卓/.test(name) || item.catalogId === 'qa-android-surround' || isDoubleCabPackage(item);
     if (isAndroidPick) {
       const pick = androidChoice(item);
       const other = pick === 'android-4rec' ? 'android-around' : pick === 'android-around' ? 'android-4rec' : null;
       if (other && items[other]?.on && !String(items[other].note || '').trim()) items[other] = { ...items[other], on: false };
-      if (!pick && /安全科技版|擇一/.test(name)) noteLines.push({ key: `${compactName(name)}：四錄還是環景`, text: `${compactName(name)}：四錄還是環景？（報價沒選，請自己勾）` });
+      if (!pick && (/安全科技版|擇一/.test(name) || isDoubleCabPackage(item))) noteLines.push({ key: `${compactName(name)}：四錄還是環景`, text: `${compactName(name)}：四錄還是環景？（報價沒選，請自己勾）` });
     }
     const isPkg = ids.length > 1 || PACKAGES.some(([re]) => re.test(name));
     let placed = false;
@@ -281,6 +305,19 @@ export function prefillFromQuote(sheet, quote, layout = null) {
       const fallback = defaultNote.get(id) && ['tailgate', 'canvas', 'alubox', 'hrack', 'plate', 'leaf'].includes(id) ? name : '';
       items[id] = { on: true, note: cur.note || (isPkg ? '' : (note || fallback)) };
       if (ownNote && items[id].note.includes(ownNote)) placed = true;
+    }
+    if (isDoubleCabPackage(item)) {
+      // 顏色／規格寫在對應的格子旁邊（只補、不蓋掉已經寫的字）；GTR 魚眼頭燈沒有對應格，寫進客戶需求
+      for (const [groupLabel, picked] of Object.entries(labeledChoices(item.optionValue))) {
+        const target = CHOICE_TO_SHEET[groupLabel];
+        if (target && visible.has(target) && !cut.has(target)) {
+          const cur = items[target] || { on: true, note: '' };
+          if (!cur.note) items[target] = { ...cur, on: true, note: picked };
+        }
+      }
+      if (!cut.has('gtr-none') && !(item.deductions || []).some((d) => /GTR|魚眼頭燈/.test(String(d?.name || '')))) {
+        noteLines.push({ key: '雙廂高階套裝另含：GTR魚眼頭燈', text: '雙廂高階套裝另含：GTR魚眼頭燈（選配表沒有這格）' });
+      }
     }
     if (ownNote && !placed) pending.push({ label: compactName(name), note: ownNote, pkgIds: ids.filter((id) => !cut.has(id)) });
   }

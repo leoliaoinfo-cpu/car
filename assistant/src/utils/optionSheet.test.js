@@ -237,3 +237,23 @@ test('對照報價的核對紀錄：舊表沒有也不會壞；報價那一項�
   assert.notEqual(quoteItemFingerprint(item), quoteItemFingerprint({ ...item, note: '黑色' }));
   assert.notEqual(quoteItemFingerprint(item), quoteItemFingerprint({ ...item, price: 6000 }));
 });
+
+test('雙廂高階套裝：展開成選配表的格子，四錄／環景依選擇只勾一格，顏色寫在對應格子旁邊，GTR 沒有格子寫進客戶需求', async () => {
+  const { prefillFromQuote } = await import('./optionSheet.js');
+  const quote = { items: [
+    { id: 'p', kind: 'addon', catalogId: 'qa-double-cab-package', name: '雙廂高階套裝（17項配備）', price: 250000,
+      optionValue: '影像系統：環景；後照鏡顏色：白；X7魚眼霧燈顏色：黃金眼；尿素桶防撞桿顏色：橘色；手機架固定方式：磁吸；OMEGA鋁圈配色：全銀' },
+  ] };
+  const { sheet, unmatched } = prefillFromQuote(null, quote);
+  assert.deepEqual(unmatched, []);
+  const on = (id) => !!sheet.items[id]?.on;
+  for (const id of ['recorder', 'rain', 'tint', 'rubber', 'cruise', 'media', 'tpms6', 'led-mirror', 'fish-fog', 'ts', 'audio', 'step', 'rack', 'urea', 'phone', 'led-inner', 'led-side', 'og', 'halo', 'chin']) assert.ok(on(id), `${id} 沒勾`);
+  assert.ok(on('android-around'));
+  assert.ok(!on('android-4rec')); // 二選一，只勾環景
+  assert.equal(sheet.items['led-mirror'].note, '白');
+  assert.equal(sheet.items['fish-fog'].note, '黃金眼');
+  assert.equal(sheet.items.urea.note, '橘色');
+  assert.equal(sheet.items.phone.note, '磁吸');
+  assert.equal(sheet.items.og.note, '全銀');
+  assert.match(sheet.needs.text, /GTR魚眼頭燈/);
+});

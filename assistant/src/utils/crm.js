@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v51';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v53';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -359,7 +359,17 @@ const LATEST_CATALOG_ADDONS = [
     desc: '兩支一組；法規認證合法變更；雙廂專用',
   },
   {
-    id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000, choiceLabel: '影像系統＋後照鏡顏色', choices: ['四錄＋黑色後照鏡', '四錄＋白色後照鏡', '環景＋黑色後照鏡', '環景＋白色後照鏡'], // 內含安全科技版（四錄／環景二選一）與 LED 韓版後照鏡（黑／白）
+    id: 'qa-double-cab-package', cat: '配備版本', name: '雙廂高階套裝（17項配備）', price: 250000,
+    // 套裝內含的配件有顏色／規格要跟客戶確認，每一組都要選（choiceLabel／choices 保留第一組給舊程式用）
+    choiceLabel: '影像系統', choices: ['四錄', '環景'],
+    choiceGroups: [
+      { label: '影像系統', choices: ['四錄', '環景'] },
+      { label: '後照鏡顏色', choices: ['黑', '白'] },
+      { label: 'X7魚眼霧燈顏色', choices: ['黃金眼', '6000K 白光'] },
+      { label: '尿素桶防撞桿顏色', choices: ['橘色', '黑色'] },
+      { label: '手機架固定方式', choices: ['重力', '磁吸'] },
+      { label: 'OMEGA鋁圈配色', choices: ['全銀', '內黑'] },
+    ],
     desc: '雙廂專用。型錄方案價 250,000 元，原配件價值標示 275,000 元；包含特仕版、多功能方向盤、安全科技版（四錄／環景二選一）、LED後照鏡、GTR魚眼頭燈、X7魚眼霧燈、TS避震、音響升級、延長側踏、Travel橫桿、尿素桶防撞桿、雙手機架、室內牌照燈、側邊照地燈、OMEGA鋁圈、HALO光環尾燈及KDM擾流前下巴',
     includes: [
       'qa-pkg1', 'qa-pkg3', 'qa-pkg2', 'qa-mirror1', 'qa-gtr', 'qa-fog', 'qa-ts', 'qa-tlsound',
@@ -519,7 +529,7 @@ export const DEFAULT_QUOTE_PRESETS = {
       includes: ['qa-audio-65', 'qa-tweeter'] },
     { id: 'qa-speaker', cat: '音響', name: 'GUDE 警示喇叭', price: 2800, warrantyMonths: 6, desc: '6 個月保固' },
     // 配件
-    { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一', includes: ['qa-phone-basic', 'qa-phone-a-pillar'] },
+    { id: 'qa-phone', cat: '配件', name: '雙手機架組合（兩隻）', price: 3000, choiceLabel: '固定方式', choices: ['重力', '磁吸'], desc: '卡旺中控專用底座、A柱手把原車孔位底座；重力&磁吸二選一', includes: ['qa-phone-basic', 'qa-phone-a-pillar'] },
     // 底盤強化
     { id: 'qa-ts', cat: '底盤強化', name: 'TS 氮氣液壓避震器組', price: 29800, warrantyMonths: 24,
       desc: '含四輪定位乙次；韓國原裝 11mm 專用強化版、16 段舒適阻尼調整；2 年保固' },
@@ -528,7 +538,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-atc', cat: '底盤強化', name: 'ATC 防傾桿', price: 18500, desc: '2WD；優力膠套換紅色強化版' },
     { id: 'qa-leaf', cat: '底盤強化', name: '強化支撐彈簧', price: 15500, desc: '支撐力及載重能力提高、強化載重行駛穩定性' },
     // 金屬製研
-    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, desc: '原車鎖點結構穩固、保護尿素桶防止破損；橘色／黑色' },
+    { id: 'qa-urea', cat: '金屬製研', name: '尿素桶防撞桿', price: 5500, choiceLabel: '顏色', choices: ['橘色', '黑色'], desc: '原車鎖點結構穩固、保護尿素桶防止破損；橘色／黑色' },
     { id: 'qa-side', cat: '金屬製研', name: '雙廂專用滑行側踏組', price: 18900, desc: '原車鎖點結構穩固、雙廂專用側邊登車踏板' },
     { id: 'qa-skid', cat: '金屬製研', name: '4WD 專用鋁合金下護板', price: 12500, desc: '適用六期卡旺；原車鎖點結構穩固、防止跳石汙漬擊中中冷器' },
     { id: 'qa-rear', cat: '金屬製研', name: '車尾後防撞桿', price: 7500, desc: '需變更；尾門車無法安裝' },
@@ -544,7 +554,7 @@ export const DEFAULT_QUOTE_PRESETS = {
     { id: 'qa-rob2', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（3~3.5呎尾門）', price: 10000, desc: '標準色為消光黑、使用年限長達5年以上' },
     { id: 'qa-rob3', cat: '防刮漆料', group: 'g-roberlo', name: 'roberlo防刮漆料（4~4.5呎尾門）', price: 11000, desc: '標準色為消光黑、使用年限長達5年以上' },
     // 鋁圈
-    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, desc: '2WD；全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
+    { id: 'qa-omega', cat: '鋁圈', name: 'OMEGA鋁圈升級', price: 33800, choiceLabel: '配色', choices: ['全銀', '內黑'], desc: '2WD；全銀輪圈／內黑配色擇一。OMEGA WHEELS。減重22公斤 & 載重值+300公斤' },
   ],
   subsidies: [
     { id: 'qs-1', name: '汰舊換新補助', amount: 50000, funding: 'company' },
@@ -817,6 +827,7 @@ export function resolveQuotePresets(row) {
         ...migrated,
         choiceLabel: latestDefault.choiceLabel || '規格',
         choices: [...latestDefault.choices],
+        ...(Array.isArray(latestDefault.choiceGroups) ? { choiceGroups: latestDefault.choiceGroups.map((g) => ({ label: g.label, choices: [...g.choices] })) } : {}),
       };
     }
     return normalizeCurrentAddon(migrated);

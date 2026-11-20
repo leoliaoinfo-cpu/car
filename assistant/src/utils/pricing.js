@@ -1,5 +1,6 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
+import { choiceLabelOf } from './choices.js';
 
 const COST_CATALOG_VERSION = 20;
 
@@ -399,7 +400,7 @@ export function replaceBackendCustomQuoteItems(quote, rows = []) {
     .map((row) => ({
       id: row.id,
       catalogId: row.catalogId || null,
-      optionLabel: row.catalogId ? String(row.choiceLabel || '') : '',
+      optionLabel: row.catalogId ? (choiceLabelOf(row) || String(row.choiceLabel || '')) : '',
       optionValue: row.catalogId ? String(row.optionValue || '') : '',
       kind: 'addon',
       name: String(row.name).trim(),

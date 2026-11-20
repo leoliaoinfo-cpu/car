@@ -6,6 +6,8 @@ import {
   normalizeCommissionBonusRule, normalizeCostCatalog, normalizeCustomItemHistory, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
+import ChoicePicker from '../quote/ChoicePicker';
+import { hasChoices, isChoiceComplete, missingChoiceLabels } from '../../utils/choices';
 import { ChipSelect } from '../ui';
 
 export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSearch = '' }) {
@@ -796,6 +798,7 @@ export function PricingEditorModal({
       catalogId: addon.id,
       choiceLabel: addon.choiceLabel || '',
       choices: addon.choices || [],
+      choiceGroups: addon.choiceGroups || null,
       optionValue: '',
       salePrice: addon.pendingPrice ? '' : String(addon.price || ''),
       cost: known == null || known === '' ? '' : String(known),
@@ -894,16 +897,7 @@ export function PricingEditorModal({
           </div>
           <p className="text-[10px] text-ink-3">原始售價 NT$ {formatMoney(salePrice)}・折後 NT$ {formatMoney(netPrice)}</p>
           <NoteToggle name={row.name} value={row.note || ''} onChange={(note) => updateCustomItem(row.id, { note })} />
-          {row.choices?.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[10px] font-bold text-ink-2">{row.choiceLabel || '規格'}</span>
-              {row.choices.map((choice) => (
-                <button key={choice} type="button" onClick={() => updateCustomItem(row.id, { optionValue: choice })}
-                  className={`min-h-9 rounded-lg border px-3 text-xs font-semibold ${row.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr text-ink-2'}`}>{choice}</button>
-              ))}
-              {!row.optionValue && <span className="text-[10px] text-danger">（必選）</span>}
-            </div>
-          )}
+          {hasChoices(row) && <ChoicePicker addon={row} value={row.optionValue} small onChange={(optionValue) => updateCustomItem(row.id, { optionValue })} />}
         </div>
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
@@ -940,9 +934,9 @@ export function PricingEditorModal({
       setCustomError('請補齊每個客製項目的名稱、對客售價與內部成本；不需要的空白列請刪除。');
       return;
     }
-    const missingChoice = customItems.find((row) => row.choices?.length && !row.optionValue);
+    const missingChoice = customItems.find((row) => hasChoices(row) && !isChoiceComplete(row, row.optionValue));
     if (missingChoice) {
-      setCustomError(`請先選擇「${missingChoice.name}」的${missingChoice.choiceLabel || '規格'}。`);
+      setCustomError(`請先選擇「${missingChoice.name}」的${missingChoiceLabels(missingChoice, missingChoice.optionValue).join('、')}。`);
       return;
     }
     const incompleteDiscount = quote
@@ -1269,16 +1263,7 @@ export function PricingEditorModal({
                         <button type="button" onClick={() => setCustomItems((list) => list.filter((item) => item.id !== row.id))}
                           className="min-h-11 min-w-11 rounded-lg border border-danger/30 text-danger" aria-label={`刪除${row.name || '客製項目'}`}>✕</button>
                       </div>
-                      {row.choices?.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[10px] font-bold text-ink-2">{row.choiceLabel || '規格'}</span>
-                          {row.choices.map((choice) => (
-                            <button key={choice} type="button" onClick={() => updateCustomItem(row.id, { optionValue: choice })}
-                              className={`min-h-9 rounded-lg border px-3 text-xs font-semibold ${row.optionValue === choice ? 'border-accent bg-accent text-on-accent' : 'border-bdr text-ink-2'}`}>{choice}</button>
-                          ))}
-                          {!row.optionValue && <span className="text-[10px] text-danger">（必選）</span>}
-                        </div>
-                      )}
+                      {hasChoices(row) && <ChoicePicker addon={row} value={row.optionValue} small onChange={(optionValue) => updateCustomItem(row.id, { optionValue })} />}
                       <label className="block">
                         <span className="block text-[9px] text-ink-3 mb-0.5">客製規格備註</span>
                         <textarea rows="3" value={row.note || ''}
