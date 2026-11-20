@@ -7,7 +7,7 @@ import { CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineStageId, getCaseP
 import { getQuoteAttention } from '../../utils/quotes';
 import QuoteModal from './QuoteModal';
 import { loadQuoteWip } from '../../utils/quoteWip';
-import { ClientPicker } from '../ui';
+import { ClientPicker, ChipSelect } from '../ui';
 import MasterPinDialog from '../MasterPinDialog';
 
 function pendingCount(quote) {
@@ -306,21 +306,21 @@ export default function QuoteWorkspace({ onOpenClient, startNewToken, onStartCon
         ].map(([key, label, count]) => <button key={key} type="button" onClick={() => setStageFilter(key)} className={`min-h-11 shrink-0 rounded-full border px-3 text-sm font-semibold ${stageFilter === key ? 'border-teal bg-teal text-white' : 'border-bdr bg-s1 text-ink-2'}`}>{label} {count}</button>)}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         <label className="block text-[11px] font-semibold text-ink-3">篩選車型
-          <select value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} aria-label="篩選車型" className="mt-1 min-h-11 w-full text-sm">
+          <ChipSelect value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} aria-label="篩選車型" className="mt-1 min-h-11 w-full text-sm">
             <option value="all">全部車型</option>
             {modelOptions.map(([model, n]) => <option key={model || '__none'} value={model || '__none'}>{model || '未填車型'}（{n}）</option>)}
-          </select>
+          </ChipSelect>
         </label>
         <label className="block text-[11px] font-semibold text-ink-3">排序
-          <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} aria-label="排序" className="mt-1 min-h-11 w-full text-sm">
+          <ChipSelect value={sortKey} onChange={(e) => setSortKey(e.target.value)} aria-label="排序" className="mt-1 min-h-11 w-full text-sm">
             <option value="updated">最近更新</option>
             <option value="date_desc">日期：新 → 舊</option>
             <option value="date_asc">日期：舊 → 新</option>
             <option value="price_desc">價格：高 → 低</option>
             <option value="price_asc">價格：低 → 高</option>
-          </select>
+          </ChipSelect>
         </label>
       </div>
 

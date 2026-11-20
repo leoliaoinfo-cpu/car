@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Children } from 'react';
 
 /** 表單欄位：標題固定顯示在輸入框上方，打字後欄位名稱不會消失 */
 export function Field({ label, required, className = '', children }) {
@@ -123,5 +123,47 @@ export function ConfirmDeleteButton({ onConfirm, label = '✕', className = '', 
     >
       {armed ? '確定刪除?' : label}
     </button>
+  );
+}
+
+/** 把 <option> 子元素攤平成 [{value,label,disabled}]（支援 Fragment、陣列、map 產生的選項）。 */
+function collectOptions(children, out = []) {
+  Children.forEach(children, (child) => {
+    if (!child || typeof child !== 'object') return;
+    if (child.type === 'option') {
+      const text = Children.toArray(child.props.children).join('');
+      out.push({ value: child.props.value != null ? String(child.props.value) : text, label: text, disabled: !!child.props.disabled });
+    } else if (child.props?.children) collectOptions(child.props.children, out);
+  });
+  return out;
+}
+
+const CHIP_SELECT_MAX = 14;
+
+/**
+ * 勾選式選擇（使用者規定：選項一律用勾選按鈕、不要下拉選單）。
+ * 用法和 <select> 一樣：value／onChange(event.target.value)／<option> 子元素。
+ * 選項超過 14 個（例如整份客戶名單）才退回原生下拉，不然一整面都是按鈕。
+ */
+export function ChipSelect({ value, onChange, children, disabled, className = '', 'aria-label': ariaLabel, id, ...rest }) {
+  const options = collectOptions(children);
+  if (options.length > CHIP_SELECT_MAX) {
+    return <select value={value} onChange={onChange} disabled={disabled} className={className} aria-label={ariaLabel} id={id} {...rest}>{children}</select>;
+  }
+  const current = String(value ?? '');
+  return (
+    <div role="radiogroup" aria-label={ariaLabel} id={id} className="mt-1 flex min-w-0 flex-wrap gap-1.5">
+      {options.map((opt) => {
+        const on = opt.value === current;
+        return (
+          <button key={opt.value} type="button" role="radio" aria-checked={on} disabled={disabled || opt.disabled}
+            onClick={() => { if (!on) onChange?.({ target: { value: opt.value } }); }}
+            className={`flex min-h-11 items-center gap-1.5 rounded-lg border-2 px-3 text-sm font-bold disabled:opacity-50 ${on ? 'border-accent bg-accent text-on-accent' : 'border-bdr bg-s1 text-ink-2'}`}>
+            <span aria-hidden="true" className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 text-[10px] ${on ? 'border-white bg-white/25 text-white' : 'border-ink-3/60 text-transparent'}`}>✓</span>
+            {opt.label || '（未選）'}
+          </button>
+        );
+      })}
+    </div>
   );
 }

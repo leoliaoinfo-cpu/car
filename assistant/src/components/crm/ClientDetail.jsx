@@ -7,7 +7,7 @@ import { today, formatDateFull, addDays } from '../../utils/date';
 import { useApp } from '../../context';
 import DealModal from '../deals/DealModal';
 import QuoteModal from '../quote/QuoteModal';
-import { Field, ClientPicker } from '../ui';
+import { Field, ClientPicker, ChipSelect } from '../ui';
 import ClientPhotos from './ClientPhotos';
 import dayjs from 'dayjs';
 import { heightPlanSummary, requirementSummary, requirementPendingItems } from '../../utils/reception';
@@ -673,10 +673,10 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="客戶類型">
-                  <select value={form.clientType || 'personal'} onChange={(e) => setField('clientType', e.target.value)} className="w-full">
+                  <ChipSelect value={form.clientType || 'personal'} onChange={(e) => setField('clientType', e.target.value)} className="w-full">
                     <option value="personal">個人戶</option>
                     <option value="company">公司戶</option>
-                  </select>
+                  </ChipSelect>
                 </Field>
                 {form.clientType === 'company' ? (
                   <Field label="統一編號">
@@ -685,14 +685,14 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                 ) : <span />}
               </div>
               <Field label="產業">
-                <select
+                <ChipSelect
                   value={form.industry || ''}
                   onChange={(e) => setField('industry', e.target.value)}
                   className="w-full"
                 >
                   <option value="">未指定</option>
                   {industryOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                </ChipSelect>
               </Field>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="電話">
@@ -754,14 +754,14 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                 </Field>
               </div>
               <Field label="客戶分類">
-                  <select value={form.catId || ''} onChange={(e) => setField('catId', e.target.value)} className="w-full">
+                  <ChipSelect value={form.catId || ''} onChange={(e) => setField('catId', e.target.value)} className="w-full">
                     {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  </ChipSelect>
               </Field>
               <Field label="意願度">
-                <select value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
+                <ChipSelect value={form.intentLevel || 0} onChange={(e) => setField('intentLevel', Number(e.target.value))} className="w-full">
                   {INTENT_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
-                </select>
+                </ChipSelect>
               </Field>
               <Field label="備註">
                 <textarea value={form.notes || ''} onChange={(e) => setField('notes', e.target.value)} rows={2} className="w-full resize-none" />
@@ -938,14 +938,14 @@ export default function ClientDetail({ client, cats, stages, initialIntent = nul
                   {pendingDeliveryDeals.length > 0 && (
                     <label className="block text-xs font-medium text-ink-2">
                       本次交車案件
-                      <select value={deliveryDealId} onChange={(event) => setDeliveryDealId(event.target.value)}
+                      <ChipSelect value={deliveryDealId} onChange={(event) => setDeliveryDealId(event.target.value)}
                         className="mt-1 min-h-11 w-full text-sm">
                         <option value="">請選擇購車案件…</option>
                         {pendingDeliveryDeals.map((deal) => {
                           const linkedCase = caseOfDeal(deal);
                           return <option key={deal.id} value={deal.id}>{linkedCase ? `${CASE_TYPE_LABEL[linkedCase.type]}・` : ''}{deal.model || deal.note || '未命名車輛'}</option>;
                         })}
-                      </select>
+                      </ChipSelect>
                     </label>
                   )}
                   <p className="text-xs text-ink-3">

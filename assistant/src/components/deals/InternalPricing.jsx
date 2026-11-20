@@ -6,6 +6,7 @@ import {
   normalizeCommissionBonusRule, normalizeCostCatalog, normalizeCustomItemHistory, normalizeDiscount, replaceBackendCustomQuoteItems, resolveAddonCost,
   sharedAddonCostId, updatePricingCosts,
 } from '../../utils/pricing';
+import { ChipSelect } from '../ui';
 
 export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSearch = '' }) {
   const [draft, setDraft] = useState(() => normalizeCostCatalog(costCatalog));
@@ -210,11 +211,11 @@ export function CostCatalogPanel({ quotePresets, costCatalog, onSave, initialSea
                     <div className="grid grid-cols-[minmax(0,1fr)_88px_24px] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_92px_24px] gap-1.5 items-center">
                       <input value={entry.supplier} onChange={(event) => changeSupplierCost(item.id, entry.id, { supplier: event.target.value })}
                         placeholder="廠商名稱" aria-label={`${item.name}廠商名稱`} className="text-xs min-w-0" />
-                      <select value={entry.modelId || ''} onChange={(event) => changeSupplierCost(item.id, entry.id, { modelId: event.target.value })}
+                      <ChipSelect value={entry.modelId || ''} onChange={(event) => changeSupplierCost(item.id, entry.id, { modelId: event.target.value })}
                         aria-label={`${item.name}適用車型`} className="text-xs min-w-0 col-start-1 row-start-2 sm:col-start-auto sm:row-start-auto">
                         <option value="">全部車型</option>
                         {allModels.map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}
-                      </select>
+                      </ChipSelect>
                       <input type="number" min="0" value={entry.cost} onChange={(event) => changeSupplierCost(item.id, entry.id, { cost: event.target.value })}
                         placeholder="拿貨成本" aria-label={`${item.name}廠商成本`} className="text-xs min-w-0 col-start-2 row-start-1 sm:col-start-auto sm:row-start-auto" />
                       <button type="button" onClick={() => removeSupplierCost(item.id, entry.id)} aria-label={`刪除${item.name}廠商成本`}
@@ -1026,12 +1027,12 @@ export function PricingEditorModal({
                     </label>
                     <label className="block min-w-0">
                       <span className="block text-[9px] text-ink-3 mb-0.5">負擔來源</span>
-                      <select value={row.funding || 'company'}
+                      <ChipSelect value={row.funding || 'company'}
                         onChange={(e) => updateGeneralDiscount(row.id, { funding: e.target.value })}
                         className="w-full text-xs" aria-label={`${row.name || '中央優惠'}負擔來源`}>
                         <option value="company">公司／活動負擔</option>
                         <option value="sales">業務讓利（扣利潤）</option>
-                      </select>
+                      </ChipSelect>
                     </label>
                   </div>
                 </div>
@@ -1148,7 +1149,7 @@ export function PricingEditorModal({
                           僅依價格推薦：{cheapestSupplier.supplier}・成本 NT$ {formatMoney(cheapestSupplier.cost)}・此項折後利潤 NT$ {formatMoney(previewLine.netPrice - cheapestSupplier.cost)}
                         </p>
                       )}
-                      <select value={supplierSelections[line.id] || ''}
+                      <ChipSelect value={supplierSelections[line.id] || ''}
                         onChange={(event) => selectSupplier(line, event.target.value)}
                         aria-label={`${line.name}指派廠商`} className="text-[11px] w-full">
                         <option value="">{lineCostSources[line.id] === 'manual' ? '手動成本・未指派廠商' : '未指派廠商・以最高適用成本估算'}</option>
@@ -1157,7 +1158,7 @@ export function PricingEditorModal({
                             {option.priority ? '★ 優先・' : ''}{option.id === cheapestSupplier?.id ? '最低成本・' : ''}{option.supplier}・成本 {formatMoney(option.cost)}・此項利潤 {formatMoney(previewLine.netPrice - option.cost)}
                           </option>
                         ))}
-                      </select>
+                      </ChipSelect>
                       {supplierOptions.length === 0 && <p className="text-[10px] text-warn">⚠️ 此車型沒有適用的廠商成本，請到傭金與成本設定補上。</p>}
                       {!supplierSelections[line.id] && supplierOptions.length > 0 && lineCostSources[line.id] !== 'manual' && (
                         <p className="text-[10px] text-warn">未指派廠商，暫以最高成本 NT$ {formatMoney(Math.max(...supplierOptions.map((option) => option.cost)))} 試算；簽約後可在此指派。</p>

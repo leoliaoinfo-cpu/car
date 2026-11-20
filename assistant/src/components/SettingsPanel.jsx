@@ -15,7 +15,7 @@ import {
   notifySupported, notifyPermission, requestNotifyPermission,
   showSystemNotification, registerPeriodicReminderCheck,
 } from '../notify';
-import { Field, ConfirmDeleteButton } from './ui';
+import { Field, ConfirmDeleteButton, ChipSelect } from './ui';
 import { STORAGE_KEYS } from '../storageKeys';
 import { MAX_PRESENTATION_PIN_LENGTH } from '../utils/presentationLock';
 import { calculateHeightCapacity } from '../utils/reception';
@@ -539,10 +539,10 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-bdr/60 pt-3">
           <span className="text-xs text-ink-3">新增至</span>
-          <select value={selectedAddCategory} onChange={(event) => setAddCategory(event.target.value)}
+          <ChipSelect value={selectedAddCategory} onChange={(event) => setAddCategory(event.target.value)}
             aria-label="新配件分類" className="text-xs flex-1 min-w-[120px] max-w-[210px]">
             {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
-          </select>
+          </ChipSelect>
           <button type="button" onClick={() => add()} className="btn-primary text-xs shrink-0">＋ 新增配件</button>
         </div>
       </div>
@@ -576,10 +576,10 @@ function AddonPresetEditor({ items, categoryOrder, fullscreen, onChange, onRenam
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[11px] text-ink-3">分類</span>
-                      <select value={category} onChange={(event) => moveToCategory(item.id, event.target.value)}
+                      <ChipSelect value={category} onChange={(event) => moveToCategory(item.id, event.target.value)}
                         aria-label={`${item.name}分類`} className="text-xs flex-1 min-w-[115px] max-w-[200px]">
                         {categoryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                      </select>
+                      </ChipSelect>
                       <button type="button" onClick={() => { setCustomCategoryId(item.id); setCustomCategoryName(''); }}
                         className="text-[11px] text-accent shrink-0">＋ 自訂分類</button>
                       <button type="button" onClick={() => update(item.id, { pendingPrice: !item.pendingPrice })}
@@ -801,19 +801,19 @@ export function HeightCalculatorDialog({ value, onClose }) {
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-2">
           <label className="text-xs font-semibold text-ink-2">1. 這台車是哪一種？
-            <select value={calculator.drive} onChange={(e) => set('drive', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+            <ChipSelect value={calculator.drive} onChange={(e) => set('drive', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
               <option value="2WD">2WD 一般車型</option><option value="4WD">4WD 四輪傳動</option>
-            </select>
+            </ChipSelect>
           </label>
           <label className="text-xs font-semibold text-ink-2">2. 車尾有墊高嗎？
-            <select value={calculator.suspensionPlan} onChange={(e) => set('suspensionPlan', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+            <ChipSelect value={calculator.suspensionPlan} onChange={(e) => set('suspensionPlan', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
               <option value="原廠高度">沒有，原廠高度</option><option value="改避震">有改避震</option><option value="加葉片">有加葉片</option><option value="避震＋葉片">避震、葉片都有</option>
-            </select>
+            </ChipSelect>
           </label>
           <label className="text-xs font-semibold text-ink-2">3. 要做什麼？
-            <select value={calculator.bodyType} onChange={(e) => set('bodyType', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
+            <ChipSelect value={calculator.bodyType} onChange={(e) => set('bodyType', e.target.value)} className="mt-1 min-h-11 w-full text-sm">
               {['箱體', '帆布', '冷凍冷藏箱', '電動歐翼', '露營箱體'].map((option) => <option key={option}>{option}</option>)}
-            </select>
+            </ChipSelect>
           </label>
           <label className="text-xs font-semibold text-ink-2">4. 想做的高度（從斗底往上）
             <input type="number" inputMode="decimal" min="0" value={calculator.bodyHeightCm}
@@ -992,7 +992,7 @@ function ListEditor({ title, items, colors, colorCount, onChange, newLabel = '�
               className="w-5 h-5 rounded-full border-2 border-white shadow cursor-pointer shrink-0"
               style={{ background: colors[item.colorIdx % colorCount] }}
             />
-            <select
+            <ChipSelect
               value={item.colorIdx}
               onChange={(e) => updateItem(item.id, { colorIdx: Number(e.target.value) })}
               className="absolute inset-0 opacity-0 cursor-pointer w-full"
@@ -1000,7 +1000,7 @@ function ListEditor({ title, items, colors, colorCount, onChange, newLabel = '�
               {Array.from({ length: colorCount }, (_, i) => (
                 <option key={i} value={i}>色 {i + 1}</option>
               ))}
-            </select>
+            </ChipSelect>
           </div>
 
           <input
@@ -1060,7 +1060,7 @@ function CustomFieldEditor({ fields, onChange }) {
                 className="w-5 h-5 rounded-full border-2 border-white shadow cursor-pointer"
                 style={{ background: FIELD_COLORS[field.colorIdx || 0] }}
               />
-              <select
+              <ChipSelect
                 value={field.colorIdx || 0}
                 onChange={(e) => updateField(field.id, { colorIdx: Number(e.target.value) })}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full"
@@ -1068,7 +1068,7 @@ function CustomFieldEditor({ fields, onChange }) {
                 {FIELD_COLORS.map((c, i) => (
                   <option key={i} value={i}>{FIELD_COLOR_NAMES[i]}</option>
                 ))}
-              </select>
+              </ChipSelect>
             </div>
             <input
               value={field.name}
@@ -1076,7 +1076,7 @@ function CustomFieldEditor({ fields, onChange }) {
               placeholder="欄位名稱"
               className="flex-1 text-sm"
             />
-            <select
+            <ChipSelect
               value={field.type || 'text'}
               onChange={(e) => updateField(field.id, { type: e.target.value })}
               className="text-xs py-1 w-20"
@@ -1084,7 +1084,7 @@ function CustomFieldEditor({ fields, onChange }) {
               <option value="text">文字</option>
               <option value="number">數字</option>
               <option value="date">日期</option>
-            </select>
+            </ChipSelect>
             <button onClick={() => deleteField(field.id)} className="text-danger/50 hover:text-danger text-sm shrink-0">✕</button>
           </div>
 
@@ -1092,7 +1092,7 @@ function CustomFieldEditor({ fields, onChange }) {
           {field.type === 'date' && (
             <div className="flex items-center gap-2 text-xs text-ink-2 pl-7 flex-wrap">
               <span className="shrink-0">🔔 提醒：</span>
-              <select
+              <ChipSelect
                 value={field.recur || 'none'}
                 onChange={(e) => updateField(field.id, { recur: e.target.value })}
                 className="text-xs py-1"
@@ -1101,7 +1101,7 @@ function CustomFieldEditor({ fields, onChange }) {
                 <option value="yearly">每年重複</option>
                 <option value="once">一次性</option>
                 <option value="count">連續 N 年</option>
-              </select>
+              </ChipSelect>
               {field.recur === 'count' && (
                 <label className="flex items-center gap-1">
                   共

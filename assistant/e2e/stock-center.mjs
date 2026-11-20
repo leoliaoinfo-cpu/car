@@ -59,7 +59,7 @@ await step('切換成外包／改裝部（案件內），進度對應換算', as
   await p.getByText('成交配件逐項核對').waitFor();
   const row = p.locator('div.rounded-xl:has([role=radiogroup][aria-label="升降尾門（3.5尺）備品狀態"])').first();
   await row.locator('summary').click();
-  await row.locator('select[aria-label="升降尾門（3.5尺）類別"]').selectOption('inhouse'); await p.waitForTimeout(500);
+  await row.locator('[role=radiogroup][aria-label="升降尾門（3.5尺）類別"]').getByRole('radio', { name: /改裝部/ }).click(); await p.waitForTimeout(500);
   const it = (await dump('deals')).find((x) => x.id === 'da').stockItems.find((x) => x.id === 'i2');
   if (it.track !== 'inhouse') throw new Error('類別沒存 ' + JSON.stringify(it));
 });

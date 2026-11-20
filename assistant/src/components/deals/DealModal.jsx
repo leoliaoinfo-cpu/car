@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { generateId, FIELD_COLORS } from '../../utils/crm';
 import { today } from '../../utils/date';
-import { Field } from '../ui';
+import { Field, ChipSelect } from '../ui';
 
 /**
  * 成交案表單（新增 / 編輯共用）。
@@ -91,10 +91,10 @@ export default function DealModal({ deal, client, cases = [], dealFields, onSave
             {availableCases.length > 0 && (
               <label className="block text-sm text-ink-2">
                 <span className="block mb-1.5 font-medium">歸入客戶案件</span>
-                <select value={caseId} onChange={(event) => { setCaseId(event.target.value); setCaseError(''); }} className="w-full min-h-11">
+                <ChipSelect value={caseId} onChange={(event) => { setCaseId(event.target.value); setCaseError(''); }} className="w-full min-h-11">
                   <option value="">請選擇案件…</option>
                   {availableCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改裝' : '買車'}・{row.title || '未命名案件'}{row.status === 'completed' ? '（已完成）' : ''}</option>)}
-                </select>
+                </ChipSelect>
                 {caseError && <span className="block mt-1 text-xs text-danger">{caseError}</span>}
               </label>
             )}

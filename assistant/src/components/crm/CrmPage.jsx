@@ -9,7 +9,7 @@ import {
 import { advanceCasePipeline, buildWorkQueue, CASE_PIPELINE_STAGES, CASE_TYPE_LABEL, getCasePipelineElapsedDays, getCasePipelineStageId, getCasePipelineUpdatedAt, getCaseTotalElapsedDays, findDealForCase } from '../../utils/cases';
 import { formatDate } from '../../utils/date';
 import ClientDetail from './ClientDetail';
-import { Field } from '../ui';
+import { Field, ChipSelect } from '../ui';
 import dayjs from 'dayjs';
 import { stockAlert } from '../../utils/stock';
 
@@ -221,9 +221,9 @@ export default function CrmPage({ focusId, focusIntent, onFocusConsumed, onFocus
                 placeholder="搜尋姓名、電話…"
                 className="order-first basis-full w-full min-w-0 text-sm"
               />
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
+              <ChipSelect value={sortKey} onChange={(e) => setSortKey(e.target.value)} className="text-xs py-1">
                 {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              </ChipSelect>
               {effectiveView === 'list' && (
                 <button onClick={() => { setSelectMode(true); setSelectedId(null); setFocusDetail(false); }} className="hidden md:inline-flex btn-outline text-sm">
                   ☑ 選取
@@ -708,20 +708,20 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
             </Field>
             <div className="grid grid-cols-2 gap-2">
               <Field label="客戶類型">
-                <select value={form.clientType} onChange={(e) => set('clientType', e.target.value)} className="w-full">
+                <ChipSelect value={form.clientType} onChange={(e) => set('clientType', e.target.value)} className="w-full">
                   <option value="personal">👤 個人戶</option>
                   <option value="company">🏢 公司戶</option>
-                </select>
+                </ChipSelect>
               </Field>
               <Field label="產業">
-                <select
+                <ChipSelect
                   value={form.industry}
                   onChange={(e) => set('industry', e.target.value)}
                   className="w-full"
                 >
                   <option value="">未指定</option>
                   {industries.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
+                </ChipSelect>
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -733,9 +733,9 @@ function NewClientModal({ cats, stages, industries, clients, onClose, onCreate, 
               </Field>
             </div>
             <Field label="客戶分類">
-                <select value={form.catId} onChange={(e) => set('catId', e.target.value)} className="w-full">
+                <ChipSelect value={form.catId} onChange={(e) => set('catId', e.target.value)} className="w-full">
                   {cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                </ChipSelect>
             </Field>
             <Field label="備註">
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="需求、預算、注意事項…" rows={2} className="w-full resize-none" />

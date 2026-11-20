@@ -8,6 +8,7 @@ import {
   restoreWorkflowChange, stockGuardItems, updateWorkflowStepStatus,
 } from '../../utils/delivery';
 import { statusLabel as stockStatusLabel } from '../../utils/stock';
+import { ChipSelect } from '../ui';
 
 const DONE = new Set(['done', 'na']);
 const UNDO_MS = 6000;
@@ -218,10 +219,10 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
             {open && (
               <div className="mt-2 grid gap-2 rounded-lg bg-s1 p-2.5">
                 <label className="text-[11px] text-ink-3">廠商
-                  <select value={step.supplierId || ''} onChange={(e) => patchStep(step, { supplierId: e.target.value })} className="mt-1 min-h-11 w-full text-sm">
+                  <ChipSelect value={step.supplierId || ''} onChange={(e) => patchStep(step, { supplierId: e.target.value })} className="mt-1 min-h-11 w-full text-sm">
                     <option value="">尚未指派廠商</option>
                     {suppliers.filter((row) => row.active !== false || row.id === step.supplierId).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                  </select>
+                  </ChipSelect>
                 </label>
                 <label className="text-[11px] text-ink-3">預計日期
                   <input type="date" value={step.plannedDate || ''} onChange={(e) => patchStep(step, { plannedDate: e.target.value })} className="mt-1 min-h-11 w-full text-sm" />

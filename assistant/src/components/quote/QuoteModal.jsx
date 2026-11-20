@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { generateId, formatMoney, formatChineseTwd, calcMonthlyPayment, canonicalAddonCategories, bundledAddonIds, removeBundledQuoteItems, findDuplicateClient, QUOTE_ADDON_CATS, QUOTE_ADDON_SECTIONS, DEFAULT_LOAN_TERMS, resolveLoanTerms } from '../../utils/crm';
 import { useApp } from '../../context';
 import dayjs from 'dayjs';
-import { Field, ConfirmDeleteButton } from '../ui';
+import { Field, ConfirmDeleteButton, ChipSelect } from '../ui';
 import ProductCatalog from '../catalog/ProductCatalog';
 import {
   buildPricingRecord, calculateQuoteTotals, includedQuoteItems, mergeQuoteDiscounts, normalizeDiscount, normalizeQuoteItems,
@@ -1137,10 +1137,10 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   </button>
                 </div>
                 {customerMode === 'existing' ? (
-                  <select value={linkedClientId} onChange={(e) => pickClient(e.target.value)} className="w-full text-sm">
+                  <ChipSelect value={linkedClientId} onChange={(e) => pickClient(e.target.value)} className="w-full text-sm">
                     <option value="">選擇既有客戶…</option>
                     {clients.map((row) => <option key={row.id} value={row.id}>{row.name || '未命名客戶'}{row.phone ? `・${row.phone}` : ''}</option>)}
-                  </select>
+                  </ChipSelect>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input value={customerName} onChange={(e) => { setCustomerName(e.target.value); setCustomerError(''); }}
@@ -1172,10 +1172,10 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   {activeCases.length === 1 && linkedCaseId === activeCases[0].id
                     ? <p className="truncate text-xs font-semibold text-teal">📁 歸入案件：{activeCases[0].type === 'modification' ? '改裝' : '買車'}・{activeCases[0].title || '未命名案件'}</p>
                     : <p className="text-xs font-semibold text-teal">📁 這張報價歸入哪筆案件</p>}
-                  {activeCases.length === 1 && linkedCaseId === activeCases[0].id ? null : activeCases.length > 0 ? <select value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
+                  {activeCases.length === 1 && linkedCaseId === activeCases[0].id ? null : activeCases.length > 0 ? <ChipSelect value={linkedCaseId} onChange={(event) => { setLinkedCaseId(event.target.value); setCaseError(''); }} className="w-full text-sm">
                     {activeCases.length > 1 && <option value="">請選擇案件…</option>}
                     {activeCases.map((row) => <option key={row.id} value={row.id}>{row.type === 'modification' ? '改裝' : '買車'}・{row.title || '未命名案件'}</option>)}
-                  </select> : <p className="text-xs text-ink-2">儲存後會自動建立一筆新案件。</p>}
+                  </ChipSelect> : <p className="text-xs text-ink-2">儲存後會自動建立一筆新案件。</p>}
                   {caseError && <p role="alert" className="text-xs text-danger">{caseError}</p>}
                 </div>
               );
@@ -1591,13 +1591,13 @@ export default function QuoteModal({ client, clients = [], quote, initialCaseId 
                   <input type="number" min="0" value={discount.amount}
                     onChange={(e) => setGeneralDiscount(discount.id, { amount: e.target.value })}
                     placeholder="折扣金額" className="w-full text-xs" />
-                  <select value={discount.funding || 'company'}
+                  <ChipSelect value={discount.funding || 'company'}
                     onChange={(e) => setGeneralDiscount(discount.id, { funding: e.target.value })}
                     aria-label={`${discount.name || '優惠'}負擔來源`}
                     className="col-span-2 sm:col-span-1 text-xs">
                     <option value="company">公司／活動負擔（不扣傭金）</option>
                     <option value="sales">業務讓利（扣利潤）</option>
-                  </select>
+                  </ChipSelect>
                   <button type="button" onClick={() => removeGeneralDiscount(discount.id)}
                     className="text-danger/50 hover:text-danger px-1 col-start-3 row-start-1 sm:col-start-4">✕</button>
                 </div>

@@ -6,6 +6,7 @@ import {
 } from '../../utils/optionSheet';
 import { calculateQuoteTotals } from '../../utils/pricing';
 import { loadOptionSheetLayout, saveOptionSheetLayout, resetOptionSheetLayout } from '../../optionSheetLayout';
+import { ChipSelect } from '../ui';
 
 const AGENT_KEY = 'car-sales.optionSheet.agent';
 const readAgent = () => { try { return localStorage.getItem(AGENT_KEY) || ''; } catch { return ''; } };
@@ -439,9 +440,9 @@ export default function OptionSheet({ item, deal, quotes, onSave, onClose }) {
           {quotes.length > 0 && (
             <div className="card flex flex-wrap items-center gap-2 p-3">
               {quotes.length > 1 && (
-                <select value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
+                <ChipSelect value={quoteId} onChange={(e) => setQuoteId(e.target.value)} aria-label="選擇報價" className="min-h-11 min-w-0 flex-1 text-sm">
                   {quotes.map((q, i) => <option key={q.id} value={q.id}>{`報價 ${i + 1}・${q.planName || q.model || ''}`}{q.id === deal?.quoteId ? '（成交）' : ''}</option>)}
-                </select>
+                </ChipSelect>
               )}
               <button type="button" onClick={fillFromQuote} className="btn-outline min-h-11 flex-1 text-sm font-bold">✨ 依報價帶入勾選</button>
             </div>

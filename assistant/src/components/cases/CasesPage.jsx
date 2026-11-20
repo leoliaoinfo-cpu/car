@@ -14,7 +14,7 @@ import OptionSheet from './OptionSheet';
 import MasterPinDialog from '../MasterPinDialog';
 import ClientPhotos from '../crm/ClientPhotos';
 import { sheetHasContent, normalizeSheet } from '../../utils/optionSheet';
-import { ClientPicker, ConfirmDeleteButton } from '../ui';
+import { ClientPicker, ConfirmDeleteButton, ChipSelect } from '../ui';
 import {
   stockAlert, stockByCase, stockByKind, unlistedStockItems, vendorSequence, supplierForItem, statusOptions, stockStatus, statusLabel, nextStatus, isSettledStock, stockTrack, switchTrack, statusPatch, TRACK_LABELS,
 } from '../../utils/stock';
@@ -292,10 +292,10 @@ function StockCenter({ deals, cases, quotes = [], addons = [], onOpenCase, onSav
           {[['customer', '依客戶'], ['part', '依配件（同類一起處理）']].map(([key, label]) => <button key={key} type="button" onClick={() => setMode(key)} className={`min-h-10 rounded-lg text-xs font-bold ${mode === key ? 'bg-teal text-on-accent' : 'text-ink-2'}`}>{label}</button>)}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <select aria-label="只看某位客戶" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-11 min-w-0 flex-1 text-sm">
+          <ChipSelect aria-label="只看某位客戶" value={who} onChange={(e) => setWho(e.target.value)} className="min-h-11 min-w-0 flex-1 text-sm">
             <option value="">全部客戶（{all.length}）</option>
             {all.map((entry) => <option key={entry.caseId} value={entry.caseId}>{entry.clientName}{entry.urgent ? '・急' : entry.awaiting ? `・等車${entry.expectedCarMonth ? ` ${carMonthLabel(entry.expectedCarMonth)}` : ''}` : ''}</option>)}
-          </select>
+          </ChipSelect>
           <button type="button" aria-pressed={onlyUrgent} onClick={() => setOnlyUrgent((v) => !v)} disabled={urgentCount === 0 && !onlyUrgent}
             className={`min-h-11 shrink-0 rounded-lg border px-3 text-xs font-bold disabled:opacity-40 ${onlyUrgent ? 'border-danger bg-danger text-white' : 'border-bdr bg-s1 text-ink-2'}`}>只看急件（{urgentCount}）</button>
         </div>
@@ -555,10 +555,10 @@ function StockRow({ row, disabled, delivered = false, awaiting = false, seq = nu
     <details className="mt-1 text-xs text-ink-2"><summary className="min-h-10 cursor-pointer py-2">修改類別、數量或備註</summary>
       <div className="space-y-2 pt-1">
         <label className="block">這項屬於
-          <select value={track} aria-label={`${row.name}類別`} onChange={(e) => { const sw = switchTrack(row, e.target.value); onUpdate({ track: sw.track, status: sw.status }); }} className="mt-1 min-h-11 w-full" disabled={disabled}>
+          <ChipSelect value={track} aria-label={`${row.name}類別`} onChange={(e) => { const sw = switchTrack(row, e.target.value); onUpdate({ track: sw.track, status: sw.status }); }} className="mt-1 min-h-11 w-full" disabled={disabled}>
             <option value="vendor">外包（帆布、箱體、尾門、烤漆…）</option>
             <option value="inhouse">改裝部配件</option>
-          </select>
+          </ChipSelect>
         </label>
         <label className="block">數量<input type="number" aria-label={`${row.name}數量`} min="1" value={row.quantity || 1} onChange={(e) => onUpdate({ quantity: Math.max(1, Number(e.target.value) || 1) })} className="mt-1 min-h-11 w-full" disabled={disabled} /></label>
         <label className="block">廠商／客戶要求<input value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => { if (note !== (row.note || '')) onUpdate({ note }); }} placeholder="規格、廠商或客戶特殊要求" aria-label={`${row.name}備註`} className="mt-1 min-h-11 w-full" /></label>
@@ -678,7 +678,7 @@ function FollowUpTargetChooser({ mode, onModeChange, date, onDateChange, amount,
       {mode === 'relative' && (
         <div className="grid grid-cols-[1fr_120px] gap-2">
           <label className="block text-[11px] font-medium text-ink-3">數量<input inputMode="numeric" value={amount} onChange={(event) => onAmountChange(event.target.value.replace(/[^0-9]/g, ''))} placeholder="例如 14" className="mt-1 min-h-12 w-full" /></label>
-          <label className="block text-[11px] font-medium text-ink-3">單位<select value={unit} onChange={(event) => onUnitChange(event.target.value)} className="mt-1 min-h-12 w-full"><option value="days">天後</option><option value="weeks">週後</option></select></label>
+          <label className="block text-[11px] font-medium text-ink-3">單位<ChipSelect value={unit} onChange={(event) => onUnitChange(event.target.value)} className="mt-1 min-h-12 w-full"><option value="days">天後</option><option value="weeks">週後</option></ChipSelect></label>
         </div>
       )}
       {targetDate && <div className="rounded-xl border border-ok/35 bg-ok/10 px-3 py-2 text-sm font-bold text-ok">下次追蹤：{dayjs(targetDate).format('YYYY/MM/DD')}</div>}
