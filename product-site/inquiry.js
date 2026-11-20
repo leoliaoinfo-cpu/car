@@ -104,8 +104,9 @@
   // ===== 狀態（只存在客人自己的手機）=====
   var KEY = 'kp-inq';
   var S = { cab: '', drive: '', sel: {}, name: '', note: '' };
-  try { var old = JSON.parse(localStorage.getItem(KEY)); if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.note = String(old.note || ''); } } catch (e) {}
-  function persist() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  try { localStorage.removeItem(KEY); } catch (e) {} // 舊版存在手機裡的勾選一次清掉
+  try { var old = JSON.parse(sessionStorage.getItem(KEY)); if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.note = String(old.note || ''); } } catch (e) {}
+  function persist() { try { sessionStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} } // 只記在這次瀏覽，關掉網頁就重來
 
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
