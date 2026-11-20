@@ -6,21 +6,27 @@
     'gtr-cut': '三階切線說明', 'gtr-plus': 'GTR plus 雙切驗車模組',
     aero: '外觀空力套件', paint: '車身改色', wheel: '鋁圈升級',
     chassis: '底盤載重強化', metal: '金屬製研',
-    boss: 'BOSS 白鐵擋泥板', dr: 'DR 漫反射後防撞桿'
+    boss: 'BOSS 白鐵擋泥板', dr: 'DR 漫反射後防撞桿',
+    cabin1: '車室細節升級', guard: '防護收納配件', extlight: '外觀燈飾與警示', comfort: '車室舒適升級',
+    peri1: '實用周邊升級', func: '車室機能配件', cabin2: '車室實用配件', peri2: '周邊機能配件',
+    gps: '4G GPS 車輛定位器', 'gps-app': '智慧定位五大核心功能'
   };
   // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
   var SIZE = {
     price: [1024, 1535], package: [1080, 1438], equip: [1080, 1440], android: [1024, 1536], audio: [1060, 1484],
     lights: [1060, 1484], tail: [1050, 1498], fog: [1080, 1440], gtr: [1071, 1469], 'gtr-cut': [1080, 1451],
     'gtr-plus': [1080, 1482], aero: [1080, 1350], paint: [1080, 1350], wheel: [1080, 1441], chassis: [1080, 1350], metal: [1080, 1440],
-    boss: [1080, 1528], dr: [1080, 1528]
+    boss: [1080, 1528], dr: [1080, 1528],
+    cabin1: [1122, 1402], guard: [1122, 1402], extlight: [1122, 1402], comfort: [1122, 1402], peri1: [1122, 1402],
+    func: [1122, 1402], cabin2: [1122, 1402], peri2: [1122, 1402], 'gps-app': [1414, 2000], gps: [1055, 1491]
   };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
-    { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr'] },
-    { t: '配備與影音', i: ['android', 'audio'] },
-    { t: '燈光', i: ['tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus'] }
+    { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr', 'guard'] },
+    { t: '配備與影音', i: ['android', 'audio', 'gps', 'gps-app'] },
+    { t: '燈光', i: ['tail', 'fog', 'gtr', 'gtr-cut', 'gtr-plus', 'extlight'] },
+    { t: '車室與周邊', i: ['cabin1', 'comfort', 'peri1', 'func', 'cabin2', 'peri2'] }
   ];
   var KEY = 'kp-cfg';
   // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
@@ -89,6 +95,7 @@
           if (idx > 1) im.loading = 'lazy';
           ph.appendChild(im); f.appendChild(ph);
           var cap = el('figcaption'); cap.appendChild(el('span', '', IMGS[k])); f.appendChild(cap);
+          if (window.KPInq) KPInq.attach(f, k);
           list.appendChild(f);
         });
         sec.appendChild(list);
@@ -98,6 +105,7 @@
     if (!edit) {
       var c = el('a', 'contact'); c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.textContent = '💬 聯絡我'; nav.appendChild(c);
       observe();
+      if (window.KPInq) KPInq.sync();
     }
   }
 
@@ -213,5 +221,6 @@
   }
 
   render();
+  if (!edit && window.KPInq) KPInq.init();
   loadOrder().then(function (d) { if (d && d.groups) { groups = normalize(d.groups); render(); } });
 })();

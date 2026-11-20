@@ -121,6 +121,58 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 #lb .nv.p{left:10px}#lb .nv.n{right:10px}
 #lb .hint{text-align:center;color:var(--mute);font-size:12.5px;padding:8px 0 calc(14px + env(safe-area-inset-bottom))}
 
+
+/* ===== 詢價單 ===== */
+#veh{padding-top:22px}
+.veh-card{background:#fff;border:1px solid var(--bd);border-radius:22px;padding:18px 16px;box-shadow:var(--shadow)}
+.veh-h{font-size:18px;font-weight:800}.veh-s{font-size:13px;color:var(--mute);margin:2px 0 12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{border:1.5px solid var(--bd);background:#fff;color:#5a4e43;font-size:15px;font-weight:700;padding:10px 15px;border-radius:999px;font-family:inherit}
+.chip.on{background:linear-gradient(180deg,var(--ac2),var(--ac));border-color:transparent;color:#fff;box-shadow:0 4px 12px rgba(217,69,59,.28)}
+.chip.off{opacity:.35}
+.chip.s{font-size:13.5px;padding:7px 12px}
+.veh-r{margin-top:12px;font-size:15px;font-weight:700;color:var(--ac)}
+.items{padding:2px 12px 14px;border-top:1px solid var(--bd);background:#fffdf9}
+.items-h{font-size:12.5px;color:var(--mute);font-weight:700;padding:10px 4px 4px}
+.irow{border-radius:14px;margin-top:6px;border:1.5px solid var(--bd);background:#fff}
+.irow.on{border-color:var(--ac);background:var(--acsoft)}
+.itop{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;padding:11px 10px;font-family:inherit;color:var(--ink)}
+.box{flex:none;width:26px;height:26px;border-radius:8px;border:2px solid #cdbfae;background:#fff;color:transparent;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.irow.on .box{background:var(--ac);border-color:var(--ac);color:#fff}
+.inm{flex:1;font-size:14.5px;font-weight:700;line-height:1.4}
+.inm em{display:inline-block;font-style:normal;font-size:11px;font-weight:700;color:#8a5a2c;background:#fff3e0;border:1px solid #f0dcc3;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:1px}
+.ipr{flex:none;font-size:15px;font-weight:800;color:var(--ac);text-align:right}.ipr.ask{font-size:12.5px;color:var(--mute);font-weight:600}
+.iwarn{display:none;font-size:12.5px;color:#b9680f;font-weight:700;padding:0 12px 9px 46px}
+.iopts{display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:0 12px 11px 46px;font-size:13px;color:var(--mute);font-weight:700}
+#inqbar{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));z-index:13;align-items:center;gap:10px;border:0;border-radius:999px;padding:13px 22px;color:#fff;font-size:16px;font-weight:800;font-family:inherit;background:linear-gradient(180deg,#3a342e,#1f1b17);box-shadow:0 10px 26px rgba(0,0,0,.3);white-space:nowrap}
+#inqbar small{font-size:13px;font-weight:600;color:#ffd9d4}
+#call.hide+#inqbar{bottom:calc(16px + env(safe-area-inset-bottom))}
+@media(min-width:720px){#inqbar{bottom:90px}#call.hide+#inqbar{bottom:24px}}
+#inqsheet{display:none;position:fixed;inset:0;z-index:35;background:rgba(47,42,37,.55);align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom))}
+@media(min-width:720px){#inqsheet{align-items:center}.sheet{border-radius:24px}}
+.sheet h3{margin:0 0 4px;font-size:21px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.sheet h3 button{border:1px solid var(--bd);background:#fff;border-radius:50%;width:38px;height:38px;font-size:17px}
+#inqveh{font-size:14.5px;color:var(--mute);font-weight:700;margin-bottom:8px}
+.srow{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--bd);border-radius:14px;padding:11px 12px;margin-top:7px}
+.sl{flex:1;font-size:14.5px;line-height:1.4}.sl small.warn{display:block;color:#b9680f;font-weight:700;margin-top:2px}
+.sp{font-weight:800;color:var(--ac);font-size:15px;white-space:nowrap}
+.sx{border:0;background:#f3ebdf;color:#7b6f63;border-radius:50%;width:30px;height:30px;font-size:14px;flex:none}
+#inqtot{font-size:20px;font-weight:800;text-align:right;margin:12px 4px 4px}
+.sheet label{display:block;font-size:13.5px;font-weight:700;color:var(--mute);margin-top:12px}
+.sheet input,.sheet textarea{width:100%;font-size:16px;font-family:inherit;border:1px solid #ddd0bd;border-radius:12px;padding:11px;margin-top:4px;background:#fff;color:var(--ink)}
+.sheet textarea{min-height:74px;resize:vertical}
+.sbtns{display:grid;gap:9px;margin-top:16px}
+.sbtns button{border:0;border-radius:999px;padding:15px;font-size:16.5px;font-weight:800;color:#fff;font-family:inherit;background:linear-gradient(180deg,var(--ac2),var(--ac))}
+.sbtns button.line{background:linear-gradient(180deg,#22d472,var(--line))}
+.sbtns button.g{background:#eee6da;color:#2f2a25;font-size:15px;padding:12px}
+.sbtns .hint{font-size:12.5px;color:var(--mute);text-align:center;margin:-2px 0 0}
+#inqprev{display:none;margin-top:14px;text-align:center}
+#inqprev img{width:100%;border-radius:12px;border:1px solid var(--bd)}
+#inqprev p{font-size:13px;color:var(--mute);margin:8px 0 0}
+#inqprev a{display:inline-block;margin-top:8px;color:var(--ac);font-weight:800}
+body.edit #veh,body.edit #inqbar,body.edit #inqsheet{display:none!important}
+
 /* ===== 後台（?edit）===== */
 #bar{display:none;position:sticky;top:0;z-index:15;background:#fff;color:#111;padding:10px 12px;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px;border-bottom:1px solid var(--bd)}
 body.edit #bar{display:flex}body.edit nav,body.edit #call,body.edit #contact,body.edit .hero,body.edit footer{display:none}
@@ -166,6 +218,7 @@ GitHub 權杖（token）
 <nav><div class="navwrap"><div id="nav"></div></div></nav>
 
 <main>
+<div id="veh"></div>
 <div id="groups"></div>
 
 <section id="contact">
@@ -193,9 +246,27 @@ GitHub 權杖（token）
 <footer>圖片為原廠與配件廠行銷資料<br>實際內容以現場說明為準</footer>
 
 <div id="call"><a href="tel:0979670565">📞 打電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE</a></div>
+<button id="inqbar" type="button">🧾 我的詢價單 <b id="inqn"></b> <small id="inqt"></small></button>
 
+<div id="inqsheet"><div class="sheet">
+  <h3>我的詢價單 <button id="inqclose" type="button" aria-label="關閉">✕</button></h3>
+  <div id="inqveh"></div>
+  <div id="inqlist"></div>
+  <div id="inqtot"></div>
+  <label>怎麼稱呼你（選填）<input id="inqname" maxlength="20" autocomplete="off"></label>
+  <label>想補充的話（選填）<textarea id="inqnote" maxlength="300" placeholder="例如：想要年底前交車、預算多少…"></textarea></label>
+  <div class="sbtns">
+    <button class="line" id="inqline" type="button">💬 複製文字，開 LINE 傳給我</button>
+    <p class="hint">按下後文字會自動複製，在 LINE 對話框長按貼上就好</p>
+    <button id="inqimg" type="button">🖼 產生圖片</button>
+    <button class="g" id="inqcopy" type="button">只複製文字</button>
+    <button class="g" id="inqclear" type="button">清空重選</button>
+  </div>
+  <div id="inqprev"><img alt="詢價單圖片"><p>長按圖片即可存到相簿，再傳給我</p><a download="詢價單.png">或按這裡下載圖片</a></div>
+</div></div>
 
 <script src="sortable.min.js"></script>
+<script src="inquiry.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
