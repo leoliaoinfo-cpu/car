@@ -1,7 +1,7 @@
 /** 報價／成本純計算工具。此檔不碰 UI 或 IndexedDB，方便單元測試。 */
 import { VEHICLE_VARIANTS } from './vehicles.js';
 
-const COST_CATALOG_VERSION = 18;
+const COST_CATALOG_VERSION = 19;
 
 export const DEFAULT_COMMISSION_BONUS_RULE = Object.freeze({
   enabled: true,
@@ -216,6 +216,11 @@ const V18_ADDON_COSTS = {
   'qa-canvas-large-raised': { cost: 18000 },
 };
 
+// 升降帆布（炬方鐵架帆布特殊規格）：廠商報價 120,000 當成本，售價 130,000（利潤 10,000，使用者 2026-11-20）。
+const V19_ADDON_COSTS = {
+  'qa-lift-canvas': { cost: 120000 },
+};
+
 const DEFAULT_ADDON_COSTS = {
   ...SUPPLIER_ADDON_COSTS,
   ...V3_ADDON_COSTS,
@@ -231,6 +236,7 @@ const DEFAULT_ADDON_COSTS = {
   ...V16_ADDON_COSTS,
   ...V17_ADDON_COSTS,
   ...V18_ADDON_COSTS,
+  ...V19_ADDON_COSTS,
 };
 
 function migrateV7Costs(addons) {
@@ -692,6 +698,7 @@ export function normalizeCostCatalog(row) {
     ...(row && previousVersion < 16 ? V16_ADDON_COSTS : {}),
     ...(row && previousVersion < 17 ? V17_ADDON_COSTS : {}),
     ...(row && previousVersion < 18 ? V18_ADDON_COSTS : {}),
+    ...(row && previousVersion < 19 ? V19_ADDON_COSTS : {}),
     ...(row?.addons || {}),
   };
   const migratedAddons = row && previousVersion < 7 ? migrateV7Costs(versionedAddons) : versionedAddons;

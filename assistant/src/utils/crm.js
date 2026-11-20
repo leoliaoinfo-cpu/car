@@ -214,7 +214,7 @@ export function getOccasionsOnDate(clients, customFields, dateStr) {
 
 // ── 商用車報價：Kia 卡旺車型／配備／補助折抵選單（設定可編輯）──────────────
 // _catalog 版本標記：用於自動升級尚未客製的舊型錄（見 resolveQuotePresets）
-export const QUOTE_CATALOG_VERSION = 'kavan-2026-v48';
+export const QUOTE_CATALOG_VERSION = 'kavan-2026-v49';
 // 分類「客製帆布」改名「帆布」（使用者 2026-11-20）；舊選單升級時一併改名
 const LEGACY_CANVAS_CATEGORY = '客製帆布';
 
@@ -404,7 +404,7 @@ const BODY_BUILD_ADDONS = [
     desc: '特殊高度、材質、開門方式或施工內容需另向廠商詢價',
   },
   {
-    id: 'qa-lift-canvas', cat: '升降帆布', name: '升降帆布', price: 0, pendingPrice: true,
+    id: 'qa-lift-canvas', cat: '升降帆布', name: '升降帆布', price: 130000,
     choiceLabel: '規格', choices: ['卡旺單廂・特殊電動升降（炬方鐵架帆布參考規格）'],
     desc: '規格：卡旺單廂・共用尾門馬達（3尺）；帆布墨綠；後掀門；側邊單折鐵架（單截拚）；特殊電動升降（上可掀下可放）。高度：降低（平車頭）195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm、斗內高 150–240cm，但旁邊鐵架與尾門空洞會變大）。加價：帆布換色（黑／灰）+4,000、室內燈（4盞含開關）+5,000、鍊目+50／顆。代辦變更+2,500。以上未稅。價格待確認（廠商參考報價 120,000）。',
   },
@@ -697,6 +697,11 @@ export function resolveQuotePresets(row) {
     if (/^qa-canvas-large-(?:standard|lowered|raised)$/.test(migrated.id) && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) {
       const canvasDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === migrated.id);
       if (canvasDefault) migrated = { ...migrated, price: canvasDefault.price, pendingPrice: canvasDefault.pendingPrice, desc: canvasDefault.desc };
+    }
+    // 升降帆布（炬方特殊規格）：上一版還是待報價的，換成有售價（成本 120,000＋利潤 10,000）的新預設；使用者自己填過價格的不動
+    if (migrated.id === 'qa-lift-canvas' && migrated.pendingPrice === true && (Number(migrated.price) || 0) === 0) {
+      const liftDefault = REQUIRED_QUOTE_ADDONS.find((candidate) => candidate.id === 'qa-lift-canvas');
+      if (liftDefault) migrated = { ...migrated, price: liftDefault.price, pendingPrice: false, desc: liftDefault.desc, choiceLabel: liftDefault.choiceLabel, choices: [...liftDefault.choices] };
     }
     // 三面帆布利潤抓 5,000（使用者 2026-11-20）：還是上一版預設價（成本＋3,000）的換成新預設；使用者自己改過的價格不動
     if (CANVAS_PREVIOUS_PRICES[migrated.id] != null && Number(migrated.price) === CANVAS_PREVIOUS_PRICES[migrated.id]) {

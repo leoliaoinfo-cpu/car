@@ -1018,7 +1018,7 @@ test('adds body-build categories with vendor-quote placeholders', () => {
     return [category, list.length, list.some((item) => item.pendingPrice)];
   }), [
     ['帆布', 10, true],
-    ['升降帆布', 1, true],
+    ['升降帆布', 1, false],
     ['冷凍冷藏箱', 1, true],
     ['電動歐翼', 1, true],
     ['露營箱體', 1, true],
@@ -1491,11 +1491,16 @@ test('分類「客製帆布」改名「帆布」：新選單用新名稱；舊�
   assert.equal(custom.addons.find((a) => a.id === 'qa-canvas-single-standard').cat, '我的帆布');
 });
 
-test('升降帆布加入炬方參考規格（規格選項），價格仍待報價', async () => {
+test('升降帆布炬方規格：售價 130,000（成本 120,000＋利潤 10,000），舊的待報價選單升級自動換新', async () => {
   const { resolveQuotePresets } = await import('./crm.js');
   const it = resolveQuotePresets(null).addons.find((a) => a.id === 'qa-lift-canvas');
-  assert.equal(it.pendingPrice, true);
+  assert.equal(it.price, 130000);
+  assert.ok(!it.pendingPrice);
   assert.equal(it.choiceLabel, '規格');
   assert.deepEqual(it.choices, ['卡旺單廂・特殊電動升降（炬方鐵架帆布參考規格）']);
-  assert.match(it.desc, /120,000/);
+  const old = resolveQuotePresets({ _catalog: 'kavan-2026-v48', addonCategories: ['升降帆布'], addons: [
+    { id: 'qa-lift-canvas', cat: '升降帆布', name: '升降帆布', price: 0, pendingPrice: true },
+  ] }).addons.find((a) => a.id === 'qa-lift-canvas');
+  assert.equal(old.price, 130000);
+  assert.ok(!old.pendingPrice);
 });
