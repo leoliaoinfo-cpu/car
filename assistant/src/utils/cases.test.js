@@ -311,3 +311,39 @@ test('planQuoteSent：成交前才記、同天只記一次、已排未來追蹤�
   assert.equal(planQuoteSent(base, 'won', '2026-11-17', '2026-11-19'), null);
   assert.equal(planQuoteSent({ ...base, status: 'closed' }, 'new', '2026-11-17', '2026-11-19'), null);
 });
+
+test('等車中：施工步驟與廠商追問都不進今天，只在預計月份 1 號提醒一次；車到了才開始排日期', async () => {
+  const { buildWorkQueue, isAwaitingCar, startAwaitingCar, markCarArrived, carMonthLabel } = await import('./cases.js');
+  const { generateDeliveryWorkflow } = await import('./delivery.js');
+  const wf = generateDeliveryWorkflow({ deal: { note: '尾門 帆布' } }).map((step) => (step.activatedAt ? { ...step, activatedAt: '2026-11-20T01:00:00.000Z' } : step));
+  const deal = { id: 'd1', clientId: 'c1', caseId: 'k1', quoteId: 'q1', model: '雙廂', deliveryWorkflow: wf,
+    stockItems: [{ id: 's1', name: '帆布', status: 'inquiry', followUpDate: '2026-11-25', track: 'vendor' }] };
+  const base = { id: 'k1', clientId: 'c1', clientName: '楊老闆', status: 'active', type: 'purchase', title: '買車', updatedAt: '2026-10-01T00:00:00.000Z' };
+  const clients = [{ id: 'c1', name: '楊老闆' }];
+  const kase = startAwaitingCar(base, '2026-12');
+  assert.equal(isAwaitingCar(kase), true);
+  assert.equal(carMonthLabel('2026-12', '2026-11-20'), '12 月');
+  assert.equal(carMonthLabel('2027-01', '2026-11-20'), '2027 年 1 月');
+
+  const nov = buildWorkQueue({ deals: [deal], cases: [kase], clients, today: '2026-11-28' });
+  assert.deepEqual(nov.map((r) => r.sourceType), ['car-arrival']);
+  assert.equal(nov[0].group, 'next'); // 12/1 以前不出現在逾期／今天
+
+  const dec = buildWorkQueue({ deals: [deal], cases: [kase], clients, today: '2026-12-01' });
+  assert.equal(dec[0].group, 'today');
+  assert.match(dec[0].title, /12 月到，到了嗎/);
+
+  // 「之後再問」把提醒日往後挪
+  const later = buildWorkQueue({ deals: [deal], cases: [{ ...kase, carCheckDate: '2026-12-08' }], clients, today: '2026-12-01' });
+  assert.equal(later[0].group, 'next');
+
+  // 車到了：提醒消失，步驟從到貨日開始算，不會一到貨就全部逾期
+  const arrived = markCarArrived(kase, '2026-12-10');
+  assert.equal(isAwaitingCar(arrived), false);
+  const after = buildWorkQueue({ deals: [deal], cases: [arrived], clients, today: '2026-12-10' });
+  assert.equal(after.some((r) => r.sourceType === 'car-arrival'), false);
+  const contract = after.find((r) => r.sourceType === 'delivery');
+  assert.ok(contract);
+  assert.equal(contract.group, 'today');
+  assert.equal(contract.due, '2026-12-10');
+});

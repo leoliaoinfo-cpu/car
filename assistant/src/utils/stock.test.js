@@ -156,3 +156,30 @@ test('改成已聯繫廠商／已叫貨時自動排再追日，其他狀態不�
   assert.deepEqual(statusPatch({ followUpDate: '2026-11-20' }, 'inquiry', '2026-11-22'), { status: 'inquiry' });
   assert.deepEqual(statusPatch({}, 'ready', '2026-11-22'), { status: 'ready' });
 });
+
+test('依配件分區：外包照帆布／尾門／烤漆…分，改裝部看型錄分類；等車中不算急、不催再追日', async () => {
+  const { stockByCase, stockByKind, stockKind, stockAlert } = await import('./stock.js');
+  const deals = [
+    { id: 'd1', caseId: 'k1', quoteId: 'q1', clientName: '楊老闆', stockItems: [
+      { id: 'a', name: '五面帆160CM +蓬頂', status: 'todo', track: 'vendor' },
+      { id: 'b', name: '貨斗LED定位燈', status: 'todo', catalogId: 'qa-cargo-led-marker' },
+      { id: 'c', name: 'Logo(烤漆改黑)', status: 'todo', track: 'vendor' } ] },
+    { id: 'd2', caseId: 'k2', quoteId: 'q2', clientName: '王小姐', stockItems: [
+      { id: 'd', name: '三面帆布', status: 'inquiry', track: 'vendor' } ] },
+  ];
+  const cases = [
+    { id: 'k1', status: 'active', awaitingCar: true, expectedCarMonth: '2026-12', desiredDeliveryDate: '2026-11-22' },
+    { id: 'k2', status: 'active', desiredDeliveryDate: '2026-11-25' },
+  ];
+  const now = new Date('2026-11-20T08:00:00');
+  const entries = stockByCase(deals, cases, now);
+  assert.equal(entries.find((e) => e.caseId === 'k1').urgent, false); // 等車中就算交車日近也不標急
+  assert.equal(entries.find((e) => e.caseId === 'k1').awaiting, true);
+  assert.equal(entries.find((e) => e.caseId === 'k2').urgent, true);
+  const groups = stockByKind(entries);
+  assert.deepEqual(groups.map((g) => g.label), ['帆布', '烤漆／改色', '燈組']);
+  assert.deepEqual(groups[0].rows.map((r) => r.clientName), ['王小姐', '楊老闆']); // 急的客戶排前面
+  assert.equal(stockKind({ name: '一般手機架組' }).track, 'inhouse');
+  assert.equal(stockAlert(deals[0], cases[0], now).deliveryRisk, false);
+  assert.equal(stockAlert(deals[0], { ...cases[0], awaitingCar: false }, now).deliveryRisk, true);
+});

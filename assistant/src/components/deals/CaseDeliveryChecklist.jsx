@@ -36,6 +36,7 @@ function Sheet({ title, children, actions }) {
  */
 export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
   const { saveDeal, confirmDelivery, suppliers = [], clients = [] } = useApp();
+  const awaitingCar = Boolean(caseItem?.awaitingCar) && !caseItem?.carArrivedAt;
   const [openStepId, setOpenStepId] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [toast, setToast] = useState(null);
@@ -171,7 +172,7 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
     return (
       <section id="case-sop" className="card p-4">
         <h2 className="font-bold text-ink">🚚 施工進度</h2>
-        <p className="mt-1 text-xs text-ink-3">依成交的配件建立尾門、帆布、烤漆、洗車到交車的步驟，之後一步一步點完成。</p>
+        <p className="mt-1 text-xs text-ink-3">依成交的配件建立牽車之後的施工到交車步驟（尾門、帆布、烤漆、洗車…），之後一步一步點完成。</p>
         <button type="button" onClick={createFlow} className="btn-primary mt-3 min-h-12 w-full">建立施工進度</button>
         {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
       </section>
@@ -249,6 +250,7 @@ export default function CaseDeliveryChecklist({ deal, caseItem, onGoStock }) {
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-s3"><div className="h-full rounded-full bg-ok" style={{ width: `${delivered ? 100 : percent}%` }} /></div>
       {error && <p role="alert" className="mt-2 rounded-xl border border-danger/40 bg-danger/10 p-2.5 text-sm text-danger">{error}</p>}
+      {awaitingCar && !delivered && <p className="mt-2 rounded-xl border border-copper/40 bg-copper/10 p-2.5 text-xs leading-relaxed text-copper">🚚 車還沒到：下面這些步驟等車到再做，今天頁先不會催。聯繫廠商請看下方「配件核對」。</p>}
       {delivered ? <details className="mt-3"><summary className="min-h-10 cursor-pointer py-2 text-sm font-bold text-ink-2">查看施工步驟</summary>{steps}</details> : steps}
       {!delivered && (
         <details className="mt-3 text-xs text-ink-2">

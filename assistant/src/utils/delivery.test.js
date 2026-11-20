@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   alignWorkflowOrderToDependencies, buildDeliverySchedule, createWorkflowRestorePoint, findWorkflowCycleIds, generateDeliveryWorkflow,
   getCurrentWorkflowStep, getStageTiming, getWaitingOn, mergeSuggestedWorkflow, normalizeDeliveryWorkflow,
-  planWorkflowStatusChange, reorderWorkflow, restoreWorkflowChange, updateWorkflowStepStatus, wouldCreateCycle,
+  planWorkflowStatusChange, reorderWorkflow, restoreWorkflowChange, updateWorkflowStepStatus, wouldCreateCycle, isVendorContactStep,
 } from './delivery.js';
 
 test('changing a predecessor aligns the visual order while preserving parallel work order', () => {
@@ -29,13 +29,13 @@ test('dependency alignment keeps existing cycles intact for manual correction', 
   assert.deepEqual(alignWorkflowOrderToDependencies(workflow).map((step) => step.id), ['free', 'a', 'b']);
 });
 
-test('delivery workflow keeps vendor contact parallel and construction in the requested order', () => {
+test('delivery workflow no longer has vendor-contact steps (they live in the stock checklist) and keeps construction order', () => {
     const workflow = generateDeliveryWorkflow({
       pricing: { lines: [{ name: '電動尾門＋帆布＋車身烤漆＋H架' }] },
     });
     const byId = new Map(workflow.map((step) => [step.id, step]));
-    assert.equal(byId.get('contact-tailgate').dependsOn, 'contract');
-    assert.equal(byId.get('contact-canvas').dependsOn, 'contract');
+    assert.equal(workflow.some((step) => isVendorContactStep(step)), false);
+    assert.equal(byId.get('install-tailgate').dependsOn, 'contract');
     assert.equal(byId.get('paint-body').dependsOn, 'install-tailgate');
     assert.equal(byId.get('install-canvas').dependsOn, 'paint-body');
     assert.equal(byId.get('install-body').dependsOn, 'install-canvas');
@@ -66,13 +66,37 @@ test('delivery workflow keeps legacy SOP data readable', () => {
 });
 
 test('delivery schedule counts parallel stages once and follows the dependency path', () => {
-    const workflow = generateDeliveryWorkflow({ pricing: { lines: [{ name: '尾門 帆布 烤漆' }] } });
+    const workflow = [
+      { id: 'contract', label: '簽約', status: 'todo', plannedDays: 1 },
+      { id: 'contact-tailgate', label: '聯繫尾門廠商', status: 'doing', dependsOn: 'contract', plannedDays: 2 },
+      { id: 'contact-canvas', label: '聯繫帆布廠商', status: 'doing', dependsOn: 'contract', plannedDays: 2 },
+      { id: 'delivery', label: '交車', status: 'todo', dependsOn: 'contact-canvas', plannedDays: 1 },
+    ];
     const schedule = buildDeliverySchedule(workflow);
     const tailgateContact = schedule.rows.find((step) => step.id === 'contact-tailgate');
     const canvasContact = schedule.rows.find((step) => step.id === 'contact-canvas');
     assert.equal(tailgateContact.startOffset, 1);
     assert.equal(canvasContact.startOffset, 1);
     assert.ok(schedule.totalDays < schedule.rows.reduce((total, step) => total + step.plannedDays, 0));
+});
+
+test('old deals: untouched vendor-contact steps are dropped on read and dependents re-linked; touched ones are kept', () => {
+    const old = {
+      deliveryWorkflow: [
+        { id: 'contract', label: '簽約', status: 'done', plannedDays: 1, activatedAt: '2026-11-01', completedAt: '2026-11-02' },
+        { id: 'contact-tailgate', label: '聯繫尾門廠商', status: 'todo', dependsOn: 'contract' },
+        { id: 'contact-canvas', label: '聯繫帆布廠商', status: 'contacted', dependsOn: 'contract' },
+        { id: 'contact-paint', label: '聯繫烤漆廠商', status: 'todo', dependsOn: 'contract', note: '黑色' },
+        { id: 'install-tailgate', label: '牽車安裝尾門', status: 'todo', dependsOn: 'contact-tailgate' },
+        { id: 'install-canvas', label: '安裝帆布', status: 'todo', dependsOn: 'contact-canvas' },
+      ],
+    };
+    const flow = normalizeDeliveryWorkflow(old);
+    const ids = flow.map((step) => step.id);
+    assert.deepEqual(ids, ['contract', 'contact-canvas', 'contact-paint', 'install-tailgate', 'install-canvas']);
+    assert.equal(flow.find((step) => step.id === 'install-tailgate').dependsOn, 'contract');
+    assert.equal(flow.find((step) => step.id === 'install-canvas').dependsOn, 'contact-canvas');
+    assert.equal(old.deliveryWorkflow.length, 6); // 原資料不動
 });
 
 test('completing a stage activates the newly available next stage', () => {

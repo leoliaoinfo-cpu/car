@@ -41,6 +41,27 @@ const LEGACY_IDS = {
   paint: 'paint-body', plate: 'inspection', install: 'install-accessories', delivery: 'delivery',
 };
 
+/**
+ * 「聯繫廠商」不再是施工進度的步驟（2026-11-20）：聯繫廠商的進度統一記在「配件核對」（外包：未聯繫→已聯繫→廠商已施作…），
+ * 施工進度只留車到之後（牽車安裝、噴漆、洗車、驗車、交車）。舊成交裡還沒動過的聯繫步驟，讀取時自動拿掉；
+ * 已經填過廠商／日期／備註或改過狀態的一律保留，不丟資料。
+ */
+export function isVendorContactStep(step) {
+  return String(step?.id || '').startsWith('contact-');
+}
+
+function isUntouchedContactStep(step) {
+  return isVendorContactStep(step) && step.status === 'todo'
+    && !step.supplierId && !step.plannedDate && !String(step.note || '').trim() && (step.cost === '' || step.cost == null);
+}
+
+function dropUntouchedContactSteps(workflow) {
+  const dropped = new Map((workflow || []).filter(isUntouchedContactStep).map((step) => [step.id, step.dependsOn || null]));
+  if (!dropped.size) return workflow;
+  const resolve = (id) => { let current = id; const seen = new Set(); while (current && dropped.has(current) && !seen.has(current)) { seen.add(current); current = dropped.get(current); } return current || null; };
+  return workflow.filter((step) => !dropped.has(step.id)).map((step) => (step.dependsOn && dropped.has(step.dependsOn) ? { ...step, dependsOn: resolve(step.dependsOn) } : step));
+}
+
 function workflowStep(id, label, service, dependsOn = null) {
   return {
     id, label, service, dependsOn, status: 'todo', supplierId: '', plannedDate: '', cost: '', note: '',
@@ -63,26 +84,23 @@ export function generateDeliveryWorkflow({ deal = {}, pricing = null } = {}) {
   const hasRackOrBody = includesAny(source, ['H架', 'Ｈ架', '箱體', '廂體']);
 
   const steps = [workflowStep('contract', '簽約與施工內容確認', '行政')];
-  if (hasTailgate) steps.push(workflowStep('contact-tailgate', '聯繫尾門廠商', '尾門', 'contract'));
-  if (hasCanvas) steps.push(workflowStep('contact-canvas', '聯繫帆布廠商', '帆布', 'contract'));
-  if (hasPaint) steps.push(workflowStep('contact-paint', '聯繫烤漆廠商', '烤漆', 'contract'));
-  if (hasRackOrBody) steps.push(workflowStep('contact-body', '聯繫 H 架／箱體廠商', 'H架／箱體', 'contract'));
 
+  // 聯繫廠商請看「配件核對」；這裡只放車到之後要做的事
   let previous = 'contract';
   if (hasTailgate) {
-    steps.push(workflowStep('install-tailgate', '牽車安裝尾門', '尾門', 'contact-tailgate'));
+    steps.push(workflowStep('install-tailgate', '牽車安裝尾門', '尾門', previous));
     previous = 'install-tailgate';
   }
   if (hasPaint) {
-    steps.push(workflowStep('paint-body', '車體烤漆與外觀確認', '烤漆', previous === 'contract' ? 'contact-paint' : previous));
+    steps.push(workflowStep('paint-body', '車體烤漆與外觀確認', '烤漆', previous));
     previous = 'paint-body';
   }
   if (hasCanvas) {
-    steps.push(workflowStep('install-canvas', '安裝帆布', '帆布', previous === 'contract' ? 'contact-canvas' : previous));
+    steps.push(workflowStep('install-canvas', '安裝帆布', '帆布', previous));
     previous = 'install-canvas';
   }
   if (hasRackOrBody) {
-    steps.push(workflowStep('install-body', '安裝 H 架／箱體', 'H架／箱體', previous === 'contract' ? 'contact-body' : previous));
+    steps.push(workflowStep('install-body', '安裝 H 架／箱體', 'H架／箱體', previous));
     previous = 'install-body';
   }
   steps.push(workflowStep('wash', '車輛清洗', '洗車', previous));
@@ -108,7 +126,7 @@ export function normalizeDeliveryWorkflow(deal = {}) {
       activatedAt: step.activatedAt || null, completedAt: step.completedAt || null,
       statusChangedAt: step.statusChangedAt || step.updatedAt || null,
     }));
-    return activateAvailableWorkflowSteps(normalized);
+    return activateAvailableWorkflowSteps(dropUntouchedContactSteps(normalized));
   }
   if (deal.deliverySop && typeof deal.deliverySop === 'object') {
     const legacy = Object.entries(LEGACY_LABELS).map(([id, label], index) => {

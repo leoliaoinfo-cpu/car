@@ -148,12 +148,16 @@ export function summarizeStock(deals = [], cases = []) {
   return [...grouped.values()].sort((a, b) => b.missing - a.missing || a.name.localeCompare(b.name, 'zh-Hant'));
 }
 
+const awaitingCar = (caseItem) => Boolean(caseItem?.awaitingCar) && !caseItem?.carArrivedAt;
+
 export function stockAlert(deal, caseItem, now = new Date()) {
   // 已交車（已完成）的案件不再提醒缺貨，舊資料只有 status=completed 也要算。
   if (caseItem?.status === 'completed' || caseItem?.pipelineStage === 'completed') {
     return { missing: 0, deliveryRisk: false, inquiryNoDate: false, days: null, delivered: true };
   }
   const missing = missingStockItems(deal);
+  // 等車中：車還沒到，不催缺貨、不要求排再追日（到貨日不確定時催了也沒用）
+  if (awaitingCar(caseItem)) return { missing: missing.length, deliveryRisk: false, inquiryNoDate: false, days: null, awaiting: true };
   const target = caseItem?.desiredDeliveryDate;
   const days = target ? Math.ceil((new Date(`${target}T00:00:00`).getTime() - new Date(now).setHours(0, 0, 0, 0)) / 86400000) : null;
   return {
@@ -187,11 +191,67 @@ export function stockByCase(deals = [], cases = [], now = new Date()) {
     const target = caseItem.desiredDeliveryDate || '';
     const days = target ? Math.ceil((new Date(`${target}T00:00:00`).getTime() - today0) / 86400000) : null;
     const missing = rows.filter((row) => !isSettledStock(row)).length;
+    const awaiting = awaitingCar(caseItem);
     out.push({
       caseId: caseItem.id, dealId: deal.id, deal, clientName: deal.clientName || caseItem.clientName || '未命名客戶',
-      deliveryDate: target, days, urgent: missing > 0 && days != null && days <= 7, missing,
+      deliveryDate: target, days, urgent: !awaiting && missing > 0 && days != null && days <= 7, missing,
+      awaiting, expectedCarMonth: caseItem.expectedCarMonth || '', carArrivedAt: caseItem.carArrivedAt || '',
       rows: [...rows].sort((a, b) => rank(a) - rank(b)),
     });
   }
-  return out.sort((a, b) => (a.days == null) - (b.days == null) || (a.days ?? 0) - (b.days ?? 0) || a.clientName.localeCompare(b.clientName, 'zh-Hant'));
+  return out.sort((a, b) => (a.days == null) - (b.days == null) || (a.days ?? 0) - (b.days ?? 0)
+    || Number(a.awaiting) - Number(b.awaiting) || String(a.expectedCarMonth || '9999').localeCompare(String(b.expectedCarMonth || '9999'))
+    || a.clientName.localeCompare(b.clientName, 'zh-Hant'));
+}
+
+// ── 依配件分區（集體作業）：同一種配件放在一起，一次處理好幾位客戶 ─────────────────────────────
+const VENDOR_KINDS = [
+  ['帆布', /帆布|[蓬篷]頂|[二三四五]面帆/],
+  ['尾門', /尾門/],
+  ['烤漆／改色', /烤漆|噴漆|改色|珍珠漆|logo|輪胎蓋/i],
+  ['箱體', /箱體|鋁塑箱|冷凍|冷藏|歐翼|露營/],
+  ['H 架', /H\s*架/i],
+];
+
+/** 這個配件屬於哪一區：外包看名稱（帆布、尾門…），改裝部看型錄分類（燈組、駕駛科技…），都對不到就歸「其他」。 */
+export function stockKind(item, catalog = CATALOG) {
+  const cat = String(catalog.get?.(item?.catalogId)?.cat || '');
+  const text = `${item?.name || ''} ${item?.fromBundle || ''} ${cat}`;
+  if (stockTrack(item) === 'vendor') {
+    const hit = VENDOR_KINDS.find(([, re]) => re.test(text));
+    return { key: `vendor:${hit ? hit[0] : '其他外包'}`, label: hit ? hit[0] : '其他外包', track: 'vendor' };
+  }
+  return { key: `inhouse:${cat || '其他配件'}`, label: cat || '其他配件', track: 'inhouse' };
+}
+
+/**
+ * 把 stockByCase 的結果改成「依配件分區」：外包（帆布、尾門、烤漆…）在前，改裝部依報價選單的分類順序。
+ * 每區的每一列都帶客戶、等車資訊，方便一次聯繫同一家廠商／一次叫貨。
+ */
+export function stockByKind(entries = []) {
+  const catOrder = DEFAULT_QUOTE_PRESETS.addonCategories || [];
+  const groups = new Map();
+  for (const entry of entries) {
+    for (const row of entry.rows) {
+      const kind = stockKind(row);
+      const group = groups.get(kind.key) || { ...kind, rows: [] };
+      group.rows.push({
+        ...row, caseId: entry.caseId, dealId: entry.dealId, deal: entry.deal, clientName: entry.clientName,
+        awaiting: entry.awaiting, expectedCarMonth: entry.expectedCarMonth, urgent: entry.urgent, days: entry.days,
+      });
+      groups.set(kind.key, group);
+    }
+  }
+  const rank = (group) => {
+    if (group.track === 'vendor') { const i = VENDOR_KINDS.findIndex(([label]) => label === group.label); return i < 0 ? VENDOR_KINDS.length : i; }
+    const i = catOrder.indexOf(group.label);
+    return 100 + (i < 0 ? 999 : i);
+  };
+  return [...groups.values()].map((group) => ({
+    ...group,
+    // 急的客戶排前面、其次交車日近的，再其次等車的
+    rows: group.rows.sort((a, b) => Number(b.urgent) - Number(a.urgent) || (a.days == null) - (b.days == null) || (a.days ?? 0) - (b.days ?? 0)
+      || Number(a.awaiting) - Number(b.awaiting) || a.clientName.localeCompare(b.clientName, 'zh-Hant')),
+    missing: group.rows.filter((row) => !isSettledStock(row)).length,
+  })).sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label, 'zh-Hant'));
 }

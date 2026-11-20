@@ -5,6 +5,36 @@ import { stockAlert } from './stock.js';
 /** 沒排追蹤日、又這麼多天沒動靜的案件，視為「太久沒追」。 */
 export const STALE_CASE_DAYS = 14;
 
+// ── 等車中（2026-11-20）：成交了但車還沒到、到貨日不確定 ──────────────────────────────
+// case.awaitingCar＝車還沒到；case.expectedCarMonth＝預計到貨月份 'YYYY-MM'（不用確切日期）；
+// case.carCheckDate＝「還沒到，之後再問我」的下次提醒日；case.carArrivedAt＝車到了的日期（按「車到了」才寫）。
+export function isAwaitingCar(item) {
+  return Boolean(item?.awaitingCar) && !item?.carArrivedAt;
+}
+
+/** '2026-12' → '12 月'；跨年（不是今年）時加年份。 */
+export function carMonthLabel(month, todayString = null) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(month || ''));
+  if (!m) return '';
+  const thisYear = dayjs(todayString || undefined).year();
+  return `${Number(m[1]) === thisYear ? '' : `${m[1]} 年 `}${Number(m[2])} 月`;
+}
+
+/** 開始等車／改預計月份（不會動到其他欄位）。 */
+export function startAwaitingCar(item, month = '') {
+  return { ...item, awaitingCar: true, expectedCarMonth: month || item?.expectedCarMonth || '', carArrivedAt: '', carCheckDate: '' };
+}
+
+/** 車到了：記錄到貨日，之後施工步驟才開始排日期。 */
+export function markCarArrived(item, date) {
+  return { ...item, awaitingCar: false, carArrivedAt: date || dayjs().format('YYYY-MM-DD'), carCheckDate: '' };
+}
+
+/** 取消等車狀態（不記到貨日）。 */
+export function stopAwaitingCar(item) {
+  return { ...item, awaitingCar: false, carArrivedAt: '', carCheckDate: '' };
+}
+
 export const CASE_TYPE_LABEL = { purchase: '買車', modification: '改裝' };
 export const CASE_STATUS_LABEL = { active: '進行中', waiting: '等待中', completed: '已完成', closed: '已結案（不追蹤）' };
 /** 結案不追蹤的原因（一鍵選）。結案＝status 'closed'：不再進今天、不算進行中，可隨時重新追蹤。 */
@@ -373,6 +403,17 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
     });
   });
 
+  // 等車中：只在預計到貨月份的 1 號（或你說「之後再問」的日期）提醒一次「車到了嗎？」，其他施工提醒都先不排
+  cases.filter((row) => isOpenCase(row) && !row.deletedAt && isAwaitingCar(row)).forEach((row) => {
+    const label = carMonthLabel(row.expectedCarMonth, todayString);
+    push({
+      id: `car-arrival:${row.id}`, sourceType: 'car-arrival', sourceId: row.id,
+      title: label ? `車預計 ${label}到，到了嗎？` : '車到了嗎？',
+      due: row.carCheckDate || (row.expectedCarMonth ? `${row.expectedCarMonth}-01` : ''), state: 'todo', caseId: row.id,
+      clientId: row.clientId || null, clientName: row.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: row.title || '',
+    });
+  });
+
   workItems.filter((row) => !['done', 'cancelled'].includes(row.state) && (!row.caseId || caseMap.has(row.caseId))).forEach((row) => {
     const linkedCase = caseMap.get(row.caseId);
     push({ ...row, sourceType: 'workItem', sourceId: row.id, clientName: row.clientName || linkedCase?.clientName || clientMap.get(row.clientId)?.name || '', caseTitle: linkedCase?.title || '', caseNumber: linkedCase?.caseNumber });
@@ -395,7 +436,8 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
   });
   deals.filter((deal) => !deal.caseArchivedAt).forEach((deal) => {
     const linkedCase = cases.find((row) => row.id === deal.caseId || row.dealId === deal.id);
-    if (linkedCase && !linkedCase.deletedAt && isOpenCase(linkedCase) && deal.quoteId) {
+    const waitingForCar = Boolean(linkedCase && isAwaitingCar(linkedCase));
+    if (linkedCase && !linkedCase.deletedAt && isOpenCase(linkedCase) && deal.quoteId && !waitingForCar) {
       const alert = stockAlert(deal, linkedCase);
       const clientName = linkedCase.clientName || clientMap.get(deal.clientId)?.name || '';
       if (alert.deliveryRisk) push({ id: `stock-risk:${deal.id}`, sourceType: 'stock-alert', sourceId: deal.id,
@@ -415,11 +457,15 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
         due, state: 'todo', caseId: linkedCase.id, clientId: deal.clientId, clientName, caseTitle: linkedCase.title || '' });
     }
     const workflow = normalizeDeliveryWorkflow(deal);
-    workflow.filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {
+    // 車還沒到：施工步驟（聯繫廠商、牽車安裝…）都先不進今天，車到了才開始排日期
+    const arrivedAt = linkedCase?.carArrivedAt || '';
+    (waitingForCar ? [] : workflow).filter((step) => !['done', 'na'].includes(step.status)).forEach((step) => {
       const waitingOn = getWaitingOn(step, workflow);
       const timing = getStageTiming(step, workflow);
+      // 車到之前啟動的步驟，從「車到的那天」開始算天數，不然一到貨就全部逾期
+      const startAt = step.activatedAt && arrivedAt && dayjs(arrivedAt).isAfter(dayjs(step.activatedAt), 'day') ? arrivedAt : step.activatedAt;
       const calculatedDue = step.activatedAt && timing.elapsedDays != null
-        ? dayjs(step.activatedAt).add(timing.plannedDays - 1, 'day').format('YYYY-MM-DD')
+        ? dayjs(startAt).add(timing.plannedDays - 1, 'day').format('YYYY-MM-DD')
         : '';
       const blockedFollowUpDate = step.status === 'blocked' ? step.blockedFollowUpDate || '' : '';
       push({
@@ -451,7 +497,7 @@ export function buildWorkQueue({ workItems = [], tasks = [], clients = [], deals
 
   // 太久沒追：沒排追蹤日、也沒有任何排了日期的工作，且超過 STALE_CASE_DAYS 天沒動靜。
   const datedCaseIds = new Set(rows.filter((row) => row.caseId && row.due).map((row) => row.caseId));
-  cases.filter((row) => isOpenCase(row) && !row.deletedAt && !row.nextFollowUpDate && !datedCaseIds.has(row.id)).forEach((row) => {
+  cases.filter((row) => isOpenCase(row) && !row.deletedAt && !row.nextFollowUpDate && !datedCaseIds.has(row.id) && !isAwaitingCar(row)).forEach((row) => {
     const touchedAt = getCaseLastTouchedAt(row);
     if (!touchedAt) return;
     const staleDays = dayjs(todayString).startOf('day').diff(dayjs(touchedAt).startOf('day'), 'day');
