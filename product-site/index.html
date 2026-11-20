@@ -115,6 +115,14 @@ footer{text-align:center;color:var(--mute);font-size:12.5px;padding:34px 16px 0}
 @media(min-width:720px){#call{left:50%;right:auto;width:480px;transform:translateX(-50%);bottom:16px;border:1px solid var(--bd);border-radius:999px;box-shadow:var(--shadow)}#call.hide{transform:translate(-50%,130%)}}
 #call a{flex:1;text-align:center;text-decoration:none;color:#fff;font-weight:800;font-size:16px;padding:13px 8px;border-radius:999px;background:linear-gradient(180deg,var(--ac2),var(--ac))}
 #call a.l{background:linear-gradient(180deg,#22d472,var(--line))}
+/* 電腦版（寬螢幕）：打電話／LINE 改成右側邊懸浮按鈕，不再佔用底部 */
+@media(min-width:1100px){
+  #call,#call.hide{left:auto;right:22px;bottom:auto;top:50%;width:auto;transform:translateY(-50%);flex-direction:column;gap:12px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+  body.has-inq #call,body #call.hide{display:flex!important}
+  #call a{flex:none;width:78px;height:78px;border-radius:50%;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13.5px;line-height:1.2;box-shadow:0 10px 24px rgba(0,0,0,.22);transition:transform .15s}
+  #call a:hover{transform:scale(1.07)}
+  #call a span{font-size:24px;line-height:1}
+}
 
 /* ===== 放大瀏覽（淺色底）===== */
 #lb{display:none;position:fixed;inset:0;z-index:30;background:rgba(251,247,241,.98);flex-direction:column}
@@ -283,7 +291,7 @@ GitHub 權杖（token）
 </main>
 <footer>圖片為原廠與配件廠行銷資料<br>實際內容以現場說明為準</footer>
 
-<div id="call"><a href="tel:0979670565">📞 打電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener">💬 LINE</a></div>
+<div id="call"><a href="tel:0979670565"><span>📞</span> 打電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener"><span>💬</span> LINE</a></div>
 <button id="inqbar" type="button"><span class="ib-l"><span>🧾 我的詢價單 <b id="inqn"></b></span><small id="inqv"></small></span><span class="ib-r"><span id="inqt"></span><span>›</span></span></button>
 
 <div id="inqsheet"><div class="sheet">
