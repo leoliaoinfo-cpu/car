@@ -234,6 +234,16 @@ body.has-inq main{padding-bottom:230px}
 .sbtns .alt summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--mute);padding:8px 0;text-align:center}
 .sbtns .alt .two{margin-top:8px}
 .sbtns .hint{line-height:1.6;font-size:13.5px;color:#44525e}
+/* ===== 套裝推薦提醒 ===== */
+#promo{display:none;position:fixed;inset:0;z-index:45;background:rgba(5,20,31,.65);align-items:center;justify-content:center;padding:18px}
+#promo .pbox{background:#fff;max-width:420px;width:100%;padding:20px 18px 18px;border-top:4px solid var(--ac)}
+#promo .pt{font-size:20px;font-weight:700;margin-bottom:8px}
+#promo p{margin:8px 0;font-size:15px;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
+#promo .psm{font-size:13px;color:var(--mute)}
+#promo button{display:block;width:100%;margin-top:10px;border:0;padding:15px;font-size:16px;font-weight:700;font-family:inherit;background:var(--ac);color:#fff}
+#promo button.g{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+.irest{display:none;padding:0 14px 12px 14px}.irest button,.pkgnote button{border:1px solid var(--ink);background:#fff;color:var(--ink);font-family:inherit;font-weight:700;font-size:14px;padding:9px 14px}
+.pkgnote{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#e8f1fb;border-left:4px solid var(--navy);padding:10px 12px;margin-top:7px;font-weight:700;font-size:14px}
 /* ===== 放大瀏覽 ===== */
 #lb{display:none;position:fixed;inset:0;z-index:30;background:#fff;flex-direction:column}
 #lb .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;color:var(--ink);background:var(--navy);color:#fff}
@@ -284,6 +294,14 @@ GitHub 權杖（token）
 <button id="f-ok">儲存設定</button><button class="g" id="f-no">取消</button>
 </div></div>
 <div id="toast"></div>
+<div id="promo" role="dialog" aria-label="雙廂高階套裝提醒"><div class="pbox">
+  <div class="pt">你選的配件，已經很接近全配</div>
+  <p>你選的 <b id="promoN"></b> 項配件，在「雙廂高階套裝」裡都有包含，單買合計 <b id="promoT"></b>。</p>
+  <p>雙廂高階套裝 <b>$250,000</b>，含 17 項配件，原價合計 $275,000。</p>
+  <p class="psm">換成套裝時，只會取消套裝已經包含的那幾項。尾門、帆布等套裝沒有的項目都會保留，也可以隨時改回來。</p>
+  <button id="promoYes" type="button">換成雙廂高階套裝</button>
+  <button id="promoNo" type="button" class="g">不用，維持我選的</button>
+</div></div>
 <div id="lb" role="dialog" aria-label="圖片放大">
   <div class="top"><span id="lbt"></span><button class="x" id="lbx" type="button" aria-label="關閉">✕</button></div>
   <div class="sw"><div class="stage" id="lbs"><img id="lbi" alt=""></div><button class="nv p" id="lbp" type="button" aria-label="上一張">‹</button><button class="nv n" id="lbn" type="button" aria-label="下一張">›</button></div>

@@ -133,13 +133,13 @@
   var S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
-  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
     var any = S.cab || S.drive || chosen().length || S.name || S.phone || S.note || hadSaved;
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
-    S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' }; hadSaved = false;
+    S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '', pkgBackup: null }; hadSaved = false; promoDone = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
     $('inqname').value = ''; $('inqphone').value = ''; $('inqnote').value = '';
     refresh(); closeSheet(); toast('已重置，重新開始');
@@ -253,6 +253,9 @@
         });
         row.appendChild(oc);
       }
+      if (id === 'pkg-dbl') {
+        var rr = el('div', 'irest'); var rb2 = el('button', '', '↩ 改回我原本選的配件'); rb2.type = 'button'; rb2.onclick = restorePkg; rr.appendChild(rb2); row.appendChild(rr);
+      }
       wrap.appendChild(row);
     });
     fig.appendChild(wrap);
@@ -280,6 +283,7 @@
       else pr.textContent = p ? money(p) : '價格請洽業務';
       pr.classList.toggle('ask', !p);
       var w = row.querySelector('.iwarn'), msg = fitWarn(it); w.textContent = msg.replace('⚠ ', '⛔ 不適用：'); w.style.display = msg ? 'block' : 'none';
+      var rs = row.querySelector('.irest'); if (rs) rs.style.display = on && S.pkgBackup ? 'block' : 'none';
       var oc = row.querySelector('.iopts');
       if (oc) { oc.style.display = on ? 'flex' : 'none'; Array.prototype.forEach.call(oc.querySelectorAll('button'), function (b) { b.classList.toggle('on', S.sel[id] === b.getAttribute('data-o')); }); }
     });
@@ -326,7 +330,31 @@
     Object.keys(S.sel).forEach(function (id) { var it = I[id]; if (it && fitWarn(it)) { delete S.sel[id]; gone.push(plain(it)); } });
     if (gone.length) toast('已取消不適用的配件：' + gone.join('、'));
   }
-  function refresh() { prune(); renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
+  // ===== 雙廂高階套裝推薦：選了雙廂＋二輪驅動，且已選的配件裡「套裝涵蓋的項目」合計 ≥ 20 萬才跳提醒；客人按了才換，換了可以一鍵改回 =====
+  var PKG_COVERS = ['special', 'wheelsw', 'safe', 'mirror-led', 'gtr', 'fog', 'ts', 'audio', 'side-step', 'travel', 'urea', 'phone2', 'omega', 'tail', 'puddle'];
+  var PKG_THRESHOLD = 200000, promoDone = false;
+  function pkgEligible() { return S.cab === '雙廂' && S.drive.indexOf('2WD') === 0; }
+  function coveredSelected() { return PKG_COVERS.filter(function (id) { return S.sel[id]; }); }
+  function coveredTotal() { var t = 0; coveredSelected().forEach(function (id) { var p = priceOf(I[id]); if (p) t += p; }); return t; }
+  function checkPromo() {
+    if (promoDone || S.sel['pkg-dbl'] || !pkgEligible()) return;
+    var t = coveredTotal(); if (t < PKG_THRESHOLD) return;
+    promoDone = true;
+    $('promoN').textContent = coveredSelected().length;
+    $('promoT').textContent = money(t);
+    $('promo').style.display = 'flex';
+  }
+  function takePkg() {
+    var bk = {}; coveredSelected().forEach(function (id) { bk[id] = S.sel[id]; delete S.sel[id]; });
+    S.pkgBackup = bk; S.sel['pkg-dbl'] = true; $('promo').style.display = 'none';
+    refresh(); toast('已換成雙廂高階套裝。尾門、帆布等套裝沒包含的項目都還在');
+  }
+  function restorePkg() {
+    delete S.sel['pkg-dbl'];
+    if (S.pkgBackup) Object.keys(S.pkgBackup).forEach(function (id) { S.sel[id] = S.pkgBackup[id]; });
+    S.pkgBackup = null; promoDone = true; refresh(); toast('已改回你原本選的配件');
+  }
+  function refresh() { prune(); checkPromo(); renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
 
   // ===== 詢價單視窗 =====
   function buildText() {
@@ -356,6 +384,7 @@
   function renderSheet() {
     var list = $('inqlist'); list.innerHTML = '';
     var its = chosen();
+    if (S.pkgBackup && S.sel['pkg-dbl']) { var bn = el('div', 'pkgnote'); bn.appendChild(el('span', '', '已換成雙廂高階套裝')); var bb = el('button', '', '↩ 改回我原本選的'); bb.type = 'button'; bb.onclick = restorePkg; bn.appendChild(bb); list.appendChild(bn); }
     its.forEach(function (it) {
       var np = needsPick(it);
       var r = el('div', 'srow' + (np ? ' todo' : ''));
@@ -463,6 +492,8 @@
     $('inqsheet').onclick = function (e) { if (e.target === this) closeSheet(); };
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('inqsheet').style.display === 'flex') closeSheet(); });
     function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
+    $('promoNo').onclick = function () { $('promo').style.display = 'none'; };
+    $('promoYes').onclick = takePkg;
     $('inqname').oninput = function () { S.name = this.value; persist(); };
     $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
