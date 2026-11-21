@@ -122,7 +122,7 @@ figure.card figcaption i.selc.on{display:inline-block}
 .iwarn{display:none;font-size:12.5px;color:#a85a00;font-weight:700;padding:0 14px 10px 56px}
 .iopts{display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:0 14px 12px 56px;font-size:13px;color:var(--mute);font-weight:600}
 
-@media(max-width:719px){footer{padding-right:64px}.items{padding-right:56px}}
+@media(max-width:719px){footer .fin{padding-right:68px}.items{padding-right:56px}}
 /* ===== 選車型 ===== */
 #veh{padding:0 18px;grid-column:1/-1}
 .veh-card{position:relative;background:var(--gray);padding:20px 18px 22px;margin:4px 0 8px}
@@ -170,11 +170,27 @@ figure.card figcaption i.selc.on{display:inline-block}
 .ent{width:100%;height:auto;display:block;border:1px solid var(--bd)}
 
 /* ===== 頁尾 ===== */
-footer{background:var(--navy);color:#b7c3cd;text-align:left;font-size:13px;padding:36px 18px calc(44px + env(safe-area-inset-bottom));line-height:1.9}
-footer .fname{font-size:20px;font-weight:700;color:#fff;margin-top:2px}
-footer .ftel{display:inline-block;margin:4px 0 8px;color:#fff;font-size:20px;font-weight:700;text-decoration:none;white-space:nowrap}
-footer b{display:block;color:#fff;font-size:18px;letter-spacing:.08em;margin-bottom:6px}
 
+footer{background:linear-gradient(180deg,#05141f 0%,#0a1f30 100%);color:#b7c3cd;margin-top:10px;padding:0 0 calc(40px + env(safe-area-inset-bottom));position:relative}
+footer:before{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--ac) 0 28%,#fff 28% 30%,transparent 30%)}
+footer .fin{max-width:760px;margin:0 auto;padding:30px 20px 0}
+.fbrand{font-size:13px;font-weight:700;letter-spacing:.32em;color:#7f93a3;margin-bottom:18px}
+.fcard{display:flex;align-items:center;gap:16px;padding:18px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14)}
+.favatar{flex:none;width:64px;height:64px;border-radius:50%;background:#fff;color:var(--navy);font-size:30px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 4px rgba(212,17,43,.9)}
+.finfo{display:flex;flex-direction:column;gap:2px;min-width:0}
+.finfo small{font-size:12px;color:#8ea2b2;letter-spacing:.12em}
+.finfo b{font-size:26px;color:#fff;font-weight:700;line-height:1.25;white-space:nowrap}
+.finfo span{font-size:13px;color:#aab6c0}
+.fbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.fbtns a{display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:700;font-size:16px;padding:15px 8px;white-space:nowrap}
+.fbtns .ft{background:#fff;color:var(--navy)}
+.fbtns .fl{background:var(--line);color:#fff}
+.fbtns span{font-size:19px}
+.fshops{display:grid;gap:8px;margin-top:20px;padding-top:18px;border-top:1px solid rgba(255,255,255,.14)}
+.fshops div{font-size:14px;color:#d4dde4;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
+.fshops em{display:inline-block;font-style:normal;font-size:12px;font-weight:700;color:#fff;background:var(--ac);padding:1px 8px;margin-right:8px}
+.fnote{margin-top:18px;font-size:12px;color:#7f93a3;line-height:1.8;word-break:keep-all;overflow-wrap:anywhere}
+@media(min-width:720px){.fcard{padding:22px}.finfo b{font-size:30px}}
 /* ===== 右下角懸浮按鈕（打電話／LINE／回頂部）===== */
 #call{position:fixed;right:12px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:12;display:flex;flex-direction:column;gap:10px}
 #call a,#call button{width:var(--fab);height:var(--fab);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-decoration:none;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--ink);background:#f2f2f2;border:1px solid #dcdcdc;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.12);padding:0}
@@ -367,7 +383,28 @@ GitHub 權杖（token）
 </div>
 </section>
 </main>
-<footer><b>KIA 卡旺 K2500</b><div class="fname">冠銘專用</div><a class="ftel" href="tel:0979670565">📞 0979-670-565</a><br>俊宇車業有限公司　KIA 商用車彰化區總代理<br>彰化所：彰化市線東路一段478號　員林所：員林市莒光路524號<br>圖片為原廠與配件廠行銷資料，實際內容以現場說明為準</footer>
+<footer>
+  <div class="fin">
+    <div class="fbrand">KIA 卡旺 K2500</div>
+    <div class="fcard">
+      <div class="favatar">冠</div>
+      <div class="finfo">
+        <small>您的專屬業務</small>
+        <b>業務：冠銘</b>
+        <span>KIA 商用車彰化區總代理</span>
+      </div>
+    </div>
+    <div class="fbtns">
+      <a class="ft" href="tel:0979670565"><span>📞</span>0979-670-565</a>
+      <a class="fl" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener"><span>💬</span>LINE 聯絡</a>
+    </div>
+    <div class="fshops">
+      <div><em>彰化所</em>彰化市線東路一段 478 號</div>
+      <div><em>員林所</em>員林市莒光路 524 號</div>
+    </div>
+    <div class="fnote">俊宇車業有限公司<br>圖片為原廠與配件廠行銷資料，實際內容以現場說明為準</div>
+  </div>
+</footer>
 
 <div id="call"><a href="tel:0979670565"><span>📞</span>電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener"><span>💬</span>LINE</a><button id="totop" type="button"><span>↑</span>回頂部</button></div>
 <button id="inqbar" type="button"><span class="ib-l"><span>🧾 我的詢價單 <b id="inqn"></b></span><small id="inqv"></small></span><span class="ib-r"><b>看詢價單 ›</b><span id="inqt"></span></span></button>
