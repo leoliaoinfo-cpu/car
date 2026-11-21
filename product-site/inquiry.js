@@ -7,6 +7,9 @@
   var CABS = ['單廂', '大單廂', '雙廂'];
   var CAB_SUB = { '單廂': '3人座', '大單廂': '3人座', '雙廂': '6人座' };
   var DRIVES = ['2WD 手排', '2WD 自排', '4WD 手排'];
+  // 給客人看的白話名稱（資料用的 key 不變）
+  var DL = { '2WD 手排': '二輪驅動・手排', '2WD 自排': '二輪驅動・自排', '4WD 手排': '四輪驅動・手排' };
+  function dl(d) { return DL[d] || d || ''; }
   var VPRICE = {
     '單廂': { '2WD 手排': 81.8, '2WD 自排': 85.8, '4WD 手排': 97.8 },
     '大單廂': { '2WD 手排': 84.8, '2WD 自排': 88.8 },
@@ -50,7 +53,7 @@
   add('spring', '強化支撐彈簧', 15500);
   add('urea', '尿素桶防撞桿', 5500, { optLabel: '顏色', opts: ['橘色', '黑色'] });
   add('side-step', '雙廂專用延長側踏組', 18900, { fit: '雙廂' });
-  add('skid4wd', '4WD 專用鋁合金下護板', 12500, { fit: '4WD' });
+  add('skid4wd', '四輪驅動專用鋁合金下護板', 12500, { fit: '4WD' });
   add('rear-bar', '車尾防撞鋼樑（合法變更）', 7500);
   add('roof-rack', '車頂行李籃（專利快拆式）', 15500, { fit: '單廂' });
   add('travel', 'Travel 鋁合金行李橫桿（雙廂專用）', 12000, { fit: '雙廂' });
@@ -70,7 +73,7 @@
   add('cushion', '涼感果凍坐墊', 649);
   add('sunshade', '雙層車窗遮陽簾', 1280);
   add('fuelcap', '免鑰匙油箱蓋（柴油）', 599);
-  add('puddle', 'LED 側邊照地燈', 2490, { note: '2WD 43cm／4WD 50cm' });
+  add('puddle', 'LED 側邊照地燈', 2490, { note: '二輪驅動 43cm／四輪驅動 50cm' });
   add('phone-grip', '手把手機支架', 1280);
   add('cup-dbl', '雙廂置杯收納架', 389, { fit: '雙廂' });
   add('pedal', '鋁合金腳踏板（油門＋煞車）', 1880, { fit: '自排' });
@@ -87,7 +90,7 @@
   add('tg-remote', '尾門遙控', 2000, { req: ['tg-lift'], note: '升降尾門遙控操作' });
   var CV = { '單廂': 0, '大單廂': 0, '雙廂': 0 };
   function cvp(a, b) { return { '單廂': a, '大單廂': a, '雙廂': b }; }
-  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, byCab: cvp(19500, 14500), note: '實際高度及 2WD／4WD 適用性於施工前確認' });
+  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
   add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
   add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
   add('cv-custom', '特殊訂製帆布', null, { note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
@@ -155,15 +158,15 @@
     if (it.cab) return S.cab && S.cab !== it.cab ? '⚠ 這是' + it.cab + '的價格，你選的是' + S.cab : '';
     if (!it.fit) return '';
     var f = it.fit;
-    if (f === '2WD' || f === '4WD') { if (S.drive && S.drive.indexOf(f) !== 0) return '⚠ 適用 ' + f + '，你選的是 ' + S.drive.split(' ')[0]; return ''; }
-    if (f === '自排') { if (S.drive && S.drive.indexOf('自排') < 0) return '⚠ 自排專用，你選的是手排'; return ''; }
+    if (f === '2WD' || f === '4WD') { if (S.drive && S.drive.indexOf(f) !== 0) return '⚠ 這項只適用' + (f === '2WD' ? '二輪驅動' : '四輪驅動') + '，你選的是' + (S.drive.indexOf('4WD') === 0 ? '四輪驅動' : '二輪驅動'); return ''; }
+    if (f === '自排') { if (S.drive && S.drive.indexOf('自排') < 0) return '⚠ 這項只適用自排車，你選的是手排車'; return ''; }
     if (f === '單廂') { if (S.cab === '雙廂') return '⚠ 適用單廂／大單廂，你選的是雙廂'; return ''; }
     if (f === '雙廂') { if (S.cab && S.cab !== '雙廂') return '⚠ 雙廂專用，你選的是' + S.cab; return ''; }
     return '';
   }
   function fitTag(it) {
     if (!it.fit) return '';
-    return { '2WD': '2WD 適用', '4WD': '4WD 適用', '自排': '自排專用', '單廂': '單廂／大單廂適用', '雙廂': '雙廂專用' }[it.fit] || '';
+    return { '2WD': '二輪驅動適用', '4WD': '四輪驅動適用', '自排': '自排車專用', '單廂': '單廂／大單廂適用', '雙廂': '雙廂專用' }[it.fit] || '';
   }
 
   function chosen() { return Object.keys(S.sel).filter(function (id) { return I[id]; }).map(function (id) { return I[id]; }); }
@@ -175,9 +178,9 @@
   function monthly(amount) { if (!amount) return 0; var r = 0.045 / 12, n = 84; return Math.round(amount * r / (1 - Math.pow(1 + r, -n))); }
   function total() { var t = 0; chosen().forEach(function (it) { var p = priceOf(it); if (p) t += p; }); return t; }
   function vehicleText() {
-    if (S.own) return '我已有車，只想改裝' + (S.cab || S.drive ? '（' + [S.cab, S.drive].filter(Boolean).join('／') + '）' : '');
+    if (S.own) return '我已有車，只想改裝' + (S.cab || S.drive ? '（' + [S.cab, dl(S.drive)].filter(Boolean).join('／') + '）' : '');
     if (!S.cab && !S.drive) return '';
-    var s = (S.cab ? S.cab + ' ' + CAB_SUB[S.cab] : '') + (S.cab && S.drive ? '／' : '') + (S.drive || '');
+    var s = (S.cab ? S.cab + ' ' + CAB_SUB[S.cab] : '') + (S.cab && S.drive ? '／' : '') + dl(S.drive);
     var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null;
     return s + (v ? '（標價 ' + v + ' 萬）' : '');
   }
@@ -194,25 +197,28 @@
     box.innerHTML = '';
     var card = withHead ? el('div', 'veh-card') : box;
     if (withHead) {
-      card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（可略過）' : '① 選你的車型（可略過）'));
+      card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（不確定可以跳過）' : '① 你想買哪一種車？（還沒決定可以跳過）'));
       if (S.own || S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
       card.appendChild(el('div', 'veh-s', S.own ? '不用算車價。選了車廂和驅動，我會提醒哪些配件裝得上' : '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
-      var ob = el('button', 'ownbtn' + (S.own ? ' on' : ''), S.own ? '✓ 我已有車，只想改裝（點一下改回買車）' : '🔧 我已有車，只想改裝（不買車）'); ob.type = 'button';
+      var ob = el('button', 'ownbtn' + (S.own ? ' on' : ''), S.own ? '✓ 我已經有車，只想改裝（點這裡改回「要買車」）' : '🔧 我已經有車，只想改裝（不買新車）'); ob.type = 'button';
       ob.onclick = function () { S.own = !S.own; refresh(); }; card.appendChild(ob);
     }
     var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
     if (withHead) {
+      card.appendChild(el('div', 'veh-q', '先選：車廂種類'));
       var cg = el('div', 'cabs'); CABS.forEach(function (c) {
         var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? dl(S.drive) : (Object.keys(VPRICE[c])[0] || '')));
         cg.appendChild(b);
       }); card.appendChild(cg);
     } else {
       var r1 = el('div', 'chips'); CABS.forEach(function (c) { r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, false, function () { pick(c); })); }); card.appendChild(r1);
     }
+    card.appendChild(el('div', 'veh-q', '再選：車子怎麼開、幾個輪子有動力'));
     var r2 = el('div', 'chips'); DRIVES.forEach(function (d) {
-      r2.appendChild(chip(d, S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
+      r2.appendChild(chip(dl(d), S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
     }); card.appendChild(r2);
+    if (withHead) card.appendChild(el('div', 'veh-help', '手排＝要自己踩離合器打檔；自排＝自動變速，不用打檔。二輪驅動＝兩個輪子出力；四輪驅動＝四個輪子都出力。'));
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
@@ -288,7 +294,7 @@
   function syncVbars() {
     vbars.forEach(function (v) {
       var has = S.own || S.cab || S.drive;
-      v.t.textContent = S.own ? '🔧 ' + vehicleText() : has ? '🚚 你的車：' + (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '🚚 還沒選車型（可略過）';
+      v.t.textContent = S.own ? '🔧 ' + vehicleText() : has ? '🚚 你的車：' + (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '🚚 還沒選車型（可略過）';
       v.b.textContent = has ? '更改' : '去選車型 ›';
     });
   }
@@ -312,7 +318,7 @@
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
     document.body.classList.toggle('has-inq', n > 0);
-    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
+    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
   // 換車型後，不適用的配件自動取消勾選並提醒
