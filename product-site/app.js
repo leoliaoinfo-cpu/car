@@ -122,16 +122,15 @@
         sec.appendChild(list);
         // 下一類：一路看下去，不用自己找
         var nextG = shown[si + 1];
-        var nb = el('button', 'nextbtn', nextG != null ? '下一類：' + groups[nextG].t + '　›' : '都看完了 → 聯絡我、預約看車　›');
-        nb.type = 'button'; nb.onclick = function () { setTab(nextG != null ? 'g' + nextG : 'contact'); };
-        sec.appendChild(nb);
+        if (nextG != null) {
+          var nb = el('button', 'nextbtn', '下一類：' + groups[nextG].t + '　›');
+          nb.type = 'button'; nb.onclick = function () { setTab('g' + nextG); };
+          sec.appendChild(nb);
+        }
       }
       root.appendChild(sec);
     });
     if (!edit) {
-      var c = el('a', '', '💬 聯絡看車'); c.className = 'contact'; c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.setAttribute('data-l', '聯絡看車'); c.setAttribute('role', 'tab');
-      c.onclick = function (e) { e.preventDefault(); setTab('contact'); };
-      nav.appendChild(c);
       var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
       setTab(active, true);
       observe();
@@ -232,7 +231,7 @@
     }, 80);
   };
   var seeCta = true;
-  function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || active === 'contact'); }
+  function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || false); }
 
   // 圖片進入畫面時淡入；首屏已有大按鈕時收起底部聯絡列（避免重複）
   var io2;
