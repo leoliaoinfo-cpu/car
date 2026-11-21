@@ -218,6 +218,20 @@ body.has-inq main{padding-bottom:230px}
 #inqprev p{font-size:13px;color:var(--mute);margin:8px 0 0}
 #inqprev a{display:inline-block;margin-top:8px;color:var(--ac);font-weight:700}
 
+/* ===== 詢價單：給不熟手機的人 ===== */
+.sumbox{background:var(--navy);color:#fff;padding:14px 16px;margin:8px 0 10px;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.sumbox .sumlbl{align-self:flex-start;font-size:13px;color:#aab6c0;font-weight:600}
+.sumbox #inqtot{color:#fff;font-size:22px;margin:0;text-align:right}
+.sumbox #inqmo{color:#aab6c0;margin:0}
+#inqwarn{display:none;background:#fff3e0;border:1px solid #e6a23c;color:#8a4b00;font-weight:700;font-size:14.5px;padding:11px 14px;margin-bottom:8px;line-height:1.5}
+.srow.todo{background:#fff3e0;box-shadow:inset 4px 0 0 #e6a23c}
+.srow .need{display:block;color:#a85a00;font-weight:700;margin:2px 0 4px}
+.srow .sx{width:auto;min-width:52px;padding:0 8px;font-size:13px;font-weight:600;height:34px;white-space:nowrap}
+.sbtns button:disabled{background:#b9bfc4!important;color:#fff!important;border-color:#b9bfc4!important;cursor:not-allowed}
+.sbtns .alt{border-top:1px solid var(--bd);padding-top:6px}
+.sbtns .alt summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--mute);padding:8px 0;text-align:center}
+.sbtns .alt .two{margin-top:8px}
+.sbtns .hint{line-height:1.6;font-size:13.5px;color:#44525e}
 /* ===== 放大瀏覽 ===== */
 #lb{display:none;position:fixed;inset:0;z-index:30;background:#fff;flex-direction:column}
 #lb .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;color:var(--ink);background:var(--navy);color:#fff}
@@ -328,10 +342,10 @@ GitHub 權杖（token）
 <div id="inqsheet"><div class="sheet">
   <h3>我的詢價單 <button id="inqclose" type="button" aria-label="關閉">✕</button></h3>
   <div id="inqveh"></div>
+  <div class="sumbox"><div class="sumlbl">合計</div><div id="inqtot"></div><div id="inqmo"></div></div>
+  <div id="inqwarn" role="alert"></div>
   <div class="veh-box" id="inqvehbox"></div>
   <div id="inqlist"></div>
-  <div id="inqtot"></div>
-  <div id="inqmo"></div>
   <details class="more"><summary>＋ 留稱呼、電話或想說的話（選填）</summary>
     <label>怎麼稱呼你<input id="inqname" maxlength="20" autocomplete="off"></label>
     <label>電話（選填，方便我回你）<input id="inqphone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="例如：0912-345-678"></label>
@@ -339,10 +353,13 @@ GitHub 權杖（token）
   </details>
   <div id="inqprev"><img alt="詢價單圖片"><p>長按圖片即可存到相簿，再傳給我</p><a download="詢價單.png">或按這裡下載圖片</a></div>
   <div class="sbtns">
-    <button class="line" id="inqline" type="button">💬 複製文字，開 LINE 傳給我</button>
-    <div class="two"><button class="g" id="inqimg" type="button">🖼 產生圖片</button><button class="g" id="inqcopy" type="button">只複製文字</button></div>
-    <div class="two"><button class="g" id="inqsave" type="button">💾 儲存在這支手機</button><button class="g" id="inqreset" type="button">↺ 重置</button></div>
-    <p class="hint">沒按「儲存」的話，重新整理就會清空</p>
+    <button class="line" id="inqline" type="button">💬 傳給業務（LINE）</button>
+    <p class="hint">按下去會自動打開 LINE。<br>在對話框「長按」→ 選「貼上」→ 按送出，就完成了。</p>
+    <details class="alt"><summary>其他方式（存成圖片、先存起來、全部重選）</summary>
+      <div class="two"><button class="g" id="inqimg" type="button">🖼 存成圖片</button><button class="g" id="inqcopy" type="button">只複製文字</button></div>
+      <div class="two"><button class="g" id="inqsave" type="button">💾 先存在這支手機</button><button class="g" id="inqreset" type="button">↺ 全部重選</button></div>
+      <p class="hint">沒按「先存」的話，重新整理就會清空</p>
+    </details>
   </div>
 </div></div>
 

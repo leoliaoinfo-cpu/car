@@ -342,12 +342,17 @@
     return L.join('\n');
   }
 
+  // 還沒選完（要選尺寸／顏色的配件勾了但沒選）
+  function needsPick(it) { return !!it.opts && typeof S.sel[it.id] !== 'string'; }
+  function pending() { return chosen().filter(needsPick); }
   function renderSheet() {
     var list = $('inqlist'); list.innerHTML = '';
     var its = chosen();
     its.forEach(function (it) {
-      var r = el('div', 'srow');
-      var left = el('div', 'sl'); left.appendChild(el('b', '', plain(it) + optText(it)));
+      var np = needsPick(it);
+      var r = el('div', 'srow' + (np ? ' todo' : ''));
+      var left = el('div', 'sl'); left.appendChild(el('b', '', plain(it) + (np ? '' : optText(it))));
+      if (np) left.appendChild(el('small', 'need', '👉 請選' + it.optLabel + '，才算得出價錢'));
       var w = fitWarn(it); if (w) left.appendChild(el('small', 'warn', w));
       if (it.opts) {
         var oc = el('div', 'sopts');
@@ -355,8 +360,8 @@
         left.appendChild(oc);
       }
       r.appendChild(left);
-      var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : (it.optPrice ? '先選尺寸' : '請報價'))));
-      var x = el('button', 'sx', '✕'); x.type = 'button'; x.setAttribute('aria-label', '移除'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
+      var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : (it.optPrice ? '待選' + it.optLabel : '請報價'))));
+      var x = el('button', 'sx', '移除'); x.type = 'button'; x.setAttribute('aria-label', '移除這一項'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
       r.appendChild(x); list.appendChild(r);
     });
     $('inqveh').textContent = ''; vehChips($('inqvehbox'), false);
@@ -367,6 +372,11 @@
     $('inqtot').textContent = h.replace(/\n$/, '');
     var mo = vp ? monthly(vp + t) : 0; $('inqmo').textContent = mo ? '全額貸款 84 期，月付約 ' + money(mo) + '（概算，實際依銀行核貸為準）' : '';
     $('inqprev').style.display = 'none';
+    var pd = pending(), ok = pd.length === 0;
+    $('inqwarn').style.display = ok ? 'none' : 'block';
+    $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
+    ['inqline', 'inqimg', 'inqcopy'].forEach(function (id) { $(id).disabled = !ok; });
+    $('inqline').textContent = ok ? '💬 傳給業務（LINE）' : '請先把橘色項目選完';
   }
   function openSheet() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
   function closeSheet() { $('inqsheet').style.display = 'none'; document.body.style.overflow = ''; }
@@ -449,7 +459,7 @@
     $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
     $('inqcopy').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製'); toast('已複製，貼到 LINE 傳給我就好'); }); };
-    $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製，正在開 LINE…'); toast('已複製，貼上後傳送'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
+    $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已準備好，正在打開 LINE…'); toast('內容已準備好！到 LINE 對話框長按 →「貼上」→ 送出'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
     $('inqimg').onclick = saveImage;
     $('inqreset').onclick = resetAll;
     $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };
