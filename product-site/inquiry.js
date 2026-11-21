@@ -547,7 +547,7 @@
       return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : '請報價')), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
-    var H = 210 + 56 + (S.phone.trim() ? 40 : 0) + (basementText() ? 40 : 0) + (hasAsk() ? 30 : 0) + ((vehPrice() || total()) ? 120 : 0);
+    var H = 210 + 56 + (S.phone.trim() ? 40 : 0) + (basementText() ? 40 : 0) + (hasAsk() ? 30 : 0) + ((vehPrice() || total()) ? 156 : 0);
     rows.forEach(function (r) { H += r.lines.length * 36 + 20 + (r.warn ? 28 : 0); });
     H += 40 + 70 + (vehPrice() ? 44 : 0) + (total() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 40;
     c.width = W * 2; c.height = H * 2; g.scale(2, 2);
@@ -578,9 +578,11 @@
     if (t) line(akI ? '配件合計（不含待報價）' : '配件合計', t, !vp);
     if (vp && t) line(akI ? '車＋配件（不含待報價）' : '車＋配件', vp + t, true);
     if (vp || t) {
-      y += 4; g.fillStyle = '#fff5f6'; g.fillRect(pad, y, W - pad * 2, 96); g.strokeStyle = '#d9453b'; g.lineWidth = 3; g.strokeRect(pad + 1.5, y + 1.5, W - pad * 2 - 3, 93);
-      g.fillStyle = '#d9453b'; g.font = '800 30px ' + FONT; g.fillText(PROMO1, pad + 20, y + 40);
-      g.fillStyle = '#2f2a25'; g.font = '700 25px ' + FONT; g.fillText(PROMO2, pad + 20, y + 76); y += 120;
+      y += 4; g.fillStyle = '#fff5f6'; g.fillRect(pad, y, W - pad * 2, 130); g.strokeStyle = '#d9453b'; g.lineWidth = 4; g.strokeRect(pad + 2, y + 2, W - pad * 2 - 4, 126);
+      g.textAlign = 'center';
+      g.fillStyle = '#d9453b'; g.font = '800 40px ' + FONT; g.fillText(PROMO1, W / 2, y + 56);
+      g.fillStyle = '#2f2a25'; g.font = '800 31px ' + FONT; g.fillText(PROMO2, W / 2, y + 105);
+      g.textAlign = 'left'; y += 156;
     }
     if (noteLines.length) { g.fillStyle = '#4b4137'; g.font = '24px ' + FONT; y += 6; noteLines.forEach(function (ln) { g.fillText(ln, pad, y); y += 34; }); y += 10; }
     g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; if (hasAsk()) { g.fillText(askNote(), pad, y + 20); y += 30; }
