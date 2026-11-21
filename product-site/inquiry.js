@@ -17,9 +17,9 @@
   // fit：只提醒適用車型，不擋；byCab：價格依車廂；opts：要選的顏色／款式
   var I = {};
   function add(id, n, p, x) { var o = { id: id, n: n, p: p }; if (x) for (var k in x) o[k] = x[k]; I[id] = o; return o; }
-  add('safe', '安全科技版', 40000, { note: '標準版加購' });
-  add('special', '特仕版', 30000, { note: '標準版加購' });
-  add('wheelsw', '原裝多功能方向盤', 20000, { note: '標準版加購' });
+  add('safe', '安全科技版', 40000, { note: '選配' });
+  add('special', '特仕版', 30000, { note: '選配' });
+  add('wheelsw', '原裝多功能方向盤', 20000, { note: '選配' });
   add('ledset', 'LED 燈組升級組合（全車LED＋LED霧燈＋室內牌照燈＋極光側邊照地燈）', 15000);
   add('mirror-led', 'LED 韓版後照鏡', 8500);
   add('mirror-view', '後照鏡組－全視線', 5000);
@@ -38,7 +38,7 @@
   add('paint-s', '車身烤漆改色（單廂）', 36000, { cab: '單廂', note: '標準色消光黑，使用烤漆爐烘烤' });
   add('paint-l', '車身烤漆改色（大單廂）', 37000, { cab: '大單廂', note: '標準色消光黑，使用烤漆爐烘烤' });
   add('paint-d', '車身烤漆改色（雙廂）', 39000, { cab: '雙廂', note: '標準色消光黑，使用烤漆爐烘烤' });
-  add('paint-matte', '消光霧面（雙層消光漆）加價', 8000);
+  add('paint-matte', '消光漆／珍珠漆工法　加價', 8000, { keep: 1, note: '消光霧面(30度)效果為雙層消光漆' });
   add('rob2', 'roberlo 防刮漆料（2~2.5呎尾門）', 9000);
   add('rob3', 'roberlo 防刮漆料（3~3.5呎尾門）', 10000);
   add('rob4', 'roberlo 防刮漆料（4~4.5呎尾門）', 11000);
@@ -201,7 +201,7 @@
     if (withHead) {
       var cg = el('div', 'cabs'); CABS.forEach(function (c) {
         var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); b.appendChild(el('strong', '', minPrice(c) + ' 萬起'));
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); st.appendChild(document.createTextNode((dv || minPrice(c)) + ' 萬')); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
         cg.appendChild(b);
       }); card.appendChild(cg);
     } else {
@@ -226,8 +226,10 @@
       var it = I[id]; var row = el('div', 'irow'); row.setAttribute('data-iid', id);
       var top = el('button', 'itop'); top.type = 'button';
       top.appendChild(el('span', 'box', '✓'));
-      var nm = el('span', 'inm'); nm.appendChild(document.createTextNode(it.n));
+      var mm = (!it.cab && !it.keep) ? it.n.match(/^(.*?)（([^）]{6,})）$/) : null;
+      var nm = el('span', 'inm'); nm.appendChild(document.createTextNode(mm ? mm[1] : it.n));
       var tag = fitTag(it); if (tag) nm.appendChild(el('em', '', tag));
+      if (mm) { nm.appendChild(el('br')); nm.appendChild(el('small', 'inote', mm[2])); }
       if (it.note) { nm.appendChild(el('br')); nm.appendChild(el('small', 'inote', it.note)); }
       top.appendChild(nm);
       top.appendChild(el('span', 'ipr', ''));
