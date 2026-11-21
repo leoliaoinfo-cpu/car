@@ -91,11 +91,11 @@
   add('bd-air', '貨車導流板', null, { keep: 1 });
   add('bd-h1', 'H架（一支）', null, { keep: 1 });
   add('bd-h2', 'H架（兩支一組）', null, { keep: 1 });
-  add('fl-rub-full', '貨斗橡膠墊－全封', null, { keep: 1 });
-  add('fl-rub-bottom', '貨斗橡膠墊－只鋪底面', null, { keep: 1 });
-  add('fl-galv', '錏花板（鍍鋅鐵板）　台語：灰板（花紋的）', null, { keep: 1 });
-  add('fl-galv-flat', '錏花平板（鍍鋅鋼板）　台語：灰板（沒花紋的）', null, { keep: 1 });
-  add('fl-stainless', '貨斗白鐵底板', null, { keep: 1 });
+  add('fl-rub-full', '橡膠墊－全封', null, { keep: 1 });
+  add('fl-rub-bottom', '橡膠墊－只鋪底面', null, { keep: 1 });
+  add('fl-galv', '花板（鍍鋅鐵板）花紋款', null, { keep: 1 });
+  add('fl-galv-flat', '平板（鍍鋅鋼板）平面光滑款', null, { keep: 1 });
+  add('fl-stainless', '白鐵底板（抗生鏽）', null, { keep: 1 });
   var H3 = ['標準高　斗上約 148cm', '降低版　最低斗上約 130cm（平頂）', '加高 1 台尺　斗上約 178cm'];
   var H5 = ['標準高', '降低版', '加高 1 台尺'];
   var NOPT = function (arr) { var o = {}; arr.forEach(function (k) { o[k] = null; }); return o; };
