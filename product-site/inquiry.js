@@ -239,6 +239,7 @@
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
+    if (withHead && S.cab && S.drive) { var nx = el('button', 'vnext', '下一步，挑配件 ›'); nx.type = 'button'; nx.onclick = function () { var g = $('groups'); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.appendChild(nx); }
     if (withHead) box.appendChild(card);
   }
   function renderVeh() { var box = $('veh'); if (box) vehChips(box, true); }
@@ -364,7 +365,7 @@
       var mo = vehPrice() ? monthly(grand()) : 0;
       $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : (S.own ? '・一次付清' : ''));
       $('inqn').textContent = '已選 ' + n + ' 項';
-      var g2 = grand(); $('inqtl').textContent = (vehPrice() ? '車＋' : '') + (hasAsk() && total() ? '已標價配件共' : '配件共'); $('inqt').textContent = g2 ? money(g2) : '洽業務報價';
+      var g2 = grand(); $('inqtl').textContent = (vehPrice() ? '車＋' : '') + (hasAsk() && total() ? '配件共（不含待報價）' : '配件共'); $('inqt').textContent = g2 ? money(g2) : '洽業務報價';
     }
   }
 
@@ -417,13 +418,13 @@
     var ak = hasAsk();
     if (vp || t || ak) L.push('');
     if (vp) L.push('車價：' + money(vp));
-    if (t) L.push((ak ? '已標價配件合計：' : '配件合計：') + money(t));
-    if (vp && t) L.push((ak ? '車＋已標價配件：' : '車＋配件：') + money(vp + t));
+    if (t) L.push((ak ? '配件合計（不含待報價項目）：' : '配件合計：') + money(t));
+    if (vp && t) L.push((ak ? '車＋配件（不含待報價項目）：' : '車＋配件：') + money(vp + t));
     if (S.own) { if (t) L.push('付款方式：改裝需一次付清（不能貸款）'); }
     else if (vp) L.push('付款方式：全額貸款 84 期，月付約 ' + money(monthly(vp + t)) + '（概算，實際依銀行核貸為準）');
     if (hasAsk()) L.push('', askNote());
     if (S.note.trim()) L.push('', '備註：' + S.note.trim());
-    L.push('', '＊價格依網頁標示，實際以現場報價為準');
+    L.push('', '＊實際價格以現場報價為準');
     return L.join('\n');
   }
 
@@ -461,13 +462,13 @@
       rc.appendChild(rl);
       var tt = total(), vv = vehPrice(), ft = el('div', 'rt');
       function tr(lb, v, big) { var d = el('div', big ? 'big' : ''); d.appendChild(el('span', '', lb)); d.appendChild(el('b', '', money(v))); ft.appendChild(d); }
-      var ak2 = hasAsk(); if (vv) tr('車價', vv); if (tt) tr(ak2 ? '已標價配件合計' : '配件合計', tt, !vv); if (vv && tt) tr(ak2 ? '車＋已標價配件' : '車＋配件', vv + tt, true);
+      var ak2 = hasAsk(); if (vv) tr('車價', vv); if (tt) tr(ak2 ? '配件合計（不含待報價）' : '配件合計', tt, !vv); if (vv && tt) tr(ak2 ? '車＋配件（不含待報價）' : '車＋配件', vv + tt, true);
       rc.appendChild(ft);
       var mm = vv ? monthly(vv + tt) : 0;
       if (mm) rc.appendChild(el('div', 'rm', '買車含改裝，全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
       else if (S.own && tt) rc.appendChild(el('div', 'rm', '只做改裝不能貸款，需一次付清'));
       if (hasAsk()) rc.appendChild(el('div', 'rf', askNote()));
-      rc.appendChild(el('div', 'rf', '＊價格依網頁標示，實際以現場報價為準'));
+      rc.appendChild(el('div', 'rf', '＊實際價格以現場報價為準'));
       list.appendChild(rc);
     }
     $('inqveh').textContent = ''; vehChips($('inqvehbox'), false);
@@ -538,11 +539,11 @@
     function line(lb, v, big) { g.fillStyle = '#2f2a25'; g.font = (big ? '800 32px ' : '700 27px ') + FONT; g.fillText(lb, pad, y); g.fillStyle = '#d9453b'; g.textAlign = 'right'; g.fillText(money(v), W - pad, y); g.textAlign = 'left'; y += 44; }
     if (vp) line('車價', vp);
     var akI = hasAsk();
-    if (t) line(akI ? '已標價配件合計' : '配件合計', t, !vp);
-    if (vp && t) line(akI ? '車＋已標價配件' : '車＋配件', vp + t, true);
+    if (t) line(akI ? '配件合計（不含待報價）' : '配件合計', t, !vp);
+    if (vp && t) line(akI ? '車＋配件（不含待報價）' : '車＋配件', vp + t, true);
     if (noteLines.length) { g.fillStyle = '#4b4137'; g.font = '24px ' + FONT; y += 6; noteLines.forEach(function (ln) { g.fillText(ln, pad, y); y += 34; }); y += 10; }
     g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; if (hasAsk()) { g.fillText(askNote(), pad, y + 20); y += 30; }
-    g.fillText('＊價格依網頁標示，實際以現場報價為準', pad, y + 20);
+    g.fillText('＊實際價格以現場報價為準', pad, y + 20);
     return c;
   }
   function saveImage() {
