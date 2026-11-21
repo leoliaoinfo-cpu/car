@@ -96,7 +96,7 @@
   add('fl-galv-flat', '平板（鍍鋅鋼板）平面光滑款', null, { keep: 1 });
   add('fl-stainless', '白鐵底板（抗生鏽）', null, { keep: 1 });
   var H3 = ['標準高　斗上約 148cm', '降低版　最低斗上約 130cm（平頂）', '加高 1 台尺　斗上約 178cm'];
-  var H5 = ['標準高', '降低版', '加高 1 台尺'];
+  var H5 = H3; // 五面與三面同樣三種高度（使用者 2026-11-21：高度要同步）
   var NOPT = function (arr) { var o = {}; arr.forEach(function (k) { o[k] = null; }); return o; };
   add('cv-three', '三面帆布', null, { keep: 1, grp: 'canvas', head: '帆布（三面或五面）', optLabel: '高度', opts: H3, note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
   add('cv-five', '五面帆布（左右面各兩片）', null, { keep: 1, grp: 'canvas', fit: '單廂', optLabel: '高度', opts: H5 });
