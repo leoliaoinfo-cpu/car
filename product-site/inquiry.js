@@ -247,7 +247,6 @@
     if (withHead) {
       card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（不確定可以跳過）' : '① 你想買哪一種車？'));
       if (S.own || S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
-      var ch = el('button', 'pchg', (S.own ? '只想改裝' : '買新車') + ' ✎'); ch.type = 'button'; ch.onclick = function () { S.path = ''; S.own = false; refresh(); }; card.appendChild(ch);
     }
     var showCab = S.own || S.drive || S.cab;
     var dq = el('div', 'veh-q', withHead ? '先選：車子怎麼開、幾個輪子有動力' : ''); if (withHead) card.appendChild(dq);
