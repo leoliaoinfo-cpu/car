@@ -122,6 +122,7 @@
         sec.appendChild(list);
         // 下一類：一路看下去，不用自己找
         var nextG = shown[si + 1];
+        sec.appendChild(el('div', 'catsum'));
         var nb = el('button', 'nextbtn', nextG != null ? '下一類：' + groups[nextG].t + '　›' : '選完了 → 看我的詢價單　›');
         nb.type = 'button'; nb.onclick = function () { setTab(nextG != null ? 'g' + nextG : 'sum'); };
         sec.appendChild(nb);
@@ -225,6 +226,11 @@
   })();
 
   // 讓詢價單等處可以直接跳到某張產品圖（例：雙廂高階套裝）
+  window.KPGotoVeh = function () {
+    var gi = -1; groups.forEach(function (g, i) { if (gi < 0 && g.i.indexOf('price') >= 0) gi = i; });
+    if (gi < 0) gi = 0; setTab('g' + gi);
+    setTimeout(function () { var v = $('veh'); if (v) v.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+  };
   window.KPGotoTab = function (id) { setTab(id); };
   window.KPGoto = function (imgKey) {
     var gi = -1; groups.forEach(function (g, i) { if (gi < 0 && g.i.indexOf(imgKey) >= 0) gi = i; });

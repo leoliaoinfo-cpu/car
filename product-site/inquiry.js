@@ -142,16 +142,16 @@
       : 'https://line.me/R/share?text=' + encodeURIComponent(txt);
   }
   var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
-  var S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
+  var S = { path: '', own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
-  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.path = old.path === 'buy' || old.path === 'own' ? old.path : ''; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
     var any = S.cab || S.drive || chosen().length || S.name || S.phone || S.note || hadSaved;
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
-    S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '', pkgBackup: null }; hadSaved = false; promoDone = false;
+    S = { own: false, path: '', cab: '', drive: '', sel: {}, name: '', phone: '', note: '', pkgBackup: null }; hadSaved = false; promoDone = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
     refresh(); closeSheet(); toast('已重置，重新開始');
   }
@@ -212,7 +212,7 @@
       if (S.own || S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
       card.appendChild(el('div', 'veh-s', S.own ? '不用算車價。選了車廂和驅動，我會提醒哪些配件裝得上' : '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
       var ob = el('button', 'ownbtn' + (S.own ? ' on' : ''), S.own ? '✓ 我已經有車，只想改裝（點這裡改回「要買車」）' : '🔧 我已經有車，只想改裝（不買新車）'); ob.type = 'button';
-      ob.onclick = function () { S.own = !S.own; refresh(); }; card.appendChild(ob);
+      ob.onclick = function () { S.own = !S.own; S.path = S.own ? 'own' : 'buy'; refresh(); }; card.appendChild(ob);
     }
     var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
     if (withHead) {
@@ -312,8 +312,17 @@
       v.b.textContent = has ? '更改' : '去選車型 ›';
     });
   }
+  function syncPath() { var b = $('pathBuy'), o = $('pathOwn'); if (b) b.classList.toggle('on', S.path === 'buy'); if (o) o.classList.toggle('on', S.path === 'own'); }
+  function choosePath(own) { S.own = own; S.path = own ? 'own' : 'buy'; refresh(); if (window.KPGotoVeh) KPGotoVeh(); }
   function syncCounts() {
-    syncVbars();
+    syncVbars(); syncPath();
+    Array.prototype.forEach.call(document.querySelectorAll('.pane'), function (pn) {
+      var cs = pn.querySelector('.catsum'); if (!cs) return;
+      var n = 0, t = 0;
+      Array.prototype.forEach.call(pn.querySelectorAll('.irow.on'), function (r) { var it = I[r.getAttribute('data-iid')]; if (!it) return; n++; var pr = priceOf(it); if (pr) t += pr; });
+      cs.classList.toggle('on', n > 0);
+      cs.innerHTML = ''; if (n > 0) { cs.appendChild(el('span', '', '這一類你選了 ' + n + ' 項')); cs.appendChild(el('b', '', t ? money(t) : '洽業務報價')); }
+    });
     Array.prototype.forEach.call(document.querySelectorAll('#nav a'), function (a) {
       var pane = document.getElementById(a.getAttribute('data-t')); if (!pane) return;
       var n = a.getAttribute('data-t') === 'sum' ? chosen().length : pane.querySelectorAll('.irow.on').length, b = a.querySelector('.tc');
@@ -332,7 +341,12 @@
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
     document.body.classList.toggle('has-inq', n > 0);
-    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
+    if (n) {
+      var mo = vehPrice() ? monthly(grand()) : 0;
+      $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : '');
+      $('inqn').textContent = '已選 ' + n + ' 項';
+      var g2 = grand(); $('inqtl').textContent = vehPrice() ? '車＋配件共' : '配件共'; $('inqt').textContent = g2 ? money(g2) : '洽業務報價';
+    }
   }
 
   // 換車型後，不適用的配件自動取消勾選並提醒
@@ -520,6 +534,8 @@
     prune(); renderVeh(); syncRows(); syncCounts(); syncBar();
     $('inqbar').onclick = openSheet;
     function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
+    $('pathBuy').onclick = function () { choosePath(false); };
+    $('pathOwn').onclick = function () { choosePath(true); };
     $('promoNo').onclick = function () { $('promo').style.display = 'none'; };
     $('promoYes').onclick = takePkg;
     $('promoGo').onclick = function () { $('promo').style.display = 'none'; closeSheet(); if (window.KPGoto) KPGoto('package'); };
