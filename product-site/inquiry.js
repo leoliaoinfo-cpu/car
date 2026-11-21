@@ -331,7 +331,7 @@
     if (gone.length) toast('已取消不適用的配件：' + gone.join('、'));
   }
   // ===== 雙廂高階套裝推薦：選了雙廂＋二輪驅動，且已選的配件裡「套裝涵蓋的項目」合計 ≥ 20 萬才跳提醒；客人按了才換，換了可以一鍵改回 =====
-  var PKG_COVERS = ['special', 'wheelsw', 'safe', 'mirror-led', 'gtr', 'fog', 'ts', 'audio', 'side-step', 'travel', 'urea', 'phone2', 'omega', 'tail', 'puddle'];
+  var PKG_COVERS = ['special', 'wheelsw', 'safe', 'mirror-led', 'gtr', 'fog', 'ts', 'audio', 'side-step', 'travel', 'urea', 'phone2', 'omega', 'tail', 'puddle', 'aero-chin'];
   var PKG_THRESHOLD = 200000, promoDone = false;
   function pkgEligible() { return S.cab === '雙廂' && S.drive.indexOf('2WD') === 0; }
   function coveredSelected() { return PKG_COVERS.filter(function (id) { return S.sel[id]; }); }
