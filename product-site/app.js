@@ -10,7 +10,7 @@
     cabin1: '車室細節升級', guard: '防護收納配件', extlight: '外觀燈飾與警示', comfort: '車室舒適升級',
     peri1: '實用周邊升級', func: '車室機能配件', cabin2: '車室實用配件', peri2: '周邊機能配件',
     gps: '4G GPS 車輛定位器', 'gps-app': '智慧定位五大核心功能',
-    'cfg-tailgate': '尾門', 'cfg-canvas': '帆布', 'cfg-box': '車廂體（冷凍冷藏箱・電動歐翼・露營箱體）', 'cfg-body': '客製車體（H 架・導流板）', 'cfg-floor': '貨斗底板'
+    'cfg-tailgate': '尾門', 'cfg-canvas': '帆布・硬頂・棚頂', 'cfg-box': '車廂體（冷凍冷藏箱・電動歐翼・露營箱體）', 'cfg-body': '客製車體（H 架・導流板）', 'cfg-floor': '貨斗底板'
   };
   // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
   var SIZE = {
@@ -32,7 +32,7 @@
   ];
   // 併圖：副圖 → 主圖（副圖不另外開卡，放在主圖卡的下面一起介紹、一起勾選）
   var PAIR = { 'gps-app': 'gps' };
-  var CFG_SUB = { 'cfg-tailgate': '選尺寸，價格由業務報價；油壓缸與配件要先選升降尾門', 'cfg-canvas': '高度寫在每個名稱裡，價格由業務報價', 'cfg-box': '鋁塑車廂是大單廂 9.7 尺規格（室內高 2.5／2.6 米二選一）；價格都由業務依規格報價' };
+  var CFG_SUB = { 'cfg-tailgate': '選尺寸，價格由業務報價；油壓缸與配件要先選升降尾門', 'cfg-canvas': '價格由業務報價', 'cfg-box': '鋁塑車廂是大單廂 9.7 尺規格（室內高 2.5／2.6 米二選一）；價格都由業務依規格報價' };
   var KEY = 'kp-cfg';
   // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
   // 第一次在後台按「儲存發佈」會自動建立，ID 填進下面這行後客戶端就會讀它。
@@ -235,7 +235,9 @@
     curMode = m;
     document.body.classList.remove('m-cover', 'm-gal', 'm-inq'); document.body.classList.add('m-' + m);
     if (!fromPop) { try { history.pushState({ m: m }, ''); } catch (e) {} }
-    window.scrollTo(0, 0);
+    var de = document.documentElement; de.style.scrollBehavior = 'auto'; window.scrollTo(0, 0);
+    requestAnimationFrame(function () { window.scrollTo(0, 0); setTimeout(function () { de.style.scrollBehavior = ''; }, 50); });
+    setTimeout(function () { if (curMode === m && window.pageYOffset < 120) { de.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); de.style.scrollBehavior = ''; } }, 300);
     if (m === 'inq' && window.KPInq) KPInq.sync();
     updCall();
   }

@@ -83,7 +83,7 @@
 
   // ===== 尾門／帆布／車廂體（規格與價格取自業務系統的報價選單；不含任何成本）=====
   add('tg-lift', '升降尾門', null, { keep: 1, optLabel: '尺寸', opts: ['2.5尺', '3尺', '3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '2.5尺': 37000, '3尺': 40000, '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '選尺寸；再選下面的油壓缸與配件' });
-  add('tg-fold', '雙折尾門', null, { keep: 1, optLabel: '尺寸', opts: ['3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '單折／雙折同尺寸同價；實際承重與施工規格需確認' });
+  add('tg-fold', '雙折尾門', null, { keep: 1, optLabel: '尺寸', opts: ['3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null } });
   add('tg-cyl2', '雙缸油壓缸（800～1,000kg）', 8000, { req: ['tg-lift'], note: '搭配升降尾門；實際承重依車型、平台與施工內容確認' });
   add('tg-cyl4', '四缸油壓缸（約1,200kg 特製規格）', null, { req: ['tg-lift'], note: '需確認載重、平台尺寸與車體後報價' });
   add('tg-step', '尾門腳踏', 1000, { req: ['tg-lift'], note: '升降尾門用輔助腳踏' });
@@ -96,19 +96,19 @@
   add('fl-galv', '錏花板（鍍鋅鐵板）　台語：灰板（花紋的）', null, { keep: 1 });
   add('fl-galv-flat', '錏花平板（鍍鋅鋼板）　台語：灰板（沒花紋的）', null, { keep: 1 });
   add('fl-stainless', '貨斗白鐵底板', null, { keep: 1 });
-  var CV = { '單廂': 0, '大單廂': 0, '雙廂': 0 };
-  function cvp(a, b) { return { '單廂': a, '大單廂': a, '雙廂': b }; }
-  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, grp: 'canvas', byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
-  add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, grp: 'canvas', byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
-  add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, grp: 'canvas', byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
-  add('cv-five-std', '五面帆布　標準高', null, { keep: 1, grp: 'canvas', fit: '單廂' });
-  add('cv-five-low', '五面帆布　降低版', null, { keep: 1, grp: 'canvas', fit: '單廂' });
-  add('cv-five-high', '五面帆布　加高 1 台尺', null, { keep: 1, grp: 'canvas', fit: '單廂' });
+  var H3 = ['標準高　斗上約 148cm', '降低版　最低斗上約 130cm（平頂）', '加高 1 台尺　斗上約 178cm'];
+  var H5 = ['標準高', '降低版', '加高 1 台尺'];
+  var NOPT = function (arr) { var o = {}; arr.forEach(function (k) { o[k] = null; }); return o; };
+  add('cv-three', '三面帆布', null, { keep: 1, grp: 'canvas', head: '帆布（三面或五面）', optLabel: '高度', opts: H3, note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
+  add('cv-five', '五面帆布（左右面各兩片）', null, { keep: 1, grp: 'canvas', fit: '單廂', optLabel: '高度', opts: H5 });
   add('cv-custom', '特殊訂製帆布', null, { grp: 'canvas', note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
-  add('cv-lift', '升降帆布', null, { optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null } });
+  add('cv-lift', '升降帆布', null, { head: '升降帆布', optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null } });
   add('cv-lift-color', '升降帆布選配　帆布換色', null, { req: ['cv-lift'], reqLabel: '升降帆布', optLabel: '顏色', opts: ['黑', '灰'] });
   add('cv-lift-light', '升降帆布選配　室內燈（4盞含開關）', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
   add('cv-lift-chain', '升降帆布選配　鍊目', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
+  var OPEN = ['傳統掀開', '氣壓棒掀開（內高會佔用 24 公分）'];
+  add('cv-hard', '硬頂', null, { keep: 1, grp: 'roof', head: '硬頂・棚頂', optLabel: '掀開方式', opts: OPEN });
+  add('cv-canopy', '棚頂', null, { keep: 1, grp: 'roof', optLabel: '掀開方式', opts: OPEN });
   add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu260', '鋁塑車廂　大單廂 9.7 尺　室內高 2.6 米', 84000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu-roof', '鋁塑車廂加購　特殊屋凸＋前凸', 33000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（約增加 700kg，不一定）' });
@@ -150,7 +150,7 @@
     peri2: ['charger2', 'opener', 'toolbox'],
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
-    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-five-std', 'cv-five-low', 'cv-five-high', 'cv-custom', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain'],
+    'cfg-canvas': ['cv-three', 'cv-five', 'cv-custom', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain', 'cv-hard', 'cv-canopy'],
     'cfg-body': ['bd-air', 'bd-h1', 'bd-h2'],
     'cfg-floor': ['fl-rub-full', 'fl-rub-bottom', 'fl-galv', 'fl-galv-flat', 'fl-stainless'],
     'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
@@ -285,7 +285,8 @@
     var wrap = el('div', 'items');
     wrap.appendChild(el('div', 'items-h', '想詢價就勾起來 👇'));
     ids.forEach(function (id) {
-      var it = I[id]; var row = el('div', 'irow'); row.setAttribute('data-iid', id);
+      var it = I[id]; if (it.head) wrap.appendChild(el('div', 'items-sub', it.head));
+      var row = el('div', 'irow'); row.setAttribute('data-iid', id);
       var top = el('button', 'itop'); top.type = 'button';
       top.appendChild(el('span', 'box', '✓'));
       var mm = (!it.cab && !it.keep) ? it.n.match(/^(.*?)（([^）]{6,})）$/) : null;
