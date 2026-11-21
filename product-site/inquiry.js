@@ -98,11 +98,15 @@
   add('fl-stainless', '貨斗白鐵底板', null, { keep: 1 });
   var CV = { '單廂': 0, '大單廂': 0, '雙廂': 0 };
   function cvp(a, b) { return { '單廂': a, '大單廂': a, '雙廂': b }; }
-  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
-  add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
-  add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
-  add('cv-custom', '特殊訂製帆布', null, { note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
-  add('cv-lift', '升降帆布', 130000, { note: '參考規格（卡旺單廂）：降低（平車頭）高 195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm，斗內高 150–240cm）' });
+  add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, grp: 'canvas', byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
+  add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, grp: 'canvas', byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
+  add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, grp: 'canvas', byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
+  add('cv-custom', '特殊訂製帆布', null, { grp: 'canvas', note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
+  add('cv-lift', '升降帆布', null, { optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null }, note: '規格（卡旺單廂）：共用尾門馬達（3尺）；帆布墨綠；後掀門；側邊單折鐵架（單截拚）；特殊電動升降（上可掀下可放）。更高版的旁邊鐵架與尾門空洞會變大' });
+  add('cv-lift-color', '升降帆布選配　帆布換色', null, { req: ['cv-lift'], reqLabel: '升降帆布', optLabel: '顏色', opts: ['黑', '灰'] });
+  add('cv-lift-light', '升降帆布選配　室內燈（4盞含開關）', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
+  add('cv-lift-chain', '升降帆布選配　鍊目', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
+  add('cv-lift-reg', '升降帆布選配　代辦變更', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
   add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu260', '鋁塑車廂　大單廂 9.7 尺　室內高 2.6 米', 84000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu-roof', '鋁塑車廂加購　特殊屋凸＋前凸', 33000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（約增加 700kg，不一定）' });
@@ -115,7 +119,7 @@
   Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0 || k.indexOf('bd-') === 0 || k.indexOf('fl-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
   function askCount() { return chosen().filter(function (it) { return it.ask; }).length; }
   function hasAsk() { return askCount() > 0; }
-  function askNote() { return total() ? '＊另有 ' + askCount() + ' 項（尾門・帆布・箱體）由業務依規格報價，不含在上方合計內' : '＊尾門・帆布・箱體共 ' + askCount() + ' 項，價格由業務依規格報價'; }
+  function askNote() { return total() ? '＊另有 ' + askCount() + ' 項待報價項目，由業務依規格報價，不含在上方合計內' : '＊待報價項目共 ' + askCount() + ' 項，價格由業務依規格報價'; }
   function basementText() { return S.basement === 'yes' ? '有' : S.basement === 'no' ? '沒有' : ''; }
   // 要選尺寸的項目（尾門）多一個「不確定，跟業務討論」，價格改成討論後報價
   var DISCUSS = '不確定，跟業務討論';
@@ -142,7 +146,7 @@
     peri2: ['charger2', 'opener', 'toolbox'],
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
-    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift'],
+    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain', 'cv-lift-reg'],
     'cfg-body': ['bd-air', 'bd-h1', 'bd-h2'],
     'cfg-floor': ['fl-rub-full', 'fl-rub-bottom', 'fl-galv', 'fl-galv-flat', 'fl-stainless'],
     'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
@@ -269,7 +273,6 @@
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
-    if (withHead && S.cab && S.drive) { var nx = el('button', 'vnext', '下一步，挑配件 ›'); nx.type = 'button'; nx.onclick = function () { var v = $('veh'), t = (v && v.nextElementSibling) || $('groups'); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 64, behavior: 'smooth' }); }; card.appendChild(nx); }
     if (withHead) box.appendChild(card);
   }
   function renderVeh() { var box = $('veh'); if (box) vehChips(box, true); }

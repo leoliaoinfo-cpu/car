@@ -23,7 +23,7 @@
   };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
-    { t: '尾門・帆布・箱體', i: ['cfg-tailgate', 'cfg-canvas', 'cfg-box', 'cfg-body', 'cfg-floor'] },
+    { t: '尾門・帆布・箱體・貨斗', i: ['cfg-tailgate', 'cfg-canvas', 'cfg-box', 'cfg-body', 'cfg-floor'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
     { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr', 'guard'] },
     { t: '配備與影音', i: ['android', 'audio', 'gps', 'gps-app'] },
