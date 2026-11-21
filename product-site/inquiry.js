@@ -343,7 +343,7 @@
     document.body.classList.toggle('has-inq', n > 0);
     if (n) {
       var mo = vehPrice() ? monthly(grand()) : 0;
-      $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : '');
+      $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (dl(S.drive) || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : (S.own ? '・一次付清' : ''));
       $('inqn').textContent = '已選 ' + n + ' 項';
       var g2 = grand(); $('inqtl').textContent = vehPrice() ? '車＋配件共' : '配件共'; $('inqt').textContent = g2 ? money(g2) : '洽業務報價';
     }
@@ -398,6 +398,8 @@
     if (vp) L.push('車價：' + money(vp));
     if (t) L.push('配件合計：' + money(t));
     if (vp && t) L.push('車＋配件：' + money(vp + t));
+    if (S.own) { if (t) L.push('付款方式：改裝需一次付清（不能貸款）'); }
+    else if (vp) L.push('付款方式：全額貸款 84 期，月付約 ' + money(monthly(vp + t)) + '（概算，實際依銀行核貸為準）');
     if (S.note.trim()) L.push('', '備註：' + S.note.trim());
     L.push('', '＊價格依網頁標示，實際以現場報價為準');
     return L.join('\n');
@@ -439,7 +441,8 @@
       if (vv) tr('車價', vv); if (tt) tr('配件合計', tt); if (vv && tt) tr('車＋配件', vv + tt, true);
       rc.appendChild(ft);
       var mm = vv ? monthly(vv + tt) : 0;
-      if (mm) rc.appendChild(el('div', 'rm', '全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
+      if (mm) rc.appendChild(el('div', 'rm', '買車含改裝，全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
+      else if (S.own && tt) rc.appendChild(el('div', 'rm', '只做改裝不能貸款，需一次付清'));
       rc.appendChild(el('div', 'rf', '＊價格依網頁標示，實際以現場報價為準'));
       list.appendChild(rc);
     }
