@@ -278,7 +278,11 @@
   window.KPGotoVeh = function () {
     var gi = -1; groups.forEach(function (g, i) { if (gi < 0 && g.i.indexOf('price') >= 0) gi = i; });
     if (gi < 0) gi = 0; setTab('g' + gi);
-    setTimeout(function () { var v = $('veh'); if (v) v.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+    // 手機瀏覽器的平滑捲動容易被版面變動打斷而停在半路，改成直接跳到定位，並在頭一秒內校正幾次
+    var stop = false, cancel = function () { stop = true; };
+    window.addEventListener('touchstart', cancel, { once: true, passive: true }); window.addEventListener('wheel', cancel, { once: true, passive: true });
+    var go = function () { var v = $('veh'); if (stop || !v) return; var top = v.getBoundingClientRect().top + window.pageYOffset - $('top').offsetHeight - 6; window.scrollTo(0, Math.max(0, top)); };
+    [60, 250, 600, 1100].forEach(function (t) { setTimeout(go, t); });
   };
   window.KPGotoTab = function (id) { setTab(id); };
   window.KPGoto = function (imgKey) {
