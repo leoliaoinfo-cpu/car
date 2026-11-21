@@ -103,7 +103,7 @@
   add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, grp: 'canvas', byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
   add('cv-five', '五面帆布', null, { keep: 1, grp: 'canvas', fit: '單廂' });
   add('cv-custom', '特殊訂製帆布', null, { grp: 'canvas', note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
-  add('cv-lift', '升降帆布', null, { optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null }, note: '規格（卡旺單廂）：共用尾門馬達（3尺）；帆布墨綠；後掀門；側邊單折鐵架（單截拚）；特殊電動升降（上可掀下可放）。更高版的旁邊鐵架與尾門空洞會變大' });
+  add('cv-lift', '升降帆布', null, { optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null } });
   add('cv-lift-color', '升降帆布選配　帆布換色', null, { req: ['cv-lift'], reqLabel: '升降帆布', optLabel: '顏色', opts: ['黑', '灰'] });
   add('cv-lift-light', '升降帆布選配　室內燈（4盞含開關）', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
   add('cv-lift-chain', '升降帆布選配　鍊目', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
