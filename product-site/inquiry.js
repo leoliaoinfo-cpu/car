@@ -552,14 +552,6 @@
         setTimeout(function () { window.open(LINE_ADD_URL, '_blank'); }, 700);
       });
     };
-    // 已是好友：直接把文字帶進 LINE 分享畫面
-    $('inqfriend').onclick = function () {
-      var txt = buildText();
-      copyText(txt, function () {
-        toast('打開 LINE 了，選「冠銘」再按送出');
-        setTimeout(function () { window.location.href = lineSendUrl(txt); }, 500);
-      });
-    };
     $('inqimg').onclick = saveImage;
     $('inqreset').onclick = resetAll;
     $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };

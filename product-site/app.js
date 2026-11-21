@@ -241,7 +241,7 @@
       if (f) { var top = f.getBoundingClientRect().top + window.pageYOffset - $('top').offsetHeight - 8; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); f.classList.add('in'); }
     }, 80);
   };
-  var seeCta = true;
+  var seeCta = false;
   function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || false); }
 
   // 圖片進入畫面時淡入；首屏已有大按鈕時收起底部聯絡列（避免重複）
@@ -251,7 +251,7 @@
     if (io2) io2.disconnect();
     io2 = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io2.unobserve(e.target); } }); }, { rootMargin: '0px 0px -8% 0px' });
     document.querySelectorAll('figure.card').forEach(function (f) { io2.observe(f); });
-    if (!observe.cta) { observe.cta = new IntersectionObserver(function (es) { seeCta = es[0].isIntersecting; updCall(); }, { threshold: 0.2 }); observe.cta.observe(document.querySelector('.cta')); }
+    if (!observe.cta) { observe.cta = new IntersectionObserver(function (es) { seeCta = es[0].isIntersecting; updCall(); }, { threshold: 0.2 }); var ctaEl = document.querySelector('.cta'); if (ctaEl) observe.cta.observe(ctaEl); }
     updCall();
   }
 
