@@ -513,7 +513,7 @@
     $('inqline').onclick = function () {
       var txt = buildText();
       copyText(txt, function () {
-        toast(LINE_OA_ID ? '打開 LINE 了，內容已放好，按送出就完成' : '打開 LINE 了，內容已放好，選「業務」再按送出');
+        toast(LINE_OA_ID ? '打開 LINE 了，內容已放好，按送出就完成' : '打開 LINE 了，內容已放好，選「冠銘」再按送出');
         setTimeout(function () { window.location.href = lineSendUrl(txt); }, 500);
       });
     };
