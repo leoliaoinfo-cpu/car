@@ -305,6 +305,44 @@ body.on-sum #inqbar,body.on-sum #call{display:none!important}
 .rcpt .rf{margin-top:12px;font-size:12.5px;color:var(--mute)}
 @media(max-width:719px){.sheet .rcpt{margin-right:0}}
 /* ===== 放大瀏覽 ===== */
+
+/* ===== 封面與配備菜單（相簿）===== */
+body.m-cover header.hero,body.m-cover #top,body.m-cover main,body.m-cover footer,body.m-cover #call,body.m-cover #inqbar,body.m-cover #gallery{display:none!important}
+body.m-gal header.hero,body.m-gal #top,body.m-gal main,body.m-gal #cover,body.m-gal #inqbar{display:none!important}
+body.m-inq #cover,body.m-inq #gallery{display:none!important}
+#cover{min-height:100vh;min-height:100svh;display:flex;flex-direction:column;background:var(--navy);color:#fff}
+.cv-top{max-width:760px;width:100%;margin:0 auto;padding:30px 18px 0}
+.cv-top h1{margin:0;font-size:38px;line-height:1.22;font-weight:700;letter-spacing:.01em}
+.cv-photo{position:relative;line-height:0;margin:auto 0}
+.cv-photo img{width:100%;height:auto;min-height:170px;max-height:46vh;object-fit:cover;object-position:center bottom;display:block}
+.cv-photo:before{content:"";position:absolute;left:0;right:0;top:0;height:55%;background:linear-gradient(180deg,var(--navy),rgba(5,20,31,0));z-index:1}
+.cv-photo:after{content:"";position:absolute;left:0;right:0;bottom:0;height:38%;background:linear-gradient(0deg,var(--navy),rgba(5,20,31,0));z-index:1}
+.cv-btns{margin-top:0;max-width:760px;width:100%;margin-left:auto;margin-right:auto;display:grid;gap:12px;padding:6px 18px calc(88px + env(safe-area-inset-bottom))}
+.cv-btns button{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:5px;text-align:left;border:0;padding:20px 54px 20px 20px;font-family:inherit;cursor:pointer;white-space:nowrap}
+.cv-btns button b{font-size:22px;font-weight:800;letter-spacing:.02em}
+.cv-btns button span{font-size:13.5px;font-weight:600}
+.cv-btns button:after{content:"›";position:absolute;right:20px;top:50%;transform:translateY(-52%);font-size:38px;font-weight:300;line-height:1}
+.cv-btns button:active{transform:scale(.985)}
+#cvGallery{background:#fff;color:var(--navy)}#cvGallery span{color:#5b6b78}
+#cvInq{background:var(--ac);color:#fff}#cvInq span{color:#ffd9de}
+@media(min-width:720px){.cv-btns{grid-template-columns:1fr 1fr}.cv-top h1{font-size:52px}.cv-top{padding-top:48px}}
+#gallery{background:#fff}
+#gtop{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;display:flex;align-items:stretch;min-height:62px}
+#gtop button{border:0;background:none;color:#fff;font-family:inherit;font-weight:700;font-size:15px;padding:0 16px;white-space:nowrap;cursor:pointer}
+#gtop #gback{font-weight:600}
+#gtop .gt{flex:1;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+#gtop #gask{background:var(--ac)}
+.gbody{max-width:1180px;margin:0 auto}
+.gbody .sh{margin-top:30px}
+.gcols{column-count:2;column-gap:10px;padding:0 18px}
+@media(min-width:720px){.gcols{column-count:3}}@media(min-width:1100px){.gcols{column-count:4}}
+.gi{display:block;width:100%;break-inside:avoid;margin:0 0 12px;padding:0;border:1px solid #e1e1e1;background:#fff;font-family:inherit;text-align:left;cursor:pointer;position:relative}
+.gi img{width:100%;height:auto;display:block;background:#f1f1f1}
+.gi span{display:block;padding:8px 9px 10px;font-size:13px;font-weight:700;line-height:1.35;color:var(--ink);word-break:keep-all}
+.gi:active{opacity:.86}
+.gend{max-width:760px;margin:20px auto 10px;padding:0 18px}
+.gend button{display:block;width:100%;border:0;background:var(--ac);color:#fff;font-family:inherit;font-size:19px;font-weight:800;padding:20px;white-space:nowrap;cursor:pointer}
+#nav a.tocover{border-top:1px solid #1d3347;color:#aab6c0;font-weight:600}
 #lb{display:none;position:fixed;inset:0;z-index:30;background:#fff;flex-direction:column}
 #lb .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;color:var(--ink);background:var(--navy);color:#fff}
 #lb .top span{font-size:15px;font-weight:700}
@@ -342,7 +380,7 @@ body.edit section h2{font-size:18px;margin:10px 0 8px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}figure.card{transition:none;opacity:1;transform:none}}
 </style>
 </head>
-<body>
+<body class="m-cover">
 <div id="bar"><span id="barmsg">拖拉照片調整順序，也可拖到別的分類</span><button id="save">儲存發佈</button><button class="g" id="copy">複製順序</button><button class="g" id="cfg">設定</button><button class="g" id="exit">離開</button></div>
 <div id="set"><div>
 <b>後台儲存設定（只存在這支手機）</b><br>
@@ -369,6 +407,17 @@ GitHub 權杖（token）
   <div class="zbar"><button id="lbm" type="button" aria-label="縮小">－</button><span id="lbz">100%</span><button id="lbpl" type="button" aria-label="放大">＋</button><button id="lbr" type="button">還原</button></div>
 </div>
 
+<section id="cover" aria-label="封面">
+  <div class="cv-top">
+    <div class="lbl">KIA 商用車彰化區總代理<span class="sep">｜</span><b>業務：冠銘</b></div>
+    <h1>挑好你的<br>卡旺 K2500</h1>
+  </div>
+  <div class="cv-photo"><img src="img/hero.webp" alt="卡旺 K2500 雙廂與單廂" width="1024" height="306"></div>
+  <div class="cv-btns">
+    <button type="button" id="cvGallery"><b>看配備菜單</b><span>照片一覽，直接看</span></button>
+    <button type="button" id="cvInq"><b>選配並詢價</b><span>選車型、勾配件，傳給業務</span></button>
+  </div>
+</section>
 <header class="hero">
   <div class="heroin">
     <div class="lbl">KIA 商用車彰化區總代理<span class="sep">｜</span><b>業務：冠銘</b></div>
@@ -418,6 +467,11 @@ GitHub 權杖（token）
 
 
 </main>
+<section id="gallery" aria-label="配備菜單">
+  <div id="gtop"><button type="button" id="gback">‹ 封面</button><span class="gt">配備菜單</span><button type="button" id="gask">選配並詢價 ›</button></div>
+  <div class="gbody" id="gbody"></div>
+  <div class="gend"><button type="button" id="gask2">選配並詢價　›</button></div>
+</section>
 <footer>
   <div class="fin">
     <div class="fbrand">KIA 卡旺 K2500</div>

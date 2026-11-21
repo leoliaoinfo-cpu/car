@@ -63,7 +63,7 @@
 
   var active = ''; // 目前顯示的分頁（g0、g1…或 contact）
   function pad(n) { return (n < 10 ? '0' : '') + n; }
-  function tabIds() { return Array.prototype.map.call($('nav').children, function (a) { return a.getAttribute('data-t'); }); }
+  function tabIds() { return Array.prototype.filter.call($('nav').children, function (a) { return a.getAttribute('data-t'); }).map(function (a) { return a.getAttribute('data-t'); }); }
 
   function render() {
     var root = $('groups'), nav = $('nav');
@@ -135,10 +135,12 @@
       sa.appendChild(el('i', '', pad(shown.length + 1))); sa.appendChild(document.createTextNode('我的詢價單'));
       sa.onclick = function (e) { e.preventDefault(); setTab('sum'); };
       nav.appendChild(sa);
+      var tc = el('a', 'tocover', '‹ 回封面'); tc.href = '#'; tc.onclick = function (e) { e.preventDefault(); setMode('cover'); }; nav.appendChild(tc);
       var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
       setTab(active, true);
       observe();
       if (window.KPInq) KPInq.sync();
+      buildGallery();
     }
   }
 
@@ -225,6 +227,48 @@
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) lbShow(LB.i + (dx < 0 ? 1 : -1));
     }, { passive: true });
   })();
+
+
+  // ===== 封面／配備菜單（相簿）／選配並詢價 三種模式 =====
+  var curMode = edit ? 'inq' : 'cover';
+  function setMode(m, fromPop) {
+    curMode = m;
+    document.body.classList.remove('m-cover', 'm-gal', 'm-inq'); document.body.classList.add('m-' + m);
+    if (!fromPop) { try { history.pushState({ m: m }, ''); } catch (e) {} }
+    window.scrollTo(0, 0);
+    if (m === 'inq' && window.KPInq) KPInq.sync();
+    updCall();
+  }
+  (function () {
+    document.body.classList.remove('m-cover', 'm-gal', 'm-inq'); document.body.classList.add('m-' + curMode);
+    try { history.replaceState({ m: curMode }, ''); } catch (e) {}
+    window.addEventListener('popstate', function (e) { setMode((e.state && e.state.m) || 'cover', true); });
+    $('cvGallery').onclick = function () { setMode('gal'); };
+    $('cvInq').onclick = function () { setMode('inq'); };
+    $('gback').onclick = function () { setMode('cover'); };
+    $('gask').onclick = $('gask2').onclick = function () { setMode('inq'); };
+  })();
+  function buildGallery() {
+    var box = $('gbody'); if (!box) return; box.innerHTML = '';
+    var all = [];
+    groups.forEach(function (g) { g.i.forEach(function (k) { if (k.indexOf('cfg-') !== 0 && IMGS[k]) all.push(k); }); });
+    var si = 0;
+    groups.forEach(function (g) {
+      var ks = g.i.filter(function (k) { return k.indexOf('cfg-') !== 0 && IMGS[k]; });
+      if (!ks.length) return; si++;
+      var sh = el('div', 'sh'); sh.appendChild(el('span', 'no', pad(si))); sh.appendChild(el('h2', '', g.t)); sh.appendChild(el('span', 'ct', ks.length + ' 張')); box.appendChild(sh);
+      var cols = el('div', 'gcols');
+      ks.forEach(function (k) {
+        var b = el('button', 'gi'); b.type = 'button';
+        var im = el('img'); im.src = 'img/' + k + '.webp'; im.alt = IMGS[k]; im.loading = 'lazy'; im.decoding = 'async';
+        if (SIZE[k]) { im.width = SIZE[k][0]; im.height = SIZE[k][1]; }
+        b.appendChild(im); b.appendChild(el('span', '', IMGS[k]));
+        b.onclick = function () { openLb(all, all.indexOf(k)); };
+        cols.appendChild(b);
+      });
+      box.appendChild(cols);
+    });
+  }
 
   // 讓詢價單等處可以直接跳到某張產品圖（例：雙廂高階套裝）
   window.KPGotoVeh = function () {
