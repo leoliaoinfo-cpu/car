@@ -29,9 +29,11 @@ h1,h2,p,.tip,footer,.shop span,figcaption span{text-wrap:balance;line-break:stri
 .cabcard strong{font-size:16px}
 .cabcard{padding:14px 2px}
 
+.topname{background:var(--ac);color:#fff;text-align:center;font-size:15px;font-weight:700;letter-spacing:.28em;padding:calc(8px + env(safe-area-inset-top)) 12px 8px}
+body.edit .topname{display:none}
 /* ===== 首屏：深藍黑底＋車輛照片 ===== */
 .hero{background:var(--navy);color:#fff;position:relative}
-.heroin{max-width:1180px;margin:0 auto;padding:calc(26px + env(safe-area-inset-top)) 18px 26px}
+.heroin{max-width:1180px;margin:0 auto;padding:26px 18px 26px}
 .lbl{display:inline-block;font-size:13px;font-weight:600;letter-spacing:.12em;color:#fff;padding-top:10px;border-top:2px solid #fff;margin-bottom:14px}
 .hero h1{margin:0 0 4px;font-size:30px;line-height:1.28;font-weight:700;letter-spacing:.01em}
 .hero h1 b{font-weight:700;color:#fff}
@@ -316,6 +318,7 @@ GitHub 權杖（token）
   <div class="zbar"><button id="lbm" type="button" aria-label="縮小">－</button><span id="lbz">100%</span><button id="lbpl" type="button" aria-label="放大">＋</button><button id="lbr" type="button">還原</button></div>
 </div>
 
+<div class="topname">冠銘專用</div>
 <header class="hero">
   <div class="heroin">
     <div class="lbl">KIA 商用車彰化區總代理</div>
