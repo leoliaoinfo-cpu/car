@@ -108,7 +108,7 @@
   add('cv-lift-chain', '升降帆布選配　鍊目', null, { req: ['cv-lift'], reqLabel: '升降帆布' });
   var OPEN = ['傳統掀開', '氣壓棒掀開（內高會佔用 24 公分）'];
   add('cv-roof', '硬頂或棚頂', null, { keep: 1, req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布', optLabel: '種類', opts: ['硬頂', '棚頂'] });
-  add('cv-open', '掀開方式', null, { keep: 1, req: ['cv-roof'], reqLabel: '硬頂或棚頂', optLabel: '方式', opts: OPEN });
+  add('cv-open', '掀開方式', null, { keep: 1, req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布', optLabel: '方式', opts: OPEN });
   add('cv-black', '帆布黑化', null, { keep: 1, head: '帆布黑化・噴畫', req: ['cv-three', 'cv-five', 'cv-custom', 'cv-lift'], reqLabel: '帆布' });
   add('cv-print', '噴畫', null, { keep: 1, req: ['cv-three', 'cv-five', 'cv-custom', 'cv-lift'], reqLabel: '帆布' });
   add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
