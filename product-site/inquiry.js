@@ -208,7 +208,7 @@
       card.appendChild(el('div', 'veh-q', '先選：車廂種類'));
       var cg = el('div', 'cabs'); CABS.forEach(function (c) {
         var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? dl(S.drive) : (Object.keys(VPRICE[c])[0] || '')));
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c]));  var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? dl(S.drive) : (Object.keys(VPRICE[c])[0] || '')));
         cg.appendChild(b);
       }); card.appendChild(cg);
     } else {
@@ -218,7 +218,6 @@
     var r2 = el('div', 'chips'); DRIVES.forEach(function (d) {
       r2.appendChild(chip(dl(d), S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
     }); card.appendChild(r2);
-    if (withHead) card.appendChild(el('div', 'veh-help', '手排＝要自己踩離合器打檔；自排＝自動變速，不用打檔。二輪驅動＝兩個輪子出力；四輪驅動＝四個輪子都出力。'));
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
