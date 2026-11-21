@@ -26,7 +26,7 @@
   add('ledset', 'LED 燈組升級組合（全車LED＋LED霧燈＋室內牌照燈＋極光側邊照地燈）', 15000);
   add('mirror-led', 'LED 韓版後照鏡', 8500);
   add('mirror-view', '後照鏡組－全視線', 5000);
-  add('horn-mod', '專用喇叭改裝', 2800);
+  add('horn-mod', '警示喇叭', 2800);
   add('phone2', '雙手機架組合（兩隻）', 3000, { optLabel: '固定方式', opts: ['重力', '磁吸'] });
   add('pkg-dbl', '雙廂高階套裝', 250000, { fit: '雙廂', note: '套餐價 25 萬（原價 275,000）' });
   add('android123', '12.3 吋安卓四錄旗艦機', 43800);
@@ -66,7 +66,6 @@
   add('toolbox', '貨斗側掛工具箱（大箱／灰色 625×365×320mm）', 8680);
   add('grille', '電鍍水箱護罩', 3680);
   add('cargo-led', '貨斗 LED 定位燈（一組4條）', 1990, { optLabel: '燈色', opts: ['藍紫', '白', '紅'] });
-  add('horn', '高低音警示喇叭', 2280);
   add('wheel-cover', '卡旺方向盤套', 600, { optLabel: '款式', opts: ['石墨灰', '硫石紅', '岩石棕', '紅色縫線'] });
   add('sunpad', '反折射避光墊（2021年後卡旺）', 589);
   add('armrest', '中央扶手靠枕', 820);
@@ -144,7 +143,7 @@
     boss: ['boss'], dr: ['dr'],
     cabin1: ['hana', 'shift', 'charger2'],
     guard: ['rail', 'toolbox'],
-    extlight: ['grille', 'cargo-led', 'horn'],
+    extlight: ['grille', 'cargo-led'],
     comfort: ['wheel-cover', 'sunpad', 'armrest', 'cushion'],
     peri1: ['sunshade', 'fuelcap', 'puddle'],
     func: ['phone-grip', 'cup-dbl', 'pedal'],
