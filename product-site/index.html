@@ -241,6 +241,8 @@ body.has-inq main{padding-bottom:230px}
 #promo p{margin:8px 0;font-size:15px;line-height:1.7;word-break:keep-all;overflow-wrap:anywhere}
 #promo .psm{font-size:13px;color:var(--mute)}
 #promo button{display:block;width:100%;margin-top:10px;border:0;padding:15px;font-size:16px;font-weight:700;font-family:inherit;background:var(--ac);color:#fff}
+#promo button.lk{background:none;color:var(--ac);border:0;padding:10px;font-size:14.5px}
+#inqpkg{display:none;width:100%;margin-top:10px;border:1px dashed var(--ink);background:#fff;color:var(--ink);font-family:inherit;font-weight:700;font-size:14.5px;padding:13px 10px}
 #promo button.g{background:#fff;color:var(--ink);border:1px solid var(--ink)}
 .irest{display:none;padding:0 14px 12px 14px}.irest button,.pkgnote button{border:1px solid var(--ink);background:#fff;color:var(--ink);font-family:inherit;font-weight:700;font-size:14px;padding:9px 14px}
 .pkgnote{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#e8f1fb;border-left:4px solid var(--navy);padding:10px 12px;margin-top:7px;font-weight:700;font-size:14px}
@@ -301,6 +303,7 @@ GitHub 權杖（token）
   <p class="psm">換成套裝時，只會取消套裝已經包含的那幾項。尾門、帆布等套裝沒有的項目都會保留，也可以隨時改回來。</p>
   <button id="promoYes" type="button">換成雙廂高階套裝</button>
   <button id="promoNo" type="button" class="g">不用，維持我選的</button>
+  <button id="promoGo" type="button" class="lk">先去看看雙廂高階套裝的內容 ›</button>
 </div></div>
 <div id="lb" role="dialog" aria-label="圖片放大">
   <div class="top"><span id="lbt"></span><button class="x" id="lbx" type="button" aria-label="關閉">✕</button></div>
@@ -366,6 +369,7 @@ GitHub 權杖（token）
   <div id="inqwarn" role="alert"></div>
   <div class="veh-box" id="inqvehbox"></div>
   <div id="inqlist"></div>
+  <button id="inqpkg" type="button">想看全配？去看「雙廂高階套裝」 ›</button>
   <details class="more"><summary>＋ 留稱呼、電話或想說的話（選填）</summary>
     <label>怎麼稱呼你<input id="inqname" maxlength="20" autocomplete="off"></label>
     <label>電話（選填，方便我回你）<input id="inqphone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="例如：0912-345-678"></label>

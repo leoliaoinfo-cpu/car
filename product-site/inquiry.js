@@ -409,6 +409,7 @@
     $('inqtot').textContent = h.replace(/\n$/, '');
     var mo = vp ? monthly(vp + t) : 0; $('inqmo').textContent = mo ? '全額貸款 84 期，月付約 ' + money(mo) + '（概算，實際依銀行核貸為準）' : '';
     $('inqprev').style.display = 'none';
+    var pk = $('inqpkg'); pk.style.display = pkgEligible() && !S.sel['pkg-dbl'] ? 'block' : 'none';
     var pd = pending(), ok = pd.length === 0;
     $('inqwarn').style.display = ok ? 'none' : 'block';
     $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
@@ -494,6 +495,8 @@
     function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
     $('promoNo').onclick = function () { $('promo').style.display = 'none'; };
     $('promoYes').onclick = takePkg;
+    $('promoGo').onclick = function () { $('promo').style.display = 'none'; closeSheet(); if (window.KPGoto) KPGoto('package'); };
+    $('inqpkg').onclick = function () { closeSheet(); if (window.KPGoto) KPGoto('package'); };
     $('inqname').oninput = function () { S.name = this.value; persist(); };
     $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };

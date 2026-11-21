@@ -105,7 +105,7 @@
             if (window.KPInq) KPInq.attach(cf, k);
             list.appendChild(cf); return;
           }
-          var f = el('figure', 'card');
+          var f = el('figure', 'card'); f.setAttribute('data-k', k);
           var ks = [k]; Object.keys(PAIR).forEach(function (m) { if (PAIR[m] === k && g.i.indexOf(m) >= 0) ks.push(m); });
           ks.forEach(function (kk) {
             var ph = el('div', 'ph'); var im = el('img');
@@ -221,6 +221,16 @@
     }, { passive: true });
   })();
 
+  // 讓詢價單等處可以直接跳到某張產品圖（例：雙廂高階套裝）
+  window.KPGoto = function (imgKey) {
+    var gi = -1; groups.forEach(function (g, i) { if (gi < 0 && g.i.indexOf(imgKey) >= 0) gi = i; });
+    if (gi < 0) return;
+    setTab('g' + gi);
+    setTimeout(function () {
+      var f = document.querySelector('#g' + gi + ' figure[data-k="' + imgKey + '"]');
+      if (f) { var top = f.getBoundingClientRect().top + window.pageYOffset - $('top').offsetHeight - 8; window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); f.classList.add('in'); }
+    }, 80);
+  };
   var seeCta = true;
   function updCall() { var c = $('call'); if (c) c.classList.toggle('hide', seeCta || active === 'contact'); }
 
