@@ -109,8 +109,8 @@
   var OPEN = ['傳統掀開', '氣壓棒掀開（內高會佔用 24 公分）'];
   add('cv-hard', '硬頂', null, { keep: 1, grp: 'roof', req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布', head: '硬頂・棚頂', optLabel: '掀開方式', opts: OPEN });
   add('cv-canopy', '棚頂', null, { keep: 1, grp: 'roof', req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布', optLabel: '掀開方式', opts: OPEN });
-  add('cv-black', '帆布黑化', null, { keep: 1, head: '帆布黑化・噴畫', req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布' });
-  add('cv-print', '噴畫', null, { keep: 1, req: ['cv-three', 'cv-five', 'cv-custom'], reqLabel: '帆布' });
+  add('cv-black', '帆布黑化', null, { keep: 1, head: '帆布黑化・噴畫', req: ['cv-three', 'cv-five', 'cv-custom', 'cv-lift'], reqLabel: '帆布' });
+  add('cv-print', '噴畫', null, { keep: 1, req: ['cv-three', 'cv-five', 'cv-custom', 'cv-lift'], reqLabel: '帆布' });
   add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu260', '鋁塑車廂　大單廂 9.7 尺　室內高 2.6 米', 84000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu-roof', '鋁塑車廂加購　特殊屋凸＋前凸', 33000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（約增加 700kg，不一定）' });
@@ -143,13 +143,13 @@
     metal: ['urea', 'side-step', 'skid4wd', 'rear-bar', 'roof-rack', 'travel'],
     boss: ['boss'], dr: ['dr'],
     cabin1: ['hana', 'shift', 'charger2'],
-    guard: ['skid4wd', 'rail', 'toolbox'],
+    guard: ['rail', 'toolbox'],
     extlight: ['grille', 'cargo-led', 'horn'],
     comfort: ['wheel-cover', 'sunpad', 'armrest', 'cushion'],
     peri1: ['sunshade', 'fuelcap', 'puddle'],
     func: ['phone-grip', 'cup-dbl', 'pedal'],
-    cabin2: ['cup-pad', 'armrest', 'pedal', 'cushion'],
-    peri2: ['charger2', 'opener', 'toolbox'],
+    cabin2: ['cup-pad'],
+    peri2: ['opener'],
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
     'cfg-canvas': ['cv-three', 'cv-five', 'cv-custom', 'cv-hard', 'cv-canopy', 'cv-black', 'cv-print', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain'],
