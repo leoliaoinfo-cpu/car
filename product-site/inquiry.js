@@ -98,8 +98,9 @@
   var H3 = ['標準高　斗上約 148cm', '降低版　最低斗上約 130cm（平頂）', '加高 1 台尺　斗上約 178cm'];
   var H5 = H3; // 五面與三面同樣三種高度（使用者 2026-11-21：高度要同步）
   var NOPT = function (arr) { var o = {}; arr.forEach(function (k) { o[k] = null; }); return o; };
-  add('cv-three', '三面帆布', null, { keep: 1, grp: 'canvas', head: '帆布（三面或五面）', optLabel: '高度', opts: H3, note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
-  add('cv-five', '五面帆布（左右面各兩片）', null, { keep: 1, grp: 'canvas', fit: '單廂', optLabel: '高度', opts: H5 });
+  add('cv-three', '三面帆布', null, { keep: 1, grp: 'canvas', head: '帆布（三面或五面）', note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
+  add('cv-five', '五面帆布（左右面各兩片）', null, { keep: 1, grp: 'canvas', fit: '單廂' });
+  add('cv-height', '帆布高度', null, { keep: 1, req: ['cv-three', 'cv-five'], reqLabel: '三面或五面帆布', optLabel: '高度', opts: H3 });
   add('cv-custom', '特殊訂製帆布', null, { grp: 'canvas', note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
   add('cv-lift', '升降帆布', null, { head: '升降帆布', optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null } });
   add('cv-lift-color', '升降帆布選配　帆布換色', null, { req: ['cv-lift'], reqLabel: '升降帆布', optLabel: '顏色', opts: ['黑', '灰'] });
@@ -151,7 +152,7 @@
     peri2: ['opener'],
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
-    'cfg-canvas': ['cv-three', 'cv-five', 'cv-custom', 'cv-roof', 'cv-open', 'cv-black', 'cv-print', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain'],
+    'cfg-canvas': ['cv-three', 'cv-five', 'cv-height', 'cv-custom', 'cv-roof', 'cv-open', 'cv-black', 'cv-print', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain'],
     'cfg-body': ['bd-air', 'bd-h1', 'bd-h2'],
     'cfg-floor': ['fl-rub-full', 'fl-rub-bottom', 'fl-galv', 'fl-galv-flat', 'fl-stainless'],
     'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
