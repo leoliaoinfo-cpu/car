@@ -461,7 +461,7 @@
     $('inqwarn').style.display = ok ? 'none' : 'block';
     $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
     ['inqline', 'inqimg', 'inqcopy'].forEach(function (id) { $(id).disabled = !ok; });
-    $('inqline').textContent = ok ? '💬 傳詢價單給業務（LINE）' : (its.length ? '請先把橘色項目選完' : '還沒選任何配件');
+    $('inqline').textContent = ok ? '💬 複製詢價單，並加業務 LINE' : (its.length ? '請先把橘色項目選完' : '還沒選任何配件');
   }
   function openSheet() { if (window.KPGotoTab) KPGotoTab('sum'); }
   function closeSheet() {}
@@ -545,16 +545,20 @@
     $('promoGo').onclick = function () { $('promo').style.display = 'none'; closeSheet(); if (window.KPGoto) KPGoto('package'); };
     $('inqpkg').onclick = function () { closeSheet(); if (window.KPGoto) KPGoto('package'); };
     $('inqcopy').onclick = function () { copyText(buildText(), function () { toast('已複製文字'); }); };
-    // 按下去：先複製（保險），再打開 LINE 並把詢價單文字帶進對話框
+    // 多數客人還沒加好友：先複製 → 開加好友頁 → 到聊天室貼上
     $('inqline').onclick = function () {
-      var txt = buildText();
-      copyText(txt, function () {
-        toast(LINE_OA_ID ? '打開 LINE 了，內容已放好，按送出就完成' : '打開 LINE 了，內容已放好，選「冠銘」再按送出');
-        setTimeout(function () { window.location.href = lineSendUrl(txt); }, 500);
+      copyText(buildText(), function () {
+        toast('已複製詢價單。加好友後，進聊天室長按 →「貼上」→ 送出');
+        setTimeout(function () { window.open(LINE_ADD_URL, '_blank'); }, 700);
       });
     };
+    // 已是好友：直接把文字帶進 LINE 分享畫面
     $('inqfriend').onclick = function () {
-      copyText(buildText(), function () { toast('已複製詢價單。加好友後，在對話框長按 →「貼上」→ 送出'); setTimeout(function () { window.open(LINE_ADD_URL, '_blank'); }, 600); });
+      var txt = buildText();
+      copyText(txt, function () {
+        toast('打開 LINE 了，選「冠銘」再按送出');
+        setTimeout(function () { window.location.href = lineSendUrl(txt); }, 500);
+      });
     };
     $('inqimg').onclick = saveImage;
     $('inqreset').onclick = resetAll;
