@@ -414,7 +414,9 @@
     $('inqwarn').style.display = ok ? 'none' : 'block';
     $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
     ['inqline', 'inqimg', 'inqcopy'].forEach(function (id) { $(id).disabled = !ok; });
-    $('inqline').textContent = ok ? '💬 傳給業務（LINE）' : '請先把橘色項目選完';
+    $('inqline').textContent = ok ? '💬 加業務 LINE' : '請先把橘色項目選完';
+    $('inqcopy').textContent = ok ? '📋 複製詢價單文字' : '請先把橘色項目選完';
+    $('inqcopied').style.display = 'none';
   }
   function openSheet() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
   function closeSheet() { $('inqsheet').style.display = 'none'; document.body.style.overflow = ''; }
@@ -500,8 +502,16 @@
     $('inqname').oninput = function () { S.name = this.value; persist(); };
     $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
-    $('inqcopy').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已複製'); toast('已複製，貼到 LINE 傳給我就好'); }); };
-    $('inqline').onclick = function () { var b = this; copyText(buildText(), function () { flash(b, '✓ 已準備好，正在打開 LINE…'); toast('內容已準備好！到 LINE 對話框長按 →「貼上」→ 送出'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 600); }); };
+    $('inqcopy').onclick = function () {
+      var b = this; copyText(buildText(), function () { b.textContent = '✓ 已複製（要重複製可再按）'; $('inqcopied').style.display = 'block'; toast('已複製！接著按第 2 步「加業務 LINE」'); });
+    };
+    $('inqline').onclick = function () {
+      // 就算客人沒按第 1 步，這裡也會先複製一次，確保貼得到
+      var b = this; copyText(buildText(), function () {
+        $('inqcopied').style.display = 'block'; $('inqcopied').textContent = '✓ 內容已複製。到 LINE 對話框長按 →「貼上」→ 送出！';
+        toast('內容已複製！進到 LINE 後，長按對話框 →「貼上」→ 送出'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 700);
+      });
+    };
     $('inqimg').onclick = saveImage;
     $('inqreset').onclick = resetAll;
     $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };
