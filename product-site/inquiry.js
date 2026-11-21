@@ -149,7 +149,6 @@
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
     S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '', pkgBackup: null }; hadSaved = false; promoDone = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
-    $('inqname').value = ''; $('inqphone').value = ''; $('inqnote').value = '';
     refresh(); closeSheet(); toast('已重置，重新開始');
   }
 
@@ -427,7 +426,7 @@
   }
   function openSheet() { if (window.KPGotoTab) KPGotoTab('sum'); }
   function closeSheet() {}
-  function showSum() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; renderSheet(); }
+  function showSum() { renderSheet(); }
 
   function toast(m) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 4000); }
   function copyText(txt, ok) {
@@ -504,9 +503,6 @@
     $('promoYes').onclick = takePkg;
     $('promoGo').onclick = function () { $('promo').style.display = 'none'; closeSheet(); if (window.KPGoto) KPGoto('package'); };
     $('inqpkg').onclick = function () { closeSheet(); if (window.KPGoto) KPGoto('package'); };
-    $('inqname').oninput = function () { S.name = this.value; persist(); };
-    $('inqphone').oninput = function () { S.phone = this.value; persist(); };
-    $('inqnote').oninput = function () { S.note = this.value; persist(); };
     $('inqcopy').onclick = function () { copyText(buildText(), function () { toast('已複製文字'); }); };
     // 按下去：先複製（保險），再打開 LINE 並把詢價單文字帶進對話框
     $('inqline').onclick = function () {
