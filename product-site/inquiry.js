@@ -127,16 +127,16 @@
 
   // ===== 狀態（只存在客人自己的手機）=====
   var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
-  var S = { cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
+  var S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
-  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
     var any = S.cab || S.drive || chosen().length || S.name || S.phone || S.note || hadSaved;
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
-    S = { cab: '', drive: '', sel: {}, name: '', phone: '', note: '' }; hadSaved = false;
+    S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' }; hadSaved = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
     $('inqname').value = ''; $('inqphone').value = ''; $('inqnote').value = '';
     refresh(); closeSheet(); toast('已重置，重新開始');
@@ -167,7 +167,7 @@
   }
 
   function chosen() { return Object.keys(S.sel).filter(function (id) { return I[id]; }).map(function (id) { return I[id]; }); }
-  function vehPrice() { var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null; return v ? Math.round(v * 10000) : 0; }
+  function vehPrice() { if (S.own) return 0; var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null; return v ? Math.round(v * 10000) : 0; }
   function grand() { return vehPrice() + total(); }
   var TAGS = { '單廂': '最經典 實用首選', '大單廂': '超大貨斗 工作效率更高', '雙廂': '載人載貨 兩用更彈性' };
   function minPrice(c) { var m = 0; Object.keys(VPRICE[c]).forEach(function (d) { var v = VPRICE[c][d]; if (!m || v < m) m = v; }); return m; }
@@ -175,6 +175,7 @@
   function monthly(amount) { if (!amount) return 0; var r = 0.045 / 12, n = 84; return Math.round(amount * r / (1 - Math.pow(1 + r, -n))); }
   function total() { var t = 0; chosen().forEach(function (it) { var p = priceOf(it); if (p) t += p; }); return t; }
   function vehicleText() {
+    if (S.own) return '我已有車，只想改裝' + (S.cab || S.drive ? '（' + [S.cab, S.drive].filter(Boolean).join('／') + '）' : '');
     if (!S.cab && !S.drive) return '';
     var s = (S.cab ? S.cab + ' ' + CAB_SUB[S.cab] : '') + (S.cab && S.drive ? '／' : '') + (S.drive || '');
     var v = S.cab && S.drive && VPRICE[S.cab] ? VPRICE[S.cab][S.drive] : null;
@@ -193,15 +194,17 @@
     box.innerHTML = '';
     var card = withHead ? el('div', 'veh-card') : box;
     if (withHead) {
-      card.appendChild(el('div', 'veh-h', '① 選你的車型（可略過）'));
-      if (S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
-      card.appendChild(el('div', 'veh-s', '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
+      card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（可略過）' : '① 選你的車型（可略過）'));
+      if (S.own || S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
+      card.appendChild(el('div', 'veh-s', S.own ? '不用算車價。選了車廂和驅動，我會提醒哪些配件裝得上' : '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
+      var ob = el('button', 'ownbtn' + (S.own ? ' on' : ''), S.own ? '✓ 我已有車，只想改裝（點一下改回買車）' : '🔧 我已有車，只想改裝（不買車）'); ob.type = 'button';
+      ob.onclick = function () { S.own = !S.own; refresh(); }; card.appendChild(ob);
     }
     var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
     if (withHead) {
       var cg = el('div', 'cabs'); CABS.forEach(function (c) {
         var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
         cg.appendChild(b);
       }); card.appendChild(cg);
     } else {
@@ -284,8 +287,8 @@
   }
   function syncVbars() {
     vbars.forEach(function (v) {
-      var has = S.cab || S.drive;
-      v.t.textContent = has ? '🚚 你的車：' + (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '🚚 還沒選車型（可略過）';
+      var has = S.own || S.cab || S.drive;
+      v.t.textContent = S.own ? '🔧 ' + vehicleText() : has ? '🚚 你的車：' + (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '🚚 還沒選車型（可略過）';
       v.b.textContent = has ? '更改' : '去選車型 ›';
     });
   }
@@ -309,7 +312,7 @@
     var n = chosen().length;
     bar.style.display = n ? 'flex' : 'none';
     document.body.classList.toggle('has-inq', n > 0);
-    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
+    if (n) { var mo = vehPrice() ? monthly(grand()) : 0; $('inqv').textContent = (S.own ? vehicleText() : S.cab || S.drive ? (S.cab || '車廂未選') + '／' + (S.drive || '驅動未選') : '還沒選車型（可略過）') + (mo ? '・月付約 ' + money(mo) : ''); $('inqn').textContent = n + ' 項'; var t = total(); var g = grand(); $('inqt').textContent = g ? (vehPrice() ? '車＋配件 ' : '配件 ') + money(g) : ''; }
   }
 
   // 換車型後，不適用的配件自動取消勾選並提醒

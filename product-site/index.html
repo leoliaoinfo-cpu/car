@@ -23,8 +23,8 @@ a{color:inherit}
 h1,h2,p,.tip,footer,.shop span,figcaption span{text-wrap:balance;line-break:strict;word-break:normal;overflow-wrap:break-word}
 
 /* ===== 換行規則：金額與單位、短標籤不拆開；中文整詞換行，真的放不下才硬切 ===== */
-.nw,.ipr,.sp,.cabcard strong,.cabcard span.dv,.veh-r,.chip,.box,.selc,#nav a,.cta a,.btn,.nextbtn,.rst,.vbar button,.sbtns button,#inqbar .ib-r,#inqbar .ib-r *,.steps li,.trust span,#call a,#call button,.cabcard b,.cabcard span,.inm em{white-space:nowrap}
-.inm,.inote,.sl,.sl b,.cabcard em,.cabcard strong small,figcaption span,.sh h2,.cfg .sub,.hello p,.shop span,.tip,.veh-s,.veh-m,.iwarn,#inqtot,#inqmo{word-break:keep-all;overflow-wrap:anywhere;line-break:strict;text-wrap:pretty}
+.nw,.ipr,.sp,.cabcard strong,.cabcard span.dv,.chip,.box,.selc,#nav a,.cta a,.btn,.nextbtn,.rst,.vbar button,.sbtns button,#inqbar .ib-r,#inqbar .ib-r *,.steps li,.trust span,#call a,#call button,.cabcard b,.cabcard span,.inm em{white-space:nowrap}
+.inm,.inote,.sl,.sl b,.cabcard em,.cabcard strong small,figcaption span,.sh h2,.cfg .sub,.hello p,.shop span,.tip,.veh-s,.veh-m,.veh-r,.iwarn,#inqtot,#inqmo{word-break:keep-all;overflow-wrap:anywhere;line-break:strict;text-wrap:pretty}
 .cabcard em{text-wrap:balance}
 .cabcard strong{font-size:16px}
 .cabcard{padding:14px 2px}
@@ -124,7 +124,7 @@ figure.card figcaption i.selc.on{display:inline-block}
 /* ===== 選車型 ===== */
 #veh{padding:0 18px;grid-column:1/-1}
 .veh-card{position:relative;background:var(--gray);padding:20px 18px 22px;margin:4px 0 8px}
-.veh-h{font-size:20px;font-weight:700;padding-top:10px;border-top:3px solid var(--ink)}
+.veh-h{font-size:20px;font-weight:700;padding-top:10px;padding-right:84px;border-top:3px solid var(--ink)}.rst{top:20px!important}
 .veh-s{font-size:13.5px;color:var(--mute);margin:6px 0 14px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .chip{border:1px solid #aab1b8;background:#fff;color:var(--ink);font-size:15px;font-weight:600;padding:10px 16px;font-family:inherit}
@@ -140,6 +140,7 @@ figure.card figcaption i.selc.on{display:inline-block}
 .cabcard.on span,.cabcard.on em,.cabcard.on span.dv{color:#b7c3cd}.cabcard.on strong{color:#fff}
 .veh-r{margin-top:14px;font-size:15.5px;font-weight:700}
 .veh-m{margin-top:4px;font-size:13.5px;font-weight:600;color:#44525e}
+.ownbtn{display:block;width:100%;margin:0 0 12px;border:1px dashed var(--ink);background:#fff;color:var(--ink);font-family:inherit;font-size:15px;font-weight:700;padding:13px 10px;text-align:center}.ownbtn.on{background:var(--ac);border-color:var(--ac);border-style:solid;color:#fff}
 .rst{position:absolute;right:14px;top:14px;border:1px solid #aab1b8;background:#fff;color:var(--mute);font-size:13px;font-weight:600;padding:5px 12px;font-family:inherit}
 .vbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:-6px 18px 16px;background:var(--gray);padding:10px 14px;font-size:14px;font-weight:600}
 .vbar button{border:0;background:var(--navy);color:#fff;font-weight:700;font-size:13.5px;padding:7px 14px;font-family:inherit}
