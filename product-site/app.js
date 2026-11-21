@@ -32,7 +32,7 @@
   ];
   // 併圖：副圖 → 主圖（副圖不另外開卡，放在主圖卡的下面一起介紹、一起勾選）
   var PAIR = { 'gps-app': 'gps' };
-  var CFG_SUB = { 'cfg-tailgate': '選尺寸，價格依尺寸計算；油壓缸與配件要先選升降尾門', 'cfg-canvas': '價格依你上面選的車廂顯示（還沒選就顯示最低價起）；高度寫在每個名稱裡', 'cfg-box': '鋁塑車廂是大單廂 9.7 尺規格（室內高 2.5／2.6 米二選一）；其他箱體依尺寸與規格另外報價' };
+  var CFG_SUB = { 'cfg-tailgate': '選尺寸，價格由業務報價；油壓缸與配件要先選升降尾門', 'cfg-canvas': '高度寫在每個名稱裡，價格由業務報價', 'cfg-box': '鋁塑車廂是大單廂 9.7 尺規格（室內高 2.5／2.6 米二選一）；價格都由業務依規格報價' };
   var KEY = 'kp-cfg';
   // 順序存在一個公開的 GitHub Gist（只放照片順序，不含任何系統資料）。
   // 第一次在後台按「儲存發佈」會自動建立，ID 填進下面這行後客戶端就會讀它。
@@ -100,6 +100,7 @@
           var mate = PAIR[k];
           if (mate && g.i.indexOf(mate) >= 0) return; // 這張已併到主圖的卡裡
           if (k.indexOf('cfg-') === 0) { // 選擇卡（沒有海報圖）：尾門／帆布／箱體
+            if (k === 'cfg-tailgate' && window.KPInq && KPInq.basement) list.appendChild(KPInq.basement());
             var cf = el('figure', 'card cfg'); var cc = el('figcaption'); cc.appendChild(el('span', '', IMGS[k])); cf.appendChild(cc);
             if (CFG_SUB[k]) cf.appendChild(el('p', 'sub', CFG_SUB[k]));
             if (window.KPInq) KPInq.attach(cf, k);

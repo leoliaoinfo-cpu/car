@@ -82,7 +82,7 @@
   add('gps', '4G GPS 車輛定位器（A18）', 9900, { note: '4G 網卡贈送 2 年，GPS 車機永久保固' });
 
   // ===== 尾門／帆布／車廂體（規格與價格取自業務系統的報價選單；不含任何成本）=====
-  add('tg-lift', '升降尾門', null, { keep: 1, optLabel: '尺寸', opts: ['2.5尺', '3尺', '3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '2.5尺': 37000, '3尺': 40000, '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '選尺寸後算價；再選下面的油壓缸與配件' });
+  add('tg-lift', '升降尾門', null, { keep: 1, optLabel: '尺寸', opts: ['2.5尺', '3尺', '3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '2.5尺': 37000, '3尺': 40000, '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '選尺寸；再選下面的油壓缸與配件' });
   add('tg-fold', '雙折尾門', null, { keep: 1, optLabel: '尺寸', opts: ['3.5尺', '4尺', '4.5尺', '5尺', '5.5尺', '6尺特規'], optPrice: { '3.5尺': 40000, '4尺': 43000, '4.5尺': 43000, '5尺': 48000, '5.5尺': 48000, '6尺特規': null }, note: '單折／雙折同尺寸同價；實際承重與施工規格需確認' });
   add('tg-cyl2', '雙缸油壓缸（800～1,000kg）', 8000, { req: ['tg-lift'], note: '搭配升降尾門；實際承重依車型、平台與施工內容確認' });
   add('tg-cyl4', '四缸油壓缸（約1,200kg 特製規格）', null, { req: ['tg-lift'], note: '需確認載重、平台尺寸與車體後報價' });
@@ -103,6 +103,11 @@
   add('bx-gull', '電動歐翼', null, { note: '依箱體尺寸、開啟方向、電動機構與施工規格報價' });
   add('bx-camper', '露營箱體', null, { note: '依箱體尺寸、內裝、水電配置與設備需求報價' });
 
+  // 尾門／帆布／箱體：價格會跟著廠商成本調整，網頁一律不放價格，只選規格，由業務報價
+  Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
+  function hasAsk() { return chosen().some(function (it) { return it.ask; }); }
+  var ASK_NOTE = '＊尾門・帆布・箱體由業務依規格另外報價，不含在合計內';
+  function basementText() { return S.basement === 'yes' ? '有' : S.basement === 'no' ? '沒有' : ''; }
   // 要選尺寸的項目（尾門）多一個「不確定，跟業務討論」，價格改成討論後報價
   var DISCUSS = '不確定，跟業務討論';
   Object.keys(I).forEach(function (k) { var it = I[k]; if (it.optPrice) { it.opts = it.opts.concat([DISCUSS]); } });
@@ -142,16 +147,16 @@
       : 'https://line.me/R/share?text=' + encodeURIComponent(txt);
   }
   var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
-  var S = { path: '', own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
+  var S = { path: '', own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '', basement: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
-  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.path = old.path === 'buy' || old.path === 'own' ? old.path : ''; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
+  try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.path = old.path === 'buy' || old.path === 'own' ? old.path : ''; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.basement = old.basement === 'yes' || old.basement === 'no' ? old.basement : ''; S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
-    var any = S.cab || S.drive || chosen().length || S.name || S.phone || S.note || hadSaved;
+    var any = S.cab || S.drive || S.basement || chosen().length || S.name || S.phone || S.note || hadSaved;
     if (any && !confirm('全部重置？選的車型、配件和已儲存的內容都會清掉。')) return;
-    S = { own: false, path: '', cab: '', drive: '', sel: {}, name: '', phone: '', note: '', pkgBackup: null }; hadSaved = false; promoDone = false;
+    S = { own: false, path: '', cab: '', drive: '', sel: {}, name: '', phone: '', note: '', basement: '', pkgBackup: null }; hadSaved = false; promoDone = false;
     try { localStorage.removeItem(KEY); } catch (e) {}
     refresh(); closeSheet(); toast('已重置，重新開始');
   }
@@ -281,7 +286,19 @@
     persist(); refresh();
   }
 
+  function basementBox() {
+    var f = el('figure', 'card cfg'); var cc = el('figcaption'); cc.appendChild(el('span', '', '是否有下地下室的需求？')); f.appendChild(cc);
+    var w = el('div', 'bsm'); w.style.cssText = 'display:flex;gap:10px;padding:12px 14px 16px';
+    [['yes', '有'], ['no', '沒有']].forEach(function (o) {
+      var b = el('button', 'chip s', o[1]); b.type = 'button'; b.style.cssText = 'font-size:16px;padding:12px 30px'; b.setAttribute('data-b', o[0]); 
+      b.onclick = function () { S.basement = S.basement === o[0] ? '' : o[0]; persist(); refresh(); };
+      w.appendChild(b);
+    });
+    f.appendChild(w); return f;
+  }
+  function syncBasement() { Array.prototype.forEach.call(document.querySelectorAll('.bsm button'), function (b) { b.classList.toggle('on', S.basement === b.getAttribute('data-b')); }); }
   function syncRows() {
+    syncBasement();
     var rows = document.querySelectorAll('.irow');
     Array.prototype.forEach.call(rows, function (row) {
       var id = row.getAttribute('data-iid'), it = I[id], on = !!S.sel[id];
@@ -291,7 +308,7 @@
       row.querySelector('.itop').setAttribute('aria-checked', on ? 'true' : 'false');
       var p = priceOf(it), pr = row.querySelector('.ipr');
       if (it.byCab && !S.cab) pr.textContent = money(minKnown(it.byCab)) + ' 起';
-      else if (it.optPrice && typeof S.sel[id] !== 'string') pr.textContent = money(minKnown(it.optPrice)) + ' 起';
+      else if (it.optPrice && !it.ask && typeof S.sel[id] !== 'string') pr.textContent = money(minKnown(it.optPrice)) + ' 起';
       else pr.textContent = p ? money(p) : '價格請洽業務';
       pr.classList.toggle('ask', !p);
       var w = row.querySelector('.iwarn'), msg = fitWarn(it); w.textContent = msg.replace('⚠ ', '⛔ 不適用：'); w.style.display = msg ? 'block' : 'none';
@@ -388,6 +405,7 @@
     if (S.name.trim()) L.push('稱呼：' + S.name.trim());
     if (S.phone.trim()) L.push('電話：' + S.phone.trim());
     var vt = vehicleText(); L.push('車型：' + (vt || '還沒決定'));
+    if (basementText()) L.push('下地下室的需求：' + basementText());
     L.push('', '想詢價的配件：');
     chosen().forEach(function (it, i) {
       var p = priceOf(it);
@@ -401,6 +419,7 @@
     if (vp && t) L.push('車＋配件：' + money(vp + t));
     if (S.own) { if (t) L.push('付款方式：改裝需一次付清（不能貸款）'); }
     else if (vp) L.push('付款方式：全額貸款 84 期，月付約 ' + money(monthly(vp + t)) + '（概算，實際依銀行核貸為準）');
+    if (hasAsk()) L.push('', ASK_NOTE);
     if (S.note.trim()) L.push('', '備註：' + S.note.trim());
     L.push('', '＊價格依網頁標示，實際以現場報價為準');
     return L.join('\n');
@@ -418,6 +437,7 @@
       var hd = el('div', 'rh'); hd.appendChild(el('b', '', '詢價單'));
       var dt = new Date(); hd.appendChild(el('span', '', dt.getFullYear() + '/' + (dt.getMonth() + 1) + '/' + dt.getDate())); rc.appendChild(hd);
       rc.appendChild(el('div', 'rv', '車型：' + (vehicleText() || '還沒決定')));
+      if (basementText()) rc.appendChild(el('div', 'rv', '下地下室的需求：' + basementText()));
       var rl = el('div', 'rlist');
       its.forEach(function (it, idx) {
         var np = needsPick(it);
@@ -433,7 +453,7 @@
           left.appendChild(oc);
         }
         r.appendChild(left);
-        var pr = priceOf(it); r.appendChild(el('span', 'rp', pr ? money(pr) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : (it.optPrice ? '待選' + it.optLabel : '請報價')))));
+        var pr = priceOf(it); r.appendChild(el('span', 'rp', pr ? money(pr) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : (it.optPrice && !it.ask ? '待選' + it.optLabel : '請報價')))));
         rl.appendChild(r);
       });
       rc.appendChild(rl);
@@ -444,6 +464,7 @@
       var mm = vv ? monthly(vv + tt) : 0;
       if (mm) rc.appendChild(el('div', 'rm', '買車含改裝，全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
       else if (S.own && tt) rc.appendChild(el('div', 'rm', '只做改裝不能貸款，需一次付清'));
+      if (hasAsk()) rc.appendChild(el('div', 'rf', ASK_NOTE));
       rc.appendChild(el('div', 'rf', '＊價格依網頁標示，實際以現場報價為準'));
       list.appendChild(rc);
     }
@@ -487,7 +508,7 @@
       return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : '請報價')), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
-    var H = 210 + 56 + (S.phone.trim() ? 40 : 0);
+    var H = 210 + 56 + (S.phone.trim() ? 40 : 0) + (basementText() ? 40 : 0) + (hasAsk() ? 30 : 0);
     rows.forEach(function (r) { H += r.lines.length * 36 + 20 + (r.warn ? 28 : 0); });
     H += 40 + 70 + (vehPrice() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 90;
     c.width = W * 2; c.height = H * 2; g.scale(2, 2);
@@ -500,6 +521,7 @@
     if (S.name.trim()) { g.fillText('稱呼：' + S.name.trim(), pad, y); y += 40; }
     if (S.phone.trim()) { g.fillText('電話：' + S.phone.trim(), pad, y); y += 40; }
     var vt = vehicleText(); g.fillText('車型：' + (vt || '還沒決定'), pad, y); y += 30;
+    if (basementText()) { g.fillText('下地下室的需求：' + basementText(), pad, y + 10); y += 40; }
     g.strokeStyle = '#ebe0d0'; g.lineWidth = 2; g.beginPath(); g.moveTo(pad, y); g.lineTo(W - pad, y); g.stroke(); y += 40;
     rows.forEach(function (r, ri) {
       g.fillStyle = '#2f2a25'; g.font = '600 26px ' + FONT;
@@ -516,7 +538,8 @@
     if (t) line('配件合計', t, !vp);
     if (vp && t) line('車＋配件', vp + t, true);
     if (noteLines.length) { g.fillStyle = '#4b4137'; g.font = '24px ' + FONT; y += 6; noteLines.forEach(function (ln) { g.fillText(ln, pad, y); y += 34; }); y += 10; }
-    g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; g.fillText('＊價格依網頁標示，實際以現場報價為準', pad, y + 20);
+    g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; if (hasAsk()) { g.fillText(ASK_NOTE, pad, y + 20); y += 30; }
+    g.fillText('＊價格依網頁標示，實際以現場報價為準', pad, y + 20);
     return c;
   }
   function saveImage() {
@@ -557,5 +580,5 @@
     $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };
   }
 
-  window.KPInq = { showSum: showSum, attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
+  window.KPInq = { basement: basementBox, showSum: showSum, attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
 })();
