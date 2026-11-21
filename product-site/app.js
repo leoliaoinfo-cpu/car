@@ -10,7 +10,7 @@
     cabin1: '車室細節升級', guard: '防護收納配件', extlight: '外觀燈飾與警示', comfort: '車室舒適升級',
     peri1: '實用周邊升級', func: '車室機能配件', cabin2: '車室實用配件', peri2: '周邊機能配件',
     gps: '4G GPS 車輛定位器', 'gps-app': '智慧定位五大核心功能',
-    'cfg-tailgate': '尾門', 'cfg-canvas': '帆布', 'cfg-box': '車廂體（冷凍冷藏箱・電動歐翼・露營箱體）'
+    'cfg-tailgate': '尾門', 'cfg-canvas': '帆布', 'cfg-box': '車廂體（冷凍冷藏箱・電動歐翼・露營箱體）', 'cfg-body': '客製車體（H 架・導流板）', 'cfg-floor': '貨斗底板'
   };
   // 原圖尺寸（先佔好版面，載入時畫面不會跳動）
   var SIZE = {
@@ -23,7 +23,7 @@
   };
   var DEFAULT = [
     { t: '車型與套裝', i: ['price', 'equip', 'lights', 'package'] },
-    { t: '尾門・帆布・箱體', i: ['cfg-tailgate', 'cfg-canvas', 'cfg-box'] },
+    { t: '尾門・帆布・箱體', i: ['cfg-tailgate', 'cfg-canvas', 'cfg-box', 'cfg-body', 'cfg-floor'] },
     { t: '外觀與輪圈', i: ['paint', 'aero', 'wheel'] },
     { t: '底盤與金屬', i: ['chassis', 'metal', 'boss', 'dr', 'guard'] },
     { t: '配備與影音', i: ['android', 'audio', 'gps', 'gps-app'] },

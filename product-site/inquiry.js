@@ -88,13 +88,21 @@
   add('tg-cyl4', '四缸油壓缸（約1,200kg 特製規格）', null, { req: ['tg-lift'], note: '需確認載重、平台尺寸與車體後報價' });
   add('tg-step', '尾門腳踏', 1000, { req: ['tg-lift'], note: '升降尾門用輔助腳踏' });
   add('tg-remote', '尾門遙控', 2000, { req: ['tg-lift'], note: '升降尾門遙控操作' });
+  add('bd-air', '貨車導流板', null, { keep: 1 });
+  add('bd-h1', 'H架（一支）', null, { keep: 1 });
+  add('bd-h2', 'H架（兩支一組）', null, { keep: 1 });
+  add('fl-rub-full', '貨斗橡膠墊－全封', null, { keep: 1 });
+  add('fl-rub-bottom', '貨斗橡膠墊－只鋪底面', null, { keep: 1 });
+  add('fl-galv', '錏花板（鍍鋅鐵板）　台語：灰板（花紋的）', null, { keep: 1 });
+  add('fl-galv-flat', '錏花平板（鍍鋅鋼板）　台語：灰板（沒花紋的）', null, { keep: 1 });
+  add('fl-stainless', '貨斗白鐵底板', null, { keep: 1 });
   var CV = { '單廂': 0, '大單廂': 0, '雙廂': 0 };
   function cvp(a, b) { return { '單廂': a, '大單廂': a, '雙廂': b }; }
   add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
   add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
   add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
   add('cv-custom', '特殊訂製帆布', null, { note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
-  add('cv-lift', '升降帆布（卡旺單廂・特殊電動升降）', 130000, { fit: '單廂', note: '降低（平車頭）高 195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm，斗內高 150–240cm）' });
+  add('cv-lift', '升降帆布', 130000, { note: '參考規格（卡旺單廂）：降低（平車頭）高 195cm、升 80cm，斗內高 110–195cm；更高可再做（降 235cm、升 90cm，斗內高 150–240cm）' });
   add('bx-alu250', '鋁塑車廂　大單廂 9.7 尺　室內高 2.5 米', 81000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu260', '鋁塑車廂　大單廂 9.7 尺　室內高 2.6 米', 84000, { keep: 1, cab: '大單廂', grp: 'alu-h', note: '含鋁塑牆板、室內 LED 燈、後門雙開、副駕側單開門；不含尾門、截樑、監理站變更及其他特殊配備' });
   add('bx-alu-roof', '鋁塑車廂加購　特殊屋凸＋前凸', 33000, { keep: 1, cab: '大單廂', req: ['bx-alu250', 'bx-alu260'], reqLabel: '鋁塑車廂', note: '車頭上方前凸造型空間；實際尺寸與重量依施工確認（約增加 700kg，不一定）' });
@@ -104,7 +112,7 @@
   add('bx-camper', '露營箱體', null, { note: '依箱體尺寸、內裝、水電配置與設備需求報價' });
 
   // 尾門／帆布／箱體：價格會跟著廠商成本調整，網頁一律不放價格，只選規格，由業務報價
-  Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
+  Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0 || k.indexOf('bd-') === 0 || k.indexOf('fl-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
   function askCount() { return chosen().filter(function (it) { return it.ask; }).length; }
   function hasAsk() { return askCount() > 0; }
   function askNote() { return total() ? '＊另有 ' + askCount() + ' 項（尾門・帆布・箱體）由業務依規格報價，不含在上方合計內' : '＊尾門・帆布・箱體共 ' + askCount() + ' 項，價格由業務依規格報價'; }
@@ -135,6 +143,8 @@
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
     'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift'],
+    'cfg-body': ['bd-air', 'bd-h1', 'bd-h2'],
+    'cfg-floor': ['fl-rub-full', 'fl-rub-bottom', 'fl-galv', 'fl-galv-flat', 'fl-stainless'],
     'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
   };
 
@@ -259,7 +269,7 @@
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
-    if (withHead && S.cab && S.drive) { var nx = el('button', 'vnext', '下一步，挑配件 ›'); nx.type = 'button'; nx.onclick = function () { var g = $('groups'); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; card.appendChild(nx); }
+    if (withHead && S.cab && S.drive) { var nx = el('button', 'vnext', '下一步，挑配件 ›'); nx.type = 'button'; nx.onclick = function () { var v = $('veh'), t = (v && v.nextElementSibling) || $('groups'); if (t) window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 64, behavior: 'smooth' }); }; card.appendChild(nx); }
     if (withHead) box.appendChild(card);
   }
   function renderVeh() { var box = $('veh'); if (box) vehChips(box, true); }
