@@ -186,7 +186,8 @@
   var TAGS = { '單廂': '最經典 實用首選', '大單廂': '超大貨斗 工作效率更高', '雙廂': '載人載貨 兩用更彈性' };
   function minPrice(c) { var m = 0; Object.keys(VPRICE[c]).forEach(function (d) { var v = VPRICE[c][d]; if (!m || v < m) m = v; }); return m; }
   // 全額貸款 84 期概算月付（業務對客戶報價單用同一個概算，不顯示利率）
-  function monthly(amount) { if (!amount) return 0; var r = 0.045 / 12, n = 84; return Math.round(amount * r / (1 - Math.pow(1 + r, -n))); }
+  // 84 期月付概算：依貸款專案表 B（低利率）84 期的對照，每貸 1 萬約 141.34 元（50 萬＝7,067、100 萬＝14,134、140 萬＝19,788，成正比）；取到百位，當「大概金額」
+  function monthly(amount) { if (!amount) return 0; return Math.round(amount / 10000 * 141.34 / 100) * 100; }
   function total() { var t = 0; chosen().forEach(function (it) { var p = priceOf(it); if (p) t += p; }); return t; }
   function vehicleText() {
     if (S.own) return '我已有車，只想改裝' + (S.cab || S.drive ? '（' + [S.cab, dl(S.drive)].filter(Boolean).join('／') + '）' : '');
