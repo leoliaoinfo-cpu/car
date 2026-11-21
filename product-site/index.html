@@ -46,7 +46,7 @@ body.edit .topname{display:none}
 .paths button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:2px solid #fff;background:#fff;color:var(--navy);font-family:inherit;padding:16px 14px;white-space:nowrap}
 .paths button b{font-size:19px;font-weight:800}.paths button span{font-size:13px;color:#5b6b78;font-weight:600}
 .paths button.on{background:var(--ac);border-color:var(--ac);color:#fff}.paths button.on span{color:#ffd9de}
-#pathBuy{background:var(--ac)!important;border-color:var(--ac)!important;color:#fff!important}#pathBuy span{color:#ffd9de!important}#pathOwn{background:#f5a300!important;border-color:#f5a300!important;color:#111!important}#pathOwn span{color:#4a3500!important}.paths button.on{outline:3px solid #fff;outline-offset:2px}.trust{margin-top:16px}
+#pathBuy{background:var(--ac)!important;border-color:var(--ac)!important;color:#fff!important}#pathBuy span{color:#ffd9de!important}#pathOwn{background:#f5a300!important;border-color:#f5a300!important;color:#111!important}#pathOwn span{color:#4a3500!important}.paths button{position:relative;padding-right:34px!important}.paths button:after{content:"›";position:absolute;right:12px;top:50%;transform:translateY(-52%);font-size:30px;font-weight:700;line-height:1}.flow{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;font-weight:600;color:#e7edf2;white-space:nowrap}.flow i{font-style:normal;color:#6d8193}#veh{scroll-margin-top:64px}.paths button.on{outline:3px solid #fff;outline-offset:2px}.trust{margin-top:16px}
 .steps{display:flex;gap:8px 18px;list-style:none;margin:22px 0 0;padding:0;flex-wrap:wrap}
 .steps li{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#e7edf2}
 .steps b{width:22px;height:22px;border-radius:50%;background:var(--ac);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
@@ -373,11 +373,12 @@ GitHub 權杖（token）
   <div class="heroin">
     <div class="lbl">KIA 商用車彰化區總代理<span class="sep">｜</span><b>業務：冠銘</b></div>
     <h1>挑好你的卡旺 K2500<br>馬上知道總共多少</h1>
-    <div class="pathq">你想做什麼？</div>
+    <div class="pathq">從這裡開始 👇</div>
     <div class="paths">
       <button type="button" id="pathBuy"><b>我要買新車</b><span>選車型、算車價</span></button>
       <button type="button" id="pathOwn"><b>我已經有車</b><span>只想改裝</span></button>
     </div>
+    <div class="flow"><span>① 選車型</span><i>›</i><span>② 勾配件</span><i>›</i><span>③ 傳給業務</span></div>
     <div class="trust"><span>彰化所・員林所可看車</span><span>選購配備皆享保固</span></div>
   </div>
   <div class="herophoto"><img src="img/hero.webp" alt="卡旺 K2500 雙廂與單廂" width="1024" height="306"></div>
