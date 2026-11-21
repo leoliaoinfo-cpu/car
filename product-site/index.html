@@ -122,7 +122,7 @@ figure.card figcaption i.selc.on{display:inline-block}
 .iwarn{display:none;font-size:12.5px;color:#a85a00;font-weight:700;padding:0 14px 10px 56px}
 .iopts{display:none;flex-wrap:wrap;gap:6px;align-items:center;padding:0 14px 12px 56px;font-size:13px;color:var(--mute);font-weight:600}
 
-@media(max-width:719px){.items{padding-right:56px}}
+@media(max-width:719px){footer{padding-right:64px}.items{padding-right:56px}}
 /* ===== 選車型 ===== */
 #veh{padding:0 18px;grid-column:1/-1}
 .veh-card{position:relative;background:var(--gray);padding:20px 18px 22px;margin:4px 0 8px}
@@ -171,6 +171,8 @@ figure.card figcaption i.selc.on{display:inline-block}
 
 /* ===== 頁尾 ===== */
 footer{background:var(--navy);color:#b7c3cd;text-align:left;font-size:13px;padding:36px 18px calc(44px + env(safe-area-inset-bottom));line-height:1.9}
+footer .fname{font-size:20px;font-weight:700;color:#fff;margin-top:2px}
+footer .ftel{display:inline-block;margin:4px 0 8px;color:#fff;font-size:20px;font-weight:700;text-decoration:none;white-space:nowrap}
 footer b{display:block;color:#fff;font-size:18px;letter-spacing:.08em;margin-bottom:6px}
 
 /* ===== 右下角懸浮按鈕（打電話／LINE／回頂部）===== */
@@ -365,7 +367,7 @@ GitHub 權杖（token）
 </div>
 </section>
 </main>
-<footer><b>KIA 卡旺 K2500</b>俊宇車業有限公司　KIA 商用車彰化區總代理<br>彰化所：彰化市線東路一段478號　員林所：員林市莒光路524號<br>圖片為原廠與配件廠行銷資料，實際內容以現場說明為準</footer>
+<footer><b>KIA 卡旺 K2500</b><div class="fname">冠銘專用</div><a class="ftel" href="tel:0979670565">📞 0979-670-565</a><br>俊宇車業有限公司　KIA 商用車彰化區總代理<br>彰化所：彰化市線東路一段478號　員林所：員林市莒光路524號<br>圖片為原廠與配件廠行銷資料，實際內容以現場說明為準</footer>
 
 <div id="call"><a href="tel:0979670565"><span>📞</span>電話</a><a class="l" href="https://line.me/ti/p/Mrn4VCwGTv" target="_blank" rel="noopener"><span>💬</span>LINE</a><button id="totop" type="button"><span>↑</span>回頂部</button></div>
 <button id="inqbar" type="button"><span class="ib-l"><span>🧾 我的詢價單 <b id="inqn"></b></span><small id="inqv"></small></span><span class="ib-r"><b>看詢價單 ›</b><span id="inqt"></span></span></button>
