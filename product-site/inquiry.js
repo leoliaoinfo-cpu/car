@@ -286,8 +286,9 @@
     var ids = BY_IMG[imgKey]; if (!ids) return;
     var wrap = el('div', 'items');
     wrap.appendChild(el('div', 'items-h', '想詢價就勾起來 👇'));
+    var host = wrap, bn = 0; // 有小標的項目會開一個彩色區塊，後面的列都放進同一區塊
     ids.forEach(function (id) {
-      var it = I[id]; if (it.head) wrap.appendChild(el('div', 'items-sub', it.head));
+      var it = I[id]; if (it.head) { host = el('div', 'blk b' + (bn++ % 3)); host.appendChild(el('div', 'items-sub', it.head)); wrap.appendChild(host); }
       var row = el('div', 'irow'); row.setAttribute('data-iid', id);
       var top = el('button', 'itop'); top.type = 'button';
       top.appendChild(el('span', 'box', '✓'));
@@ -313,7 +314,7 @@
       if (id === 'pkg-dbl') {
         var rr = el('div', 'irest'); var rb2 = el('button', '', '↩ 改回我原本選的配件'); rb2.type = 'button'; rb2.onclick = restorePkg; rr.appendChild(rb2); row.appendChild(rr);
       }
-      wrap.appendChild(row);
+      host.appendChild(row);
     });
     fig.appendChild(wrap);
     var cap = fig.querySelector('figcaption'); if (cap) cap.appendChild(el('i', 'selc', ''));
