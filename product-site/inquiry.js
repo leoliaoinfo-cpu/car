@@ -201,7 +201,7 @@
     if (withHead) {
       var cg = el('div', 'cabs'); CABS.forEach(function (c) {
         var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); st.appendChild(document.createTextNode((dv || minPrice(c)) + ' 萬')); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
+        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c])); b.appendChild(el('em', '', TAGS[c])); var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? S.drive : (Object.keys(VPRICE[c])[0] || '')));
         cg.appendChild(b);
       }); card.appendChild(cg);
     } else {

@@ -22,6 +22,13 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","
 a{color:inherit}
 h1,h2,p,.tip,footer,.shop span,figcaption span{text-wrap:balance;line-break:strict;word-break:normal;overflow-wrap:break-word}
 
+/* ===== 換行規則：金額與單位、短標籤不拆開；中文整詞換行，真的放不下才硬切 ===== */
+.nw,.ipr,.sp,.cabcard strong,.cabcard span.dv,.veh-r,.chip,.box,.selc,#nav a,.cta a,.btn,.nextbtn,.rst,.vbar button,.sbtns button,#inqbar .ib-r,#inqbar .ib-r *,.steps li,.trust span,#call a,#call button,.cabcard b,.cabcard span,.inm em{white-space:nowrap}
+.inm,.inote,.sl,.sl b,.cabcard em,.cabcard strong small,figcaption span,.sh h2,.cfg .sub,.hello p,.shop span,.tip,.veh-s,.veh-m,.iwarn,#inqtot,#inqmo{word-break:keep-all;overflow-wrap:anywhere;line-break:strict;text-wrap:pretty}
+.cabcard em{text-wrap:balance}
+.cabcard strong{font-size:16px}
+.cabcard{padding:14px 2px}
+
 /* ===== 首屏：深藍黑底＋車輛照片 ===== */
 .hero{background:var(--navy);color:#fff;position:relative}
 .heroin{max-width:1180px;margin:0 auto;padding:calc(26px + env(safe-area-inset-top)) 18px 26px}
