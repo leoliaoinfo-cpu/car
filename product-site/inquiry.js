@@ -392,22 +392,39 @@
     var list = $('inqlist'); list.innerHTML = '';
     var its = chosen();
     if (S.pkgBackup && S.sel['pkg-dbl']) { var bn = el('div', 'pkgnote'); bn.appendChild(el('span', '', '已換成雙廂高階套裝')); var bb = el('button', '', '↩ 改回我原本選的'); bb.type = 'button'; bb.onclick = restorePkg; bn.appendChild(bb); list.appendChild(bn); }
-    its.forEach(function (it) {
-      var np = needsPick(it);
-      var r = el('div', 'srow' + (np ? ' todo' : ''));
-      var left = el('div', 'sl'); left.appendChild(el('b', '', plain(it) + (np ? '' : optText(it))));
-      if (np) left.appendChild(el('small', 'need', '👉 請選' + it.optLabel + '，才算得出價錢'));
-      var w = fitWarn(it); if (w) left.appendChild(el('small', 'warn', w));
-      if (it.opts) {
-        var oc = el('div', 'sopts');
-        it.opts.forEach(function (o) { var b = el('button', 'chip s' + (S.sel[it.id] === o ? ' on' : ''), o); b.type = 'button'; b.onclick = function () { S.sel[it.id] = o; persist(); refresh(); }; oc.appendChild(b); });
-        left.appendChild(oc);
-      }
-      r.appendChild(left);
-      var p = priceOf(it); r.appendChild(el('span', 'sp', p ? money(p) : (it.byCab ? '依車廂' : (it.optPrice ? '待選' + it.optLabel : '請報價'))));
-      var x = el('button', 'sx', '移除'); x.type = 'button'; x.setAttribute('aria-label', '移除這一項'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); if (!chosen().length) closeSheet(); };
-      r.appendChild(x); list.appendChild(r);
-    });
+    if (its.length) {
+      var rc = el('div', 'rcpt');
+      var hd = el('div', 'rh'); hd.appendChild(el('b', '', '詢價單'));
+      var dt = new Date(); hd.appendChild(el('span', '', dt.getFullYear() + '/' + (dt.getMonth() + 1) + '/' + dt.getDate())); rc.appendChild(hd);
+      rc.appendChild(el('div', 'rv', '車型：' + (vehicleText() || '還沒決定')));
+      var rl = el('div', 'rlist');
+      its.forEach(function (it, idx) {
+        var np = needsPick(it);
+        var r = el('div', 'rrow' + (np ? ' todo' : ''));
+        var left = el('div', 'rl'); left.appendChild(el('span', 'rn', (idx + 1) + '. ')); left.appendChild(document.createTextNode(plain(it) + (np ? '' : optText(it))));
+        var x = el('button', 'rx', '移除'); x.type = 'button'; x.setAttribute('aria-label', '移除這一項'); x.onclick = function () { delete S.sel[it.id]; persist(); refresh(); };
+        left.appendChild(x);
+        if (np) left.appendChild(el('small', 'need', '👉 請選' + it.optLabel + '，才算得出價錢'));
+        var w = fitWarn(it); if (w) left.appendChild(el('small', 'warn', w));
+        if (it.opts) {
+          var oc = el('div', 'sopts');
+          it.opts.forEach(function (o) { var bt = el('button', 'chip s' + (S.sel[it.id] === o ? ' on' : ''), o); bt.type = 'button'; bt.onclick = function () { S.sel[it.id] = o; persist(); refresh(); }; oc.appendChild(bt); });
+          left.appendChild(oc);
+        }
+        r.appendChild(left);
+        var pr = priceOf(it); r.appendChild(el('span', 'rp', pr ? money(pr) : (it.byCab ? '依車廂' : (it.optPrice ? '待選' + it.optLabel : '請報價'))));
+        rl.appendChild(r);
+      });
+      rc.appendChild(rl);
+      var tt = total(), vv = vehPrice(), ft = el('div', 'rt');
+      function tr(lb, v, big) { var d = el('div', big ? 'big' : ''); d.appendChild(el('span', '', lb)); d.appendChild(el('b', '', money(v))); ft.appendChild(d); }
+      if (vv) tr('車價', vv); if (tt) tr('配件合計', tt); if (vv && tt) tr('車＋配件', vv + tt, true);
+      rc.appendChild(ft);
+      var mm = vv ? monthly(vv + tt) : 0;
+      if (mm) rc.appendChild(el('div', 'rm', '全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
+      rc.appendChild(el('div', 'rf', '＊價格依網頁標示，實際以現場報價為準'));
+      list.appendChild(rc);
+    }
     $('inqveh').textContent = ''; vehChips($('inqvehbox'), false);
     var t = total(), vp = vehPrice(); var h = '';
     if (vp) h += '車價 ' + money(vp) + '\n';
