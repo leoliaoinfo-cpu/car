@@ -250,6 +250,10 @@
   })();
   function buildGallery() {
     var box = $('gbody'); if (!box) return; box.innerHTML = '';
+    ['gpromoTop', 'gpromoBot'].forEach(function (id) {
+      var c = $(id); if (!c || !window.KPPromo) return; c.innerHTML = '';
+      var pm = el('div', 'rpromo'); pm.appendChild(el('b', '', KPPromo.a)); pm.appendChild(el('span', '', KPPromo.b)); c.appendChild(pm);
+    });
     var all = [];
     groups.forEach(function (g) { g.i.forEach(function (k) { if (k.indexOf('cfg-') !== 0 && IMGS[k]) all.push(k); }); });
     var si = 0;

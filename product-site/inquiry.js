@@ -120,6 +120,7 @@
   // 尾門／帆布／箱體：價格會跟著廠商成本調整，網頁一律不放價格，只選規格，由業務報價
   Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0 || k.indexOf('bd-') === 0 || k.indexOf('fl-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
   var PROMO1 = '《⚠️注意 這是原價》', PROMO2 = '超級優惠折扣，私訊冠銘才有';
+  window.KPPromo = { a: PROMO1, b: PROMO2 }; // 配備菜單頁也用同一組文字
   function askCount() { return chosen().filter(function (it) { return it.ask; }).length; }
   function hasAsk() { return askCount() > 0; }
   function askNote() { return total() ? '＊另有 ' + askCount() + ' 項待報價項目，由業務依規格報價，不含在上方合計內' : '＊待報價項目共 ' + askCount() + ' 項，價格由業務依規格報價'; }
