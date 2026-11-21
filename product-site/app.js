@@ -135,7 +135,7 @@
       sa.appendChild(el('i', '', pad(shown.length + 1))); sa.appendChild(document.createTextNode('我的詢價單'));
       sa.onclick = function (e) { e.preventDefault(); setTab('sum'); };
       nav.appendChild(sa);
-      var tc = el('a', 'tocover', '‹ 回封面'); tc.href = '#'; tc.onclick = function (e) { e.preventDefault(); setMode('cover'); }; nav.appendChild(tc);
+      var tc = el('a', 'tocover', '‹ 回首頁'); tc.href = '#'; tc.onclick = function (e) { e.preventDefault(); setMode('cover'); }; nav.appendChild(tc);
       var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
       setTab(active, true);
       observe();

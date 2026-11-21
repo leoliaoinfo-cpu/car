@@ -119,6 +119,7 @@
 
   // 尾門／帆布／箱體：價格會跟著廠商成本調整，網頁一律不放價格，只選規格，由業務報價
   Object.keys(I).forEach(function (k) { if (k.indexOf('tg-') === 0 || k.indexOf('cv-') === 0 || k.indexOf('bx-') === 0 || k.indexOf('bd-') === 0 || k.indexOf('fl-') === 0) { var it = I[k]; it.ask = true; it.p = null; delete it.byCab; if (it.optPrice) Object.keys(it.optPrice).forEach(function (o) { it.optPrice[o] = null; }); } });
+  var PROMO1 = '⚠️ 注意：以上為原價', PROMO2 = '傳給冠銘，了解專案優惠折扣';
   function askCount() { return chosen().filter(function (it) { return it.ask; }).length; }
   function hasAsk() { return askCount() > 0; }
   function askNote() { return total() ? '＊另有 ' + askCount() + ' 項待報價項目，由業務依規格報價，不含在上方合計內' : '＊待報價項目共 ' + askCount() + ' 項，價格由業務依規格報價'; }
@@ -501,6 +502,7 @@
       var mm = vv ? monthly(vv + tt) : 0;
       if (mm) rc.appendChild(el('div', 'rm', '買車含改裝，全額貸款 84 期，月付約 ' + money(mm) + '（概算，實際依銀行核貸為準）'));
       else if (S.own && tt) rc.appendChild(el('div', 'rm', '只做改裝不能貸款，需一次付清'));
+      if (vv || tt) { var pm = el('div', 'rpromo'); pm.appendChild(el('b', '', PROMO1)); pm.appendChild(el('span', '', PROMO2)); rc.appendChild(pm); }
       if (hasAsk()) rc.appendChild(el('div', 'rf', askNote()));
       rc.appendChild(el('div', 'rf', '＊實際價格以現場報價為準'));
       list.appendChild(rc);
@@ -545,9 +547,9 @@
       return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : '請報價')), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
-    var H = 210 + 56 + (S.phone.trim() ? 40 : 0) + (basementText() ? 40 : 0) + (hasAsk() ? 30 : 0);
+    var H = 210 + 56 + (S.phone.trim() ? 40 : 0) + (basementText() ? 40 : 0) + (hasAsk() ? 30 : 0) + ((vehPrice() || total()) ? 120 : 0);
     rows.forEach(function (r) { H += r.lines.length * 36 + 20 + (r.warn ? 28 : 0); });
-    H += 40 + 70 + (vehPrice() ? 44 : 0) + (total() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 90;
+    H += 40 + 70 + (vehPrice() ? 44 : 0) + (total() ? 44 : 0) + (vehPrice() && total() ? 44 : 0) + (noteLines.length ? noteLines.length * 34 + 30 : 0) + 40;
     c.width = W * 2; c.height = H * 2; g.scale(2, 2);
     g.fillStyle = '#fbf7f1'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#d9453b'; g.fillRect(0, 0, W, 10);
@@ -575,6 +577,11 @@
     var akI = hasAsk();
     if (t) line(akI ? '配件合計（不含待報價）' : '配件合計', t, !vp);
     if (vp && t) line(akI ? '車＋配件（不含待報價）' : '車＋配件', vp + t, true);
+    if (vp || t) {
+      y += 4; g.fillStyle = '#fff5f6'; g.fillRect(pad, y, W - pad * 2, 96); g.strokeStyle = '#d9453b'; g.lineWidth = 3; g.strokeRect(pad + 1.5, y + 1.5, W - pad * 2 - 3, 93);
+      g.fillStyle = '#d9453b'; g.font = '800 30px ' + FONT; g.fillText(PROMO1, pad + 20, y + 40);
+      g.fillStyle = '#2f2a25'; g.font = '700 25px ' + FONT; g.fillText(PROMO2, pad + 20, y + 76); y += 120;
+    }
     if (noteLines.length) { g.fillStyle = '#4b4137'; g.font = '24px ' + FONT; y += 6; noteLines.forEach(function (ln) { g.fillText(ln, pad, y); y += 34; }); y += 10; }
     g.fillStyle = '#7b6f63'; g.font = '21px ' + FONT; if (hasAsk()) { g.fillText(askNote(), pad, y + 20); y += 30; }
     g.fillText('＊實際價格以現場報價為準', pad, y + 20);
