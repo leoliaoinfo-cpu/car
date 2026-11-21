@@ -86,7 +86,7 @@
         sec.appendChild(grid);
         new Sortable(grid, { group: 'p', animation: 150, delay: 150, delayOnTouchOnly: true, ghostClass: 'sortable-ghost' });
       } else {
-        var a = el('a'); a.href = '#g' + gi; a.setAttribute('data-t', 'g' + gi); a.setAttribute('role', 'tab');
+        var a = el('a'); a.href = '#g' + gi; a.setAttribute('data-t', 'g' + gi); a.setAttribute('data-l', g.t); a.setAttribute('role', 'tab');
         a.appendChild(el('i', '', pad(si + 1))); a.appendChild(document.createTextNode(g.t));
         a.onclick = function (e) { e.preventDefault(); setTab('g' + gi); };
         nav.appendChild(a);
@@ -129,7 +129,7 @@
       root.appendChild(sec);
     });
     if (!edit) {
-      var c = el('a', '', '💬 聯絡看車'); c.className = 'contact'; c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.setAttribute('role', 'tab');
+      var c = el('a', '', '💬 聯絡看車'); c.className = 'contact'; c.href = '#contact'; c.setAttribute('data-t', 'contact'); c.setAttribute('data-l', '聯絡看車'); c.setAttribute('role', 'tab');
       c.onclick = function (e) { e.preventDefault(); setTab('contact'); };
       nav.appendChild(c);
       var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
@@ -145,14 +145,21 @@
     Array.prototype.forEach.call(document.querySelectorAll('.pane'), function (p) { p.classList.toggle('on', p.id === id); });
     Array.prototype.forEach.call(navEl.children, function (a) {
       var on = a.getAttribute('data-t') === id; a.classList.toggle('on', on); a.setAttribute('aria-selected', on ? 'true' : 'false');
-      if (on) navEl.scrollTo({ left: a.offsetLeft - (navEl.clientWidth - a.offsetWidth) / 2, behavior: keepScroll ? 'auto' : 'smooth' });
+      if (on && $('navcur')) $('navcur').textContent = a.getAttribute('data-l') || '';
     });
+    navEl.classList.remove('open'); if ($('navbtn')) $('navbtn').setAttribute('aria-expanded', 'false');
     if (!keepScroll) {
-      var top = document.querySelector('main').getBoundingClientRect().top + window.pageYOffset - $('nav').offsetHeight - 6;
+      var top = document.querySelector('main').getBoundingClientRect().top + window.pageYOffset - $('top').offsetHeight - 6;
       if (window.pageYOffset > top) window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
     }
     updCall();
   }
+  // 導覽列：手機點「分類 ⌄」展開選單；點別處收起
+  if ($('navbtn')) {
+    $('navbtn').onclick = function () { var o = $('nav').classList.toggle('open'); this.setAttribute('aria-expanded', o ? 'true' : 'false'); };
+    document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('#top')) { $('nav').classList.remove('open'); $('navbtn').setAttribute('aria-expanded', 'false'); } });
+  }
+  if ($('totop')) $('totop').onclick = function () { window.scrollTo({ top: 0, behavior: 'smooth' }); };
   // 左右滑動切換分類（手機）
   (function () {
     var x0 = null, y0 = 0;
