@@ -103,6 +103,10 @@
   add('bx-gull', '電動歐翼', null, { note: '依箱體尺寸、開啟方向、電動機構與施工規格報價' });
   add('bx-camper', '露營箱體', null, { note: '依箱體尺寸、內裝、水電配置與設備需求報價' });
 
+  // 要選尺寸的項目（尾門）多一個「不確定，跟業務討論」，價格改成討論後報價
+  var DISCUSS = '不確定，跟業務討論';
+  Object.keys(I).forEach(function (k) { var it = I[k]; if (it.optPrice) { it.opts = it.opts.concat([DISCUSS]); } });
+  function discussing(it) { return !!it.optPrice && S.sel[it.id] === DISCUSS; }
   // 圖片 → 項目（同一項目出現在多張圖時，勾選會同步）
   var BY_IMG = {
     equip: ['safe', 'special', 'wheelsw'],
@@ -193,7 +197,7 @@
   }
   // 詢價單只放品名：去掉結尾的說明括號（車廂別的烤漆除外）
   function plain(it) { return it.cab || it.keep ? it.n : it.n.replace(/（[^）]*）$/, ''); }
-  function optText(it) { var o = S.sel[it.id]; return o && o !== true ? '（' + o + '）' : (it.opts ? '（' + it.optLabel + '：還沒選）' : ''); }
+  function optText(it) { var o = S.sel[it.id]; return o && o !== true ? (it.optPrice && o === '不確定，跟業務討論' ? '（' + it.optLabel + '：還不確定，想跟業務討論）' : '（' + o + '）') : (it.opts ? '（' + it.optLabel + '：還沒選）' : ''); }
 
   // ===== 車型選擇面板 =====
   function chip(label, on, off, fn) {
@@ -372,7 +376,7 @@
     L.push('', '想詢價的配件：');
     chosen().forEach(function (it, i) {
       var p = priceOf(it);
-      L.push((i + 1) + '. ' + plain(it) + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : '（請報價）')));
+      L.push((i + 1) + '. ' + plain(it) + optText(it) + '　' + (p ? money(p) : (it.byCab ? '（價格依車廂，請報價）' : (discussing(it) ? '討論後報價' : '（請報價）'))));
       var w = fitWarn(it); if (w) L.push('　' + w);
     });
     var t = total(), vp = vehPrice();
@@ -412,7 +416,7 @@
           left.appendChild(oc);
         }
         r.appendChild(left);
-        var pr = priceOf(it); r.appendChild(el('span', 'rp', pr ? money(pr) : (it.byCab ? '依車廂' : (it.optPrice ? '待選' + it.optLabel : '請報價'))));
+        var pr = priceOf(it); r.appendChild(el('span', 'rp', pr ? money(pr) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : (it.optPrice ? '待選' + it.optLabel : '請報價')))));
         rl.appendChild(r);
       });
       rc.appendChild(rl);
@@ -462,7 +466,7 @@
     }
     var rows = its.map(function (it) {
       var p = priceOf(it);
-      return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : '請報價'), warn: fitWarn(it) };
+      return { lines: wrap(plain(it) + optText(it), '600 26px ' + FONT, W - pad * 2 - 190), price: p ? money(p) : (it.byCab ? '依車廂' : (discussing(it) ? '討論後報價' : '請報價')), warn: fitWarn(it) };
     });
     var noteLines = S.note.trim() ? wrap('備註：' + S.note.trim(), '24px ' + FONT, W - pad * 2) : [];
     var H = 210 + 56 + (S.phone.trim() ? 40 : 0);
