@@ -101,6 +101,7 @@
   add('cv-std', '三面帆布　標準高　斗上約 148cm', null, { keep: 1, grp: 'canvas', byCab: cvp(19500, 14500), note: '實際高度及二輪／四輪驅動適用性於施工前確認' });
   add('cv-low', '三面帆布　降低版　最低斗上約 130cm', null, { keep: 1, grp: 'canvas', byCab: cvp(20500, 15500), note: '平頂、不修改原有頭立；實際適用性於施工前確認' });
   add('cv-high', '三面帆布　加高 1 台尺　斗上約 178cm', null, { keep: 1, grp: 'canvas', byCab: cvp(23000, 18500), note: '標準高再增加約 30.3cm；實際完工高度於施工前確認' });
+  add('cv-five', '五面帆布', null, { keep: 1, grp: 'canvas', fit: '單廂' });
   add('cv-custom', '特殊訂製帆布', null, { grp: 'canvas', note: '特殊高度、材質、開門方式或施工內容，另向廠商詢價' });
   add('cv-lift', '升降帆布', null, { optLabel: '高度', opts: ['降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm', '更高版：降 235cm、升 90cm、斗內高 150–240cm'], optPrice: { '降低（平車頭）高 195cm、升 80cm、斗內高 110–195cm': null, '更高版：降 235cm、升 90cm、斗內高 150–240cm': null }, note: '規格（卡旺單廂）：共用尾門馬達（3尺）；帆布墨綠；後掀門；側邊單折鐵架（單截拚）；特殊電動升降（上可掀下可放）。更高版的旁邊鐵架與尾門空洞會變大' });
   add('cv-lift-color', '升降帆布選配　帆布換色', null, { req: ['cv-lift'], reqLabel: '升降帆布', optLabel: '顏色', opts: ['黑', '灰'] });
@@ -146,7 +147,7 @@
     peri2: ['charger2', 'opener', 'toolbox'],
     gps: ['gps'],
     'cfg-tailgate': ['tg-lift', 'tg-fold', 'tg-cyl2', 'tg-cyl4', 'tg-step', 'tg-remote'],
-    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-custom', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain', 'cv-lift-reg'],
+    'cfg-canvas': ['cv-std', 'cv-low', 'cv-high', 'cv-five', 'cv-custom', 'cv-lift', 'cv-lift-color', 'cv-lift-light', 'cv-lift-chain', 'cv-lift-reg'],
     'cfg-body': ['bd-air', 'bd-h1', 'bd-h2'],
     'cfg-floor': ['fl-rub-full', 'fl-rub-bottom', 'fl-galv', 'fl-galv-flat', 'fl-stainless'],
     'cfg-box': ['bx-alu250', 'bx-alu260', 'bx-alu-roof', 'bx-alu-door', 'bx-fridge', 'bx-gull', 'bx-camper']
