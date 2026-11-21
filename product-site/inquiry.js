@@ -152,6 +152,7 @@
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
   var hadSaved = false;
   try { var old = JSON.parse(localStorage.getItem(KEY)); hadSaved = !!old; if (old && typeof old === 'object') { S.own = !!old.own; S.path = old.path === 'buy' || old.path === 'own' ? old.path : ''; S.pkgBackup = old.pkgBackup && typeof old.pkgBackup === 'object' ? old.pkgBackup : null; S.cab = CABS.indexOf(old.cab) >= 0 ? old.cab : ''; S.drive = DRIVES.indexOf(old.drive) >= 0 ? old.drive : ''; S.sel = old.sel && typeof old.sel === 'object' ? old.sel : {}; S.name = String(old.name || ''); S.basement = old.basement === 'yes' || old.basement === 'no' ? old.basement : ''; S.phone = String(old.phone || ''); S.note = String(old.note || ''); } } catch (e) {}
+  if (!S.path && (S.own || S.cab || S.drive)) S.path = S.own ? 'own' : 'buy';
   function persist() {} // 改動不自動存（保留呼叫點，方便辨識）
   function saveState() { try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch (e) { return false; } }
   function resetAll() {
@@ -211,31 +212,50 @@
     var b = el('button', 'chip' + (on ? ' on' : '') + (off ? ' off' : ''), label); b.type = 'button';
     if (off) b.disabled = true; else b.onclick = fn; return b;
   }
+  function cabOk(c) { return !S.drive || !!(VPRICE[c] && VPRICE[c][S.drive]); }
+  function setPath(own) { S.own = own; S.path = own ? 'own' : 'buy'; }
   function vehChips(box, withHead) {
     box.innerHTML = '';
     var card = withHead ? el('div', 'veh-card') : box;
+    var pickDrive = function (d) { if (!S.path) setPath(S.own); S.drive = S.drive === d ? '' : d; if (S.cab && S.drive && !cabOk(S.cab)) S.cab = ''; persist(); refresh(); };
+    var pickCab = function (c) { if (!S.path) setPath(S.own); S.cab = S.cab === c ? '' : c; persist(); refresh(); };
+    if (withHead && !S.path) { // 還沒選「買車／只改裝」：先只問這一題
+      card.appendChild(el('div', 'veh-h', '你想做什麼？'));
+      var pg = el('div', 'paths pgate');
+      [[false, 'pg-buy', '我要買新車', '選車型、算車價'], [true, 'pg-own', '我已經有車', '只想改裝']].forEach(function (o) {
+        var gb = el('button', o[1]); gb.type = 'button'; gb.appendChild(el('b', '', o[2])); gb.appendChild(el('span', '', o[3]));
+        gb.onclick = function () { setPath(o[0]); refresh(); }; pg.appendChild(gb);
+      });
+      card.appendChild(pg); box.appendChild(card); return;
+    }
     if (withHead) {
-      card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（不確定可以跳過）' : '① 你想買哪一種車？（還沒決定可以跳過）'));
+      card.appendChild(el('div', 'veh-h', S.own ? '① 你的車是哪一種？（不確定可以跳過）' : '① 你想買哪一種車？'));
       if (S.own || S.cab || S.drive || chosen().length) { var rb = el('button', 'rst', '↺ 重置'); rb.type = 'button'; rb.onclick = resetAll; card.appendChild(rb); }
-      card.appendChild(el('div', 'veh-s', S.own ? '不用算車價。選了車廂和驅動，我會提醒哪些配件裝得上' : '選好車廂和驅動，馬上看到車價和月付；之後勾的配件也會一起算進去'));
-      var ob = el('button', 'ownbtn' + (S.own ? ' on' : ''), S.own ? '✓ 我已經有車，只想改裝（點這裡改回「要買車」）' : '🔧 我已經有車，只想改裝（不買新車）'); ob.type = 'button';
-      ob.onclick = function () { S.own = !S.own; S.path = S.own ? 'own' : 'buy'; refresh(); }; card.appendChild(ob);
+      var ch = el('button', 'pchg', (S.own ? '只想改裝' : '買新車') + ' ✎'); ch.type = 'button'; ch.onclick = function () { S.path = ''; S.own = false; refresh(); }; card.appendChild(ch);
     }
-    var pick = function (c) { S.cab = S.cab === c ? '' : c; if (S.cab && S.drive && !driveOk(S.drive)) S.drive = ''; persist(); refresh(); };
-    if (withHead) {
-      card.appendChild(el('div', 'veh-q', '先選：車廂種類'));
-      var cg = el('div', 'cabs'); CABS.forEach(function (c) {
-        var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '')); b.type = 'button'; b.onclick = function () { pick(c); };
-        b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c]));  var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0; if (S.own) { cg.appendChild(b); return; } var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); var nu = el('span', 'nw', (dv || minPrice(c)) + ' 萬'); st.appendChild(nu); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? dl(S.drive) : (Object.keys(VPRICE[c])[0] || '')));
-        cg.appendChild(b);
-      }); card.appendChild(cg);
-    } else {
-      var r1 = el('div', 'chips'); CABS.forEach(function (c) { r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, false, function () { pick(c); })); }); card.appendChild(r1);
-    }
-    card.appendChild(el('div', 'veh-q', '再選：車子怎麼開、幾個輪子有動力'));
+    var showCab = S.own || S.drive || S.cab;
+    var dq = el('div', 'veh-q', withHead ? '先選：車子怎麼開、幾個輪子有動力' : ''); if (withHead) card.appendChild(dq);
     var r2 = el('div', 'chips'); DRIVES.forEach(function (d) {
-      r2.appendChild(chip(dl(d), S.drive === d, !driveOk(d), function () { S.drive = S.drive === d ? '' : d; persist(); refresh(); }));
+      r2.appendChild(chip(dl(d), S.drive === d, false, function () { pickDrive(d); }));
     }); card.appendChild(r2);
+    if (withHead) {
+      if (showCab) {
+        card.appendChild(el('div', 'veh-q', '再選：車廂種類'));
+        var cg = el('div', 'cabs'); CABS.forEach(function (c) {
+          var ok = cabOk(c);
+          var b = el('button', 'cabcard' + (S.cab === c ? ' on' : '') + (ok ? '' : ' off')); b.type = 'button'; if (ok) b.onclick = function () { pickCab(c); }; else b.disabled = true;
+          b.appendChild(el('b', '', c)); b.appendChild(el('span', '', CAB_SUB[c]));
+          if (!S.own) {
+            var dv = S.drive && VPRICE[c][S.drive] ? VPRICE[c][S.drive] : 0;
+            if (ok) { var st = el('strong', '', ''); st.appendChild(el('small', '', '空車價')); st.appendChild(el('span', 'nw', (dv || minPrice(c)) + ' 萬')); b.appendChild(st); b.appendChild(el('span', 'dv', dv ? dl(S.drive) : (Object.keys(VPRICE[c])[0] ? dl(Object.keys(VPRICE[c])[0]) : ''))); }
+            else b.appendChild(el('span', 'dv', '這種驅動沒有'));
+          }
+          cg.appendChild(b);
+        }); card.appendChild(cg);
+      }
+    } else {
+      var r1 = el('div', 'chips'); CABS.forEach(function (c) { r1.appendChild(chip(c + ' ' + CAB_SUB[c], S.cab === c, !cabOk(c), function () { pickCab(c); })); }); card.appendChild(r1);
+    }
     var vt = vehicleText();
     if (withHead && vt) card.appendChild(el('div', 'veh-r', '你選的車：' + vt));
     if (withHead && vehPrice()) card.appendChild(el('div', 'veh-m', '全額貸款 84 期，月付約 ' + money(monthly(vehPrice())) + '（概算，實際依銀行核貸）'));
