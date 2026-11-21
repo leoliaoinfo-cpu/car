@@ -313,7 +313,7 @@
     syncVbars();
     Array.prototype.forEach.call(document.querySelectorAll('#nav a'), function (a) {
       var pane = document.getElementById(a.getAttribute('data-t')); if (!pane) return;
-      var n = pane.querySelectorAll('.irow.on').length, b = a.querySelector('.tc');
+      var n = a.getAttribute('data-t') === 'sum' ? chosen().length : pane.querySelectorAll('.irow.on').length, b = a.querySelector('.tc');
       if (!b) { b = el('b', 'tc', ''); a.appendChild(b); }
       b.textContent = n; b.classList.toggle('on', n > 0);
     });
@@ -362,7 +362,7 @@
     if (S.pkgBackup) Object.keys(S.pkgBackup).forEach(function (id) { S.sel[id] = S.pkgBackup[id]; });
     S.pkgBackup = null; promoDone = true; refresh(); toast('已改回你原本選的配件');
   }
-  function refresh() { prune(); checkPromo(); renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('inqsheet').style.display === 'flex') renderSheet(); }
+  function refresh() { prune(); checkPromo(); renderVeh(); syncRows(); syncCounts(); syncBar(); if ($('sum').classList.contains('on')) renderSheet(); }
 
   // ===== 詢價單視窗 =====
   function buildText() {
@@ -418,14 +418,16 @@
     var mo = vp ? monthly(vp + t) : 0; $('inqmo').textContent = mo ? '全額貸款 84 期，月付約 ' + money(mo) + '（概算，實際依銀行核貸為準）' : '';
     $('inqprev').style.display = 'none';
     var pk = $('inqpkg'); pk.style.display = pkgEligible() && !S.sel['pkg-dbl'] ? 'block' : 'none';
-    var pd = pending(), ok = pd.length === 0;
+    $('inqempty').style.display = its.length ? 'none' : 'block';
+    var pd = pending(), ok = pd.length === 0 && its.length > 0;
     $('inqwarn').style.display = ok ? 'none' : 'block';
     $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
     ['inqline', 'inqimg', 'inqcopy'].forEach(function (id) { $(id).disabled = !ok; });
-    $('inqline').textContent = ok ? '💬 傳詢價單給業務（LINE）' : '請先把橘色項目選完';
+    $('inqline').textContent = ok ? '💬 傳詢價單給業務（LINE）' : (its.length ? '請先把橘色項目選完' : '還沒選任何配件');
   }
-  function openSheet() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
-  function closeSheet() { $('inqsheet').style.display = 'none'; document.body.style.overflow = ''; }
+  function openSheet() { if (window.KPGotoTab) KPGotoTab('sum'); }
+  function closeSheet() {}
+  function showSum() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; renderSheet(); }
 
   function toast(m) { var t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 4000); }
   function copyText(txt, ok) {
@@ -497,9 +499,6 @@
   function init() {
     prune(); renderVeh(); syncRows(); syncCounts(); syncBar();
     $('inqbar').onclick = openSheet;
-    $('inqclose').onclick = closeSheet;
-    $('inqsheet').onclick = function (e) { if (e.target === this) closeSheet(); };
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('inqsheet').style.display === 'flex') closeSheet(); });
     function flash(btn, t) { var o = btn.getAttribute('data-o') || btn.textContent; btn.setAttribute('data-o', o); btn.textContent = t; clearTimeout(btn._h); btn._h = setTimeout(function () { btn.textContent = o; }, 2200); }
     $('promoNo').onclick = function () { $('promo').style.display = 'none'; };
     $('promoYes').onclick = takePkg;
@@ -525,5 +524,5 @@
     $('inqsave').onclick = function () { var b = this; if (saveState()) { hadSaved = true; flash(b, '✓ 已儲存'); toast('已儲存在這支手機，下次打開還在'); } else toast('這個瀏覽器無法儲存'); };
   }
 
-  window.KPInq = { attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
+  window.KPInq = { showSum: showSum, attach: attach, vbar: vbar, sync: function () { renderVeh(); syncRows(); syncCounts(); syncBar(); }, init: init, has: function (k) { return !!BY_IMG[k]; } };
 })();

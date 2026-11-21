@@ -122,15 +122,17 @@
         sec.appendChild(list);
         // 下一類：一路看下去，不用自己找
         var nextG = shown[si + 1];
-        if (nextG != null) {
-          var nb = el('button', 'nextbtn', '下一類：' + groups[nextG].t + '　›');
-          nb.type = 'button'; nb.onclick = function () { setTab('g' + nextG); };
-          sec.appendChild(nb);
-        }
+        var nb = el('button', 'nextbtn', nextG != null ? '下一類：' + groups[nextG].t + '　›' : '選完了 → 看我的詢價單　›');
+        nb.type = 'button'; nb.onclick = function () { setTab(nextG != null ? 'g' + nextG : 'sum'); };
+        sec.appendChild(nb);
       }
       root.appendChild(sec);
     });
     if (!edit) {
+      var sa = el('a'); sa.href = '#sum'; sa.setAttribute('data-t', 'sum'); sa.setAttribute('data-l', '我的詢價單'); sa.setAttribute('role', 'tab'); sa.className = 'sumtab';
+      sa.appendChild(el('i', '', pad(shown.length + 1))); sa.appendChild(document.createTextNode('我的詢價單'));
+      sa.onclick = function (e) { e.preventDefault(); setTab('sum'); };
+      nav.appendChild(sa);
       var ids = tabIds(); if (ids.indexOf(active) < 0) active = ids[0] || '';
       setTab(active, true);
       observe();
@@ -151,6 +153,8 @@
       var top = document.querySelector('main').getBoundingClientRect().top + window.pageYOffset - $('top').offsetHeight - 6;
       if (window.pageYOffset > top) window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
     }
+    document.body.classList.toggle('on-sum', id === 'sum');
+    if (id === 'sum' && window.KPInq) KPInq.showSum();
     updCall();
   }
   // 導覽列：手機點「分類 ⌄」展開選單；點別處收起
@@ -164,7 +168,7 @@
     var x0 = null, y0 = 0;
     document.addEventListener('touchstart', function (e) { var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; }, { passive: true });
     document.addEventListener('touchend', function (e) {
-      if (x0 == null || edit || $('lb').style.display === 'flex' || $('inqsheet').style.display === 'flex') { x0 = null; return; }
+      if (x0 == null || edit || $('lb').style.display === 'flex') { x0 = null; return; }
       var t = e.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
       if (Math.abs(dx) < 90 || Math.abs(dy) > 50 || Math.abs(dx) < Math.abs(dy) * 2.2) return;
       if (e.target.closest && e.target.closest('#nav, .iopts, input, textarea')) return;
@@ -221,6 +225,7 @@
   })();
 
   // 讓詢價單等處可以直接跳到某張產品圖（例：雙廂高階套裝）
+  window.KPGotoTab = function (id) { setTab(id); };
   window.KPGoto = function (imgKey) {
     var gi = -1; groups.forEach(function (g, i) { if (gi < 0 && g.i.indexOf(imgKey) >= 0) gi = i; });
     if (gi < 0) return;
