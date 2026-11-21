@@ -129,6 +129,14 @@
   };
 
   // ===== 狀態（只存在客人自己的手機）=====
+  // LINE：業務的加好友連結。若業務是「LINE 官方帳號」，把 @ID 填到 LINE_OA_ID，詢價單就能直接帶進與業務的聊天室（客人只要按送出）；
+  // 個人帳號沒有這種功能，只能打開 LINE「分享」畫面並帶入文字，客人再選業務按送出。
+  var LINE_ADD_URL = 'https://line.me/ti/p/Mrn4VCwGTv';
+  var LINE_OA_ID = '';
+  function lineSendUrl(txt) {
+    return LINE_OA_ID ? 'https://line.me/R/oaMessage/' + encodeURIComponent(LINE_OA_ID) + '/?' + encodeURIComponent(txt)
+      : 'https://line.me/R/share?text=' + encodeURIComponent(txt);
+  }
   var KEY = 'kp-inq-saved'; // 只有客人按「儲存」才寫入這支手機；平常重新整理就是全新的
   var S = { own: false, cab: '', drive: '', sel: {}, name: '', phone: '', note: '' };
   try { localStorage.removeItem('kp-inq'); sessionStorage.removeItem('kp-inq'); } catch (e) {} // 舊版自動記住的勾選清掉
@@ -414,9 +422,7 @@
     $('inqwarn').style.display = ok ? 'none' : 'block';
     $('inqwarn').textContent = ok ? '' : '還有 ' + pd.length + ' 項沒選完（橘色那幾項），選好才能傳給業務';
     ['inqline', 'inqimg', 'inqcopy'].forEach(function (id) { $(id).disabled = !ok; });
-    $('inqline').textContent = ok ? '💬 加業務 LINE' : '請先把橘色項目選完';
-    $('inqcopy').textContent = ok ? '📋 複製詢價單文字' : '請先把橘色項目選完';
-    $('inqcopied').style.display = 'none';
+    $('inqline').textContent = ok ? '💬 傳詢價單給業務（LINE）' : '請先把橘色項目選完';
   }
   function openSheet() { $('inqname').value = S.name; $('inqphone').value = S.phone; $('inqnote').value = S.note; $('inqsheet').style.display = 'flex'; document.body.style.overflow = 'hidden'; renderSheet(); }
   function closeSheet() { $('inqsheet').style.display = 'none'; document.body.style.overflow = ''; }
@@ -502,15 +508,17 @@
     $('inqname').oninput = function () { S.name = this.value; persist(); };
     $('inqphone').oninput = function () { S.phone = this.value; persist(); };
     $('inqnote').oninput = function () { S.note = this.value; persist(); };
-    $('inqcopy').onclick = function () {
-      var b = this; copyText(buildText(), function () { b.textContent = '✓ 已複製（要重複製可再按）'; $('inqcopied').style.display = 'block'; toast('已複製！接著按第 2 步「加業務 LINE」'); });
-    };
+    $('inqcopy').onclick = function () { copyText(buildText(), function () { toast('已複製文字'); }); };
+    // 按下去：先複製（保險），再打開 LINE 並把詢價單文字帶進對話框
     $('inqline').onclick = function () {
-      // 就算客人沒按第 1 步，這裡也會先複製一次，確保貼得到
-      var b = this; copyText(buildText(), function () {
-        $('inqcopied').style.display = 'block'; $('inqcopied').textContent = '✓ 內容已複製。到 LINE 對話框長按 →「貼上」→ 送出！';
-        toast('內容已複製！進到 LINE 後，長按對話框 →「貼上」→ 送出'); setTimeout(function () { window.open('https://line.me/ti/p/Mrn4VCwGTv', '_blank'); }, 700);
+      var txt = buildText();
+      copyText(txt, function () {
+        toast(LINE_OA_ID ? '打開 LINE 了，內容已放好，按送出就完成' : '打開 LINE 了，內容已放好，選「業務」再按送出');
+        setTimeout(function () { window.location.href = lineSendUrl(txt); }, 500);
       });
+    };
+    $('inqfriend').onclick = function () {
+      copyText(buildText(), function () { toast('已複製詢價單。加好友後，在對話框長按 →「貼上」→ 送出'); setTimeout(function () { window.open(LINE_ADD_URL, '_blank'); }, 600); });
     };
     $('inqimg').onclick = saveImage;
     $('inqreset').onclick = resetAll;
